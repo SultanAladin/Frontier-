@@ -55,7 +55,7 @@ public:
     void PickInstance(uint32_t Index) noexcept;                            // the test seam; the proof drives the pick
 
     // Selection operations are public because EditorHost and RenderScheduler expose the same editor seams to the
-    // runtime and to the headless proof harness. Row-click policy (plain/Ctrl/Shift) remains private in HandleRowClick.
+    // runtime and to the headless proof harness. Row-click policy (plain/Ctrl/Shift) remains private in IdentifierRowClick.
     [[nodiscard]] bool IsPicked(uint32_t Index) const noexcept;
     void TogglePick(uint32_t Index) noexcept;
     // Seats a whole pick at once (the host mirrors the document's selection here): the first row leads. Rows past
@@ -96,7 +96,7 @@ private:
     [[nodiscard]] uint32_t QuerySelectedFilterMask() const noexcept;
 
     void RemovePick(uint32_t Index) noexcept;
-    void HandleRowClick(uint32_t Index, uint32_t InstanceCount) noexcept;
+    void IdentifierRowClick(uint32_t Index, uint32_t InstanceCount) noexcept;
 
     // The reparent: lifts the row and everything under it, and seats the run before Target (Before) or as
     //    Target's last row (Into); Target == kNoEditorInstance seats it at the root's end. Refuses a cycle.

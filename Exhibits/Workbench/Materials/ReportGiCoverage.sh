@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
-# Roadmap #5 — WHERE the indirect pool's missing coverage goes, and why its M stays low.
+# Roadmap #5 — WHERE the indirect slots's missing coverage goes, and why its M stays low.
 #
 #    Not a gate: a report. #5 asks for indirect coverage 16 % → 100 %, and "100 %" hides four different problems of very
 #    different size. This script runs the mirror on the shipped ReSTIR config and prints the decomposition the mirror
-#    itself counts — the reasons a pixel gets no pool (escape / glass / emitter / degenerate / unlit), the pool's coverage
-#    and M against the DIRECT pool's, and the temporal half's attempts and successes, which is the number that says
+#    itself counts — the reasons a pixel gets no slots (escape / glass / emitter / degenerate / unlit), the slots's coverage
+#    and M against the DIRECT slots's, and the temporal half's attempts and successes, which is the number that says
 #    whether a low M means "broken merge" or "never asked". Report §14.5 is this table, with the numbers measured
 #    2026-09-18; re-running this reproduces them.
 #
@@ -21,7 +21,7 @@ trap 'rm -rf "$Work"' EXIT
 make -C "$Host" MaterialLevelViewport > "$Work/build.log" 2>&1 || {
     echo "[GiCoverage] the mirror did not build"; tail -15 "$Work/build.log" | sed 's/^/    /'; exit 1; }
 
-echo "[GiCoverage] indirect-pool coverage, ${Frames} frames per config, 4 candidates, 2 taps"
+echo "[GiCoverage] indirect-slots coverage, ${Frames} frames per config, 4 candidates, 2 taps"
 for Size in "240 135" "128 72"; do
     set -- $Size
     W=$1; H=$2
@@ -30,7 +30,7 @@ for Size in "240 135" "128 72"; do
 
     Surface=$(sed -n "s/^\[restir\] frame *$Frames: \([0-9]*\) surface pixels.*/\1/p" "$Work/$W.log" | tail -1)
     Direct=$(sed -n "s/^\[restir\] frame *$Frames:.*mean M \([0-9.]*\) (max M [0-9]*), shaded M \([0-9.]*\).*/\1 \2/p" "$Work/$W.log" | tail -1)
-    Gi=$(sed -n "s/^\[restir gi\] frame *$Frames: indirect pool on \([0-9.]*\)% of surface pixels, mean M \([0-9.]*\), shaded M \([0-9.]*\).*/\1 \2 \3/p" "$Work/$W.log" | tail -1)
+    Gi=$(sed -n "s/^\[restir gi\] frame *$Frames: indirect slots on \([0-9.]*\)% of surface pixels, mean M \([0-9.]*\), shaded M \([0-9.]*\).*/\1 \2 \3/p" "$Work/$W.log" | tail -1)
     Reasons=$(sed -n "s/^\[restir gi\] reasons: bad \([0-9]*\) escape \([0-9]*\) emitter \([0-9]*\) unlit \([0-9]*\) unusable \([0-9]*\) vertex \([0-9]*\).*/\1 \2 \3 \4 \5 \6/p" "$Work/$W.log" | tail -1)
     Temporal=$(sed -n "s/^\[restir gi\] temporal: tried \([0-9]*\), refused for a MISSING previous vertex record \([0-9]*\), merged \([0-9]*\).*/\1 \2 \3/p" "$Work/$W.log" | tail -1)
 
@@ -41,9 +41,9 @@ for Size in "240 135" "128 72"; do
 
     echo
     echo "  === ${W}x${H}, ${Surface} surface pixels/frame, ${Frames} frames ==="
-    echo "  pool coverage: ${Gi%% *}% of surface pixels"
-    echo "  indirect pool  mean M $(echo "$Gi" | cut -d' ' -f2), shaded M $(echo "$Gi" | cut -d' ' -f3)"
-    echo "  direct pool    mean M $(echo "$Direct" | cut -d' ' -f1), shaded M $(echo "$Direct" | cut -d' ' -f2)"
+    echo "  slots coverage: ${Gi%% *}% of surface pixels"
+    echo "  indirect slots  mean M $(echo "$Gi" | cut -d' ' -f2), shaded M $(echo "$Gi" | cut -d' ' -f3)"
+    echo "  direct slots    mean M $(echo "$Direct" | cut -d' ' -f1), shaded M $(echo "$Direct" | cut -d' ' -f2)"
     echo
     printf "  %-42s %9s %9s\n" "reason (per frame)" "pixels" "share"
     set -- $Reasons
@@ -62,6 +62,6 @@ done
 
 echo
 echo "[GiCoverage] The gap is the escape case: a primary BSDF sample that sees the sky makes no first-bounce vertex, and a"
-echo "             light-sample pool needs one to reconnect from. Fixing it is #5's replay + shift mapping, not a looser"
+echo "             light-sample slots needs one to reconnect from. Fixing it is #5's replay + shift mapping, not a looser"
 echo "             validation test — the reservoir must carry the vertex payload so the neighbour's vertex can be moved"
 echo "             onto the receiver. Report §14.5."

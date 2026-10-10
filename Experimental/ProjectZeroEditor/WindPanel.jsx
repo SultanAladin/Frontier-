@@ -129,7 +129,7 @@ export function WindCanvas({
           }
           const Length = Math.hypot(VX, VZ);
           if (Length < 0.01) continue;
-          // Reference-style fading flow strokes, evaluated through the composite field.
+          // Reference-style fading flow strokes, evaluated through the combined field.
           // Keep the existing blue/green/gold speed palette rather than the reference teal.
           const StrokeLength = 7 + Math.min(1, Length / 30) * 34;
           const Trail = [[X, Y]];
@@ -178,14 +178,14 @@ export function WindCanvas({
   }, []);
   return (
     <div className="wind-visual">
-      <canvas ref={Canvas} role="img" aria-label={Label} data-active={Active} />
+      <canvas ref={Canvas} role="img" aria-label={Label} record-active={Active} />
       <div className="wind-legend">
         <span>0 m/s</span>
         <i />
         <span>30+ m/s</span>
       </div>
       <small>
-        Fading flow lines · composite speed colours · 8× time · horizontal XZ
+        Fading flow lines · combined speed colours · 8× time · horizontal XZ
         slice
       </small>
     </div>
@@ -196,10 +196,10 @@ export function WindInspector({ Values, Change, Open, Hidden }) {
   const Field = ResolveWind(Values),
     [Playing, Play] = useState(true);
   return (
-    <section className="property-card wind-inspector" data-card="Wind field">
+    <section className="property-card wind-inspector" record-card="Wind field">
       <div className="wind-section-head">
         <div>
-          <span className="eyebrow">COMPOSITE FLOW</span>
+          <span className="eyebrow">COMBINED FLOW</span>
           <h2>Wind field</h2>
         </div>
         <button
@@ -267,7 +267,7 @@ export function WindBinding({
     Subject = Fields.find((Item) => Item.Id === Id),
     Following = Values["Follow Wind"] ?? true;
   return (
-    <section className="property-card wind-binding" data-card="Wind binding">
+    <section className="property-card wind-binding" record-card="Wind binding">
       <h3>Wind binding</h3>
       <label>
         Wind field
@@ -710,7 +710,7 @@ export default function WindEditor({
                   Update={Update}
                 />
                 <p>
-                  Drag numbered handles · arrow keys move 10 m · directional
+                  Drag numbered identifiers · arrow keys move 10 m · directional
                   flow is global.
                 </p>
               </section>

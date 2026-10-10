@@ -6,16 +6,16 @@
 //
 // Layout contract (mirrored in Shaders/SceneRecords.slang — change both or neither):
 //    VertexRecord     64 B  GeometryStructure.h   (pos.xyz pad | normal.xyz pad | tangent.xyzw | u v pad pad)
-//    InstanceRecord  160 B  World, PreviousWorld (column-major), mesh range, material, cluster range
+//    InstanceRecord  160 B  World, PreviousWorld (column-major), topology range, material, cluster range
 //    ClusterRecord    64 B  object-space bounding sphere + normal cone + triangle range   (cull unit, ≤ 128 triangles)
 //    LuminaireRecord  32 B  emissive triangle + Walker alias entry for O(1) light selection
 //    MaterialRecord   64 B  ContentInterchange/MaterialIndex.h (header) + MaterialSlabRecord 288 B per slab (R4a)
 //    TriangleIndex    64 B  SwapchainExchange.h — flattened world-space triangles addressed by the CWBVH primitive index
 //                           (R4a: carries per-vertex UVs for texture lookup; 🚧 R5 deletes it).
-//    PlacementRecord / CameraRecord / PunctualLuminaireRecord — CPU-only scene-graph rows (R4a, data only, no UI).
+//    PlacementRecord / CameraRecord / PunctualLuminaireRecord — CPU-only scene-graph rows (R4a, record only, no UI).
 //
 // Visibility identifier (GeometricRaster/VisibilityProjection.h): 18-bit instance token << 14 | 14-bit primitive token.
-//    A mesh with more than 8 192 fine triangles is split into several InstanceRecords sharing one transform, so the
+//    A topology with more than 8 192 fine triangles is split into several InstanceRecords sharing one transform, so the
 //    primitive token never overflows. 0xFFFFFFFF = nothing rasterised.
 
 #pragma once
@@ -49,13 +49,13 @@ struct InstanceRecord
     float    World[16];                 // [-]   object → world, column-major (Columns[c][r] flattened c*4+r)
     float    PreviousWorld[16];         // [-]   last frame's object → world (motion vectors)
     uint32_t VertexOffset;              // [idx] added to every index of this instance (vertexOffset of the draw)
-    uint32_t FirstIndex;                // [idx] first index in the shared index buffer
+    uint32_t FirstIndex;                // [idx] first index in the shared index store
     uint32_t TriangleCount;             // [cnt] triangles in this instance (≤ 8 192)
     uint32_t MaterialIndex;             // [idx] RadianceStructure slot
     uint32_t ClusterOffset;             // [idx] first ClusterRecord of this instance (clusters are contiguous per instance)
     uint32_t ClusterCount;              // [cnt]
     uint32_t Flags;                     // [bit] InstanceFlag
-    uint32_t FlatTriangleOffset;        // [idx] first TriangleIndex of this instance in the flattened buffer (🚧 R3 removes)
+    uint32_t FlatTriangleOffset;        // [idx] first TriangleIndex of this instance in the flattened store (🚧 R3 removes)
 };
 static_assert(sizeof(InstanceRecord) == 160u, "InstanceRecord must be 160 bytes (std430 mirror)");
 
@@ -70,7 +70,7 @@ struct ClusterRecord
     float    AxisX, AxisY, AxisZ;       // [-]   object-space normal-cone axis (unit)
     float    Cutoff;                    // [-]   meshoptimizer-style cone cutoff; 1.0 = never backface-culled
     uint32_t InstanceIndex;             // [idx] owning InstanceRecord
-    uint32_t FirstIndex;                // [idx] absolute first index in the shared index buffer
+    uint32_t FirstIndex;                // [idx] absolute first index in the shared index store
     uint32_t TriangleCount;             // [cnt] ≤ kClusterTriangleCapacity
     uint32_t FirstPrimitive;            // [idx] primitive token of the first triangle (within the instance)
     uint32_t CoarseFirstIndex = 0, CoarseTriangleCount = 0, CoarseFirstPrimitive = 0;
@@ -125,14 +125,14 @@ struct PlacementRecord
     uint32_t    Camera          = kPlacementNone;   // [idx] CameraRecord
     uint32_t    Luminaire       = kPlacementNone;   // [idx] PunctualLuminaireRecord
     bool        Dynamic         = false;            // [-] the object moves (--animate / physics drive it)
-    // Which base mesh built this placement, as an index into ConstructKind; kNoBaseMesh for anything that
+    // Which base topology built this placement, as an index into ConstructKind; kNoBaseGeometry for anything that
     //    was not constructed from one (an import, a camera, a luminaire). The shipped editor keeps the same
     //    fact on the outliner row's icon and reads the fracture primitive back off it. Authoring state only:
     //    glTF carries no such notion, so SceneCodec neither writes nor reads it.
-    uint8_t     BaseMesh        = 0xFFu;
+    uint8_t     BaseGeometry        = 0xFFu;
 };
 
-constexpr uint8_t kNoBaseMesh = 0xFFu;
+constexpr uint8_t kNoBaseGeometry = 0xFFu;
 
 struct CameraRecord
 {
@@ -194,18 +194,18 @@ public:
     SceneStructure& operator=(const SceneStructure&) = delete;
 
     // ── Shared topology ─────────────────────────────────────────────────────────────────────────────────────────
-    // Register a mesh ONCE and place it as many times as the level wants. Only what actually differs between two
+    // Register a topology ONCE and place it as many times as the level wants. Only what actually differs between two
     //    placements — the transform, the material, the flags — is stored per placement; the vertex span, the index
-    //    span and the per-cluster LOD bake are stored once and referenced by every instance of them.
+    //    span and the per-cluster LOD precompute are stored once and referenced by every instance of them.
     //
     //    What this costs, measured on the material grid: 400 placements of the 68 k-triangle shader ball used to
-    //    mean 400 Morton sorts, 400 copies of 34 623 vertices, and 400 × 531 PatchGeometry::LoadOrBake coarse
-    //    bakes — about 1.1 GB of vertex and index storage for one mesh in 400 positions. Shared, the topology is
+    //    mean 400 Morton sorts, 400 copies of 34 623 vertices, and 400 × 531 PatchGeometry::LoadOrPrecompute coarse
+    //    precomputes — about 1.1 GB of vertex and index storage for one topology in 400 positions. Shared, the topology is
     //    resident once (≈ 3.6 MB) and a placement appends only its InstanceRecords and ClusterRecords.
     //
     //    When a placement must NOT share: see ForkTopology. Material already varies per placement at no cost,
     //    because MaterialIndex lives on InstanceRecord, not on the topology.
-    [[nodiscard]] uint32_t  RegisterTopology(const GeometryStructure& Mesh) noexcept;
+    [[nodiscard]] uint32_t  RegisterTopology(const GeometryStructure& Hull) noexcept;
 
     // Place a registered topology. Returns the first InstanceRecord index, as RegisterInstance does.
     uint32_t                PlaceTopology(uint32_t Topology, const Matrix4x4& World, uint32_t MaterialIndex, uint32_t Flags) noexcept;
@@ -221,16 +221,16 @@ public:
     // Placements sharing each topology, for diagnostics and for the sharing proof.
     [[nodiscard]] uint32_t  QueryTopologyPlacements(uint32_t Topology) const noexcept
                             { return Topology < Topologies.size() ? Topologies[Topology].Placements : 0u; }
-    // InstanceRecords one placement of this topology emits — the ≤ 8 192-triangle split, so a 68 k-triangle mesh
+    // InstanceRecords one placement of this topology emits — the ≤ 8 192-triangle split, so a 68 k-triangle topology
     //    is 9 of them. A caller walking placements must step by this, not by one.
     [[nodiscard]] uint32_t  QueryTopologyPartitions(uint32_t Topology) const noexcept
                             { return Topology < Topologies.size() ? static_cast<uint32_t>(Topologies[Topology].Partitions.size()) : 0u; }
 
-    // Append one mesh (object space) under a world transform. The mesh is split into ≤ 8 192-triangle instances and
-    //    ≤ 128-triangle clusters; returns the first InstanceRecord index. Indices are into `Mesh`'s vertex span.
-    //    Equivalent to PlaceTopology(RegisterTopology(Mesh), ...): meshes with identical content share topology
-    //    automatically, so existing callers that register the same mesh repeatedly get the sharing for free.
-    uint32_t                RegisterInstance(const GeometryStructure& Mesh, const Matrix4x4& World, uint32_t MaterialIndex, uint32_t Flags) noexcept;
+    // Append one topology (object space) under a world transform. The topology is split into ≤ 8 192-triangle instances and
+    //    ≤ 128-triangle clusters; returns the first InstanceRecord index. Indices are into `Hull`'s vertex span.
+    //    Equivalent to PlaceTopology(RegisterTopology(Hull), ...): geometries with identical content share topology
+    //    automatically, so existing callers that register the same topology repeatedly get the sharing for free.
+    uint32_t                RegisterInstance(const GeometryStructure& Hull, const Matrix4x4& World, uint32_t MaterialIndex, uint32_t Flags) noexcept;
     uint32_t                RegisterMaterial(const MaterialDescriptor& Material) noexcept;
 
     // Scene graph rows (R4a). RegisterPlacement links the new row under `Ancestor` (appended as the last peer).
@@ -241,7 +241,7 @@ public:
     void                    AttachCamera(uint32_t Placement, uint32_t Camera) noexcept            { if (Placement < Placements.size() && Camera < Cameras.size()) Placements[Placement].Camera = Camera; }
     void                    AttachPunctualLuminaire(uint32_t Placement, uint32_t Luminaire) noexcept { if (Placement < Placements.size() && Luminaire < PunctualLuminaires.size()) Placements[Placement].Luminaire = Luminaire; }
     void                    AssignPlacementDynamic(uint32_t Placement, bool Dynamic) noexcept { if (Placement < Placements.size()) Placements[Placement].Dynamic = Dynamic; }
-    void                    AssignPlacementBaseMesh(uint32_t Placement, uint8_t Kind) noexcept { if (Placement < Placements.size()) Placements[Placement].BaseMesh = Kind; }
+    void                    AssignPlacementBaseGeometry(uint32_t Placement, uint8_t Kind) noexcept { if (Placement < Placements.size()) Placements[Placement].BaseGeometry = Kind; }
 
     // Finalise: flatten materials at `SlabLimit`, flatten world-space triangles, gather luminaires, build the alias
     //    table. `Report` receives the material fold lines.
@@ -282,16 +282,16 @@ public:
     [[nodiscard]] TargetType Convert() const noexcept;
 
 private:
-    static ClusterRecord    ConstructCluster(const VertexRecord* MeshVertices, const uint32_t* MeshIndices, uint32_t TriangleCount, bool DoubleSided) noexcept;
+    static ClusterRecord    ConstructCluster(const VertexRecord* GeometryVertices, const uint32_t* GeometryIndices, uint32_t TriangleCount, bool DoubleSided) noexcept;
 
     // One registered topology: the spans in Vertices / Indices that every placement of it shares, plus the cluster
     //    rows a placement copies and re-stamps. Built by RegisterTopology; never mutated afterwards.
     struct TopologyRecord
     {
-        uint64_t              ContentKey    = 0u;   // [-]   hash of the mesh's indices + positions; the sharing key
+        uint64_t              ContentKey    = 0u;   // [-]   hash of the topology's indices + positions; the sharing key
         uint32_t              VertexOffset  = 0u;   // [idx] first VertexRecord — the value every instance carries
         uint32_t              VertexCount   = 0u;   // [cnt]
-        uint32_t              TriangleCount = 0u;   // [cnt] fine triangles across the whole mesh
+        uint32_t              TriangleCount = 0u;   // [cnt] fine triangles across the whole topology
         uint32_t              Placements    = 0u;   // [cnt] instances currently sharing this topology
         // One entry per InstanceRecord a placement needs (the ≤ 8 192-triangle split), in order.
         struct Partition
@@ -315,7 +315,7 @@ private:
     //    the device has no use for the back-reference — only ForkTopology does.
     std::vector<uint32_t>          InstanceTopology;
 
-    [[nodiscard]] static uint64_t  TopologyKey(const GeometryStructure& Mesh) noexcept;
+    [[nodiscard]] static uint64_t  TopologyKey(const GeometryStructure& Hull) noexcept;
 
     std::vector<VertexRecord>      Vertices;
     std::vector<uint32_t>          Indices;

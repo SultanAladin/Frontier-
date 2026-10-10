@@ -5,8 +5,8 @@
 //    the panel's AVERAGE colour, so a reflection shows a flat glowing rectangle. This walks the actual figures at
 //    the hit's plane coordinate, so the reflection shows the panel's layout — buttons, needle, readout — instead.
 //
-//    Pure functions over a figure buffer the caller binds. No bindings are declared here, deliberately: the raster
-//    stage and the ray-tracing kernel bind the same data at different indices, and a header that hard-coded one
+//    Pure functions over a figure store the caller binds. No bindings are declared here, deliberately: the raster
+//    stage and the ray-tracing kernel bind the same record at different indices, and a header that hard-coded one
 //    would be unusable by the other. This is the same reason InterfaceSignedDistance.slang stays binding-free, and
 //    it is what the P0 plan meant by "the hit shader includes it unchanged".
 //
@@ -20,7 +20,7 @@
 // Requires, from the includer:
 //    Shaders/InterfaceRecords.slang        the InterfaceInstanceFigure layout
 //    Shaders/InterfaceSignedDistance.slang DistanceFigure / CoverageFromDistance
-//    a buffer named InterfacePanelFigures[] of InterfaceInstanceFigure
+//    a store named InterfacePanelFigures[] of InterfaceInstanceFigure
 
 //------------------------------------------------------------------------------------------------------------------------
 //                                                    PANEL SAMPLE
@@ -103,7 +103,7 @@ PanelSample SampleInterfacePanel(vec2 PanelUv, float PanelHalfWidth, float Panel
         vec3 Tint = InterfaceTintToLinear(Figure.Tint);
         float Weight = clamp(Figure.EmissiveWeight, 0.0, 1.0) * (Figure.ReserveBeta > 0.5 ? 0.0 : 1.0);
 
-        // Alpha-over, front-to-back is not available here (the buffer is submission order), so composite
+        // Alpha-over, front-to-back is not available here (the store is submission order), so combined
         //    straightforwardly: later figures sit on top, which matches the raster's own back-to-front submission.
         Result.Emission = mix(Result.Emission, Tint * Weight, Alpha);
         Result.Coverage = mix(Result.Coverage, 1.0, Alpha);

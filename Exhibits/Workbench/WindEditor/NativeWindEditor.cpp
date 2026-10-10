@@ -56,7 +56,7 @@ int main()
     // The field the dialog edits. ResolveWind seeds two components when nothing is saved, and Add() drops a
     //    new one at twelve per cent across and eight per cent up the slice.
     //---------------------------------------------------------------------------------------------------------
-    Kit::WindComposite Field = Kit::Resolve(7.0f, 250.0f, 0.25f);
+    Kit::WindCombined Field = Kit::Resolve(7.0f, 250.0f, 0.25f);
     Check(Field.Count == 2, "an unsaved field resolves to prevailing wind and a passing gust");
     Check(std::strcmp(Field.Parts[0].Name, "Prevailing wind") == 0
        && Field.Parts[0].Kind == Kit::WindKind::Directional && Near(Field.Parts[0].Strength, 7.0f)
@@ -136,7 +136,7 @@ int main()
         const float Tornado = PropertiesHeight(Light, MainRun, Field, 2);
         Check(Near(Tornado, 2 + PropsPad * 2 + 32 + 18 + 2 * LabelBlock + GridGap + 45.6f),
               "six tornado fields wrap to two rows under a 32 px head");
-        Kit::WindComposite Bare;
+        Kit::WindCombined Bare;
         Check(Near(PropertiesHeight(Light, MainRun, Bare, -1), 2 + PropsPad * 2 + LineBox(HeadingSize)),
               "with nothing selected the card is only its heading");
     }
@@ -152,7 +152,7 @@ int main()
         const float MapZ = (Field.Parts[2].Z / Field.Deep + 0.5f) * 400.0f;
         Check(Near(MapX, 372.0f) && Near(MapZ, 168.0f),
               "the tornado at 120 m, -80 m sits at 372, 168 in user space");
-        // CheckWind.mjs drags the handle to .36 / .62 of the map and expects -140 m and 120 m back.
+        // CheckWind.mjs drags the identifier to .36 / .62 of the map and expects -140 m and 120 m back.
         Check(Near((0.36f - 0.5f) * Field.Wide, -140.0f) && Near((0.62f - 0.5f) * Field.Deep, 120.0f),
               "a drag to .36, .62 of a 1000 m slice reads back -140 m and 120 m");
         Check(Near(52.0f + 0 * 34.0f, 52.0f) && Near(52.0f + 2 * 34.0f, 120.0f),
@@ -260,7 +260,7 @@ int main()
               "a hidden field shows the red footer dot");
     }
 
-    Kit::WindComposite Bare;
+    Kit::WindCombined Bare;
     Field = Bare;
     State.Selection = -1;
     State.Hidden = false;

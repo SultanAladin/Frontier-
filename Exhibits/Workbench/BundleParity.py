@@ -191,7 +191,7 @@ Port = Native('Engine/Editor/FractureCardSurface.h')
 Parity('fracture card', Fracture, Port, [
     ('PER-OBJECT GEOMETRY', 'PER-OBJECT GEOMETRY'),
     ('Enable fracture', 'Enable fracture'),
-    ('Bake SDF per piece', 'Bake SDF per piece'),
+    ('Precompute SDF per piece', 'Precompute SDF per piece'),
     ('Resolution per piece', 'Resolution per piece'),
     ('Generate fragments on demand.', 'Generate fragments on demand.'),
     ('Reuse stored geometry for this object.', 'Reuse stored geometry for this object.'),
@@ -268,11 +268,11 @@ for Needle, InNative in [
     Check(InNative in Port, f'notes CSS: the native port carries {InNative!r} for {Needle!r}')
 
 # ---------------------------------------------------------------------------------------------------
-# The base meshes. CheckerViewport.jsx draws an analytical marker per primitive, and Editor.jsx opens
+# The base geometries. CheckerViewport.jsx draws an analytical marker per primitive, and Editor.jsx opens
 #    with five of them. The primitive is derived from the icon, never from the label.
 # ---------------------------------------------------------------------------------------------------
 Checker = Region(Loose, 'HTML PREVIEW', 40000, 20000)
-Port = Native('Engine/Editor/BaseMeshSurface.h')
+Port = Native('Engine/Editor/BaseGeometrySurface.h')
 Parity('base meshes', Checker, Port, [
     ('HTML PREVIEW \u00b7 ANALYTICAL MARKERS', 'HTML PREVIEW \\xc2\\xb7 ANALYTICAL MARKERS'),
     ('m40 7 27 15v31L40 69 13 53V22Z', 'm40 7 27 15v31L40 69 13 53V22Z'),
@@ -336,7 +336,7 @@ Parity('fracture editor', EditorRaw, Port, [
     ('Needle rejection', 'Needle rejection'),
     ('Closed caps', 'Closed caps'),
     ('Quality-aware triangulation', 'Quality-aware triangulation'),
-    ('Bake SDF per piece', 'Bake SDF per piece'),
+    ('Precompute SDF per piece', 'Precompute SDF per piece'),
     ('Resolution per piece', 'Resolution per piece'),
     ('Geometry receipt', 'Geometry receipt'),
     ('Refused candidates', 'Refused candidates'),
@@ -350,7 +350,7 @@ Parity('fracture editor', EditorRaw, Port, [
     ('NATIVE PORT PENDING', 'NATIVE PORT PENDING'),
     # Refresh()'s derived text, and the specimen line art it swaps in.
     ('DISABLED', 'DISABLED'),
-    ('Bake is stale', 'Bake is stale'),
+    ('Precompute is stale', 'Precompute is stale'),
     ('Not baked', 'Not baked'),
     ('No stored fragment geometry', 'No stored fragment geometry'),
     ('m30 5 23 13v26L30 56 7 44V18Z', 'm30 5 23 13v26L30 56 7 44V18Z'),
@@ -404,7 +404,7 @@ for Needle, InNative in [
     Check(re.sub(r'\s+', '', Needle) in EditorSheet, f'fracture editor CSS: the bundle ships {Needle!r}')
     Check(InNative in Port, f'fracture editor CSS: the native port carries {InNative!r} for {Needle!r}')
 
-# The bake dot's three colours are assigned by Refresh(), not by the stylesheet.
+# The precompute dot's three colours are assigned by Refresh(), not by the stylesheet.
 for Needle, InNative in [
     ('#89a591', 'IM_COL32(137, 165, 145, 255)'),
     ('#aa795a', 'IM_COL32(170, 121,  90, 255)'),
@@ -472,6 +472,6 @@ Parity('collection types', Loose, Port, [
     ('Precipitation',   '"Precipitation"'),
 ])
 
-print(f'PASS {Checks} checks: the native cloud, cloud-deck, fracture, notes, base-mesh, '
+print(f'PASS {Checks} checks: the native cloud, cloud-deck, fracture, notes, base-topology, '
       f'fracture-editor, outliner-metadata and folder-inspector ports match the built bundles.')
 sys.exit(0)

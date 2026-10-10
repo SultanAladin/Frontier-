@@ -6,7 +6,7 @@
 //
 //    This header is the CPU statement of the block the shaders read. ShadowFrameConfiguration mirrors the
 //    `ShadowConstants` uniform in Engine/Shaders/ShadowRecords.slang byte for byte (std140) — change both sides or
-//    neither. Nothing Vulkan appears here; the handles live in the .cpp, as with VisibilityExchange.
+//    neither. Nothing Vulkan appears here; the identifiers live in the .cpp, as with VisibilityExchange.
 //
 // Frame order, when Global Illumination is OFF:
 //    Cull → visibility raster → HiZ → SurfaceResolve → [ShadowRaster × taps] → ShadowResolve → present.
@@ -73,9 +73,9 @@ struct ShadowFrameConfiguration
     //    the sun landed as a direct light (kSunLightIndex / PHatSun): outdoors it is the largest emitter present.
     //    The GI-off shadow stage did not, because PlaceShadowTaps only ever walked the emissive MESH triangles —
     //    so with GI off an outdoor scene rasterised lamp shadows and no sun shadow at all, and a scene whose only
-    //    light IS the sun (no emissive mesh) placed zero taps and skipped the stage entirely.
+    //    light IS the sun (no emissive topology) placed zero taps and skipped the stage entirely.
     //
-    //    The sun occupies tap slot 0 when enabled, and the mesh emitters fill the slots after it. It is flagged
+    //    The sun occupies tap slot 0 when enabled, and the topology emitters fill the slots after it. It is flagged
     //    directional: the resolve must not apply 1/d² or a point-light geometry term to a light at infinity.
     bool                 SunEnabled   = false;                       // [-]   the sun is above the horizon and lit
     float                SunDirection[3] = { 0.0f, 0.0f, 1.0f };     // [-]   unit vector pointing TOWARD the sun

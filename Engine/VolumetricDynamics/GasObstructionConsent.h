@@ -1,7 +1,7 @@
 //==============================================================================================================================================
 //                                                       GASOBSTRUCTIONCONSENT.H
 //==============================================================================================================================================
-// 📦 Which objects the gas must flow around, as data an artist edits rather than a list someone compiled in — and how a moving one pushes it.
+// 📦 Which objects the gas must flow around, as record an artist edits rather than a list someone compiled in — and how a moving one pushes it.
 //
 // GasCollisionIntake.h can already obstruct a field two ways: analytically from a primitive, or from whatever
 //    answers "how far to the nearest surface". What it does not say is WHICH objects do either, and that is
@@ -46,12 +46,12 @@ constexpr uint32_t kNoObstructingBody = 0xffffffffu;   // [-] - a consent nobody
 //
 //    | The object is                          | Level | Why                                                        |
 //    |----------------------------------------|-------|------------------------------------------------------------|
-//    | a cube, sphere, capsule, cylinder, ring| ①     | six signed distances, exact, no memory traffic, moves free  |
+//    | a cube, sphere, capsule, cylinder, ring| ①     | six signed distances, exact, no storage traffic, moves free  |
 //    | a vehicle, a rock, a fractured wall    | ②     | nothing analytic describes it; the raster already knows it  |
 //    | terrain                                | ②     | likewise, and it never moves, so the clipmap never restages |
 //
 //    AssignObstructionLevel() applies it from the one fact that decides it: whether a primitive was authored.
-//    An artist does not get a third choice, because the two wrong answers are both expensive — a mesh forced
+//    An artist does not get a third choice, because the two wrong answers are both expensive — a topology forced
 //    through level ① is a box that does not fit it, and a crate sent to level ② is 32768 clipmap samples to
 //    rediscover six planes.
 //
@@ -107,10 +107,10 @@ inline void AssignObstructionLevel(GasObstructionConsent& Consent, GasColliderSh
 /// in    Consent    [-]  the record, already routed
 /// in    Speed      [m/s]  how fast the object is moving, including any spin at its extremity
 /// out   bool       [-]  true for a level ② object that moves at all
-/// 🔴    THE COMPOSITED WORLD IS FOR THINGS THAT DO NOT MOVE. GlobalDistanceFieldSpace bakes placements into a
+/// 🔴    THE COMBINEDD WORLD IS FOR THINGS THAT DO NOT MOVE. GlobalDistanceFieldSpace precomputes placements into a
 ///       world volume and carries a translation and a scale and no rotation at all, so a car read out of it
 ///       is both stale and unturnable. GasSceneDistanceIntake.h reads a moving body by carrying the query
-///       into the body's own space instead — the field is baked once and never rebaked, rotation is free
+///       into the body's own space instead — the field is precomputed once and never rebaked, rotation is free
 ///       because it is the query that rotates, and a body at 30 m/s costs exactly what a parked one costs.
 /// note  the threshold is a twentieth of a voxel of travel per advance at the common 4 m domain: anything
 ///       that moves perceptibly at all is better read locally, and the only objects worth compositing are

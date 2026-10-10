@@ -16,7 +16,7 @@
 //    | Property          | Pressure readback                        | This contribution                     |
 //    |-------------------|------------------------------------------|---------------------------------------|
 //    | Moved per frame   | about 16 MB at 128 cubed                 | nothing — the reading is already here |
-//    | Pipeline          | a stall, or three images of staging      | none; CoarseGasField is on the CPU    |
+//    | Sequence          | a stall, or three images of staging      | none; CoarseGasField is on the CPU    |
 //    | Stability         | a gradient can add energy to a body      | drag is dissipative and cannot        |
 //    | Reproducible      | no, and that ends deterministic play     | yes, by CoarseGasField's construction |
 //    | New interface     | an entire coupling path                  | one contributor and one force term    |

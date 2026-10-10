@@ -26,7 +26,7 @@ public:
     double Reach     = 5.0;                                                             // [m] bounding-sphere radius of the last Fit
 
     // Depth planes follow the eye every frame rather than the last Fit, so dollying and orbiting never clip the fitted
-    //    scene and the depth buffer keeps its precision around it: in perspective the near plane sits just short of the
+    //    scene and the depth store keeps its precision around it: in perspective the near plane sits just short of the
     //    scene sphere or at 3 % of the eye distance, whichever is farther; both projections keep a generous far plane.
     [[nodiscard]] double NearDistance() const noexcept;                                 // [m]
     [[nodiscard]] double FarDistance() const noexcept;                                  // [m]

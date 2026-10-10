@@ -139,7 +139,7 @@ const char* ReadUnicodeClipboard(ImGuiContext*)
         ReceiveDiagnostic("Clipboard is busy. Try pasting again.");
         return ClipboardText;
     }
-    HANDLE Content = GetClipboardData(CF_UNICODETEXT);
+    HANDLE Content = GetClipboardPayload(CF_UNICODETEXT);
     const auto* Text = Content ? static_cast<const wchar_t*>(GlobalLock(Content)) : nullptr;
     bool Copied = false;
     if (Text)
@@ -187,7 +187,7 @@ bool LoadCredential()
         RememberCredential = true;
     }
     if (Saved->CredentialBlob)
-        SecureZeroMemory(Saved->CredentialBlob, Saved->CredentialBlobSize);
+        SecureZeroStorage(Saved->CredentialBlob, Saved->CredentialBlobSize);
     CredFree(Saved);
     return Valid;
 }
@@ -232,7 +232,7 @@ bool LoadPortableConfiguration()
     std::snprintf(ClientId, sizeof(ClientId), "%s", Settings.ClientId.c_str());
     std::snprintf(StorageKey, sizeof(StorageKey), "%s", Settings.StorageKey.c_str());
     Networking::WipeSettings(Settings);
-    ReceiveDiagnostic("Private portable configuration loaded. Keep that file private; it contains readable credentials and the data key.");
+    ReceiveDiagnostic("Private portable configuration loaded. Keep that file private; it contains readable credentials and the record key.");
     return true;
 }
 
@@ -322,7 +322,7 @@ void CopyDiagnostics()
         ReceiveDiagnostic("Clipboard unavailable. Click Copy log again.");
         return;
     }
-    const bool Copied = EmptyClipboard() && SetClipboardData(CF_UNICODETEXT, Storage);
+    const bool Copied = EmptyClipboard() && SetClipboardPayload(CF_UNICODETEXT, Storage);
     CloseClipboard();
     if (!Copied) GlobalFree(Storage); // Windows owns the allocation only after success.
     ReceiveDiagnostic(Copied ? "Redacted log copied. Paste it into your message." : "Could not copy the log. Try again.");
@@ -411,7 +411,7 @@ void PresentSetup()
     ImGui::TextColored(Muted, "%s", Networking::T("Premium is a manual switch for now. Xsolla will decide it later."));
     if (ImGui::CollapsingHeader(Networking::T("Advanced")))
     {
-        ImGui::TextWrapped("%s", Networking::T("Optional portable setup: put your private Charge.local.ini next to Charge.exe. It contains readable credentials; never share or upload it. Carry the same data key between PCs."));
+        ImGui::TextWrapped("%s", Networking::T("Optional portable setup: put your private Charge.local.ini next to Charge.exe. It contains readable credentials; never share or upload it. Carry the same record key between PCs."));
         ImGui::TextUnformatted(Networking::T("Cloud storage encryption key (64 hex characters)"));
         ImGui::SetNextItemWidth(-1);
         ImGui::InputText("##storage-key", StorageKey, sizeof(StorageKey), ImGuiInputTextFlags_Password | ImGuiInputTextFlags_NoUndoRedo | ImGuiInputTextFlags_AutoSelectAll);
@@ -621,7 +621,7 @@ void PresentLogin()
         ImGui::TextColored(Muted, "%s", Reading.Time);
         ImGui::SameLine();
         ImGui::TextColored(Tone, "%s", Reading.Severity == 3 ? "ERROR" : Reading.Severity == 2 ? "WARN" :
-            Reading.Severity == 1 ? "OK" : "INFO");
+            Reading.Severity == 1 ? "OK" : "DETAILS");
         ImGui::PushStyleColor(ImGuiCol_Text, Tone);
         ImGui::PushTextWrapPos(0);
         ImGui::TextUnformatted(Reading.Text);
@@ -905,7 +905,7 @@ int RunWindow(bool Smoke)
             if (!LobbyCaptured) Result = 3;
             glfwSetWindowShouldClose(Window, GLFW_TRUE);
         }
-        glfwSwapBuffers(Window);
+        glfwSwapStores(Window);
     }
     Networking::ShutdownEpic(ReceiveDiagnostic);
     WipeSecret();

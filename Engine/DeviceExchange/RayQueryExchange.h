@@ -27,8 +27,8 @@ public:
 private:
     struct Extent
     {
-        VkBuffer Buffer = VK_NULL_HANDLE;
-        VkDeviceMemory Memory = VK_NULL_HANDLE;
+        VkBuffer Block = VK_NULL_HANDLE;
+        VkDeviceMemory Store = VK_NULL_HANDLE;
         VkDeviceAddress Address = 0u;
         VkDeviceSize Bytes = 0u;
     };

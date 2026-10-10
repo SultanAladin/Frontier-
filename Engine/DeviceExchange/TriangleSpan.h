@@ -3,7 +3,7 @@
 //============================================================================================================================================
 // A TriangleSpanRecord marks one scene object's triangle range in the CPU builder's soup (first triangle +
 //    count + display name). It lived in SwapchainExchange.h, which requires the Vulkan SDK; it is a plain
-//    data record with no GPU dependency, so it moves here where both the GPU headers and the Vulkan-free CPU
+//    record record with no GPU dependency, so it moves here where both the GPU headers and the Vulkan-free CPU
 //    reference (TracingIndex.h) can share the single definition.
 
 #pragma once

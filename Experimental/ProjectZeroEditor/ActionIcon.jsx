@@ -7,7 +7,7 @@ export function QuickSymbol(Label, Context = "", Fallback = "visible") {
     Visible: "visible",
     "Star field": "stars",
     Twinkle: "twinkle",
-    Bake: "bake",
+    Precompute: "bake",
     "Use baked": "image",
     "Use baked image": "image",
     Sunlight: "sunlight",
@@ -323,7 +323,7 @@ export default function ActionIcon({ Name, Size = 24 }) {
   return (
     <svg
       className="action-icon"
-      data-action-icon={Name}
+      record-action-icon={Name}
       width={Size}
       height={Size}
       viewBox="0 0 24 24"

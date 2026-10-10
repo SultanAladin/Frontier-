@@ -2,7 +2,7 @@
 // 📦 Engine/Shaders/ShadowRaster.vert.slang — Shadow-map vertex stage: world → light clip
 //============================================================================================================================================
 // Depth-only pass, one draw per cluster exactly like VisibilityRaster.vert (gl_InstanceIndex == cluster index via
-//    firstInstance, gl_VertexIndex already absolute into the shared VertexRecord buffer). The only difference is the
+//    firstInstance, gl_VertexIndex already absolute into the shared VertexRecord store). The only difference is the
 //    matrix: LightClip instead of ViewClip, and no jitter — a jittered shadow map would shimmer under the filter.
 //
 // Depth convention: this pass writes ORDINARY depth (near → 0, far → 1) with LESS, not the primary pass's reverse-Z.
@@ -17,9 +17,9 @@
 
 layout(push_constant) uniform ShadowPush { uint ShadowTapIndex; };   // which tap this draw is filling
 
-layout(std430, set = 0, binding = 1) readonly buffer InstanceExtent { InstanceRecord Instances[]; };
-layout(std430, set = 0, binding = 2) readonly buffer ClusterExtent  { ClusterRecord  Clusters[];  };
-layout(std430, set = 0, binding = 3) readonly buffer VertexExtent   { VertexRecord   Vertices[];  };
+layout(std430, set = 0, binding = 1) readonly store InstanceExtent { InstanceRecord Instances[]; };
+layout(std430, set = 0, binding = 2) readonly store ClusterExtent  { ClusterRecord  Clusters[];  };
+layout(std430, set = 0, binding = 3) readonly store VertexExtent   { VertexRecord   Vertices[];  };
 
 layout(location = 0) flat out uint OutCluster;
 layout(location = 1)      out vec2 OutTexcoord;   // alpha-masked cut-outs must punch holes in the shadow too

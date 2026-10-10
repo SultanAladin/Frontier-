@@ -22,7 +22,7 @@ ThorVG selected for this proof: upstream **1.0.0**, `6715f99ac106b6d4587f384a78c
 
 ## Pixel representation and validation
 
-`IconArt` uses ThorVG `ABGR8888S`, explicitly extracts R/G/B/A bytes from each packed word, and returns tightly packed straight-alpha RGBA8, sRGB colour interpretation. Numeric fixtures verify red/blue ordering, half-alpha red remaining red=255 rather than 128, transparent margins, non-square aspect fitting, clipping, gradient direction and Gaussian blur. Display scale determines physical raster dimensions; no application zoom is baked into logical layout.
+`IconArt` uses ThorVG `ABGR8888S`, explicitly extracts R/G/B/A bytes from each packed word, and returns tightly packed straight-alpha RGBA8, sRGB colour interpretation. Numeric fixtures verify red/blue ordering, half-alpha red remaining red=255 rather than 128, transparent margins, non-square aspect fitting, clipping, gradient direction and Gaussian blur. Display scale determines physical raster dimensions; no application zoom is precomputed into logical layout.
 
 ## Dependency allocation correction
 

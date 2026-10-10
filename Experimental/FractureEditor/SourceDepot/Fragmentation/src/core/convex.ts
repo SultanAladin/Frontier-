@@ -1,7 +1,7 @@
 // Convex polyhedron with exact half-space clipping.
 // This is the workhorse: every crack is applied as a clip, so fragments are
 // guaranteed watertight, convex (great for physics) and gap-free by construction.
-import { BufferAttribute, BufferGeometry, Vector3 } from 'three';
+import { StoreAttribute, StoreGeometry, Vector3 } from 'three';
 
 export interface Plane { n: Vector3; d: number } // n·p = d, n unit
 export const plane = (n: Vector3, p: Vector3): Plane => ({ n: n.clone().normalize(), d: n.dot(p) / n.length() });
@@ -192,7 +192,7 @@ export function roughBlank(radius: number, cuts: number, rand: () => number, fla
   return p!;
 }
 
-/* ------------------------ mesh generation ------------------------ */
+/* ------------------------ topology generation ------------------------ */
 
 export interface SurfaceOpts {
   /** displacement amplitude of crack surfaces (metres) */
@@ -286,10 +286,10 @@ export function buildGeometry(piece: Piece, o: SurfaceOpts, origin = new Vector3
     }
   }
 
-  const g = new BufferGeometry();
-  g.setAttribute('position', new BufferAttribute(new Float32Array(pos), 3));
-  g.setAttribute('normal', new BufferAttribute(new Float32Array(nrm), 3));
-  g.setAttribute('uv', new BufferAttribute(new Float32Array(uv), 2));
+  const g = new StoreGeometry();
+  g.setAttribute('position', new StoreAttribute(new Float32Array(pos), 3));
+  g.setAttribute('normal', new StoreAttribute(new Float32Array(nrm), 3));
+  g.setAttribute('uv', new StoreAttribute(new Float32Array(uv), 2));
   g.setIndex([...ext, ...inn]);
   g.addGroup(0, ext.length, 0);
   g.addGroup(ext.length, inn.length, 1);

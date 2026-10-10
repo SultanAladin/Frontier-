@@ -39,7 +39,7 @@ async function Select(Name) {
   await Search.fill("");
   await Search.blur();
 }
-const Card = (Name) => Page.locator(`[data-card="${Name}"]`);
+const Card = (Name) => Page.locator(`[record-card="${Name}"]`);
 async function Drag(Graph, T) {
   await Graph.scrollIntoViewIfNeeded();
   const B = await Graph.boundingBox();
@@ -88,7 +88,7 @@ try {
   });
   await Drag(Day, 0.8);
   assert.ok((await Saved()).Values.sun["Local Hours"] > 17);
-  const DayPath = await Day.locator("[data-series]").getAttribute("d");
+  const DayPath = await Day.locator("[record-series]").getAttribute("d");
   await Page.getByRole("slider", {
     name: "Sun seasonal graph",
     exact: true,
@@ -97,7 +97,7 @@ try {
   assert.equal((await Saved()).Values.sun.Month, 1);
   assert.equal((await Saved()).Values.sun["Day of Month"], 1);
   assert.notEqual(
-    await Day.locator("[data-series]").getAttribute("d"),
+    await Day.locator("[record-series]").getAttribute("d"),
     DayPath,
   );
   await Card("Dynamic settings").scrollIntoViewIfNeeded();
@@ -113,7 +113,7 @@ try {
   );
   await Select("Atmosphere");
   assert.equal(await Card("Atmosphere atlas").count(), 1);
-  assert.equal(await Card("Baked atmosphere").count(), 1);
+  assert.equal(await Card("Precomputed atmosphere").count(), 1);
   await Page.getByRole("button", {
     name: "Expand AtmosphereLab",
     exact: true,
@@ -263,9 +263,9 @@ try {
     await Select(Name);
     assert.ok(
       await Page.locator(
-        ".property-graph,[data-live-plot],.wind-inspector",
+        ".property-graph,[record-live-plot],.wind-inspector",
       ).count(),
-      Name + " has interactive data",
+      Name + " has interactive record",
     );
   }
   await Select("Post Process");
@@ -276,7 +276,7 @@ try {
   assert.equal(await Page.locator(".property-graph").count(), 0);
   assert.equal(await Page.locator(".environment-live").count(), 0);
   Checks.push(
-    "Environment/camera/light/post cards expose actual data graphs; geometry and materials excluded",
+    "Environment/camera/light/post cards expose actual record graphs; geometry and materials excluded",
   );
 
   await Select("Atmospheric Fog");
@@ -286,13 +286,13 @@ try {
       name: "Aerial fog spectrum",
       exact: true,
     }),
-    SpectralBefore = await Spectrum.locator("[data-series]").getAttribute("d");
+    SpectralBefore = await Spectrum.locator("[record-series]").getAttribute("d");
   await Card("Medium")
     .getByRole("slider", { name: "Medium: Mie Blend chart", exact: true })
     .focus();
   await Page.keyboard.press("End");
   assert.notEqual(
-    await Spectrum.locator("[data-series]").getAttribute("d"),
+    await Spectrum.locator("[record-series]").getAttribute("d"),
     SpectralBefore,
   );
   await Spectrum.focus();
@@ -315,7 +315,7 @@ try {
     BoundPath,
   );
   assert.match(
-    await Card("Local bounds").locator(".cloud-bounds-data").innerText(),
+    await Card("Local bounds").locator(".cloud-bounds-record").innerText(),
     /202/,
   );
   await Page.getByRole("slider", {
@@ -333,15 +333,15 @@ try {
     exact: true,
   });
   await CloudX.scrollIntoViewIfNeeded();
-  const Handle = await CloudX.locator("circle").boundingBox();
+  const Tag = await CloudX.locator("circle").boundingBox();
   await Page.mouse.move(
-    Handle.x + Handle.width / 2,
-    Handle.y + Handle.height / 2,
+    Tag.x + Tag.width / 2,
+    Tag.y + Tag.height / 2,
   );
   await Page.mouse.down();
   await Page.mouse.move(
-    Handle.x + Handle.width / 2 + 20,
-    Handle.y + Handle.height / 2 + 10,
+    Tag.x + Tag.width / 2 + 20,
+    Tag.y + Tag.height / 2 + 10,
     { steps: 4 },
   );
   await Page.mouse.up();
@@ -351,7 +351,7 @@ try {
   await Page.screenshot({ path: Proof + "/LocalCloudBounds.png" });
   await Select("Clouds");
   assert.equal(
-    await Page.locator('[data-property-graph="Cloud shadows"]').count(),
+    await Page.locator('[record-property-graph="Cloud shadows"]').count(),
     1,
   );
   await Page.getByText("GPU cloud shadows · separate field", {

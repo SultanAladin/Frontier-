@@ -51,7 +51,7 @@ public:
     }
 
     // Object/material-frame field: remove the hub's rigid transform AFTER applying solved world displacements.
-    // The outer surface matches DriveWheelMesh. Its inner barrel closes the two beads, leaving the axle opening.
+    // The outer surface matches DriveWheelGeometry. Its inner barrel closes the two beads, leaving the axle opening.
     void Envelope(std::vector<Vector3>& Vertices, std::vector<DeformationSpace::Face>& Faces, bool Rest) const
     {
         Vertices.clear(); Faces.clear();
@@ -78,7 +78,7 @@ public:
             for (uint32_t Segment = 0u; Segment < Segments; ++Segment)
             {
                 const float Angle = 6.28318530718f * Segment / Segments;
-                // DriveWheelMesh's bead half-width, not the solver's internal pressure-volume anchor width.
+                // DriveWheelGeometry's bead half-width, not the solver's internal pressure-volume anchor width.
                 Append({Parameters.RimRadius * std::cos(Angle), (Side == 0u ? 1.0f : -1.0f) * Parameters.Width * 0.5f * 0.74f,
                         Parameters.RimRadius * std::sin(Angle)});
             }

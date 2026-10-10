@@ -2,7 +2,7 @@
 // 📦 Engine/Shaders/GizmoRaster.vert.slang — Transform-gizmo vertex stage: pulled vertex → clip
 //============================================================================================================================================
 // The gizmo's vertices are composed on the CPU each frame (Engine/Editor/GizmoFigures.cpp — the 1:1 port of
-//    References/Gizmo.html) and uploaded as a 64-byte-stride SSBO; the draw binds no vertex buffer and pulls by
+//    References/Gizmo.html) and uploaded as a 64-byte-stride SSBO; the draw binds no vertex store and pulls by
 //    gl_VertexIndex, the same idiom as the visibility raster. Two draws per frame share this stage: the triangle
 //    list (cones, cylinders, quads, arcs, ring) and the line list (the corner quads' two opaque edges).
 // NOTE: GLSL source lowered by glslc -fshader-stage=vertex.
@@ -20,7 +20,7 @@ struct GizmoVertexRecord
     vec2  Spare2;
 };
 
-layout(std430, binding = 0) readonly buffer GizmoVertices
+layout(std430, binding = 0) readonly store GizmoVertices
 {
     GizmoVertexRecord Vertices[];
 };

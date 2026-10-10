@@ -49,7 +49,7 @@ Reproduce on Linux after dependency bootstrap:
 python3 Exhibits/Workbench/WeatherWiring/RunAudit.py
 ```
 
-This is a **diagnostic**, not a passing regression test that enshrines missing wiring. It reports changes; a future GPU repair should make the relevant weather data respond to edits and extend the audit to any new volume record. No GPU dispatch or Windows application execution was performed.
+This is a **diagnostic**, not a passing regression test that enshrines missing wiring. It reports changes; a future GPU repair should make the relevant weather record respond to edits and extend the audit to any new volume record. No GPU dispatch or Windows application execution was performed.
 
 ## A second, independent visibility gate
 
@@ -64,8 +64,8 @@ An outliner row's presence/eye visibility does not turn on a separate inspector 
 
 1. Pack live global/local cloud and fog settings, visibility gates, wind/time and quality budgets into a GPU volume record; keep it synchronized with the CPU `ApplyTo` path.
 2. Implement the existing shared-extinction cloud/local-volume march in the GPU path, respecting the primary surface distance and supporting global plus local media simultaneously. Retain medium self-shadowing and the engine's Z-up convention.
-3. Composite cloud/local-volume scattering and analytic height/aerial fog for sky and surface rays, including emissive/unlit early returns, before tone mapping. Do not replace them with billboards or an offline sky texture.
-4. Handle temporal-history invalidation/rejection when weather parameters, local bounds or visibility change; wire real pass timings.
+3. Combined cloud/local-volume scattering and analytic height/aerial fog for sky and surface rays, including emissive/unlit early returns, before tone mapping. Do not replace them with billboards or an offline sky texture.
+4. Tag temporal-history invalidation/rejection when weather parameters, local bounds or visibility change; wire real pass timings.
 5. Verify rendered pixel changes, occlusion, enable/visibility gates, global/local overlap, inspector round-trips and shader compilation, then run the real Windows/Vulkan viewport.
 
 The icon repair remains valid; it only restores the artwork used to represent these entities, not their missing GPU scene rendering.

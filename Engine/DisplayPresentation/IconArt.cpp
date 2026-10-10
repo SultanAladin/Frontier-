@@ -59,9 +59,9 @@ std::filesystem::path ResolveRoot(const std::filesystem::path& Root) {
         return fs::absolute(Root);
     fs::path Executable;
 #ifdef _WIN32
-    wchar_t Buffer[32768];
-    const DWORD Length = GetModuleFileNameW(nullptr, Buffer, 32768);
-    if (Length && Length < 32768) Executable = std::wstring(Buffer, Length);
+    wchar_t Block[32768];
+    const DWORD Length = GetModuleFileNameW(nullptr, Block, 32768);
+    if (Length && Length < 32768) Executable = std::wstring(Block, Length);
 #elif defined(__linux__)
     Executable = fs::read_symlink("/proc/self/exe", Error);
 #endif
@@ -83,7 +83,7 @@ std::string SourceMarker(const std::string& Source) {
     Text << "<!-- frontier-source-fnv1a64:" << std::hex << std::setfill('0') << std::setw(16) << Hash << " -->";
     return Text.str();
 }
-// Compatibility files are SVG, not baked pixels. Refuse stale or unsupported variants.
+// Compatibility files are SVG, not precomputed pixels. Refuse stale or unsupported variants.
 // This fingerprint is a freshness check for trusted local assets, not authentication.
 bool LoadVectorVariant(const std::filesystem::path& Path, std::string& Source, std::string& Warning) {
     std::ifstream File(Path, std::ios::binary | std::ios::ate);

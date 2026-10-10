@@ -56,7 +56,7 @@ void SurfelReferenceField::AssignSettings(const SurfelReferenceSettings& NewSett
 uint32_t SurfelReferenceField::HashCell(int32_t X, int32_t Y, int32_t Z) const noexcept
 {
     // This is intentionally the same integer hash as SurfelGIStage and the compute shaders. The map retains a
-    // collision chain, just as the GPU's head/next buffer does; geometric tests below reject unrelated cells.
+    // collision chain, just as the GPU's head/next store does; geometric tests below reject unrelated cells.
     return static_cast<uint32_t>(X + 1024) * 73856093u
          ^ static_cast<uint32_t>(Y + 1024) * 19349663u
          ^ static_cast<uint32_t>(Z + 1024) * 83492791u;

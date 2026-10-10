@@ -49,7 +49,7 @@ float Luminance(float R, float G, float B) noexcept { return 0.2126f * R + 0.715
 //    triangle normals; cutoff = sqrt(1 − minDot²) where minDot = min dot(axis, n_i). A cluster with any normal more than
 //    ~84° from the axis (minDot ≤ 0.1) or a double-sided material gets cutoff 1.0 = never cone-culled.
 
-ClusterRecord SceneStructure::ConstructCluster(const VertexRecord* MeshVertices, const uint32_t* MeshIndices, uint32_t TriangleCount, bool DoubleSided) noexcept
+ClusterRecord SceneStructure::ConstructCluster(const VertexRecord* GeometryVertices, const uint32_t* GeometryIndices, uint32_t TriangleCount, bool DoubleSided) noexcept
 {
     Vector3 Minimum{  std::numeric_limits<float>::max(),  std::numeric_limits<float>::max(),  std::numeric_limits<float>::max() };
     Vector3 Maximum{ -std::numeric_limits<float>::max(), -std::numeric_limits<float>::max(), -std::numeric_limits<float>::max() };
@@ -57,9 +57,9 @@ ClusterRecord SceneStructure::ConstructCluster(const VertexRecord* MeshVertices,
 
     for (uint32_t T = 0u; T < TriangleCount; ++T)
     {
-        const Vector3& A = MeshVertices[MeshIndices[T * 3u + 0u]].SpatialLocation;
-        const Vector3& B = MeshVertices[MeshIndices[T * 3u + 1u]].SpatialLocation;
-        const Vector3& C = MeshVertices[MeshIndices[T * 3u + 2u]].SpatialLocation;
+        const Vector3& A = GeometryVertices[GeometryIndices[T * 3u + 0u]].SpatialLocation;
+        const Vector3& B = GeometryVertices[GeometryIndices[T * 3u + 1u]].SpatialLocation;
+        const Vector3& C = GeometryVertices[GeometryIndices[T * 3u + 2u]].SpatialLocation;
         for (const Vector3* P : { &A, &B, &C })
         {
             Minimum = Vector3{ std::min(Minimum.x, P->x), std::min(Minimum.y, P->y), std::min(Minimum.z, P->z) };
@@ -72,7 +72,7 @@ ClusterRecord SceneStructure::ConstructCluster(const VertexRecord* MeshVertices,
     const Vector3 Center = (Minimum + Maximum) * 0.5f;
     float RadiusSquared = 0.0f;
     for (uint32_t I = 0u; I < TriangleCount * 3u; ++I)
-        RadiusSquared = std::max(RadiusSquared, (MeshVertices[MeshIndices[I]].SpatialLocation - Center).LengthSquared());
+        RadiusSquared = std::max(RadiusSquared, (GeometryVertices[GeometryIndices[I]].SpatialLocation - Center).LengthSquared());
 
     Vector3 Axis{ 0.0f, 0.0f, 1.0f };
     float   Cutoff = 1.0f;
@@ -82,9 +82,9 @@ ClusterRecord SceneStructure::ConstructCluster(const VertexRecord* MeshVertices,
         float MinimumDot = 1.0f;
         for (uint32_t T = 0u; T < TriangleCount; ++T)
         {
-            const Vector3& A = MeshVertices[MeshIndices[T * 3u + 0u]].SpatialLocation;
-            const Vector3& B = MeshVertices[MeshIndices[T * 3u + 1u]].SpatialLocation;
-            const Vector3& C = MeshVertices[MeshIndices[T * 3u + 2u]].SpatialLocation;
+            const Vector3& A = GeometryVertices[GeometryIndices[T * 3u + 0u]].SpatialLocation;
+            const Vector3& B = GeometryVertices[GeometryIndices[T * 3u + 1u]].SpatialLocation;
+            const Vector3& C = GeometryVertices[GeometryIndices[T * 3u + 2u]].SpatialLocation;
             const Vector3 N = OrientationClassifier::CrossProduct(B - A, C - A);
             if (N.LengthSquared() > 0.0f) MinimumDot = std::min(MinimumDot, OrientationClassifier::DotProduct(Axis, N.Normalized()));
         }
@@ -108,13 +108,13 @@ ClusterRecord SceneStructure::ConstructCluster(const VertexRecord* MeshVertices,
 //                                                   SHARED TOPOLOGY
 //------------------------------------------------------------------------------------------------------------------------
 
-uint64_t SceneStructure::TopologyKey(const GeometryStructure& Mesh) noexcept
+uint64_t SceneStructure::TopologyKey(const GeometryStructure& Hull) noexcept
 {
-    // FNV-1a over the index stream and the vertex positions. Positions alone would collide between two meshes
-    //    that share a point cloud but not a winding, and indices alone would collide between two meshes that
+    // FNV-1a over the index stream and the vertex positions. Positions alone would collide between two geometries
+    //    that share a point cloud but not a winding, and indices alone would collide between two geometries that
     //    share a winding over different points; together they decide topology for sharing purposes. Normals,
     //    tangents and UVs are deliberately NOT in the key — they ride along in the shared vertex span, so two
-    //    meshes that agree on positions and winding but disagree on UVs would wrongly share. Callers that build
+    //    geometries that agree on positions and winding but disagree on UVs would wrongly share. Callers that build
     //    such a pair must call RegisterTopology separately; MixInto below folds the UVs in to prevent it.
     constexpr uint64_t kOffset = 1469598103934665603ull, kPrime = 1099511628211ull;
     uint64_t Hash = kOffset;
@@ -128,12 +128,12 @@ uint64_t SceneStructure::TopologyKey(const GeometryStructure& Mesh) noexcept
         if (Bits == 0x80000000u) Bits = 0u;                     // −0 and +0 are the same point
         MixInto(Bits);
     };
-    const std::vector<VertexRecord>& MeshVertices = Mesh.QueryVertices();
-    const std::vector<uint32_t>&     MeshIndices  = Mesh.QueryIndices();
-    MixInto(static_cast<uint32_t>(MeshVertices.size()));
-    MixInto(static_cast<uint32_t>(MeshIndices.size()));
-    for (uint32_t Index : MeshIndices) MixInto(Index);
-    for (const VertexRecord& V : MeshVertices)
+    const std::vector<VertexRecord>& GeometryVertices = Hull.QueryVertices();
+    const std::vector<uint32_t>&     GeometryIndices  = Hull.QueryIndices();
+    MixInto(static_cast<uint32_t>(GeometryVertices.size()));
+    MixInto(static_cast<uint32_t>(GeometryIndices.size()));
+    for (uint32_t Index : GeometryIndices) MixInto(Index);
+    for (const VertexRecord& V : GeometryVertices)
     {
         MixFloat(V.SpatialLocation.x); MixFloat(V.SpatialLocation.y); MixFloat(V.SpatialLocation.z);
         MixFloat(V.TextureCoordinateU); MixFloat(V.TextureCoordinateV);
@@ -141,33 +141,33 @@ uint64_t SceneStructure::TopologyKey(const GeometryStructure& Mesh) noexcept
     return Hash;
 }
 
-uint32_t SceneStructure::RegisterTopology(const GeometryStructure& Mesh) noexcept
+uint32_t SceneStructure::RegisterTopology(const GeometryStructure& Hull) noexcept
 {
-    const std::vector<VertexRecord>& MeshVertices = Mesh.QueryVertices();
-    const std::vector<uint32_t>&     MeshIndices  = Mesh.QueryIndices();
-    const uint32_t TriangleTotal = static_cast<uint32_t>(MeshIndices.size() / 3u);
+    const std::vector<VertexRecord>& GeometryVertices = Hull.QueryVertices();
+    const std::vector<uint32_t>&     GeometryIndices  = Hull.QueryIndices();
+    const uint32_t TriangleTotal = static_cast<uint32_t>(GeometryIndices.size() / 3u);
 
-    // An empty mesh still earns a record, so a caller holding the handle can place it harmlessly.
-    const uint64_t Key = TriangleTotal == 0u || MeshVertices.empty() ? 0u : TopologyKey(Mesh);
+    // An empty topology still earns a record, so a caller holding the identifier can place it harmlessly.
+    const uint64_t Key = TriangleTotal == 0u || GeometryVertices.empty() ? 0u : TopologyKey(Hull);
     if (Key != 0u)
         for (uint32_t Existing = 0u; Existing < Topologies.size(); ++Existing)
             if (Topologies[Existing].ContentKey == Key) return Existing;   // already resident — share it
 
-    const uint32_t Handle = static_cast<uint32_t>(Topologies.size());
+    const uint32_t Tag = static_cast<uint32_t>(Topologies.size());
     Topologies.emplace_back();
     TopologyRecord& Topology = Topologies.back();
     Topology.ContentKey    = Key;
     Topology.VertexOffset  = static_cast<uint32_t>(Vertices.size());
-    Topology.VertexCount   = static_cast<uint32_t>(MeshVertices.size());
+    Topology.VertexCount   = static_cast<uint32_t>(GeometryVertices.size());
     Topology.TriangleCount = TriangleTotal;
-    if (TriangleTotal == 0u || MeshVertices.empty()) return Handle;
+    if (TriangleTotal == 0u || GeometryVertices.empty()) return Tag;
 
-    const auto Canonical = CanonicalVertexIndices(MeshVertices);
+    const auto Canonical = CanonicalVertexIndices(GeometryVertices);
 
-    // ① Morton order the triangles by centroid inside the mesh's own bounds.
+    // ① Morton order the triangles by centroid inside the topology's own bounds.
     Vector3 Minimum{  std::numeric_limits<float>::max(),  std::numeric_limits<float>::max(),  std::numeric_limits<float>::max() };
     Vector3 Maximum{ -std::numeric_limits<float>::max(), -std::numeric_limits<float>::max(), -std::numeric_limits<float>::max() };
-    for (const VertexRecord& V : MeshVertices)
+    for (const VertexRecord& V : GeometryVertices)
     {
         Minimum = Vector3{ std::min(Minimum.x, V.SpatialLocation.x), std::min(Minimum.y, V.SpatialLocation.y), std::min(Minimum.z, V.SpatialLocation.z) };
         Maximum = Vector3{ std::max(Maximum.x, V.SpatialLocation.x), std::max(Maximum.y, V.SpatialLocation.y), std::max(Maximum.z, V.SpatialLocation.z) };
@@ -178,21 +178,21 @@ uint32_t SceneStructure::RegisterTopology(const GeometryStructure& Mesh) noexcep
     std::vector<std::pair<uint32_t, uint32_t>> Order(TriangleTotal);   // (morton, triangle)
     for (uint32_t T = 0u; T < TriangleTotal; ++T)
     {
-        const Vector3 Centroid = (MeshVertices[MeshIndices[T * 3u]].SpatialLocation + MeshVertices[MeshIndices[T * 3u + 1u]].SpatialLocation
-                                + MeshVertices[MeshIndices[T * 3u + 2u]].SpatialLocation) / 3.0f;
+        const Vector3 Centroid = (GeometryVertices[GeometryIndices[T * 3u]].SpatialLocation + GeometryVertices[GeometryIndices[T * 3u + 1u]].SpatialLocation
+                                + GeometryVertices[GeometryIndices[T * 3u + 2u]].SpatialLocation) / 3.0f;
         const Vector3 U = (Centroid - Minimum) * InverseSpan;
         Order[T] = { MortonCode(U.x, U.y, U.z), T };
     }
     std::stable_sort(Order.begin(), Order.end(), [](const auto& A, const auto& B) { return A.first < B.first; });
 
     // ② The vertex span, copied ONCE. Every placement of this topology carries this same VertexOffset.
-    Vertices.insert(Vertices.end(), MeshVertices.begin(), MeshVertices.end());
+    Vertices.insert(Vertices.end(), GeometryVertices.begin(), GeometryVertices.end());
 
     // Reserve half of the primitive-token range for alternate indices.
     constexpr uint32_t PatchInstanceCapacity = kInstanceTriangleCapacity / 2u;
 
     // ③ Partition into ≤ 8 192-fine-triangle spans, each made of ≤ 128-triangle clusters. Indices and the coarse
-    //    LOD bake land in the shared arrays; the cluster rows land in ClusterTemplates with no owning instance.
+    //    LOD precompute land in the shared arrays; the cluster rows land in ClusterTemplates with no owning instance.
     for (uint32_t PartitionStart = 0u; PartitionStart < TriangleTotal; PartitionStart += PatchInstanceCapacity)
     {
         const uint32_t PartitionTriangles = std::min(PatchInstanceCapacity, TriangleTotal - PartitionStart);
@@ -211,12 +211,12 @@ uint32_t SceneStructure::RegisterTopology(const GeometryStructure& Mesh) noexcep
             for (uint32_t T = 0u; T < ClusterTriangles; ++T)
             {
                 const uint32_t Source = Order[PartitionStart + ClusterStart + T].second;
-                LocalIndices.push_back(Canonical[MeshIndices[Source * 3u + 0u]]);
-                LocalIndices.push_back(Canonical[MeshIndices[Source * 3u + 1u]]);
-                LocalIndices.push_back(Canonical[MeshIndices[Source * 3u + 2u]]);
+                LocalIndices.push_back(Canonical[GeometryIndices[Source * 3u + 0u]]);
+                LocalIndices.push_back(Canonical[GeometryIndices[Source * 3u + 1u]]);
+                LocalIndices.push_back(Canonical[GeometryIndices[Source * 3u + 2u]]);
             }
 
-            ClusterRecord Cluster = ConstructCluster(MeshVertices.data(), LocalIndices.data(), ClusterTriangles, false); // keep cone for LOD; culling still checks instance flags
+            ClusterRecord Cluster = ConstructCluster(GeometryVertices.data(), LocalIndices.data(), ClusterTriangles, false); // keep cone for LOD; culling still checks instance flags
             Cluster.InstanceIndex  = 0u;   // stamped by PlaceTopology — a template owns no instance
             Cluster.FirstIndex     = static_cast<uint32_t>(Indices.size());
             Cluster.FirstPrimitive = ClusterStart;
@@ -231,7 +231,7 @@ uint32_t SceneStructure::RegisterTopology(const GeometryStructure& Mesh) noexcep
         {
             auto& Patch = ClusterTemplates[C];
             std::vector<uint32_t> Fine(Indices.begin()+Patch.FirstIndex, Indices.begin()+Patch.FirstIndex+Patch.TriangleCount*3u);
-            auto Coarse = PatchGeometry::LoadOrBake(MeshVertices, Fine);
+            auto Coarse = PatchGeometry::LoadOrPrecompute(GeometryVertices, Fine);
             if (Coarse.Indices.size() >= Fine.size()) continue;
             Patch.CoarseFirstIndex = static_cast<uint32_t>(Indices.size());
             Patch.CoarseFirstPrimitive = (Patch.CoarseFirstIndex-Partition.FirstIndex)/3u;
@@ -239,9 +239,9 @@ uint32_t SceneStructure::RegisterTopology(const GeometryStructure& Mesh) noexcep
             Patch.CoarseError = Coarse.Error;
             Indices.insert(Indices.end(),Coarse.Indices.begin(),Coarse.Indices.end());
         }
-        Topologies[Handle].Partitions.push_back(Partition);
+        Topologies[Tag].Partitions.push_back(Partition);
     }
-    return Handle;
+    return Tag;
 }
 
 uint32_t SceneStructure::PlaceTopology(uint32_t Topology, const Matrix4x4& World, uint32_t MaterialIndex, uint32_t Flags) noexcept
@@ -289,7 +289,7 @@ uint32_t SceneStructure::ForkTopology(uint32_t FirstInstance) noexcept
     //    so nothing renders differently the instant it is made — it only becomes different when the caller cuts
     //    it. ContentKey is cleared so the copy never gets shared back out by RegisterTopology.
     const TopologyRecord Origin = Topologies[Source];          // by value: Topologies may reallocate below
-    const uint32_t Handle = static_cast<uint32_t>(Topologies.size());
+    const uint32_t Tag = static_cast<uint32_t>(Topologies.size());
     Topologies.emplace_back();
     TopologyRecord& Fork = Topologies.back();
     Fork.ContentKey    = 0u;
@@ -334,7 +334,7 @@ uint32_t SceneStructure::ForkTopology(uint32_t FirstInstance) noexcept
     for (uint32_t P = 0u; P < Fork.Partitions.size() && FirstInstance + P < Instances.size(); ++P)
     {
         InstanceRecord& Instance = Instances[FirstInstance + P];
-        InstanceTopology[FirstInstance + P] = Handle;
+        InstanceTopology[FirstInstance + P] = Tag;
         Instance.VertexOffset = Fork.VertexOffset;
         Instance.FirstIndex   = Fork.Partitions[P].FirstIndex;
         for (uint32_t C = 0u; C < Instance.ClusterCount; ++C)
@@ -348,12 +348,12 @@ uint32_t SceneStructure::ForkTopology(uint32_t FirstInstance) noexcept
     }
     Fork.Placements = 1u;
     if (Topologies[Source].Placements > 0u) --Topologies[Source].Placements;
-    return Handle;
+    return Tag;
 }
 
-uint32_t SceneStructure::RegisterInstance(const GeometryStructure& Mesh, const Matrix4x4& World, uint32_t MaterialIndex, uint32_t Flags) noexcept
+uint32_t SceneStructure::RegisterInstance(const GeometryStructure& Hull, const Matrix4x4& World, uint32_t MaterialIndex, uint32_t Flags) noexcept
 {
-    return PlaceTopology(RegisterTopology(Mesh), World, MaterialIndex, Flags);
+    return PlaceTopology(RegisterTopology(Hull), World, MaterialIndex, Flags);
 }
 
 uint32_t SceneStructure::RegisterMaterial(const MaterialDescriptor& Material) noexcept

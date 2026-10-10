@@ -15,7 +15,7 @@
  *      while it still holds enough kinetic/strain energy, so cracks ARREST on
  *      their own: fine comminution at the impact site, big intact chunks far
  *      away. Fragment-size distribution comes out Weibull-ish for free, which
- *      is what real fragmentation data looks like.
+ *      is what real fragmentation record looks like.
  *   4. Material character comes from anisotropy (wood grain, rock bedding),
  *      toughness (ductile plastic tears into a few big flaps) and stored
  *      energy (tempered glass dices itself with no extra impact energy).

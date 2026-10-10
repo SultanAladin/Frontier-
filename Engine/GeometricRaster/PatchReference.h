@@ -6,7 +6,7 @@
 
 namespace Frontier::PatchGeometry {
 // CPU mirror of PatchSelection.slang for offline diagnostics/tests; never substitutes
-// a camera-selected mesh into the ray scene. Material inputs are the CURRENT records.
+// a camera-selected topology into the ray scene. Material inputs are the CURRENT records.
 inline bool Select(const ClusterRecord& c,const InstanceRecord& i,const MaterialRecord& m,
                    const MaterialSlabRecord* s,const CameraClipConfiguration& camera,
                    uint32_t height,bool preview=true,float tolerancePixels=1.0f)

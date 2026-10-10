@@ -255,7 +255,7 @@ struct RigidBodySolver::JoltWorld
     std::vector<ConstraintRecord>               Constraints;
     std::vector<uint32_t>                       FreeConstraintSlots;
 
-    // hit BodyID → RigidBodyIdentity, via the slot we stashed in the body's user data at CreateBody().
+    // hit BodyID → RigidBodyIdentity, via the slot we stashed in the body's user record at CreateBody().
     [[nodiscard]] RigidBodyIdentity IdentityOf(JPH::BodyID Id) noexcept
     {
         if (Id.IsInvalid()) return InvalidRigidBody;

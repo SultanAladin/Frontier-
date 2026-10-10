@@ -1,7 +1,7 @@
 //============================================================================================================================================
 //                                                         TELEMETRYPROBE.H
 //============================================================================================================================================
-// 🧩 Development/debug-only, in-RAM performance probe: exact startup phase times, every shader load and pipeline
+// 🧩 Development/debug-only, in-RAM performance probe: exact startup phase times, every shader load and chain
 //    creation, and one VERBOSE ROW PER FRAME (CPU section laps + the GPU stage timings). Nothing touches the disk
 //    while the application runs — every record accumulates in pre-reserved RAM and is written out ONCE, when the
 //    application closes (FRONTIER_PROBE_SAVE at the end of main).
@@ -15,21 +15,21 @@
 //
 //    What it records:
 //      · Phases   — explicit begin/end pairs around the startup work (scene decode, texture decode, CWBVH build,
-//                   Vulkan bring-up, shading-table bake, scene upload, interface bring-up), in ms since boot.
-//      · Samples  — one row per shader load (SPIR-V read + vkCreateShaderModule) and per pipeline/bring-up stage,
+//                   Vulkan bring-up, shading-table precompute, scene upload, interface bring-up), in ms since boot.
+//      · Samples  — one row per shader load (SPIR-V read + vkCreateShaderModule) and per chain/bring-up stage,
 //                   with exact durations. The bring-up stage loop in SwapchainExchange::Bring() feeds this, so every
 //                   Bring* stage gets its own row without instrumenting each function.
 //      · Events   — single timestamps (boot, first frame complete, shutdown).
 //      · Frames   — one row per frame: Δτ, wall clock, the CPU section laps (input/UI, celestial tick, editor +
 //                   panels, simulation + spatial interface, scene push, RecordAndPresent, frame-cap wait), the GPU
-//                   stage milliseconds from the device timestamp pool, cluster/triangle counts, fps and resident MiB.
+//                   stage milliseconds from the device timestamp slots, cluster/triangle counts, fps and resident MiB.
 //
 //    Output (written by SaveReport at close):
 //      · <Directory>/ProjectZero_TelemetryProbe.md         — phases, samples, events, and per-column frame statistics
 //      · <Directory>/ProjectZero_TelemetryProbe_Frames.csv — the raw per-frame rows, one line per frame
 //
 //    The singleton shape is deliberate: the shader loaders (SwapchainExchange/VisibilityExchange/InterfaceExchange/
-//    BlasBuildPipeline) have no path to a per-run object without changing their public APIs, and the probe must cost
+//    BlasBuildChain) have no path to a per-run object without changing their public APIs, and the probe must cost
 //    nothing to reach from a leaf function. All entry points are noexcept and mutex-guarded.
 
 #pragma once
@@ -96,7 +96,7 @@ struct ProbeFrameRow
     uint32_t TrianglesDrawn  = 0u;      // [cnt]
     float    Fps             = 0.0f;    // [1/s] 2 s rolling average
     float    ResidentMiB     = 0.0f;    // [MiB]
-    uint8_t  GpuValid        = 0u;      // 0 until the query pool has a completed frame
+    uint8_t  GpuValid        = 0u;      // 0 until the query slots has a completed frame
 };
 
 struct ProbePhaseRow  { std::string Name; double BeginMs = 0.0; double EndMs = -1.0; };
@@ -166,7 +166,7 @@ private:
 //                                                      RAII HELPERS
 //------------------------------------------------------------------------------------------------------------------------
 // Scope timers for leaf call sites (shader loads, bring-up stages). The name is copied at construction — the sample
-//    row owns its string, so a transient buffer is safe to pass.
+//    row owns its string, so a transient store is safe to pass.
 
 class ProbeSampleScope
 {

@@ -55,7 +55,7 @@ enum CourseMaterial : uint32_t
     // Families 6..15 are the material slots the artist actually assigned in ControlVehicle.blend, recovered by
     // CarModelling/ControlVehicle/ExtractVehicle.py from the per-face `material_index` attribute.  The names
     // below are the .blend slot names verbatim; do not rename them to something tidier, because the generated
-    // ControlVehicleMesh.inl maps slot -> family by these identities.
+    // ControlVehicleGeometry.inl maps slot -> family by these identities.
     MatBodyPaint      = 6u,  // MetalicCoat        — authored clearcoat paint, rendered as a finite-flake automotive family
     MatVehicleGlass   = 7u,  // Glass              — cockpit glazing, transmissive (see the Project-Zero glass family)
     MatVehiclePlastic = 8u,  // Plastic            — splitter, lower trim and grille regions

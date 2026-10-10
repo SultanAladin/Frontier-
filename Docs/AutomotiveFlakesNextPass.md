@@ -6,7 +6,7 @@ Status: initial research/audit for the resumed automotive task. **Superseded by 
 
 https://www.shadertoy.com/view/mdSyWd — *Iridescent Car Paint*, piyushslayer, 2024-06-24.
 
-The page describes an approximation of goniochromatic Fresnel reflectance and explicitly points to Buffer B and Belcour/Barla 2017. The retrieved page exposed the description and part of the Image/postprocessing pass, **not the full Buffer B implementation**. Do not describe this audit as an exact port of that shader. Source reuse/licensing has not been established.
+The page describes an approximation of goniochromatic Fresnel reflectance and explicitly points to Block B and Belcour/Barla 2017. The retrieved page exposed the description and part of the Image/postprocessing pass, **not the full Block B implementation**. Do not describe this audit as an exact port of that shader. Source reuse/licensing has not been established.
 
 Separate three effects rather than treating all of them as coloured noise:
 

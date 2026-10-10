@@ -1,7 +1,7 @@
 //============================================================================================================================================
 // 📦 Editor/EditorTools/ParametricSketcher/Kernel/ConstraintGraph.cpp — Phase 18: persistent constraint graph state
 //============================================================================================================================================
-// See ConstraintGraph.h. This is a small in-memory graph; the only nontrivial method is AddAnchor, which
+// See ConstraintGraph.h. This is a small in-storage graph; the only nontrivial method is AddAnchor, which
 //    dedupes by PointRef.
 #include "ConstraintGraph.h"
 #include <algorithm>

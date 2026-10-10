@@ -16,7 +16,7 @@
 //    body and four wheel spans by the same stable instance ordinal, not by a per-material instance count.
 //
 //    Object-local origins (so the live World = T(pose)·R(pose) places each part correctly, no rest subtraction):
-//        • body  — ControlVehicleMesh shifted down by the geometry's CoM height, so local origin = centre of mass.
+//        • body  — ControlVehicleGeometry shifted down by the geometry's CoM height, so local origin = centre of mass.
 //        • wheel — cylinder centred at the origin, axle along local +Y (VehicleInstanceSequence spins about local Y).
 //    The course is emitted in world space (it never moves). Body has NO collider — only the wheels meet the ground.
 //
@@ -50,12 +50,12 @@ public:
     // StaticPose = false (the default) emits all four wheels at the span origin, because the raster host
     // supplies each wheel span's world transform per frame from the suspension solver.
     //
-    // StaticPose = true bakes each wheel at its rest hub instead.  A ray-traced host renders the level as ONE
+    // StaticPose = true precomputes each wheel at its rest hub instead.  A ray-traced host renders the level as ONE
     // static soup with no per-span instancing, so with the default the four wheels stack at the body origin
     // and vanish inside the shell -- which is exactly how the first ReSTIR sheets came out wheel-less.
     void Construct(bool StaticPose = false) noexcept;
 
-    // Writes DriveCourse.gltf at Path (embedded buffer, smooth normals, texcoords, spans). Error gets the message.
+    // Writes DriveCourse.gltf at Path (embedded store, smooth normals, texcoords, spans). Error gets the message.
     [[nodiscard]] bool Export(const std::string& Path, std::string* Error) const noexcept;
 
     [[nodiscard]] const std::vector<TriangleIndex>&      QueryTriangles()     const noexcept { return Triangles; }

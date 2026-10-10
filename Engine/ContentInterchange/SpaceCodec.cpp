@@ -18,16 +18,16 @@ namespace
         Out.insert(Out.end(), Bytes, Bytes + sizeof(Value));
     }
 
-    void AppendBytes(std::vector<uint8_t>& Out, const void* Data, size_t Bytes)
+    void AppendBytes(std::vector<uint8_t>& Out, const void* Packet, size_t Bytes)
     {
         if (Bytes == 0u) return;
-        const uint8_t* BytesPtr = static_cast<const uint8_t*>(Data);
+        const uint8_t* BytesPtr = static_cast<const uint8_t*>(Packet);
         Out.insert(Out.end(), BytesPtr, BytesPtr + Bytes);
     }
 
-    void AppendAligned(std::vector<uint8_t>& Out, const void* Data, size_t Bytes)
+    void AppendAligned(std::vector<uint8_t>& Out, const void* Packet, size_t Bytes)
     {
-        AppendBytes(Out, Data, Bytes);
+        AppendBytes(Out, Packet, Bytes);
         while ((Out.size() % kSpaceAlign) != 0u) Out.push_back(0u);
     }
 
@@ -69,9 +69,9 @@ namespace
     constexpr uint64_t kFnv64Prime = 1099511628211ull;
 }
 
-uint32_t SpaceHash32(const void* Data, size_t Bytes) noexcept
+uint32_t SpaceHash32(const void* Packet, size_t Bytes) noexcept
 {
-    const uint8_t* BytesPtr = static_cast<const uint8_t*>(Data);
+    const uint8_t* BytesPtr = static_cast<const uint8_t*>(Packet);
     uint32_t Hash = kFnv32Basis;
     for (size_t I = 0u; I < Bytes; ++I)
     {
@@ -81,9 +81,9 @@ uint32_t SpaceHash32(const void* Data, size_t Bytes) noexcept
     return Hash;
 }
 
-uint64_t SpaceHash64(const void* Data, size_t Bytes) noexcept
+uint64_t SpaceHash64(const void* Packet, size_t Bytes) noexcept
 {
-    const uint8_t* BytesPtr = static_cast<const uint8_t*>(Data);
+    const uint8_t* BytesPtr = static_cast<const uint8_t*>(Packet);
     uint64_t Hash = kFnv64Basis;
     for (size_t I = 0u; I < Bytes; ++I)
     {
@@ -202,10 +202,10 @@ void SpaceWriter::WriteRow(const void* Row, size_t Bytes) noexcept
     ++ActiveRows;
 }
 
-void SpaceWriter::WriteBytes(const void* Data, size_t Bytes) noexcept
+void SpaceWriter::WriteBytes(const void* Packet, size_t Bytes) noexcept
 {
     if (ActivePayload == kNoPayload) return;
-    AppendAligned(Payloads[ActivePayload], Data, Bytes);
+    AppendAligned(Payloads[ActivePayload], Packet, Bytes);
 }
 
 void SpaceWriter::WriteRowWithString(const void* Row, size_t Bytes, size_t FieldOffset, const std::string& Value) noexcept
@@ -397,7 +397,7 @@ void SpaceReader::ResetState() noexcept
 
 bool SpaceReader::Open(const std::vector<uint8_t>& Bytes, std::string& OutError) noexcept
 {
-    Data = Bytes;
+    Packet = Bytes;
     ResetState();
     return Parse(OutError);
 }
@@ -408,18 +408,18 @@ bool SpaceReader::OpenFile(const std::string& Path, std::string& OutError) noexc
     if (!Stream) { OutError = "cannot open " + Path; return false; }
     const std::streamoff Size = Stream.tellg();
     if (Size <= 0) { OutError = Path + " is empty"; return false; }
-    Data.resize(static_cast<size_t>(Size));
+    Packet.resize(static_cast<size_t>(Size));
     Stream.seekg(0);
-    Stream.read(reinterpret_cast<char*>(Data.data()), Size);
+    Stream.read(reinterpret_cast<char*>(Packet.data()), Size);
     ResetState();
     return Parse(OutError);
 }
 
 bool SpaceReader::Parse(std::string& OutError) noexcept
 {
-    if (Data.size() < kSpaceHeaderBytes) { OutError = "shorter than a header"; return false; }
+    if (Packet.size() < kSpaceHeaderBytes) { OutError = "shorter than a header"; return false; }
     SpaceHeader Header{};
-    std::memcpy(&Header, Data.data(), sizeof(Header));
+    std::memcpy(&Header, Packet.data(), sizeof(Header));
     if (std::memcmp(Header.Signature, kSpaceSignature, 4u) != 0) { OutError = "not a Frontier Space container"; return false; }
     if (Header.Major != kSpaceMajor)
     {
@@ -427,13 +427,13 @@ bool SpaceReader::Parse(std::string& OutError) noexcept
                    " and this reader knows " + std::to_string(kSpaceMajor) + "." + std::to_string(kSpaceMinor);
         return false;
     }
-    if (Header.TotalLength != Data.size())
+    if (Header.TotalLength != Packet.size())
     {
         OutError = "the header says " + std::to_string(Header.TotalLength) + " bytes and the file is " +
-                   std::to_string(Data.size()) + " — truncated or padded";
+                   std::to_string(Packet.size()) + " — truncated or padded";
         return false;
     }
-    if (Header.TableOffset + size_t(Header.TableCount) * kSpaceTableBytes > Data.size())
+    if (Header.TableOffset + size_t(Header.TableCount) * kSpaceTableBytes > Packet.size())
     {
         OutError = "the directory runs past the end of the file";
         return false;
@@ -443,8 +443,8 @@ bool SpaceReader::Parse(std::string& OutError) noexcept
     for (uint16_t I = 0u; I < Header.TableCount; ++I)
     {
         SpaceTableRecord Record{};
-        std::memcpy(&Record, Data.data() + Header.TableOffset + I * kSpaceTableBytes, kSpaceTableBytes);
-        if (size_t(Record.Offset) + Record.Length > Data.size())
+        std::memcpy(&Record, Packet.data() + Header.TableOffset + I * kSpaceTableBytes, kSpaceTableBytes);
+        if (size_t(Record.Offset) + Record.Length > Packet.size())
         {
             OutError = "table " + Record.Tag.Text() + " runs past the end of the file";
             return false;
@@ -477,7 +477,7 @@ bool SpaceReader::Parse(std::string& OutError) noexcept
     //    failed on a table the reader would have refused anyway.
     for (const SpaceTableRecord& Record : Directory)
     {
-        const uint32_t Actual = SpaceHash32(Data.data() + Record.Offset, Record.Length);
+        const uint32_t Actual = SpaceHash32(Packet.data() + Record.Offset, Record.Length);
         if (Actual != Record.Checksum)
         {
             FailedChecksums.push_back(Record.Tag.Text());
@@ -506,7 +506,7 @@ bool SpaceReader::FindChecked(const SpaceTag& Tag, const SpaceTableRecord*& Out,
 
 std::vector<uint8_t> SpaceReader::Payload(const SpaceTableRecord& Table) const noexcept
 {
-    return std::vector<uint8_t>(Data.begin() + Table.Offset, Data.begin() + Table.Offset + Table.Length);
+    return std::vector<uint8_t>(Packet.begin() + Table.Offset, Packet.begin() + Table.Offset + Table.Length);
 }
 
 uint32_t SpaceReader::RowCount(const SpaceTag& Tag, std::string& OutError) const noexcept

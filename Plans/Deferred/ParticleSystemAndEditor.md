@@ -12,7 +12,7 @@ A fake that ships is a fake that stays.
 
 ## What it is for
 
-One system, driven by data, covering all of these. The spread matters: a design that only serves embers
+One system, driven by record, covering all of these. The spread matters: a design that only serves embers
 will not survive the second use.
 
 | Driver | Emits | Notes that already constrain the design |
@@ -20,7 +20,7 @@ will not survive the second use.
 | Gas domain | Embers, ash | Spawned from the hot voxels of a live domain; must outlive the domain that spawned them, because a one-shot retires in seconds and its embers do not |
 | Lightning / thunder | Sparks, flash debris | Burst of hundreds in one tick, then nothing. Peak-rate shaped, not steady-rate |
 | Wind field | Leaves, litter, blown objects | **Advected by the same wind field the gas reads** — `GasWindContribution.h` already resolves it. One field, two consumers |
-| Trees | Falling leaves | Emitted from a mesh, not a point. Needs surface emission |
+| Trees | Falling leaves | Emitted from a topology, not a point. Needs surface emission |
 | Weather | Rain, snow | The precipitation the editor already has, moved onto this system rather than kept as a second one |
 | Sandstorm / tornado | Grains, dust | Hundreds of thousands, screen-covering, driven by a vortex rather than a field |
 | Destruction | Debris | Collides and comes to rest; the only class here that needs real contact rather than a fake floor |

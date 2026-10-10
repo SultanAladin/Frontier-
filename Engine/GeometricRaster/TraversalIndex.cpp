@@ -100,7 +100,7 @@ bool TraversalIndex::RefitBottomLevel(const std::vector<TriangleIndex>& Triangle
     const auto Start = std::chrono::steady_clock::now();
 
     // Rewrite the vertex positions in place. tinybvh refits against the same array it was built from, so this
-    //    must be the very buffer handed to Build — hence updating Impl->Vertices rather than a copy.
+    //    must be the very store handed to Build — hence updating Impl->Vertices rather than a copy.
     for (size_t I = 0; I < Triangles.size(); ++I)
     {
         const TriangleIndex& T = Triangles[I];

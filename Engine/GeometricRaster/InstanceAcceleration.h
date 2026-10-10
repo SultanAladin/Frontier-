@@ -2,7 +2,7 @@
 // 📦 Engine/GeometricRaster/InstanceAcceleration.h — D6/D7 two-level acceleration: object-space BLASes + an instance TLAS
 //============================================================================================================================================
 // 🧩 The structure every dynamic-geometry plan in this repository converges on (Docs/DynamicGeometry.md): one
-//    bottom-level tree per UNIQUE MESH, built in OBJECT space and shared by every instance of that mesh; one thin
+//    bottom-level tree per UNIQUE MESH, built in OBJECT space and shared by every instance of that topology; one thin
 //    top-level tree over the instances' world-space AABBs; and a per-instance transform pair that moves the ray into
 //    object space at the leaf. A rigidly moved object therefore costs zero tree work — only its 112-byte row changes —
 //    and the whole-scene CWBVH re-emit that D5 measured (6.31 ms for a 16.8 k-triangle showroom, growing with the
@@ -13,7 +13,7 @@
 //                        Every BLAS's blob is appended here; BlasRecord::NodeOffset is its start in vec4 blocks.
 //        CwbvhTris[]   — the same for the 3-vec4-per-triangle leaf blob.
 //        TlasInstanceRecord[instance]  112 B — the world→object inverse (64 B), the world AABB, the BLAS index.
-//        BlasRecord[blas]              48 B — where that BLAS' blobs live inside the shared buffers, plus its
+//        BlasRecord[blas]              48 B — where that BLAS' blobs live inside the shared stores, plus its
 //                        OBJECT-space AABB (what the per-frame update transforms to get the world AABB) and its
 //                        primitive count.
 //
@@ -50,8 +50,8 @@ struct TriangleIndex;   // DeviceExchange/SwapchainExchange.h — flat triangle,
 //                                                    INPUT ROWS
 //------------------------------------------------------------------------------------------------------------------------
 
-// One unique mesh, in OBJECT space. The triangles are read once, at Build; the caller keeps ownership.
-struct MeshPrototype
+// One unique topology, in OBJECT space. The triangles are read once, at Build; the caller keeps ownership.
+struct GeometryPrototype
 {
     const TriangleIndex* Triangles    = nullptr;   // [-] object-space triangle soup
     uint32_t             TriangleCount = 0u;       // [cnt]
@@ -99,7 +99,7 @@ struct BlasPlacement
 };
 static_assert(sizeof(BlasPlacement) == 16u, "BlasPlacement must be 16 bytes (std430 mirror)");
 
-// 48 B — where one BLAS' blobs live inside the shared buffers, plus what the per-frame update needs from it.
+// 48 B — where one BLAS' blobs live inside the shared stores, plus what the per-frame update needs from it.
 struct BlasRecord
 {
     uint32_t NodeOffset;        // [vec4 blocks] start of this BLAS' nodes in CwbvhNodes[]
@@ -120,7 +120,7 @@ static_assert(sizeof(BlasRecord) == 48u, "BlasRecord must be 48 bytes (std430 mi
 struct InstanceAccelerationMetrics
 {
     uint32_t InstanceCount   = 0u;   // [cnt]
-    uint32_t BlasCount       = 0u;   // [cnt] unique meshes
+    uint32_t BlasCount       = 0u;   // [cnt] unique geometries
     uint32_t TlasNodeCount   = 0u;   // [cnt] 32 B nodes in the top level
     uint32_t PrimitiveCount  = 0u;   // [cnt] summed over BLASes (object-space triangles)
     uint64_t NodeBytes       = 0u;   // [B] shared CWBVH node blob
@@ -164,7 +164,7 @@ public:
     // D6: build every prototype's BLAS in object space (HighQuality → spatial-split BLAS builds, which are then NOT
     //    refittable — the D8 trade, recorded here because the flag reaches the BLAS builders). Rows are stored and the
     //    TLAS is built over them, so a scene that never moves is one Build and nothing else.
-    [[nodiscard]] bool Build(const std::vector<MeshPrototype>& Prototypes,
+    [[nodiscard]] bool Build(const std::vector<GeometryPrototype>& Prototypes,
                              const std::vector<InstanceRow>&  Rows,
                              bool                             HighQuality = false) noexcept;
 
@@ -174,7 +174,7 @@ public:
     [[nodiscard]] bool UpdateTopLevel(const std::vector<InstanceRow>& Rows) noexcept;
 
     // D8 — the deformation path. Both entry points take ONE BLAS's triangles, OBJECT-space, in the same order it was
-    //    built from, and update it in place: every other BLAS's blocks, and every offset in the shared buffers, stay
+    //    built from, and update it in place: every other BLAS's blocks, and every offset in the shared stores, stay
     //    exactly where they were. Topology is the fixed point — the triangle COUNT must match what the BLAS was built
     //    from, because a refit preserves the tree and a different count is a rebuild (D9's case, not this one).
     //
@@ -183,7 +183,7 @@ public:
     //    compression, so it costs O(this BLAS's nodes) instead of O(scene) and, unlike a re-emit, cannot change the
     //    block counts the placements depend on. That last point is the D8 layout decision, and it is measured rather
     //    than asserted: TraversalIndex::RefitBottomLevel re-collapses the MBVH8 and its node count MOVES with the new
-    //    bounds (+125 blocks at 4 608 triangles, +540 at 10 368 on this level's soup), which in a shared buffer would
+    //    bounds (+125 blocks at 4 608 triangles, +540 at 10 368 on this level's soup), which in a shared store would
     //    shift every following BLAS' slice. See the note on the implementation.
     //
     //    Returns false (and counts a refusal) when the BLAS index is unknown, the triangle count changed, or the
@@ -256,7 +256,7 @@ enum class BlasUpdateDecision : uint32_t
 
 struct BlasUpdatePolicy
 {
-    // Refit while displacement < this fraction of the mesh's own primitive size. 10 % is the documented rule of thumb.
+    // Refit while displacement < this fraction of the topology's own primitive size. 10 % is the documented rule of thumb.
     float    RefitDisplacementRatio   = 0.10f;
     // A topology change (triangle count moved, or an index remap) is never a refit.
     // Rebuilds are expensive and (on a worker) asynchronous, so the policy refuses to start another one while one is
@@ -269,7 +269,7 @@ struct BlasUpdatePolicy
 };
 
 // Max vertex displacement and mean triangle edge length over a BLAS's triangles, before and after — the two numbers
-//    Decide() reads. PrimitiveSize is 0 when the mesh is degenerate; Decide treats that as "always rebuild".
+//    Decide() reads. PrimitiveSize is 0 when the topology is degenerate; Decide treats that as "always rebuild".
 void MeasureDeformation(const std::vector<TriangleIndex>& Before, const std::vector<TriangleIndex>& After,
                         float& OutDisplacement, float& OutPrimitiveSize) noexcept;
 
@@ -283,7 +283,7 @@ void MeasureDeformation(const std::vector<TriangleIndex>& Before, const std::vec
 [[nodiscard]] bool InvertMatrix(const float Matrix[16], float OutInverse[16]) noexcept;
 
 // Column-major 4×4 product: Out = A · B. Needed because the triangles a BLAS is built from are the REST-POSE
-//    WORLD soup (SceneStructure::Finalise bakes each instance's World into the flat triangles), so the transform a
+//    WORLD soup (SceneStructure::Finalise precomputes each instance's World into the flat triangles), so the transform a
 //    row must carry is the RELATIVE one, World_now · World_rest⁻¹ — identity for a static instance, the whole
 //    transform for one whose rest place is identity (the drop bodies), and correct for anything in between.
 [[nodiscard]] bool MultiplyMatrix(const float A[16], const float B[16], float Out[16]) noexcept;

@@ -1,7 +1,7 @@
 #pragma once
 #include <array>
 #include <cstdint>
-// Standard Lorensen-Cline lookup data, transcribed from the MIT-licensed
+// Standard Lorensen-Cline lookup record, transcribed from the MIT-licensed
 // three.js MarchingCubes implementation. See THIRD_PARTY_NOTICES.md.
 namespace Frontier::ProjectFluid::MarchingCubesTables {
 inline constexpr std::array<std::uint16_t,256> Edge={

@@ -52,7 +52,7 @@ For setup without compiling, run `python Tools/Setup.py`. To install all applica
 | `Projects/Project-Zero/` | Main application, native project integration and CPU reference hosts |
 | `Projects/Project-Dyno/` | Dyno/audio project |
 | `Projects/Project-Fluid/` | Flux particle fluid, Ripple pond and CPU tests; [integration/review](Docs/WaterIntegration.md) |
-| `EngineContent/` | Runtime icons, font licences, fonts, celestial textures and star data |
+| `EngineContent/` | Runtime icons, font licences, fonts, celestial textures and star record |
 | `Experimental/FrontierEditor/` | Browser editor prototype, icon gallery and collection studies |
 | `Experimental/{Liquid,Ocean,Water}/` | Separate inherited research experiments—not integrated runtime features |
 | `ExternalPackages/Dependencies.lock.json` | Exact third-party revisions and archive SHA-256 checksums |
@@ -123,16 +123,16 @@ Older research documents describe the former multi-repository arrangement. Histo
 
 ## Water prototype
 
-Flux/Ripple are included with a tested **load-time Ripple mesh bridge**, not live main-engine fluid simulation. Build/test with `cmake --preset fluid-cpu`, `cmake --build --preset fluid-cpu`, then `ctest --preset fluid-cpu`. The rebuilt Project-Zero accepts `--water-body-snapshot`. See [scope, commands, measurements and limitations](Docs/WaterIntegration.md).
+Flux/Ripple are included with a tested **load-time Ripple topology bridge**, not live main-engine fluid simulation. Build/test with `cmake --preset fluid-cpu`, `cmake --build --preset fluid-cpu`, then `ctest --preset fluid-cpu`. The rebuilt Project-Zero accepts `--water-body-snapshot`. See [scope, commands, measurements and limitations](Docs/WaterIntegration.md).
 
-## GPU fluid tests and startup memory logs
+## GPU fluid tests and startup storage logs
 
 Project-Zero now has `--fluid-preview`, `--fluid-gpu-test` and `--fluid-cpu-test` modes. The GPU extraction implementation has a tested CPU mirror; hardware execution remains unverified. [Build/run instructions, scope, logging and RAM investigation](Docs/FluidGpuTesting.md).
 
 ## Startup timing and RAM reports
 
-Use `python Tools/Build/ReportStartup.py PATH_TO_STARTUP.csv --output Build/Diagnostics/startup-report.md` to count overlapping worker intervals once and inspect resident/peak/committed memory separately. [How to compare logs with Task Manager](Docs/StartupReporting.md). New logs include the process ID and render-loop memory samples about every ten seconds.
+Use `python Tools/Build/ReportStartup.py PATH_TO_STARTUP.csv --output Build/Diagnostics/startup-report.md` to count overlapping worker intervals once and inspect resident/peak/committed storage separately. [How to compare logs with Task Manager](Docs/StartupReporting.md). New logs include the process ID and render-loop storage samples about every ten seconds.
 
-Shader startup also prints `[GPU startup]` stage names and five-second heartbeats while shader-module/pipeline creation calls are pending, including elapsed time and process RAM. This is diagnostic activity reporting, not a GPU compilation percentage. See [live startup progress](Docs/StartupReporting.md#live-shader--vulkan-preparation-progress).
+Shader startup also prints `[GPU startup]` stage names and five-second heartbeats while shader-module/chain creation calls are pending, including elapsed time and process RAM. This is diagnostic activity reporting, not a GPU compilation percentage. See [live startup progress](Docs/StartupReporting.md#live-shader--vulkan-preparation-progress).
 
-For the measured ReSTIR pipeline stall (first run >316 seconds, second run 0.45 seconds), see [the investigation, cache checkpoints and opt-in diagnostic tests](Docs/ReSTIRPipelineInvestigation.md). Default rendering optimization is unchanged; the diagnostic modes are not a confirmed driver fix.
+For the measured ReSTIR chain stall (first run >316 seconds, second run 0.45 seconds), see [the investigation, cache checkpoints and opt-in diagnostic tests](Docs/ReSTIRChainInvestigation.md). Default rendering optimization is unchanged; the diagnostic modes are not a confirmed driver fix.

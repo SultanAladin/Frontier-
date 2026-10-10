@@ -1,4 +1,4 @@
-# Gas Fluid — port to Frontier, bake it, budget it, and attach it to objects
+# Gas Fluid — port to Frontier, precompute it, budget it, and attach it to objects
 
 Port the browser gas/pyro simulator at `Experimental/Fluid` into native C++, ship it as both a
 standalone host and a Fluid Editor inside the engine editor, let any object own an emitter, and run
@@ -10,12 +10,12 @@ the whole thing inside a stated budget so a scene full of smoke still holds its 
 
 | Thing | Where | State |
 |---|---|---|
-| Browser gas simulator | `Experimental/Fluid` | Working. WebGL2 and WebGPU engines, 18 presets, scene save/load, **flipbook bake already implemented** (`src/FlipbookSequence.js`) |
+| Browser gas simulator | `Experimental/Fluid` | Working. WebGL2 and WebGPU engines, 18 presets, scene save/load, **flipbook precompute already implemented** (`src/FlipbookSequence.js`) |
 | Its contract | `src/SceneSpecification.js`, `src/presets.js` | `DEFAULT_PARAMS` (84 settings), per-setting ranges, `ValidateScene`, `ConstructPresetParameters` |
 | Its proof | `src/SceneMetrics.mjs` | 18 node tests, all passing |
 | Six collider primitives | `OBSTACLE_TYPES` | None, sphere, vertical cylinder, horizontal cylinder, deflector slab, **tyre ring** |
 | `Project-Fluid` | `Projects/Project-Fluid` | A **liquid** project. Shares a name, shares no solver |
-| A global distance field | `Engine/GeometricRaster/{DistanceFieldSpace,GlobalDistanceFieldSpace,DistanceFieldBakeSolver}.cpp` | **Already in the tree and unused by any target.** This is how arbitrary meshes become gas colliders for free |
+| A global distance field | `Engine/GeometricRaster/{DistanceFieldSpace,GlobalDistanceFieldSpace,DistanceFieldPrecomputeSolver}.cpp` | **Already in the tree and unused by any target.** This is how arbitrary geometries become gas colliders for free |
 | Fracture editor port | `Engine/Editor/FractureEditorSurface.h` | The shape a page port takes here |
 | Tyre slip | `Engine/PhysicalDynamics/Vehicle/TyreSlipDynamics.cpp` | Already computes the slip ratio a burnout emitter keys off |
 | Shader lowering in CI | `.github/workflows/frontier-shaders.yml` | 35 shaders → SPIR-V in 53 s. The volume raymarch joins the table |
@@ -43,9 +43,9 @@ fuel, soot — `RGBA16F` ping-ponged (16 B), pressure ping-ponged (4 B), diverge
 
 VRAM is not the problem. **The pressure solve is**, and it scales with the cube of resolution.
 
-### Baking the 3D volume — measured, and then dropped
+### Precomputing the 3D volume — measured, and then dropped
 
-A baked volume is a sequence of 3D textures. Only density and temperature survive a bake (fuel and
+A precomputed volume is a sequence of 3D textures. Only density and temperature survive a precompute (fuel and
 soot have already done their work), so `RG8` — 2 bytes per voxel.
 
 | Grid | Per frame | 90 frames (3 s @ 30 Hz), raw | Sparse 8³ bricks, ~20 % occupancy |
@@ -53,16 +53,16 @@ soot have already done their work), so `RG8` — 2 bytes per voxel.
 | 64³ | 0.5 MB | 47 MB | ~9 MB |
 | 128³ | 4.0 MB | 377 MB | ~56 MB |
 
-**Decided: no 3D baking.** 56 MB for one three-second hero effect buys almost nothing over
+**Decided: no 3D precomputing.** 56 MB for one three-second hero effect buys almost nothing over
 simulating it, block compression cannot rescue it (`BC4`/`BC7` on `VK_IMAGE_TYPE_3D` is optional in
 Vulkan and missing on much of the hardware), and the one case where it pays — a 64³ effect repeated
-thirty times — is a case the 2D flipbook serves for a fifth of the memory and a fiftieth of the
+thirty times — is a case the 2D flipbook serves for a fifth of the storage and a fiftieth of the
 render cost. The numbers are kept here so the decision does not get relitigated from scratch.
 
 Every effect is therefore either **simulated live** or **played back as a 2D card**. There is no
-third thing to build, bake, version or ship.
+third thing to build, precompute, version or ship.
 
-### Baking to a 2D sprite sheet — the better trade for small and distant
+### Precomputing to a 2D sprite sheet — the better trade for small and distant
 
 An 8×8 flipbook of 256² frames in a 2048² atlas:
 
@@ -73,7 +73,7 @@ An 8×8 flipbook of 256² frames in a 2048² atlas:
 | Six-way lighting (3 extra channels) | +12.6 MB | +4.2 MB |
 
 **~10 MB for a high-quality looping effect, shared by every instance, rendered as a camera-facing
-card at the cost of two triangles.** That is 1/5 the memory of the 3D bake and roughly 1/50 the
+card at the cost of two triangles.** That is 1/5 the storage of the 3D precompute and roughly 1/50 the
 render cost, and the browser app already knows how to produce it.
 
 This is the right default for anything small or far away. Its limit is parallax: a card does not
@@ -101,7 +101,7 @@ the budget, and it can be demoted mid-life.
 | **Near** | 96³ | 18 | 60 Hz | 96 / 6 | 42 MB | **2** |
 | **Mid** | 64³ | 12 | **30 Hz** | 64 / 4 | 12 MB | **4** |
 | **Far** | 32³ *or* a flipbook card | 8 | **15 Hz** | 32 / 2 | 1.5 MB | **8** |
-| **Card** | baked 2D only | — | playback | — | shared atlas | unbounded |
+| **Card** | precomputed 2D only | — | playback | — | shared atlas | unbounded |
 
 Worst legal case: 99 + 2×42 + 4×12 + 8×1.5 = **243 MB of VRAM**, which is a defensible ceiling on a
 modern card and a configurable one on a smaller card.
@@ -163,8 +163,8 @@ shows which tier each domain is running at and why.
 1. **Primitive** — sphere, capsule, box, cylinder, or the tyre ring the simulator already has.
    Rasterised analytically into the obstacle mask each tick. Nearly free, and exact.
 2. **Distance field** — sample `GlobalDistanceFieldSpace` where it covers the domain. Arbitrary
-   meshes become colliders **with no new code in the solver**, because the engine already bakes this
-   field and no target currently consumes it. An object opts in and its mesh is simply there.
+   geometries become colliders **with no new code in the solver**, because the engine already precomputes this
+   field and no target currently consumes it. An object opts in and its topology is simply there.
 3. **Two-way** — below. On by default for debris-weight bodies, off for anything the player stands
    on or drives.
 
@@ -174,7 +174,7 @@ anything else falls through to the distance field.
 ### The gas pushes the world — as a force field, not a readback
 
 The obvious two-way coupling reads pressure back off the GPU and hands it to Jolt. That is the wrong
-shape here, three times over: a 128³ `RGBA16F` readback is ~16 MB a frame and stalls the pipeline;
+shape here, three times over: a 128³ `RGBA16F` readback is ~16 MB a frame and stalls the chain;
 raw pressure gradients inject energy and can destabilise the rigid-body solver; and it is the single
 thing that makes the simulation non-deterministic for multiplayer.
 
@@ -186,7 +186,7 @@ and `VolumetricMedia.h`. A gas domain becomes **another contributor to that same
 | | Pressure readback | Force-field mirror |
 |---|---|---|
 | Moved per frame | ~16 MB at 128³ | **32 KB at 16³, 262 KB at 32³** |
-| Pipeline | Stalls, or three frames of staging | Async, latency is harmless for drag |
+| Sequence | Stalls, or three frames of staging | Async, latency is harmless for drag |
 | Stability | Pressure gradients can add energy | Drag is dissipative, stable by construction |
 | Determinism | Broken | **Intact — see §4** |
 | New interface | A whole coupling path | One more contributor behind `WindField::Sample` |
@@ -305,7 +305,7 @@ the budget has actually assigned it.
 fracture card opens the fracture editor. `Engine/Editor/FluidEditorSurface.h`, drawn with the same
 `ControlPanel` widgets, a **port of the browser page** rather than a new design: preset rail and its
 four filters, grouped inspector, viewport with bounds box and voxel grid lines, debug channel
-selector, and the flipbook bake panel.
+selector, and the flipbook precompute panel.
 
 **Proof** — `Exhibits/Workbench/FluidEditor/`, matched against the bundle the way `BundleParity.py`
 already matches the Project Zero editor.
@@ -376,23 +376,23 @@ Two findings from building it rather than planning it:
    `Engine/VolumetricDynamics/GasSceneResolve.h` is the seam, and running it found three defects a byte
    comparison cannot see — §6.1 below. 🚩 Sample *content* is deferred —
    `Plans/Deferred/GasSampleSceneRefinement.md`
-5. ~~**2D flipbook bake**~~ — landed. `Engine/VolumetricDynamics/GasFlipbookSheet.h` is the browser's layout
+5. ~~**2D flipbook precompute**~~ — landed. `Engine/VolumetricDynamics/GasFlipbookSheet.h` is the browser's layout
    exactly (4/16/32/64 tiles, 64–512 px, 12/24/30/60 per second, 0–3 s warm-up, left to right then top to
    bottom, straight coverage in alpha), plus `TileAtElapsed()` — one float in, one index out, which is the
    whole per-instance cost of the rung — and a TOML descriptor beside the sheet rather than the page's JSON.
    `PngWriteCounterpart::WritePng` grew RGBA so the coverage survives the file. Proof
-   `Exhibits/Workbench/GasFluid/NativeGasFlipbook.cpp` at **PASS 74** bakes a real camp fire through the
+   `Exhibits/Workbench/GasFluid/NativeGasFlipbook.cpp` at **PASS 74** precomputes a real camp fire through the
    shipped solver and the shipped integration, twice, and compares the two sheets byte for byte:
    `Exhibits/Gallery/GasFlipbook/CampFireSheet.png` with `CampFireSheet.toml`. 🚩 The colour in that capture
    is the known-wrong fire rendering, deferred deliberately; the sheet mechanism is what is proved here
 6. ~~**Collision levels 1 and 2 — primitives, then the global distance field**~~ — landed.
-   `GasObstructionConsent.h` is the opt-in as data: one record per object, **every level off by default**,
+   `GasObstructionConsent.h` is the opt-in as record: one record per object, **every level off by default**,
    with the cull (scene order, tail dropped, never reordered), `AdmitObstructions()` as the whole per-advance
    step, and `AdmitBoundaryMotion()` so a moving obstruction pushes the air **in front of** it rather than
    inside itself, where the solver stills it. `ConstructCouplingConsent()` makes the object's record the one
    place level ③'s switch is read from — a stale toggle in saved tuning loses to it.
    `GasSceneDistanceIntake.h` binds level ② to the real `GlobalDistanceFieldSpace`, and the proof links it
-   rather than mocking it: an L-shaped wall is baked into a `DistanceFieldSpace`, registered, rasterised and
+   rather than mocking it: an L-shaped wall is precomputed into a `DistanceFieldSpace`, registered, rasterised and
    obstructs a burning plume with no primitive anywhere. Proof
    `Exhibits/Workbench/GasFluid/NativeGasObstruction.cpp` **PASS 38**, run twice and compared, with three
    captures in `Exhibits/Gallery/GasObstruction/` (**PASS 47** with the routing rule below).
@@ -401,7 +401,7 @@ Two findings from building it rather than planning it:
    volume and carries a translation and a scale and **no rotation**, so a vehicle read out of it is both
    stale and unturnable. `GasRigidDistanceBody` instead carries the query **into the body's own space** by
    the inverse of its transform — `local = Basisᵀ·(world − Translation)/Scale`, `distance = sample·Scale` —
-   which is what Unreal does with mesh distance fields: baked once in object space, never rebaked, rotation
+   which is what Unreal does with topology distance fields: precomputed once in object space, never rebaked, rotation
    free because it is the query that rotates. A body at 30 m/s costs exactly what a parked one costs.
    `AdmitBodyMotion()` pushes air with `V + ω × r`, so a wheel spinning on the spot still drags air.
    `ReadRigidSceneDistance()` mins the moving bodies against the static composited world — a car drives

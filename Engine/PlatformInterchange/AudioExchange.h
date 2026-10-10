@@ -9,7 +9,7 @@
 //    Threads
 //        main       Open / Attach / Advance / Close — Advance publishes device events (start, stop, reroute, loss) as
 //                   AudioMetrics counters and reopens after a device loss with a 0.5 s back-off.
-//        realtime   miniaudio's data callback → Render() on the attached integrator, in fixed RenderSliceFrames slices
+//        realtime   miniaudio's record callback → Render() on the attached integrator, in fixed RenderSliceFrames slices
 //                   regardless of the period WASAPI actually granted, so an offline RenderToWave pass produces the same
 //                   samples the device plays (bit-identity between the dyno's WAV and the speaker).
 //
@@ -79,7 +79,7 @@ struct AudioConfiguration
 // Snapshot the main thread reads through QueryMetrics(); the realtime side only bumps relaxed atomics.
 struct AudioMetrics
 {
-    uint64_t CallbackCount        = 0u;      // [-]   data callbacks served since Open
+    uint64_t CallbackCount        = 0u;      // [-]   record callbacks served since Open
     uint64_t FramesRendered       = 0u;      // [-]   frames handed to the device since Open
     uint32_t GrantedSampleRate    = 0u;      // [Hz]  what the device actually runs at
     uint32_t GrantedPeriodFrames  = 0u;      // [frames] what the device actually asks for per callback
@@ -122,7 +122,7 @@ public:
     void Attach(SignalIntegrator* Integrator) noexcept;
     [[nodiscard]] SignalIntegrator* QueryIntegrator() const noexcept { return Attached.load(std::memory_order_acquire); }
 
-    // Main-thread housekeeping: folds realtime counters into Metrics, handles device loss / reroute (reopen with back-off).
+    // Main-thread housekeeping: folds realtime counters into Metrics, identifiers device loss / reroute (reopen with back-off).
     void Advance(float Δτ) noexcept;
 
     void AssignMasterGain(float Gain) noexcept;

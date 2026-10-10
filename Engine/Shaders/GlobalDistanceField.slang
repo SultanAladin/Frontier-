@@ -67,7 +67,7 @@ DistanceFieldHit MarchSceneGlobalDistanceField(vec3 RayOrigin,
             continue;
         }
 
-        // Near surface: query local mesh distance field
+        // Near surface: query local topology distance field
         float FineD = SampleDistanceFieldVolume(TriangleFieldSampler, P, FieldMin, FieldMax);
 
         if (FineD <= SurfaceThreshold)

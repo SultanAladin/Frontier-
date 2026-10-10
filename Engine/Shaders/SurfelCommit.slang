@@ -23,7 +23,7 @@ struct GpuSurfel
     vec4 IrradianceNew;     // xyz = E' (this frame's running-mean result)
 };
 
-layout(std430, binding = 0) buffer SurfelExtent { GpuSurfel Surfels[]; };
+layout(std430, binding = 0) store SurfelExtent { GpuSurfel Surfels[]; };
 
 layout(push_constant) uniform SurfelCommitConstants
 {

@@ -22,7 +22,7 @@ def run(c):
   if obj.exists() and obj.stat().st_mtime>max(src.stat().st_mtime,(R/'Engine/Editor/ViewportBillboards.h').stat().st_mtime,(R/'Projects/Project-Zero/Source/EditorInspectorSequence.h').stat().st_mtime):return
  r=subprocess.run(c,cwd=T,text=True,stdout=subprocess.PIPE,stderr=subprocess.STDOUT)
  if r.returncode:raise RuntimeError(' '.join(c)+'\n'+r.stdout)
-with concurrent.futures.ThreadPoolExecutor(max_workers=3) as pool:list(pool.map(run,commands[:-1]))
+with concurrent.futures.ThreadPoolExecutor(max_workers=3) as slots:list(slots.map(run,commands[:-1]))
 run(commands[-1]);(T/'Exhibits/Gallery/NativeBillboards').mkdir(parents=True,exist_ok=True)
 r=subprocess.run([str(B/'Proof')],cwd=T,text=True,stdout=subprocess.PIPE,stderr=subprocess.STDOUT,env=dict(os.environ,ASAN_OPTIONS='detect_leaks=1:halt_on_error=1',UBSAN_OPTIONS='halt_on_error=1:print_stacktrace=1'));print(r.stdout)
 for f in (T/'Exhibits/Gallery/NativeBillboards').iterdir():shutil.copy2(f,O/f.name)

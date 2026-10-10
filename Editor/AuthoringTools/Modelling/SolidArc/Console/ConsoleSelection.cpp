@@ -238,7 +238,7 @@ void ConsoleHost::RegisterSelection() noexcept
     });
     Add("delete", "delete <figure...> | selected | empty <name> | empty all  — remove figures from the scene. Phase 19 added `delete empty <name>|all` for transform handles.", [=, this](const CommandLine& C)
     {
-        // Phase 19: handle `delete empty <name>|all` separately so Empties can be removed without
+        // Phase 19: identifier `delete empty <name>|all` separately so Empties can be removed without
         //    touching real geometry. This runs before ResolveMany so `empty` isn't a figure name.
         if (C.Count() >= 1 && C.Arguments[0] == "empty")
         {

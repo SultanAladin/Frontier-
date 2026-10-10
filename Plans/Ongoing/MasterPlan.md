@@ -6,7 +6,7 @@
 
 ## Goal and agreed order
 
-Start with **native C++ XPBD tyres**, including an object-space rest SDF bake and distance fields that follow the
+Start with **native C++ XPBD tyres**, including an object-space rest SDF precompute and distance fields that follow the
 actual solved tyre geometry. Demonstrate the result with Project Drive tyre renders before extending dynamic
 fields to complex vehicle bodywork. Keep native ReSTIR; geometry representation and sample reuse are separate.
 
@@ -14,15 +14,15 @@ The browser dynamic-SDF study established an executable approach, not unrestrict
 budget. Thin features disappeared at finite voxel resolution. Its full-volume rebuild was substantially more
 expensive than tracing a reused field. Those limitations remain requirements, not problems to hide.
 
-## 1. Native tyre geometry and bake
+## 1. Native tyre geometry and precompute
 
 - Use `XPBDSoftTyre` node positions and its material frame, not the browser's analytic deformation.
 - Define the closed tyre-envelope representation explicitly: tread, sidewalls and bead-to-bead inner closure.
   Preserve the central wheel opening. This is a lighting envelope, not resolved rubber thickness/internal air.
-- Bake a local signed volume from that triangulated surface, with a reproducible content signature and grid metadata.
-  Reuse only a matching bake; changing geometry, grid settings or algorithm must invalidate it.
-- Refit the surface acceleration data and reconstruct the current local field from solved positions. Track geometry,
-  field and bake revisions separately; unchanged input must not trigger a redundant bake.
+- Precompute a local signed volume from that triangulated surface, with a reproducible content signature and grid metadata.
+  Reuse only a matching precompute; changing geometry, grid settings or algorithm must invalidate it.
+- Refit the surface acceleration record and reconstruct the current local field from solved positions. Track geometry,
+  field and precompute revisions separately; unchanged input must not trigger a redundant precompute.
 - Refuse invalid/nonfinite/degenerate input rather than silently tracing a stale field as if it were current.
 
 ## 2. Project Drive and shared-renderer handoff
@@ -33,7 +33,7 @@ vertex stream. Add a project-neutral geometry extension without giving Project D
 - Project Drive owns the XPBD-to-visible-surface projection.
 - The shared host owns mutable scene geometry, culling, raster uploads, traversal and lighting resources.
 - Raster geometry and native distance construction must consume the same completed deformation snapshot.
-- Changed geometry invalidates surface/radiance history and traversal data, including any rigid-only acceleration.
+- Changed geometry invalidates surface/radiance history and traversal record, including any rigid-only acceleration.
 - Stop/reset restores authored geometry. Other projects and frozen vehicle assets must remain unaffected.
 - A conservative synchronized rebuild is acceptable for initial correctness, but its cost must be exposed.
 
@@ -91,10 +91,10 @@ The following is implemented, rather than merely planned:
 
 ### What the rest asset currently does
 
-The SDF1 bake is a local signed envelope asset and a reproducible reference, not an already-streamed GPU object-field
+The SDF1 precompute is a local signed envelope asset and a reproducible reference, not an already-streamed GPU object-field
 cache. The production native path currently reconstructs its **hybrid world field from the deformed scene**. Its
 existing triangle refinements remain, and ReSTIR is unchanged. The content validator currently reconstructs the
-expected bake before comparing it, so a verified existing file is not a cheap construction-cache hit.
+expected precompute before comparing it, so a verified existing file is not a cheap construction-cache hit.
 
 ### Checks and renders
 
@@ -110,7 +110,7 @@ checks. Its gallery is `VisualProof/TyreDeformation/index.html`; twelve PNGs are
   These are prescribed-hub stress tests, not a claim of vehicle load equilibrium.
 - Projection matches solved tread nodes to within 0.14 micrometres in these fixtures.
 - SDF1 roundtrip, changed/unchanged revision, nonfinite/open/degenerate geometry, invalid resolution/index and a
-  damaged on-disk bake are checked. Manifold validation does **not** prove absence of self-intersections.
+  damaged on-disk precompute are checked. Manifold validation does **not** prove absence of self-intersections.
 - 5,184 paired camera rays across the three fixtures: 12 / 15 / 12 reference hits missed; zero extra hits.
   Median paired depth error is about 0.34 mm, but worst paired errors reach 632 / 103 / 103 mm when an earlier
   surface is missed. Preserve the full distributions and counts; median error alone is misleading.
@@ -120,7 +120,7 @@ checks. Its gallery is `VisualProof/TyreDeformation/index.html`; twelve PNGs are
 The pictures are **executed C++ CPU field-only references**, including a snapshot obtained through the real Drive
 DLL. They are not editor screenshots, Vulkan captures, progressive production GI or an analytic browser tyre.
 Primary hits and tyre shadows have no triangle fallback. The native host translation unit was also GCC syntax-checked.
-Windows/MSVC native Drive playback, bake, handoff and render checks passed for implementation commit `614d469`.
+Windows/MSVC native Drive playback, precompute, handoff and render checks passed for implementation commit `614d469`.
 The independent job receipt is `VisualProof/TyreDeformation/WindowsVerification.json`. ASan, UBSan and leak checks
 also passed for that implementation. A subsequent no-op guard avoids allocating geometry snapshots for unrelated
 projects; the complete GCC check suite was rerun after that guard. The separate full-engine CI build is still pending.
@@ -146,8 +146,8 @@ browser fracture preview.
 
 The fracture editor remains an HTML-first review at `Frontier/Experimental/FractureEditor/`. The C045 revision
 (2026-10-06) removes sheet metal and the material-example gallery from the active editor. Project-Zero now binds
-Enable fracture, Dynamic/Baked and expansion to a selected scene ID. Material changes preserve the selected
-primitive and scale; browser triangle bakes persist per object and invalidate on geometry/recipe changes.
+Enable fracture, Dynamic/Precomputed and expansion to a selected scene ID. Material changes preserve the selected
+primitive and scale; browser triangle precomputes persist per object and invalidate on geometry/recipe changes.
 
 The prior glass-region coverage loss is replaced by closed, volume-preserving convex partitioning. Shared edge
 crossings, complete caps, quality-aware triangulation and fragment-slenderness checks reject defective cuts rather
@@ -156,7 +156,7 @@ existing main-editor regression. Source snapshots from both supplied branches re
 the active geometric correction is separate from those snapshots. See C045 in `Frontier/Docs/ProjectZeroHtmlChanges.md`.
 
 Native integration still waits for visual approval. Current source geometry is the HTML editor's analytical convex
-primitive plus scale, not arbitrary native mesh import; concave shapes are explicitly refused. Follow-up work must
+primitive plus scale, not arbitrary native topology import; concave shapes are explicitly refused. Follow-up work must
 carry over Jolt contacts and breakable supports, safe geometry ownership, author-created geometry handling,
 material-appropriate failure and native serialization, without treating every material as brittle cells.
 
@@ -168,10 +168,10 @@ loaded-image comparison gives RGB RMS 3.5992988/255 across 58,325 changed pixels
 production-shader readback gap, not the interactive native-window, continuous GPU update or full-material gates.
 
 C047 (2026-10-06): the user explicitly reaffirmed **HTML-first** rather than native fracture/SDF integration or a
-browser SDF-computation prototype. Baked fracture now authors an optional per-piece SDF request at 32³/64³/128³,
+browser SDF-computation prototype. Precomputed fracture now authors an optional per-piece SDF request at 32³/64³/128³,
 planned R16F. It persists/synchronizes/exports without changing the triangle-geometry signature. Successful browser
-bakes report geometry ready / SDF pending; exports explicitly set `Generated:false`. Concave/imported geometry
-records can author controls, but unsupported execution remains refused. No actual SDF or arbitrary mesh importer
+precomputes report geometry ready / SDF pending; exports explicitly set `Generated:false`. Concave/imported geometry
+records can author controls, but unsupported execution remains refused. No actual SDF or arbitrary topology importer
 has been added. Square metric tiles and complete type-specific light authoring cards accompany this review; original
 native cards and pinned source depots remain intact. The new 22 lighting/SDF-authoring checks, existing 22 fracture
 browser checks, 168 geometry cases and main inspector regression pass. See C047 and its captures in

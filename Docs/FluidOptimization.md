@@ -1,4 +1,4 @@
-> **CPU pass 2:** [parallel optimization and measured pipeline](FluidCpuPass2.md). Two-thread pipeline median: 18.67 ms over the timed fixture; GPU extraction remains outstanding. Foam/splash are queued afterward.
+> **CPU pass 2:** [parallel optimization and measured chain](FluidCpuPass2.md). Two-thread chain median: 18.67 ms over the timed fixture; GPU extraction remains outstanding. Foam/splash are queued afterward.
 
 # Flux CPU optimization — measured results and remaining GPU work
 
@@ -13,7 +13,7 @@
 - Timings for indexing, field evaluation, triangle generation, assembly and a smoothing subset (adjacency construction, smoothing, volume correction and normals). **The smoothing subset is included in assembly time: do not add it twice.**
 - Retained exhaustive neighbour/field modes as correctness oracles; added optimization equivalence CTest.
 
-Not changed: particle count, extraction resolution, pressure iterations, viscosity model, mesh smoothing parameters or physical simulation timestep. This is a CPU implementation, not a GPU estimate. No unsafe fast-math flags were added.
+Not changed: particle count, extraction resolution, pressure iterations, viscosity model, topology smoothing parameters or physical simulation timestep. This is a CPU implementation, not a GPU estimate. No unsafe fast-math flags were added.
 
 ## Controlled comparison
 
@@ -51,8 +51,8 @@ The solver + PCA + changed extraction remains approximately **40 ms of serial CP
 - Spatial queries/order compared with brute force at 2,003 seeded sample positions, including negative coordinates and support-radius boundaries.
 - Twelve solver steps compared with exhaustive particle and boundary searches, checking positions and velocities.
 - PCA centres, axes and weights compared against exhaustive neighbourhood reconstruction.
-- Mesh indices, positions, normals and topology diagnostics compared against exhaustive field evaluation for a full build, an incremental displacement and particle removal. Tolerances: positions 0.0002, normals 0.002.
-- Separately compiled the original `85bf863` extractor/solver/PCA and exported its 12-step mesh. Comparison with optimized output had **identical face indices**, with maximum printed position/normal vector difference **1.005e-5**. This also covers the changed welding/adjacency path, which the in-process field oracle shares.
+- Hull indices, positions, normals and topology diagnostics compared against exhaustive field evaluation for a full build, an incremental displacement and particle removal. Tolerances: positions 0.0002, normals 0.002.
+- Separately compiled the original `85bf863` extractor/solver/PCA and exported its 12-step topology. Comparison with optimized output had **identical face indices**, with maximum printed position/normal vector difference **1.005e-5**. This also covers the changed welding/adjacency path, which the in-process field oracle shares.
 - CMake/direct Windows build-source parity gate passed. Newly changed code has not been executed under MSVC or in a Vulkan viewport.
 
 These are deterministic fixtures, not proof of equivalence for every possible scene or degenerate input. The existing fixed vertical extraction extent (max Y=3.13 versus particle bound Y=3.70) is unchanged.
@@ -70,16 +70,16 @@ The benchmark now prints individual extraction stages. The new optimization test
 
 ## GPU status / next stage
 
-The sandbox has no exposed `/dev/dri` or NVIDIA device, no installed Vulkan ICD directory and no available Vulkan shader compiler/runtime tools. **No hardware GPU timing can be obtained here.** CPU timings must not be relabelled as GPU timings, and the existing standalone screen-space Vulkan renderer is not GPU mesh extraction.
+The sandbox has no exposed `/dev/dri` or NVIDIA device, no installed Vulkan ICD directory and no available Vulkan shader compiler/runtime tools. **No hardware GPU timing can be obtained here.** CPU timings must not be relabelled as GPU timings, and the existing standalone screen-space Vulkan renderer is not GPU topology extraction.
 
 The GPU extraction port remains pending, not silently marked complete. It should:
 
 1. Upload/cache evaluation coefficients and compact brick-to-kernel offsets/IDs (initially CPU-prepared if necessary).
 2. Evaluate uniquely owned field samples in compute, using local candidates; avoid races at shared brick borders.
-3. Count/scan/write marching-cubes output into bounded GPU buffers, with overflow reporting.
-4. Generate stable edge IDs, normals and the required smoothing/volume correction without CPU mesh readback in the rendering path. Dropping smoothing is not quality-equivalent.
-5. Keep the mesh GPU-resident; use correct storage/indirect/vertex or acceleration-build barriers.
-6. Place Vulkan timestamp queries around actual compute stages, check `timestampValidBits`, apply `timestampPeriod`, handle valid-bit wraparound and separate warm-up from repeat measurements. Read timestamp results after completion, rather than timing command submission on the CPU.
-7. Validate sampled GPU field/mesh output against this CPU reference before claiming parity or speedup. Measure rendering and BLAS/TLAS work separately.
+3. Count/scan/write marching-cubes output into bounded GPU stores, with overflow reporting.
+4. Generate stable edge IDs, normals and the required smoothing/volume correction without CPU topology readback in the rendering path. Dropping smoothing is not quality-equivalent.
+5. Keep the topology GPU-resident; use correct storage/indirect/vertex or acceleration-build barriers.
+6. Place Vulkan timestamp queries around actual compute stages, check `timestampValidBits`, apply `timestampPeriod`, identifier valid-bit wraparound and separate warm-up from repeat measurements. Read timestamp results after completion, rather than timing command submission on the CPU.
+7. Validate sampled GPU field/topology output against this CPU reference before claiming parity or speedup. Measure rendering and BLAS/TLAS work separately.
 
 This pass implements priorities 1–3 and the first solver/PCA improvements from priority 5. **Priority 4 is outstanding.**

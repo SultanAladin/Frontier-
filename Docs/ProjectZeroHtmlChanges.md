@@ -5,7 +5,7 @@
 - Make and review editor changes in `Experimental/ProjectZeroEditor` first.
 - Keep this document as the cumulative change record for subsequent requests.
 - Initial HTML-only gate was lifted on 2026-10-04: the user authorized C++ conversion and native build verification.
-- All baking/export controls belong below authoring settings; native work must avoid stack-sized scene storage.
+- All precomputing/export controls belong below authoring settings; native work must avoid stack-sized scene storage.
 - Record browser verification separately from native verification. A browser check does not prove a C++ fix.
 - Preserve the approved SolidArc and Fluid work.
 
@@ -22,20 +22,20 @@
 | C007 | Object-bound full material channels and sources     | Implemented and browser-checked   | Native slab and producer integration deferred     |
 | C008 | Dockable ShaderEditor and shader-ball preview       | Implemented and browser-checked   | Native shader execution and BSDF preview deferred |
 | C009 | Matching top/bottom drawers and page-close gestures | Implemented; mouse/touch checked | Reported native drag problem recorded; mirror deferred |
-| C010 | Material, imported-file and engine asset browser | Implemented and browser-checked | Native asset pipeline integration deferred |
+| C010 | Material, imported-file and engine asset browser | Implemented and browser-checked | Native asset chain integration deferred |
 | C011 | Viewport-only settings/debug menu | Implemented and browser-checked | Native settings/statistics menu implemented; broader parity pending |
 | C012 | Entity-relevant circular quick toggles | Implemented and browser-checked | Per-entity shadow/GI/physics bindings deferred |
 | C013 | Precipitation icon instead of umbrella | HTML rain-cloud symbol implemented | Native artwork unchanged |
-| C014 | Animated composite WindEditor | Implemented; evaluator and browser checked | Native wind field evaluation deferred |
-| C015 | Cloud selection of a composite wind field | Implemented and browser-checked | Native cloud advection binding deferred |
+| C014 | Animated combined WindEditor | Implemented; evaluator and browser checked | Native wind field evaluation deferred |
+| C015 | Cloud selection of a combined wind field | Implemented and browser-checked | Native cloud advection binding deferred |
 | C016 | Local fog volume shape instead of fixed box bounds | Implemented and browser-checked | Native shape masks/SDF integration deferred |
 | C017 | Permanent first Editor Camera | Implemented and browser-checked | Editor Camera pinned/locked; native feed checked |
 | C018 | Interactive environment graphs | Implemented and browser-checked | Native Sun/atmosphere plots implemented; remaining graphs pending (C024) |
-| C019 | AtmosphereLab atlas and space study | Implemented and browser-checked | Still to mirror; real native dome bake retained |
+| C019 | AtmosphereLab atlas and space study | Implemented and browser-checked | Still to mirror; real native dome precompute retained |
 | C020 | Pill viewport header | Implemented and browser-checked | Existing native pill rail retained |
 | C021 | Folder/collection inspector | Implemented and browser-checked | Native census, search and bounded paging; native roster cap unchanged |
 | C022 | Resizable statistics/debug card | Implemented and browser-checked | Native card with engine intervals/completed GPU telemetry |
-| C023 | Native conversion, bottom baking, stack safety | Approved HTML baseline retained | Initial native checkpoint; see remaining work below |
+| C023 | Native conversion, bottom precomputing, stack safety | Approved HTML baseline retained | Initial native checkpoint; see remaining work below |
 | C024 | Native Sun and atmosphere graph controls | Approved HTML baseline retained | Eight interactive plots; native input and low-stack checks passed |
 | C030 | Polygon-only cliff shapes, bounded joints and local spalls | Implemented; geometry/browser checks passed | Not changed; HTML-only geological modelling pass |
 
@@ -90,7 +90,7 @@ No HTML flight-camera implementation is claimed: the movement chord is left avai
 
 - Replaced the static native reference image with a blank, dark checkerboard.
 - Each confirmed construction adds a labeled analytical symbol: box, sphere, cylinder, cone, ring, camera outline, light circle, weather symbol, or a circle/label fallback.
-- All 23 catalogue entries have a representation. These are SVG previews, not meshes, physics, GPU lighting, or astronomical rendering.
+- All 23 catalogue entries have a representation. These are SVG previews, not geometries, physics, GPU lighting, or astronomical rendering.
 - Selecting a symbol selects the same entry in the outliner and inspector.
 - Renaming, visibility, collection visibility, duplication, removal, and browser-local persistence operate on the same entries.
 - Generated names are unique; cancelling the Properties step leaves the checkerboard unchanged.
@@ -113,10 +113,10 @@ Visual proofs:
 
 ## 2026-10-04 — C004: Filled inspector quick actions
 
-- Replaced the repeated small power/orbit glyphs with filled semantic SVG silhouettes. Each action within a quick group has a distinct symbol: fog, wind, cloud, rain, collision, stars, twinkle, sun, disc, orbit, motion, pause, baking, baked image, and optical effects.
+- Replaced the repeated small power/orbit glyphs with filled semantic SVG silhouettes. Each action within a quick group has a distinct symbol: fog, wind, cloud, rain, collision, stars, twinkle, sun, disc, orbit, motion, pause, precomputing, precomputed image, and optical effects.
 - Enabled icons follow the inspector context: fog layers, a cloud, falling rain, or a rainbow rather than the same generic power icon.
 - Larger icon seats, rounded tiles, and explicit **ON / OFF / UNAVAILABLE** captions use green, muted red, and grey respectively. Status is conveyed by text as well as colour.
-- Retained existing property callbacks, keyboard activation, and native-unavailable disabled states. Styling does not enable baking, imported-image playback, or any disconnected native control.
+- Retained existing property callbacks, keyboard activation, and native-unavailable disabled states. Styling does not enable precomputing, imported-image playback, or any disconnected native control.
 - Original outliner artwork, inspector graphs, card styling, notch, and trapezoidal document tabs remain intact.
 
 ## 2026-10-04 — C005: Viewport header
@@ -152,7 +152,7 @@ Visual proofs:
 - Supports numeric entry, horizontal value scrubbing, Shift precision, row resets, and the existing instance lock.
 - Transform drafts are per object and survive selection changes and browser reloads.
 - These values are **HTML authoring state**, not native transform matrices or modifications to SolidArc geometry.
-  The checkerboard remains an analytical placement preview, not a transformed mesh renderer.
+  The checkerboard remains an analytical placement preview, not a transformed topology renderer.
 
 ## 2026-10-04 — C007: Object-bound material channels
 
@@ -185,19 +185,19 @@ Visual proofs:
 - **Code link:** C++, Slang/HLSL or GLSL provider, symbol/entry point, source/integration notes, and stored fill fallback.
   These are unresolved descriptors. No text is evaluated, compiled or executed by the HTML editor.
 - Switching sources preserves the other source drafts. Material state and bounded texture previews use the existing
-  per-object save/export data. Storage failures now show an explicit warning instead of silently failing.
-- Restored material values are constrained to the channel schema; embedded image sources are restricted to data URLs.
+  per-object save/export record. Storage failures now show an explicit warning instead of silently failing.
+- Restored material values are constrained to the channel schema; embedded image sources are restricted to record URLs.
 
 ## 2026-10-04 — C008: ShaderEditor window and preview
 
 - The material card's expand arrow opens a separate, movable, resizable **non-modal window inside the HTML app**.
 - Dock buttons attach it to Left, Centre or Right. The docked ShaderEditor uses the existing trapezoidal tab strip
-  and tab drag/drop; Float window undocks it. It can be closed and reopened without discarding material data.
+  and tab drag/drop; Float window undocks it. It can be closed and reopened without discarding material record.
 - Owner selection is explicit; missing/deleted owners show a recovery prompt instead of silently editing another object.
-- Uses the existing `Exhibits/DistanceFieldGI/ShaderBall.mesh`, embedded by the standalone build: 35,897 vertices,
-  67,832 triangles. Mesh provenance is shown in the preview details, following the native exhibit's identification
+- Uses the existing `Exhibits/DistanceFieldGI/ShaderBall.topology`, embedded by the standalone build: 35,897 vertices,
+  67,832 triangles. Hull provenance is shown in the preview details, following the native exhibit's identification
   of Pseudopode / UnityShaderBall as CC0. No replacement generated illustration is used.
-- A browser-side software rasterizer displays the actual mesh with orbit and softbox/warm/cool lighting controls.
+- A browser-side software rasterizer displays the actual topology with orbit and softbox/warm/cool lighting controls.
   Supported channel edits change preview pixels, including image UV sampling and gradients.
 - Preview coverage: colour, roughness, metallic, IOR, occlusion, emission, opacity, coat, sheen, and approximate
   transmission. Orientation, anisotropy, subsurface and displacement are stored but not evaluated by this preview.
@@ -210,7 +210,7 @@ Executed on 2026-10-04 using headless Chromium, without a C++ build:
 
 - `CheckMaterials.mjs`: XYZ edit/scrub/reset/lock/persistence; all 20 typed channel rows and nine profiles;
   pinned ownership; shared IOR; channel search; signed scalar typing; gradient editing, limits and retained drafts;
-  texture pixel changes, embedded data, failed-decode preservation and removal; code descriptors; floating movement;
+  texture pixel changes, embedded record, failed-decode preservation and removal; code descriptors; floating movement;
   docking/tab dragging/undocking; non-overlapping docked cards; reload persistence.
 - Material window layouts checked at 1024, 1280, 1366, 1440 and 1920 pixels wide without horizontal content overflow.
 - `CheckBrowser.mjs`: all 18 inspector sheets, now 128 numeric edits, and existing shell/Control Centre regressions.
@@ -250,11 +250,11 @@ Used the user-supplied repository-root [`UI.html`](../../UI.html) reference
 inventory was **not** used as engine content.
 
 - Both notches now share `DrawerPanel.jsx`: closed, half-open and full-open stops;
-  vertical handle dragging; horizontal handle repositioning; distance/velocity
+  vertical identifier dragging; horizontal identifier repositioning; distance/velocity
   release snapping; fast flicks; and pointer cancellation.
 - Open sheets can be dragged using their blank page surface, header or grip.
   Buttons, fields and independent scrolling regions keep their own interaction.
-- Handles support click, Enter and Space; Escape closes the browser or returns
+- Identifiers support click, Enter and Space; Escape closes the browser or returns
   through the Control Centre pages. Drawers are mutually exclusive and prevent
   interaction with the editor behind them. Focus is contained/restored.
 - Settings dialogs and the library fit the visible half-height sheet; their
@@ -263,7 +263,7 @@ inventory was **not** used as engine content.
   `lostpointercapture` when implicit touch capture transfers to the drawer root.
 
 **Native follow-up:** the user reports that their C++ build closes only through
-handle presses, not by sliding the open page/handle. Record this as a required
+identifier presses, not by sliding the open page/identifier. Record this as a required
 native regression case, not as a browser fix proving the native issue resolved.
 `ControlCentreHost.cpp` already contains `GrabSubject::Card` and `Grip` carry
 paths. Actual hit routing/body ownership and the running build need verification
@@ -282,7 +282,7 @@ The built-in library contains **179 entries**:
 - 6 embedded moon image previews.
 - 2 actual DM Sans font resources, previewed using `FontFace`.
 - 161 repository icons.
-- The repository shader-ball mesh, shown through the existing browser preview.
+- The repository shader-ball topology, shown through the existing browser preview.
 
 Materials can be created, renamed, saved from the selected object, exported,
 imported and edited in the pinned ShaderEditor. Editing an engine preset first
@@ -306,7 +306,7 @@ Limits and storage boundaries:
 - Engine moon downloads are the embedded 512×256 previews, not the source 2K maps.
 - Font preview does not change the editor's font. Code remains non-executed.
 - The shader-ball remains an approximate browser preview, not native BSDF/SSR
-  execution. There is no native asset pipeline or renderer binding in this work.
+  execution. There is no native asset chain or renderer binding in this work.
 
 ### C011 — Viewport settings
 
@@ -340,7 +340,7 @@ Committed browser screenshots (not native screenshots):
 **Status:** HTML implemented and verified; awaiting user review. C++ mirroring
 remains deferred until the HTML changes are finished and approved.
 
-## 2026-10-04 — C012–C015: Relevant quick tiles and composite wind fields
+## 2026-10-04 — C012–C015: Relevant quick tiles and combined wind fields
 
 ### C012 — Replace the blanket Instance flags
 
@@ -375,7 +375,7 @@ have not been rewritten; the native artwork mirror remains deferred.
 Selecting a wind now shows a live canvas with vector arrows, a smoothly sampled
 speed gradient, and animated particles. The expand button opens a two-view editor:
 
-1. **Component placement:** an XZ map, numbered handles, influence-radius
+1. **Component placement:** an XZ map, numbered identifiers, influence-radius
    outlines, mouse/touch pointer dragging and keyboard position adjustments.
 2. **Combined vector field:** actual evaluation of all enabled components,
    with independent vector/gradient/particle visibility and pause/resume.
@@ -394,7 +394,7 @@ unrelated arrows or choosing one component. Components can be created, selected,
 renamed, moved, retyped and removed. Numeric drafts commit on blur/Enter, allowing
 negative positions and normal typing of bounded values. Preview width/depth are
 editable; directional flow is global, while local influence is controlled by
-component radius. Component handles also support arrow keys (10 m per step).
+component radius. Component identifiers also support arrow keys (10 m per step).
 
 Field descriptors live under `Values[windEntityId].WindField` and therefore use
 the existing scene save/export/import mechanism. New fields receive distinct
@@ -446,14 +446,14 @@ Committed **browser** evidence:
 - [Cloud field binding](../Experimental/ProjectZeroEditor/Screenshots/CloudWindBinding.png)
 
 **Status:** HTML review checkpoint. No C++ sources were changed and no native
-build was run. Native entity capability binding, composite wind evaluation and
+build was run. Native entity capability binding, combined wind evaluation and
 cloud advection integration remain deferred until the HTML review is finished.
 
 ## 2026-10-04 — C016–C017: Local fog shape and permanent Editor Camera
 
 ### Change-log continuity
 
-The previous turn's C012–C015 quick-tile, precipitation-symbol, composite-wind and
+The previous turn's C012–C015 quick-tile, precipitation-symbol, combined-wind and
 cloud-binding changes were committed with this log in `728a579`. The older
 `ed7d5df` URL visible in the user's screenshot predates those changes. This
 section appends the new corrections; it does not replace or omit the prior log.
@@ -483,7 +483,7 @@ Custom footprints support 3–32 vertices, including simple concave polygons.
 Crossing edges, duplicate adjacent points, zero-area footprints and invalid
 coordinates are rejected on Apply without replacing the last valid shape.
 Restored descriptors are bounded/sanitized. **Custom currently means polygon
-extrusion, not arbitrary imported mesh or SDF clipping.** Native general-mesh/SDF
+extrusion, not arbitrary imported topology or SDF clipping.** Native general-topology/SDF
 support remains a separate integration task.
 
 Local Fog's old density illustration is now explicitly labelled as a density
@@ -549,7 +549,7 @@ geometry workflow. It changes the HTML prototype only. **No C++ sources were
 changed and no native build was run.** Materials and geometry do not receive
 this new card/graph treatment.
 
-### C018 — Actual data in the existing cards
+### C018 — Actual record in the existing cards
 
 - **Height Fog:** replaced the unrelated decorative density and transmission
   illustrations with interactive sampled curves. Both use the same altitude
@@ -587,7 +587,7 @@ this new card/graph treatment.
   vertical density envelope using actual base/centre, thickness, density and
   coverage. The sine-squared profile is explicitly an unlit authoring study,
   not a native volume-field sample. Local Cloud's bounds are now projected from
-  its actual Half Size; X/Y/Z handles resize those native fields and derived
+  its actual Half Size; X/Y/Z identifiers resize those native fields and derived
   world Min/Max/Size readouts follow Centre. The existing Volume section card
   shows the density study rather than repeating the same fixed box drawing.
   The separate GPU-cloud-shadow controls also receive a live parameter map;
@@ -595,7 +595,7 @@ this new card/graph treatment.
 - **Other cards:** numeric and colour controls are shown in collapsible,
   directly editable SVG parameter-column maps, with exact native-valued
   readouts. Heights represent each control's fraction of its declared range;
-  these are authored data, not simulated telemetry. RGB columns edit the
+  these are authored record, not simulated telemetry. RGB columns edit the
   actual hex colour (including Ground reflectance). This covers environment,
   camera, light and post-processing cards while excluding materials/geometry.
   Existing useful previews, controls, disabled native actions and cards remain.
@@ -640,8 +640,8 @@ at 1366×768. Background preview drawing is skipped while the workbench is open.
 
 Probe values, atlas-applied properties and orbit/observer settings use the
 existing scene Values/save path. Planet radius and preview controls are HTML
-study descriptors, not newly implemented native fields. Baking/LUT fetching
-remains explicitly unavailable; no fake bake results were added.
+study descriptors, not newly implemented native fields. Precomputing/LUT fetching
+remains explicitly unavailable; no fake precompute results were added.
 
 ### Verification and committed proofs
 
@@ -700,7 +700,7 @@ an inventory derived from the actual scene hierarchy:
   Editor Camera remains visible. The two visibility cards also filter contents.
 - Proportional type-distribution bar and clickable type/count legend. Constructed
   preview marker counts are separate; these are scene records, not renderer
-  workload, resident memory, triangle counts or file-size claims.
+  workload, resident storage, triangle counts or file-size claims.
 - Search by name, ID or description; direct-child/all-descendant scope; type
   and visibility filters; name/type/depth sorting; 25/50/100-entry pages. Only
   the current results page is mounted, rather than thousands of inspector rows.
@@ -735,7 +735,7 @@ Metric choices:
   There is no native GPU timing connection in this HTML app, so no synthetic
   values or timing graph are shown.
 - **Scene counts:** actual scene records, visible/hidden counts, folders and
-  constructed preview markers. These are not draw calls or memory telemetry.
+  constructed preview markers. These are not draw calls or storage telemetry.
 
 Choose **Graph + stats**, **Graph**, or **Stats**, and 15/30/60-second history.
 Hover or use arrow/Home/End keys on the graph to inspect recorded samples.
@@ -744,19 +744,19 @@ The independent FPS badge now uses the same browser timing sampler. Sampling
 runs only while subscribed, and visibility-change handling resets timing
 intervals so a suspended/background tab is not counted as one giant frame.
 
-Drag the header to move the card; drag its lower-right handle to resize. Both
-handles accept arrow keys (10 px; Shift = 30 px). Layout stays inside the
+Drag the header to move the card; drag its lower-right identifier to resize. Both
+identifiers accept arrow keys (10 px; Shift = 30 px). Layout stays inside the
 viewport and adapts when the viewport shrinks. Metric, presentation, history
 window, position and size persist in `Frontier.DiagnosticsCard.v1`; live timing
 history itself does not persist. Header reset restores the default layout.
-Pause/history controls and the resize handle remain in the fixed card footer;
+Pause/history controls and the resize identifier remain in the fixed card footer;
 content scrolls when the card is small. Close/Escape restores the diagnostics
 button's focus.
 
-Existing native-buffer selections and F3/Shift+F3, F4, F5 and F6 controls remain
+Existing native-store selections and F3/Shift+F3, F4, F5 and F6 controls remain
 available in viewport settings and the card's expandable native-debug details.
-They are still selections only, not rendered native buffers. F3 cycles those
-buffer selections; the card's metric selector changes its statistics view.
+They are still selections only, not rendered native stores. F3 cycles those
+store selections; the card's metric selector changes its statistics view.
 
 ### Browser verification and proofs
 
@@ -789,10 +789,10 @@ Committed screenshots and report:
 - [Workspace-card test report](../Experimental/ProjectZeroEditor/Screenshots/WorkspaceCards.json)
 
 **Status:** published HTML review checkpoint. Native GPU/CPU frame telemetry,
-renderer-buffer visualization and C++ UI mirroring remain deferred.
+renderer-store visualization and C++ UI mirroring remain deferred.
 
 
-## 2026-10-04 — C023: Native conversion begins; baking and stack safety
+## 2026-10-04 — C023: Native conversion begins; precomputing and stack safety
 
 **This is a partial native checkpoint, not a claim that C001–C022 are all ported.**
 The approved HTML baseline remains `95cfb8e68ad25b8aca17d9ee0d5421d168ec19a2`.
@@ -813,8 +813,8 @@ User authorization now includes headless native execution, Windows/MSVC and stac
   stats/graph modes, pause/clear, 15/30/60-second sample windows and graph inspection.
   Frame intervals come from the engine clock; GPU values use valid completed timestamp telemetry, not an estimate.
   The old renderer detail rows and F3–F6 shortcuts remain available.
-- Sun, Atmosphere/Sky, Lens Flare, Stars and Rainbow baking/export sections now follow properties.
-  Actual atmosphere pixels and all their preview selectors move with the bake section.
+- Sun, Atmosphere/Sky, Lens Flare, Stars and Rainbow precomputing/export sections now follow properties.
+  Actual atmosphere pixels and all their preview selectors move with the precompute section.
   The atmosphere request still reaches the renderer queue; Lens Flare still exports the real HDR image.
   Unsupported Sun/Stars/Rainbow targets and flare scene playback remain explicitly unavailable, not fake successes.
 
@@ -828,11 +828,11 @@ User authorization now includes headless native execution, Windows/MSVC and stac
   Roster depth is carried by the traversal rather than truncated to eight enclosing links.
 - Actual compiled native proof executes under a **262,144-byte Linux stack limit**, including a 10,000-level
   collection fixture, a 10,000-placement real SceneStructure, native camera protection, Construct shortcuts,
-  a pointer click on the relocated atmosphere bake button and a 256 × 512 × RGBA16F bake.
+  a pointer click on the relocated atmosphere precompute button and a 256 × 512 × RGBA16F precompute.
   The real `.environment` export/reload also passes with every HDR texel preserved exactly.
 - GCC `-fstack-usage` gates the critical compiled UI/traversal functions at 8 KiB each. This is not a measurement
   of the complete Vulkan runtime entry point or a diagnosis of the user's historical crash.
-- Native captures are CPU rasterizations of production ImGui commands, with real baked atmosphere pixels.
+- Native captures are CPU rasterizations of production ImGui commands, with real precomputed atmosphere pixels.
   Folder and timing records in the proof are labeled fixtures; the proof does not claim GPU execution.
 - The native CMake proof route was repaired to compile the consolidated `Engine/Host` sources and current
   shading dependencies rather than removed Project-Zero source paths. Windows MSVC proof job added.
@@ -850,7 +850,7 @@ User authorization now includes headless native execution, Windows/MSVC and stac
   A subsequent MSVC link identified missing environment codec/export translation units, now linked directly
   rather than stubbed. A Linux link without section garbage collection independently passed as well.
 - **Windows/MSVC Release build and native conversion execution passed** on the same source commit:
-  [run 37222602604, native editor job 111495857820][NativeMsvcProof]. This executes the real bake and
+  [run 37222602604, native editor job 111495857820][NativeMsvcProof]. This executes the real precompute and
   export/reload with the default MSVC stack reserve, not an increased reserve. The 256 KiB limit and
   compiler-frame measurements above are Linux-only. The broader full-application job is still pending;
   this result does not claim a complete Vulkan application launch.
@@ -862,10 +862,10 @@ Proof sources, captures and compiler stack report: `VisualProof/ProjectZeroNativ
 ### Still to convert or reconcile
 
 Full native parity still requires the HTML material-channel/source editor and dockable ShaderEditor,
-asset-browser expansion and drawer gestures, remaining relevant quick tiles, the composite WindEditor,
+asset-browser expansion and drawer gestures, remaining relevant quick tiles, the combined WindEditor,
 local-fog shape masks in the actual renderer, the added interactive environment graphs, and the
 AtmosphereLab 2D colour atlas/space study. Existing native environment inspectors and wind-component
-bindings are retained, but they are not presented as implementations of the newer HTML composite model.
+bindings are retained, but they are not presented as implementations of the newer HTML combined model.
 The new native statistics card also does not yet reproduce every browser-only keyboard/persistence detail.
 
 
@@ -873,7 +873,7 @@ The new native statistics card also does not yet reproduce every browser-only ke
 
 Second native conversion phase, continuing C018 without changing the approved HTML.
 This phase replaces decorative studies inside the existing Sun and Atmosphere cards;
-it does not add duplicate cards or move baking above authoring controls.
+it does not add duplicate cards or move precomputing above authoring controls.
 
 ### Implemented
 
@@ -898,7 +898,7 @@ it does not add duplicate cards or move baking above authoring controls.
   Hover never writes a scene parameter. Diagnostic probe positions live in the inspector's
   UI-session storage; project-file persistence for these probes is not implemented.
 - Curve sampling emits bounded line segments without automatic sample arrays or recursive calls.
-  Existing baking, preview, export and unsupported-target states remain below the controls.
+  Existing precomputing, preview, export and unsupported-target states remain below the controls.
 
 ### Executed verification
 
@@ -915,8 +915,8 @@ Production source: `186f82446cbeb183ffd4e7272f33b880527be710`.
 - Verified hover non-mutation, real gain/time/date writeback, resulting native solar-direction
   changes, every date in five common/leap/century years, February clamping, spectral and density
   equations, shared probes, and plot bounds in 900 px and 480 px inspector captures.
-- Repeated the real bottom bake click, request consumption, heap-backed texture creation,
-  `.environment` export/reload with exact HDR texel equality, and scrolling to baking.
+- Repeated the real bottom precompute click, request consumption, heap-backed texture creation,
+  `.environment` export/reload with exact HDR texel equality, and scrolling to precomputing.
 - **Windows/MSVC Release compilation and NativeEditorConversion execution passed** for this source:
   [run 37224368522, native editor job 111500910577][EnvironmentMsvcProof]. The MSVC stack reserve
   remains unchanged; the 256 KiB restriction and compiler-frame report are Linux-specific.
@@ -932,9 +932,9 @@ They are actual native ImGui command rasterizations, not browser screenshots or 
 
 ### Still outstanding
 
-C018 is not complete: the remaining fog/cloud studies, cloud bounds handles and generic
+C018 is not complete: the remaining fog/cloud studies, cloud bounds identifiers and generic
 parameter-column maps still need reconciliation. AtmosphereLab's atlas/orbital study,
-materials/ShaderEditor, asset drawers, composite wind and renderer fog shapes are unchanged
+materials/ShaderEditor, asset drawers, combined wind and renderer fog shapes are unchanged
 and remain outstanding. This checkpoint does not claim full C001–C022 native parity.
 
 [EnvironmentMsvcProof]: https://github.com/unassignedinbox/Slate/actions/runs/37224368522/job/111500910577
@@ -959,7 +959,7 @@ labelled independent rectangular-emitter irradiance quadrature, used only as an 
 
 - Interpolate unsigned corner distances rather than allowing unrelated nearest-face signs
   to cancel into false zero sheets. The original nearest-face sign was not a solid winding
-  classification, particularly around open meshes.
+  classification, particularly around open geometries.
 - Refine shadow distance against actual triangles with a stackless BVH traversal; exclude
   the coplanar receiver and confirm central-ray occlusion exactly. Penumbra stepping no
   longer depends on camera-snapped clipmap cells. This is a geometry-refined shadow path,
@@ -971,7 +971,7 @@ labelled independent rectangular-emitter irradiance quadrature, used only as an 
 - Keep the sampling sequence fixed in world-space transport. Remove the repeating
   sixteen-frame direction cycle in the radiance-cache update. Preserve Jacobi ping-pong
   and material/geometry history invalidation.
-- Confirm diffuse traversal against the mesh if the distance-march budget expires.
+- Confirm diffuse traversal against the topology if the distance-march budget expires.
 - Replace the unconditional fixed-Fresnel mirror contribution with the authored base
   specular lobe, GGX visible-normal sampling and its PDF. Zero base specular weight no
   longer creates an unwanted mirror. Roughness, anisotropy and haziness affect this lobe.
@@ -1039,7 +1039,7 @@ artifact-free output for every scene. The refined shadow queries and additional 
 samples cost more than the old undersampled path; GPU performance remains unmeasured.
 The fixture deliberately uses shadow cone slope 0.06; the application's existing default
 softness and solar angular-size wiring have not been changed. This phase adds no editor
-cards, changes no bake-control placement and does not close C018's remaining native UI work.
+cards, changes no precompute-control placement and does not close C018's remaining native UI work.
 
 ## C026 — Independent perspective SDF stress scene; broader fix is incomplete (2026-10-04)
 
@@ -1104,7 +1104,7 @@ fix for general scenes**, even though its earlier numerical checks and the execu
 Fixed world-space ray offsets/tolerances and float world-coordinate precision remain relevant suspects
 for scale/translation sensitivity. Finite sampling/card representation remains relevant to the spatial
 GI artifacts. This phase records those observations, not a verified diagnosis or a new production fix.
-Far/large cases may use the production exact-mesh fallback outside finite clipmaps; their output does not
+Far/large cases may use the production exact-topology fallback outside finite clipmaps; their output does not
 prove voxel coverage at arbitrary distances. No finite set of captures proves "any scale or distance".
 
 ### Retained deliverables
@@ -1114,7 +1114,7 @@ prove voxel coverage at arbitrary distances. No finite set of captures proves "a
 Individual unaltered PNGs, logs and source/SPIR-V/image provenance are under `Captures/<case>/`.
 `Assessment.json` and the repeatable assessor retain both passing and failing measurements.
 The user has not retested these changes on their own GPU; GPU performance and full application parity
-remain unverified. No editor layout, baking placement or production shader was altered in this phase.
+remain unverified. No editor layout, precomputing placement or production shader was altered in this phase.
 
 
 ## C027 — Diffuse quadrature decorrelation and incident-light reconstruction (2026-10-04)
@@ -1148,16 +1148,16 @@ The actual readbacks and independent comparison results are recorded below; they
 
 ### Dynamic deforming geometry: recommendation, not implemented
 
-The existing SDF path calls `TraceDistanceMesh`: it contains **software triangle ray tracing** and must not
+The existing SDF path calls `TraceDistanceGeometry`: it contains **software triangle ray tracing** and must not
 be presented as ray-free. Unreal software Lumen's SDF visibility is also not an arbitrary-deformation
 solution. A genuinely raster-only alternative is full-geometry radiance/depth probes: rasterize the actual
 current/skinned/deformed triangles into local cubemaps, integrate diffuse irradiance, preserve directional
 depth/visibility, and ping-pong irradiance for additional bounces. Moving geometry both receives and
-contributes, including off-camera contributors. No simplified mesh, triangle ray query or SDF marching is
+contributes, including off-camera contributors. No simplified topology, triangle ray query or SDF marching is
 needed for this proposed path; direct visibility must use rasterized shadow maps too.
 
 Probe visibility/interpolation remains a finite-resolution approximation, not exact per-receiver triangle
-visibility. Six views per probe, dense mesh throughput, update latency and leakage around thin structures
+visibility. Six views per probe, dense topology throughput, update latency and leakage around thin structures
 must be measured. Dirty bounds invalidate old/new affected probes and their bounce history. Most geometry
 being static helps scheduling, but does not make arbitrary deformations free. Stock DDGI is ray-traced;
 only its cache/visibility ideas transfer when capture is explicitly replaced by rasterization.
@@ -1225,7 +1225,7 @@ For the proposed raster-probe dynamic path, static and dynamic visibility must b
 probe captures, not added as two independent ambient terms. Reuse static geometry/depth captures where
 valid, restore them before drawing each new dynamic pose, and refresh lighting when dynamic shadows or
 bounce illumination change. This prevents stale moving-object depth and double-counted static lighting.
-The probes are a lighting representation, not substitute low-polygon meshes. The proposal remains
+The probes are a lighting representation, not substitute low-polygon geometries. The proposal remains
 unimplemented; supporting actual deformed vertex streams and budgeting probe updates is a separate task.
 
 Native Project Zero editor/stack checks, browser checks and Drive checks passed in the same workflow.
@@ -1239,11 +1239,11 @@ the independent readback assessor and documentation; transport/lighting equation
 User accepted the native banding repair and requested an HTML demonstration of the proposed dynamic GI.
 Delivered `Frontier/Experimental/RadianceProjection/index.html` with `ProbeIntegrator.js`, using the existing
 vendored Three.js r160, OrbitControls and native DM Sans font. No CDN dependencies, native code changes,
-new low-polygon visibility mesh, ray queries, SDF marching or fabricated ambient GI are involved.
+new low-polygon visibility topology, ray queries, SDF marching or fabricated ambient GI are involved.
 
 ### Implemented mechanism
 
-- Actual 3,006-triangle scene; the deforming ribbon has 841 vertices and 1,568 triangles. Its position buffer
+- Actual 3,006-triangle scene; the deforming ribbon has 841 vertices and 1,568 triangles. Its position store
   is deformed and its normals recomputed. Primary rendering, probe captures and the sun shadow map consume
   that same geometry. No alternate proxy representation is constructed.
 - A 4×3×4 world-space grid captures six 32×32 raster views per updated probe. HDR RGB stores outgoing
@@ -1262,7 +1262,7 @@ Controls: GI toggle, indirect-only/normals, motion pause, deformation amplitude,
 ribbon visibility/colour, emitter and sun strength, recursive bounce, depth visibility, probe markers,
 1–12 probes/frame, freeze/resume updates and clear history. The lower view shows an actual selected probe's
 six radiance/depth faces or the live irradiance atlas. Camera orbit/zoom/pan and mobile reflow are supported.
-To see emission-driven bounce clearly, set **Direct sun to zero**. Freeze captures, move/deform the mesh,
+To see emission-driven bounce clearly, set **Direct sun to zero**. Freeze captures, move/deform the topology,
 then resume them to inspect stale versus refreshed indirect lighting. Pausing motion makes GI comparisons easier.
 
 ### Executed browser checks
@@ -1309,7 +1309,7 @@ Updated the same `Experimental/RadianceProjection` demo, without changing the na
   probes: distant/off-camera contributors are not silently excluded. This is prioritization, not an exact
   dependency solver or a claim that distant GI cannot be affected.
 - The regular budget remains four probes per frame. A selectable **Round-robin baseline** retains the old
-  continuous update behavior for comparison. No geometric meshes are simplified, replaced or repositioned.
+  continuous update behavior for comparison. No geometric geometries are simplified, replaced or repositioned.
 - Up to four refresh captures per probe provide bounded recursive settling (one when recursive bounce is
   disabled). After settling and with no scene changes, the irradiance/depth caches are held; no atlas copies
   or probe raster captures are performed. This is a bounded approximation, not a general convergence proof.
@@ -1372,8 +1372,8 @@ near important actors/camera-visible receivers and coarser or cached coverage fa
 emitters, bounce surfaces and blockers must remain in the relevant probe captures.
 
 Pack probe images and draw commands, not the objects' world positions into an artificial lighting scene.
-Each scheduled capture here still rasterizes its contributing full meshes, using the probe camera's normal
-frustum culling. Static geometry G-buffer/depth reuse with dynamic-geometry compositing would be a further
+Each scheduled capture here still rasterizes its contributing full geometries, using the probe camera's normal
+frustum culling. Static geometry G-store/depth reuse with dynamic-geometry compositing would be a further
 optimization; it is **not** implemented by this scheduling change. Lighting/shadow changes would still
 require reshading those cached static surfaces. Thin-surface leakage, finite probe resolution, mixed-age
 captures and higher-bounce latency remain; this iteration reduces latency rather than claiming to erase it.
@@ -1421,7 +1421,7 @@ or precomputed OBJ fallback. The new module does not change the native engine, F
   Spalls/fissures that increase their parent body's below-5-degree triangle count are rolled back and counted.
 - `GenerationQueue.js`: a cancellable module worker. Revisions reject obsolete messages. Structural defects,
   non-finite/non-positive body volumes, and invalid recipes produce explicit failures, not old geometry.
-  Starting a rebuild discards the previous result and render meshes; OBJ export is disabled until completion.
+  Starting a rebuild discards the previous result and render geometries; OBJ export is disabled until completion.
 - `WorkspacePanel.js` / `.css`: native-style document rail, outliner, persistent Editor Camera entry, inspector,
   stage navigation, draggable parameter sliders, clay/wireframe/cut-surface views, lighting controls, orbit/pan,
   double-click rock inspection, isolation, exploded inspection, and a camera-plane scale indicator.
@@ -1444,7 +1444,7 @@ identical geometry and feature records. No-damage stages preserve their precedin
 
 Default recipe: headland, seed 42, 32 × 18 × 12 m:
 
-| Stage             | Mesh objects | Vertices | Triangles | Spalls | Fissures | Triangles below 5° |
+| Stage             | Hull objects | Vertices | Triangles | Spalls | Fissures | Triangles below 5° |
 | ----------------- | ------------ | -------- | --------- | ------ | -------- | ------------------ |
 | Macro mass        | 1            | 273      | 542       | 0      | 0        | 0                  |
 | Bedding           | 7            | 4,501    | 8,966     | 0      | 0        | 0                  |
@@ -1462,20 +1462,20 @@ surface intersections**. Coplanar pairs are included. Shared-vertex pairs are co
 centroids by 1e-4 to exclude legitimate boundary contact; the projection comparison tolerance is 1e-8 m.
 This numerical fixture check is not a proof for every possible parameter combination or sub-tolerance contact.
 The verifier includes known intersecting and separated triangle fixtures. Its npm packages are verification
-requirements only: `three` 0.160.0 and `three-mesh-bvh` 0.8.3; neither replaces the shipped repository assets.
+requirements only: `three` 0.160.0 and `three-topology-bvh` 0.8.3; neither replaces the shipped repository assets.
 
 ### Remaining limits and use
 
 - This is an authored geological modelling system, not a fracture-mechanics or physical erosion simulation.
   It deliberately leaves SDF erosion/remeshing out. Joint apertures, finite face recesses, spalls and incisions
   are polygon geometry; no general weathering solver is claimed.
-- Upper strata can contain disconnected solid components within one named mesh object. Counts above are mesh
+- Upper strata can contain disconnected solid components within one named topology object. Counts above are topology
   objects, not a claim that every object contains exactly one connected rock.
 - Twelve of the thirteen tested recipes have no triangles below 5 degrees at any stage. The deliberately
-  extreme 48 × 10 × 8 m, maximum-relief/retreat, ten-bed recipe retains five such triangles in its final mesh
+  extreme 48 × 10 × 8 m, maximum-relief/retreat, ten-bed recipe retains five such triangles in its final topology
   (minimum angle 3.98062 degrees). The UI reports these warnings. It does not assert universal sliver-free output.
 - Triangulation span controls tessellation density, not displacement. Fine cracks and quality refinement can
-  make later stages much denser than the macro mesh. Geometry generation is CPU work in a worker; no target-GPU
+  make later stages much denser than the macro topology. Geometry generation is CPU work in a worker; no target-GPU
   performance claim follows from headless browser verification.
 - Open the hosted HTML link, or serve the repository root over HTTP and open
   `/Frontier/Experimental/CliffSequence/index.html`. ES modules/workers require HTTP; opening a bare file URL
@@ -1497,10 +1497,10 @@ The execution report records zero browser errors and a zero WebGL error readback
   Exploded inspection does not change the OBJ. The downloaded file exactly matches the generated export text.
 - Double-click-equivalent selected-rock framing, selection/isolation, actual mouse orbit, and full-cliff framing.
 - Dirty settings disabling export, superseded workers being cancelled, and the newest recipe winning.
-- Deliberately invalid generation clearing the result/render meshes and showing a failure, without fallback.
+- Deliberately invalid generation clearing the result/render geometries and showing a failure, without fallback.
 - Recipe download/import, repeated preset changes, and fresh rendered captures of both alternative landforms.
 - A 390 × 844 layout with no horizontal overflow and functioning stage buttons.
-- Deliberate WebGL context loss disabling export/rebuild and requiring reload instead of exposing a stale mesh.
+- Deliberate WebGL context loss disabling export/rebuild and requiring reload instead of exposing a stale topology.
 
 `VisualProof/CliffSequence/Captures/` retains the final unretouched browser screenshots, raw alternative-preset
 viewport readbacks, default JSON recipe, geometry/intersection reports and browser report with matching source
@@ -1512,7 +1512,7 @@ Browser limitation: the sandbox's Chromium 153 / SwiftShader build stalled durin
 ground or shadows present. The same application, including shadows, completed the full suite in Chromium 133.
 This does not establish that the Chromium 153 software-rendering path is fixed, or certify target-GPU/browser
 performance. The verifier can use normal Playwright Chromium, or an explicitly selected sandbox executable;
-its optional compositor resize/readback synchronization is test-side only and does not alter the mesh.
+its optional compositor resize/readback synchronization is test-side only and does not alter the topology.
 
 ## C031 — All-sided cliff profiles, flexed cuts and selected-stage rebuilding
 
@@ -1555,7 +1555,7 @@ Moving a slider or pressing New seed marks the parameters for rebuilding; it no 
 ### Executed verification
 
 `VerifyGeometry.mjs` passed **14 recipes / 70 stages**, including the supplied Amphitheatre parameters
-(seed 42, 32 × 18 × 12 m, five beds, −5° dip). Deterministic replay passed. Every checked mesh had finite indexed
+(seed 42, 32 × 18 × 12 m, five beds, −5° dip). Deterministic replay passed. Every checked topology had finite indexed
 triangles, positive volume, and zero open/nonmanifold edges, nonmanifold vertices, duplicate faces, degenerate
 triangles or inconsistent edge winding.
 
@@ -1595,7 +1595,7 @@ include the rear mass, curved bedding traces, fractured rear, and same-camera sp
 
 Evidence: `VisualProof/CliffSequence/RevisionCaptures/` contains `Geometry.json`, `Checkpoints.json`,
 `Intersections.json`, `UserIntersections.json`, `Workflow.json`, and the screenshots. `Workflow.json` records the
-runtime source hashes. Generated full-mesh JSON and temporary OBJs remain in ignored scratch. C030's Chromium
+runtime source hashes. Generated full-topology JSON and temporary OBJs remain in ignored scratch. C030's Chromium
 153 software-rendering caveat is not claimed fixed by this revision.
 
 ## C032 — Separate three-dimensional radiance-cascades experiment
@@ -1638,7 +1638,7 @@ transport updates. No added ambient term or precomputed lighting scene is substi
 This experiment uses **software triangle rays in WebGL fragment shaders**, not hardware RT and not the prior
 raster-only visibility method. AABBs are broad-phase rejection only; intersections use the actual scene triangles.
 Opaque interval origins are classified against the planes of the shipped convex solids. The reference scene has
-seven solids / 84 triangles, including a non-rigidly sheared occluder. This is not an arbitrary large-mesh backend.
+seven solids / 84 triangles, including a non-rigidly sheared occluder. This is not an arbitrary large-topology backend.
 
 The merged directional solution is integrated into six positive, axis-oriented cosine integrals. Receiver normals
 use squared-component weights between those integrals. Live 16 × 16 lighting charts per face avoid retracing
@@ -1766,7 +1766,7 @@ independent fracture seed.
 The final-source runs passed:
 
 - **23 variation recipes / 62 stage outputs**, covering all six presets, seeds 42/913, all noise families, all four
-  fracture patterns, and tall/wide dimension limits. Both seeds produce different mass meshes for every preset.
+  fracture patterns, and tall/wide dimension limits. Both seeds produce different mass geometries for every preset.
   As a separate control-point measurement, seeds 42→913 move corresponding front/rear loft samples by **3.14 m
   RMS** for the headland, and 2.73–4.57 m across the six presets; this is not a comparison of remeshed vertex indices.
 - **16 regression recipes / 80 stage outputs**, including the legacy default and prior amphitheatre recipe,
@@ -1788,7 +1788,7 @@ The final-source runs passed:
 
 The **new default** is clean at all five stages, including zero triangles below 5°:
 
-| Stage | Closed mesh objects | Vertices | Triangles | Minimum angle |
+| Stage | Closed topology objects | Vertices | Triangles | Minimum angle |
 |-------|---------------------|----------|-----------|---------------|
 | 1 — mass | 1 | 360 | 716 | 10.325° |
 | 2 — primary fractures | 8 | 4,790 | 9,544 | 5.107° |
@@ -1805,7 +1805,7 @@ preserved and tested through version-1 import. No threshold was raised to hide t
 Current evidence is in **`VisualProof/CliffSequence/FormationCaptures/`**: 17 preset/fracture screenshots and
 `Presets.json`, 14 workflow screenshots plus `Workflow/Workflow.json`, `Variation.json`, `Geometry.json`,
 `Checkpoints.json`, and the combined `Intersections.json`. The intersection report records each exact specification
-and mesh digest, and the browser reports record source hashes. Full mesh JSON, temporary downloads and browser
+and topology digest, and the browser reports record source hashes. Full topology JSON, temporary downloads and browser
 packages remain ignored scratch. C031's `RevisionCaptures` remains historical evidence, not substituted for these
 new runs. Verification entry points are `VerifyVariation.mjs`, `VerifyGeometry.mjs`, `VerifyCheckpoints.mjs`,
 `VerifyIntersections.cjs`, `VerifyPresets.cjs` and `VerifyWorkflow.cjs` under `VisualProof/CliffSequence/`.
@@ -1845,7 +1845,7 @@ source exists on first activation, the study is explicitly labelled as a standal
   Packing changes require rebuilding and cancel an in-flight worker. Invalid recipes cannot display stale geometry
   as a successful result. Studies are bounded to 2,000 illustrative cycles and 2 MB input files.
 
-No material texture, sampled noise field, displacement, normal map, SDF or baking was added. The seeded noise
+No material texture, sampled noise field, displacement, normal map, SDF or precomputing was added. The seeded noise
 options previously approved for macro landforms remain separate and unchanged.
 
 ### Explicit first-prototype limits
@@ -1854,7 +1854,7 @@ This is **not yet natural-rock fidelity**. The deliberately coarse polygon grain
 It is a shallow **columnar** model, not arbitrary three-dimensional crystal growth or a calibrated chemical solver.
 Crystalline aggregate is presently a material-coefficient preset, not distinct cleavage geometry. There are no
 undercuts, falling debris, mechanically simulated flakes, per-grain BRDFs or subpixel grain aggregation. Source
-attachments are frozen snapshots: weathering does **not** replace, remesh or erode the full cliff mesh. Cycles do
+attachments are frozen snapshots: weathering does **not** replace, remesh or erode the full cliff topology. Cycles do
 not correspond to geological time. These limitations are also stated in the inspector.
 
 Triangulation is performed in grain units, followed by a roundoff-only weld and conversion back to metres.
@@ -1863,9 +1863,9 @@ This avoids classifying valid micrometre-scale facets as zero-area using the mac
 The actual minimum physical triangle area and cutoff are both visible in Diagnostics. Minimum angles and the
 **unchanged 5° narrow-triangle warning** remain visible, including a viewport warning badge.
 
-The mesh is **not sliver-free**. Default fresh/weathered standalone snapshots retain 50/51 triangles below 5°,
+The topology is **not sliver-free**. Default fresh/weathered standalone snapshots retain 50/51 triangles below 5°,
 with a minimum angle of 0.548°. Dense/fine cases are worse: the tested 6 cm, 36-by-36 case retains 298 warnings
-and a 0.044° minimum angle after weathering. This remains an unresolved quality limitation, not a clean-mesh claim.
+and a 0.044° minimum angle after weathering. This remains an unresolved quality limitation, not a clean-topology claim.
 
 Boundary rebuilding runs in a worker, but is not realtime; default snapshots took several seconds in the sandbox.
 Software-browser verification is not a hardware-GPU performance benchmark.
@@ -1879,7 +1879,7 @@ small triangle. Every tested boundary had finite coordinates, positive volume, n
 vertices, no winding errors, no duplicate triangles and no triangles below the declared grain-relative area cutoff.
 
 The checks also assert bounded particle water/bonds/oxide, monotone grain removal, unchanged packed coordinates,
-conserved water/tracer ledgers, analytical occupied volume versus an independent physical-coordinate mesh-volume
+conserved water/tracer ledgers, analytical occupied volume versus an independent physical-coordinate topology-volume
 sum, deterministic initial packing, seed variation, valid source barycentrics and triangle identity, exact default
 boundary replay, wet/dry state replay and rejected invalid inputs. Dry material remains geometrically unchanged;
 zero dissolution prevents grain detachment. The standalone default removes 1,010 grains by cycle 120, reducing
@@ -1887,7 +1887,7 @@ solid volume from approximately 0.00666303 to 0.00473186 cubic metres.
 
 The existing independent BVH/SAT verifier checked **six snapshots**: fresh and weathered default, fine/dense and
 small-source cases. It detected **zero self intersections**. There is one connected patch boundary per snapshot;
-this is not a test of interacting free grains or multiple weathering bodies. Reports retain mesh digests and exact
+this is not a test of interacting free grains or multiple weathering bodies. Reports retain topology digests and exact
 specifications/source snapshots. Shared-boundary contraction and numerical tolerances remain documented in the
 intersection verifier.
 
@@ -1909,7 +1909,7 @@ its captured source orientation rather than a replay mismatch.
 Final evidence is in **`VisualProof/CliffSequence/GrainCaptures/`**: eight material/UI captures, the saved study,
 `Grains.json`, `Intersections.json` and `Workflow.json`; `CliffWorkflow/` contains fourteen cliff regression captures
 and its workflow report. Both browser reports and the grain report have source hashes matching the delivered
-application files. The new browser entry point is `VerifyGrainWorkflow.cjs`. Full mesh dumps, dependencies and
+application files. The new browser entry point is `VerifyGrainWorkflow.cjs`. Full topology dumps, dependencies and
 intermediate/failed runs remain ignored scratch. C033's earlier evidence is preserved.
 
 ## C035 — Fix zoom snapping at fractional browser pixel ratios
@@ -1949,11 +1949,11 @@ cliff, grain, Fluid and native-engine work. None of those renderers or shared or
 
 ### Delivered renderer
 
-- Native `webgpu` canvas, WGSL raster and compute pipelines, no WebGL/CPU renderer fallback or editor-style UI.
+- Native `webgpu` canvas, WGSL raster and compute chains, no WebGL/CPU renderer fallback or editor-style UI.
   The compact responsive HUD provides quality controls, diagnostics, input hints, adapter identification and
   measured pass times. Existing Three.js is used for math/orbit input only, not rendering.
 - An original atrium with **2,788 triangles**, **2,134 local BVH nodes**, depth 20 and four rigid instances.
-  Two point-light proxies move continuously and the central triangle sculpture rotates. No lightmap baking.
+  Two point-light proxies move continuously and the central triangle sculpture rotates. No lightmap precomputing.
 - Screen-origin surface probes trace the complete world-space triangle scene, including off-camera triangles.
   Spatial spacing doubles, angular directions quadruple and finite distance intervals merge coarse-to-fine with
   `Cnear + Tnear * Cfar` and `Tnear * Tfar`. Balanced 640-by-448 storage has **137,344 directional interval slots**.
@@ -1984,24 +1984,24 @@ low-resolution aliasing. Fixed probe storage does not mean scene-independent BVH
 ### Executed verification and evidence
 
 `VerifyStructure.mjs` passed **512 CPU brute-force/BVH ray cases** at two rigid poses, triangle/node bounds and leaf
-coverage, plus **108 cascade layouts**. `VerifyWebGpu.cjs` ran the actual production pipelines in Chromium 133 through
+coverage, plus **108 cascade layouts**. `VerifyWebGpu.cjs` ran the actual production chains in Chromium 133 through
 SwiftShader Vulkan/WebGPU. Final-source execution passed with no recorded page/console errors:
 
 - **512 GPU BVH rays** matched the independent brute-force distances within **4.073e-6 m**. Four CPU-reference rays
   change between poses, so the dynamic geometry is genuinely exercised. GPU interval-composition fixtures pass.
 - HDR full/direct/cascade decomposition, all-sources-off exact zero, deterministic exact replay, changed dynamic
-  lighting, accepted static history, finite merged buffers, open/blocked transmission and the mirror ray pass.
+  lighting, accepted static history, finite merged stores, open/blocked transmission and the mirror ray pass.
 - **24/24 static emissive triangles** lie outside the test camera frustum. With point proxies and sky disabled,
   the visible-surface HDR cascade mean is **0.001331**; disabling emission makes it exactly zero. The isolated
   image is very dark, so this is quantitative off-screen contribution proof, not a dramatic light-spill claim.
 - Quality presets/extremes, real render-scale reallocation, unchanged-shadow reuse, hide/show, pause, wheel zoom,
   continuous animation, bounded in-flight work, portrait layout and explicit unsupported-WebGPU refusal pass.
 
-At 640 by 448, balanced explicit GPU-data allocation is **36,181,072 bytes** (about **34.5 MiB**), excluding driver,
+At 640 by 448, balanced explicit GPU-record allocation is **36,181,072 bytes** (about **34.5 MiB**), excluding driver,
 canvas and cache overhead. Five warmed moving-frame software pass sums have median **1,094.15 ms** and range
 **1,054.32–1,169.14 ms**. These are **SwiftShader software execution measurements, not gaming-GPU benchmarks**;
 real-time hardware performance has not been established. The HUD distinguishes GPU-pass sum from completed-frame
-rate and estimated data from measured rays/interval slots. A separately instrumented unchanged frame records
+rate and estimated record from measured rays/interval slots. A separately instrumented unchanged frame records
 84,566 rays, 4,633,529 node visits and 300,507 triangle tests.
 
 Final browser captures and JSON reports are in **`VisualProof/RadianceIntegrator/Captures/`**, including fourteen
@@ -2082,15 +2082,15 @@ unchanged. The technical explanation is **`Docs/DistanceTransportReview.html` / 
   curved arches, crowned/open hood, cabin openings/pillars, side panels, engine casing, cooling fins, braces and a
   thin undertray. The 25/35 mm features deliberately challenge the volume. This is not the production car asset
   or a calibrated crash/XPBD model; the thicker panels are enlarged 130–160 mm study geometry.
-- Actual GPU vertex deformation, normal/triangle expansion and BVH refit, followed by **mesh-derived signed 3D
+- Actual GPU vertex deformation, normal/triangle expansion and BVH refit, followed by **topology-derived signed 3D
   volume construction**. Near-first nearest-triangle traversal, component membership and component-AABB sign
-  pruning reduce construction work. Per-component crossing parity and CSG-min signed distances handle overlaps
+  pruning reduce construction work. Per-component crossing parity and CSG-min signed distances identifier overlaps
   without treating every component as one odd/even count. The fixed topology has 8,191 bounds, depth 12.
 - Actual SDF sphere tracing for shadow visibility and **one-bounce diffuse gathering**. No progressive accumulation,
   recursive multibounce renderer, surface-lighting cache or ReSTIR reuse was added to this browser experiment.
   Static room geometry uses matching analytic box SDFs. A triangle reference remains an explicit comparison mode.
 - Default **SDF-only** rendering issues no triangle raster pass. Additional views: field gradient normals, signed
-  X/Y/Z slices with physical aspect, mesh-versus-field primary-hit error, march cost/exhaustion, SDF indirect-only,
+  X/Y/Z slices with physical aspect, topology-versus-field primary-hit error, march cost/exhaustion, SDF indirect-only,
   raster plus SDF GI, triangle reference, source normals/quad edges and SDF direct-only lighting.
 - Deformation/resolution/slice controls, current-field freeze and forced rebuild, render-query counters, revision
   readouts, and a **persistent last-field-build time**. Reusing a paused field does not hide its construction cost.
@@ -2100,7 +2100,7 @@ unchanged. The technical explanation is **`Docs/DistanceTransportReview.html` / 
 
 `VerifyStructure.mjs` checks closed component edge incidence, exact leaf coverage, domain containment, finite
 normals and positive triangle areas across five poses. Minimum tested area is **0.00115688 m²**; maximum displacement
-is **1.06727 m**. This is not a complete arbitrary-mesh intersection/manifold/import guarantee.
+is **1.06727 m**. This is not a complete arbitrary-topology intersection/manifold/import guarantee.
 
 `VerifyWebGpu.cjs` executes the GPU and reads all voxel values in four volumes (32³/64³/96³ at amount 0.55 and 64³
 at amount 1). All samples are finite and written, with both signs present. **96 selected voxel samples** agree with
@@ -2146,13 +2146,13 @@ control reports. Full voxel dumps, dependencies and intermediate attempts remain
 ## C039 — Native Project Drive XPBD deformation and tyre SDF evidence
 
 Returned to C++, rather than replacing the C038 browser study or native ReSTIR. Added the requested
-`Plans/Ongoing/MasterPlan.md`, native rest SDF1 baking/verification, closed deformation-aware field reconstruction,
+`Plans/Ongoing/MasterPlan.md`, native rest SDF1 precomputing/verification, closed deformation-aware field reconstruction,
 and an optional ABI3-compatible geometry extension from the actual Drive solver to the shared host.
 
 The host forks wheel topology and rebuilds normals, culling, traversal and native hybrid distance geometry together;
 rigid-only traversal and rest-only coarse errors are disabled for this path. Pause, unchanged revision and exact Stop
 restore are executed checks. Rim materials remain rigid. The production renderer remains hybrid SDF/triangle
-refinement; the local bake is not yet a streamed GPU object-field cache.
+refinement; the local precompute is not yet a streamed GPU object-field cache.
 
 `VisualProof/TyreDeformation/index.html` is a gallery of twelve **C++ CPU field-only renders**, not another browser
 simulation or a Vulkan/editor capture. It includes the real Drive DLL front-left snapshot, rest, loaded and banked
@@ -2230,10 +2230,10 @@ only the selected reference cards, without their legacy React inspector appended
 
 The wind hero now edits the existing `WindField` model, not a disconnected reference speed/direction illustration.
 Arrow dragging sets heading and strength; arrow keys provide numeric adjustment. Tornado mode supports centre
-placement, strength and clockwise/counterclockwise circulation. Spline mode has four draggable cubic-Bezier handles
+placement, strength and clockwise/counterclockwise circulation. Spline mode has four draggable cubic-Bezier identifiers
 and a 0–100% following control: heading at zero, tangent/cross-track guidance at one. Spatial influence remains
 bounded by the component radius. Tangential attraction is removed at path ends so flow exits rather than reverses.
-Existing authored composite components, IDs and cloud-consumer data remain intact; fresh fields start with one arrow.
+Existing authored combined components, IDs and cloud-consumer record remain intact; fresh fields start with one arrow.
 
 `FlowProjection.js` replaces the old heatmap/vector-grid display with teal flow strokes. Both particle advection and
 back-traced stroke curvature sample `EvaluateWind`. The shared canvas is also used by the remaining local-cloud
@@ -2328,16 +2328,16 @@ Final execution status belongs to the per-pose receipts under `VisualProof/SdfSc
 
 `Frontier/Experimental/FractureEditor/index.html` is a standalone, unified HTML authoring review, launched from the
 Project-Zero + tab menu. It uses the existing dark, rounded-card/trapezoid-tab design language. A shared asset list,
-viewport, inspector and pattern library serve Runtime and Baked workflows; these are not two unrelated embedded demos.
-Both supplied branches have overlapping runtime and baked capabilities:
+viewport, inspector and pattern library serve Runtime and Precomputed workflows; these are not two unrelated embedded demos.
+Both supplied branches have overlapping runtime and precomputed capabilities:
 
 - `arena/01a0f3a8-slate`, pinned at `bc90f99`: live crack-tip propagation, plate-region extraction and the corrected
   elasto-plastic sheet solve with in-plane draw-in, hinge softening, full XYZ positions and deformed normals.
 - `arena/01a0f3a4-slate`, pinned at `0cf178a`: energy-limited solid fragmentation, exact half-space clipping and
   material-specific anisotropy. Noise/displacement-based fracture-surface dressing is disabled in this review.
-- Seven presets: annealed and tempered glass, concrete, timber, granite, ABS and sheet metal. Steel uses baked
+- Seven presets: annealed and tempered glass, concrete, timber, granite, ABS and sheet metal. Steel uses precomputed
   plastic deformation, not brittle shattering. Its three prescribed tools each provide twelve real damage samples.
-- Runtime computes at the chosen impact. Baked mode creates seed variants at a fixed site/energy, then reuses stored
+- Runtime computes at the chosen impact. Precomputed mode creates seed variants at a fixed site/energy, then reuses stored
   geometry. Recipe changes invalidate cached patterns. Export contains real geometry and, for metal, damage samples.
 - Orbit/zoom, impact placement, separation, wireframe, reset, measured solve duration, volume-error reporting and
   searchable presets work. No arbitrary speed-up or guaranteed gameplay-budget claim is made.
@@ -2376,19 +2376,19 @@ accepted C043 environment inspectors are unchanged. Sheet metal, deformation too
 are removed; the upstream source snapshots remain untouched for provenance.
 
 - Select Sphere, Cube, Cylinder or Cone in Project-Zero. Its inspector now has **Enable fracture**, a
-  **Dynamic / Baked** section and an expand button. The outliner context menu also enables/disables fracture.
+  **Dynamic / Precomputed** section and an expand button. The outliner context menu also enables/disables fracture.
   Expansion opens that scene ID's fracture editor, not a global material-example gallery.
 - Source primitive and scale are separate from fracture material. Wood, Stone, Concrete, Glass, Tempered glass
   and ABS change the response without replacing the selected shape. Position/rotation are excluded because
-  authoring operates in local space. The existing HTML viewport contains analytical markers, not native mesh
-  buffers; this revision constructs the matching tessellated primitive and applies its authored scale.
+  authoring operates in local space. The existing HTML viewport contains analytical markers, not native topology
+  stores; this revision constructs the matching tessellated primitive and applies its authored scale.
 - The expanded editor uses the actual main-editor slider CSS, its embedded DM Sans fallback fonts and rounded
-  dark cards. Material resistance/density, impact, fragment quality, bake and geometry receipts have dedicated
+  dark cards. Material resistance/density, impact, fragment quality, precompute and geometry receipts have dedicated
   cards. The impact/quality diagrams are explanatory, not measured stress fields. Font notices are embedded.
 - Runtime generation and stored replay use the same closed geometry. Each scene ID owns its recipe and an
   IndexedDB triangle-geometry receipt. Geometry/material/recipe changes invalidate replay; presentation changes
   do not. Reopening, cross-window changes, duplication, disabling, removal and baseline restoration respect
-  ownership. Duplicates never inherit another ID's baked receipt. Export includes a matching triangle pattern
+  ownership. Duplicates never inherit another ID's precomputed receipt. Export includes a matching triangle pattern
   and explicitly declares that it is not a native asset.
 
 The missing glass came from raster crack-region extraction, which omitted crack cells and small regions.
@@ -2412,7 +2412,7 @@ Verification:
   Maximum relative volume error is **5.72e-16** before upload and **2.87e-8** after float32 upload. The material
   matrix checks 75,600 volume samples. The lowest triangle-quality score is 0.0141, including thin plate sides.
 - `CheckBrowser.mjs`: **21** checks pass with no application errors, including the selected-sphere flow, source
-  retention under material changes, actual bake download, reopen/replay, per-object isolation, source-scale
+  retention under material changes, actual precompute download, reopen/replay, per-object isolation, source-scale
   invalidation, outliner actions and 1024/390-pixel layouts. Glass reassembly is captured at 100.000% occupied volume.
 - Project-Zero's existing broad browser regression passes. External Fontshare failures remain reported separately
   there; the fracture editor embeds the existing licensed fallback fonts and needs no font network requests.
@@ -2421,7 +2421,7 @@ Verification:
 
 Limits: this is convex-primitive HTML authoring, not arbitrary native geometry import or a calibrated material
 failure simulation. Torus/concave inputs are refused instead of filling holes with a convex hull. ABS plastic
-strain, reinforcement, Jolt debris/constraints, native geometry ownership and native bake serialization remain
+strain, reinforcement, Jolt debris/constraints, native geometry ownership and native precompute serialization remain
 future integration work. Native fracture implementation still waits for visual approval.
 
 
@@ -2443,7 +2443,7 @@ refusals are unchanged. No native integration or unrelated environment-inspector
 
 Verification: both standalone builds succeed. The fracture browser check passes 22 checks, including explicit
 absence of the removed blocks, both new graphics and their response to the two sizing controls, plus the existing
-per-object bake/replay and ownership checks. Actual 1366 × 720 captures are `Captures/FractureCard.png` and
+per-object precompute/replay and ownership checks. Actual 1366 × 720 captures are `Captures/FractureCard.png` and
 `Captures/QualityCard.png`; the standard desktop and narrow captures are refreshed by the same browser check.
 
 ## C047 — Square statistics, complete light cards and per-piece SDF authoring
@@ -2459,7 +2459,7 @@ inspector port is included.
 - Owned `LightPanel.js`/`.css` instruments replace the incomplete imported light stubs at the host adapter boundary.
   The pinned `InspectorDepot` files remain unchanged. The original native Area Light controls remain alongside the
   new cards, including their original intensity units; native lux and authored luminous flux are not equated.
-- Point: radial emission, intensity, estimated falloff, reach and decay. Spot: cone/pool illustration, full cone angle,
+- Point: radial emission, intensity, estimated falloff, reach and decay. Spot: cone/slots illustration, full cone angle,
   penumbra and aim. IES/automotive: illustrative distribution profiles, colour temperature, multiplier, field angle,
   cut-off and range. Area/softbox: aperture, width/height, spread and two-sided emission. Tube: linear emitter,
   length, radius, temperature and reach. All types include tint, placement and participation settings; applicable
@@ -2468,24 +2468,24 @@ inspector port is included.
   inspector bus and browser persistence, including locking. Blank/unfinished number entries restore the saved value
   on blur; negative positions and cut-off can be entered. No new engine-light binding is claimed.
 - Diagrams are explicitly schematic, not photometric validation. Automotive presets do **not** load measured IES
-  data, certify ECE/SAE compliance or simulate shadows; custom IES import remains pending. Participation flags are
+  record, certify ECE/SAE compliance or simulate shadows; custom IES import remains pending. Participation flags are
   authored settings, not proof of native lighting execution.
 
 ### Geometry-object fracture and requested SDFs
 
-All geometry records retain the Enable → Dynamic/Baked → expand workflow, including concave and imported scene
+All geometry records retain the Enable → Dynamic/Precomputed → expand workflow, including concave and imported scene
 entries. The main card now distinguishes unavailable imported-source previews from concave decomposition needs.
 The expanded editor continues to refuse unsupported execution rather than generating a replacement box. This is
-not an arbitrary-mesh importer or a newly implemented concave fracture solver.
+not an arbitrary-topology importer or a newly implemented concave fracture solver.
 
-Baked mode adds **Bake SDF per piece** with **32³ / 64³ / 128³**, planned R16F, per-fragment resolution. The request
+Precomputed mode adds **Precompute SDF per piece** with **32³ / 64³ / 128³**, planned R16F, per-fragment resolution. The request
 and resolution persist per object, synchronize between the main and expanded editors, and travel in recipe exports.
 They are deliberately excluded from the browser geometry signature, so changing an SDF request does not invalidate
 otherwise-current triangle fragments. Existing signatures and stored geometry remain compatible.
 
-When requested, the button says **Bake geometry** and a successful triangle bake reads **Geometry ready · SDF
+When requested, the button says **Precompute geometry** and a successful triangle precompute reads **Geometry ready · SDF
 pending**. Export explicitly records `Sdf.Requested`, `PerFragment`, `Resolution`, `Format` and **`Generated:false`**;
-there are no distance samples or native-compatible artifacts. The setting is not a working browser SDF bake.
+there are no distance samples or native-compatible artifacts. The setting is not a working browser SDF precompute.
 
 ### Executed checks and captures
 
@@ -2493,11 +2493,11 @@ there are no distance samples or native-compatible artifacts. The setting is not
 - `CheckLighting.mjs`: **22 checks**, no application errors. Covers seven light entries, live diagrams, square
   readings, reload persistence, tint, IES presets, negative cut-off, aim, sidedness, shadow flags, locking, incomplete
   number input, a 240px light inspector, Sun/Wind/Fog cards, all five scene primitive entries plus an imported geometry
-  record, SDF normalization, main/expanded synchronization, real triangle bake and truthful ungenerated-SDF export.
+  record, SDF normalization, main/expanded synchronization, real triangle precompute and truthful ungenerated-SDF export.
 - Existing `CheckReference.mjs` regression passes with `Errors: []`, retaining the native control inventories,
-  accepted Wind order/composite, Sun/Fog arrangement, Folder and Cloud behavior. Pinned inspector hashes match.
+  accepted Wind order/combined, Sun/Fog arrangement, Folder and Cloud behavior. Pinned inspector hashes match.
 - Fracture `CheckGeometry.mjs`: **168** cases plus plane/scaling/determinism/refusal checks still pass.
-  `CheckBrowser.mjs`: **22** existing per-object bake/replay/ownership/layout checks still pass. The fracture source
+  `CheckBrowser.mjs`: **22** existing per-object precompute/replay/ownership/layout checks still pass. The fracture source
   depot remains hash-pinned and unchanged.
 - Actual browser captures and the new receipt are in `ProjectZeroEditor/Screenshots/Lighting/`, including each light
   type, environment tiles, the main SDF request and expanded geometry-ready/SDF-pending status. External Fontshare
@@ -2506,7 +2506,7 @@ there are no distance samples or native-compatible artifacts. The setting is not
 Native follow-up remains gated on approval: real geometry ownership/import/decomposition, runtime fracture and
 contacts/supports, individual fragment SDF generation with independent bounds/transforms and valid distance/sign
 samples, and native serialization/invalidation. GPU flood-fill/component labeling can identify disconnected voxel
-components when that representation is used; it is not a universal prerequisite for fracture or for baking already
+components when that representation is used; it is not a universal prerequisite for fracture or for precomputing already
 separated pieces.
 
 ## C048 — Quieter Anemometer, header-first cards and shared light transforms
@@ -2518,7 +2518,7 @@ separated pieces.
 - Statistic tiles on Sun, Wind, Height Fog and lights now have **no outline** and **6px corner rounding**, replacing
   C047's sharp bordered boxes. They retain the two-column layout and readable values.
 - Sun and Height Fog now show their native inspector header **before** the added preview/statistic cards. The
-  additions align with the native card width. Wind's approved composite-first / Anemometer-second order stays intact.
+  additions align with the native card width. Wind's approved combined-first / Anemometer-second order stays intact.
 - Replaced each light's custom Placement & aim card and X/Z diagram with the existing **TransformPanel** component:
   Position, Rotation and Scale, including numeric entry/drag, resets and locking. The emitter adapter derives an
   initial rotation from legacy target-based lights, preserves aim when translating, and updates the stored target
@@ -2593,8 +2593,8 @@ separate from application errors. No native engine, fracture algorithm or SDF-ge
 
 2026-10-06. HTML-only follow-up to the user's Wind/Fog screenshots and two charcoal-dashboard JPG references.
 
-- Wind now runs **normal heading → Anemometer and statistics → Composite Flow / Wind field → Wind controls**.
-  This explicitly supersedes C048's composite-first order. The live trace, accepted composite colours, removed
+- Wind now runs **normal heading → Anemometer and statistics → Combined Flow / Wind field → Wind controls**.
+  This explicitly supersedes C048's combined-first order. The live trace, accepted combined colours, removed
   secondary readouts and original controls are unchanged.
 - Atmospheric Fog and Local Fog now use the Height Fog hero's dark 166px sightline, perspective floor, receding
   contrast gates, dashed sight marker and overlaid caption. Removed the separate blue caption/volume-hero treatment.
@@ -2680,7 +2680,7 @@ rendering is introduced by this change.
 - Restored `editor-area-light` for Area Light and Softbox, including existing saved scenes. Point and spot use their
   shipped editor icons. Other sources reuse the closest existing light assets; these are not newly invented symbols.
 - The standalone build embeds 161 library icons again, rather than C050's 168 library-plus-custom icons. Browser checks
-  compare each displayed light icon's data URI to the corresponding shipped asset and verify successful image decode.
+  compare each displayed light icon's record URI to the corresponding shipped asset and verify successful image decode.
 
 ### Light cards
 
@@ -2724,7 +2724,7 @@ fallback fonts were exercised. No native engine, fracture algorithm, SDF generat
 - Removed the Anemometer's green rectangular gust band and green trace. The existing live samples now draw a faint
   neutral-grey under-curve wash, subdued grey line, white above-mean sections and white peak/latest markers, with one
   restrained amber trough marker. Mean/axis guides, sixty-second history, sampling, animation and taller-trace control
-  are retained. Wind's composite colours, card order and numeric readings are unchanged.
+  are retained. Wind's combined colours, card order and numeric readings are unchanged.
 - Removed the Height Fog beam chamber's black canvas fill, black wrapper and inset border. Its transparent drawing
   now reveals the same charcoal card background as the surrounding imported cards. Atmospheric and Local Fog beam
   drawings likewise reveal their containing instrument surface. Beam/scatter calculations and labels are unchanged.
@@ -2761,18 +2761,18 @@ fallback fonts were exercised. No native rendering, fog-model, wind-simulation o
   Expanded views keep the summary stages full-width and the lower source/control columns independent; docked views
   use one column. The response is no longer a separate card. Native Area Light uses summary/detail reference slices
   so its original quick-control grid also precedes the detailed imported controls. Native fields and notes remain.
-- Sun, Atmosphere, Lens Flare, Stars and Rainbow baking cards now finish their inspectors. Stars' unavailable Bake /
-  Use baked buttons are no longer mixed into its quick-control row. Atmosphere's Dome Path and Sheet controls move
-  with Fetch Baked Dome into the final Baked atmosphere card. Geometry's fracture execution/per-piece SDF authoring
+- Sun, Atmosphere, Lens Flare, Stars and Rainbow precomputing cards now finish their inspectors. Stars' unavailable Precompute /
+  Use precomputed buttons are no longer mixed into its quick-control row. Atmosphere's Dome Path and Sheet controls move
+  with Fetch Precomputed Dome into the final Precomputed atmosphere card. Geometry's fracture execution/per-piece SDF authoring
   is the final section, after material controls and notes. Availability and pending-native messages are unchanged.
 - Reordered Cloud/Local Cloud settings before coverage/deck/body controls; Wind quick controls before Wind field;
   Moon phase before settings/catalogue; Stars' field before quick controls; precipitation type before emission flags;
-  and Rainbow's optical preview before visibility controls. Flare switches are together below the composite.
+  and Rainbow's optical preview before visibility controls. Flare switches are together below the combined.
 - Height Fog uses summary/detail slices to place quick controls after both statistic rows, before visibility and beam
   diagrams. Atmospheric/Local Fog insert their existing quick controls at the same boundary. Distinct fog models remain.
 - Sun, Geometry and Post Process use the normal breadcrumb/title/subtitle heading; Folder gains the breadcrumb while
   retaining its original collection inspector. Sun's Enabled action moves into its quick row. Geometry's existing
-  Transform is its primary data card. Control-only Post Process starts with quick controls; absent statistics/previews
+  Transform is its primary record card. Control-only Post Process starts with quick controls; absent statistics/previews
   are not fabricated. Camera, Folder and the remaining existing sections were checked rather than redesigned.
 
 ### Inspector audit
@@ -2781,10 +2781,10 @@ The new order suite checks **all 35 default scene entries**, in **both docked an
 18 panel families: Folder, Geometry, Camera, Post Process, Atmosphere, Sun, Lens Flare, Moon, Stars, Wind, Height Fog,
 Atmospheric Fog, Local Fog, Clouds, Local Cloud, Precipitation, Rainbow and Light. Light entries exercise all seven
 source families. Assertions cover rendered vertical order, main-frame and iframe overflow, merged-response ownership,
-independent expanded control columns, terminal baking sections and the absence of controls after the final bake card.
+independent expanded control columns, terminal precomputing sections and the absence of controls after the final precompute card.
 
 Verification: standalone build succeeds (**4.64 MiB**, 161 shipped icons, 57 native glyphs). **212 checks pass** with
-no application errors: 89 inspector-order/data checks, 21 light-design checks, 25 lighting/authoring checks,
+no application errors: 89 inspector-order/record checks, 21 light-design checks, 25 lighting/authoring checks,
 11 instrument-style checks, 10 inspector-layout checks, 28 reference checks, 14 shared-card checks and 14 Cloud/Light
 placement checks. Native editable input inventories for all 18 panel families match C052 (`dd92a6e`) after ignoring
 order. Existing suites verify Construct, scene export/import, locking, persistence, local Cloud bounds and negative
@@ -2792,8 +2792,8 @@ altitudes, C052 palettes/corners and unchanged pinned InspectorDepot files. Layo
 for the authorized merged response, summary/detail slices and revised section order.
 
 Actual browser screenshots and receipts are in `ProjectZeroEditor/Screenshots/InspectorOrder/`, including
-`AreaDocked.png`, `AreaExpanded.png`, `PointResponseExpanded.png`, `SunBakingLast.png`, `AtmosphereBakingLast.png` and
-`StarsBakingLast.png`. The response screenshot demonstrates an edited 50 cd / decay 1 source; default Fill Point remains
+`AreaDocked.png`, `AreaExpanded.png`, `PointResponseExpanded.png`, `SunPrecomputingLast.png`, `AtmospherePrecomputingLast.png` and
+`StarsPrecomputingLast.png`. The response screenshot demonstrates an edited 50 cd / decay 1 source; default Fill Point remains
 10 cd / decay 2. External Fontshare failures are recorded separately; fallback fonts were exercised. No native renderer,
 fracture algorithm, SDF computation, source-property schema or Construct behavior was changed.
 
@@ -2805,7 +2805,7 @@ fracture algorithm, SDF computation, source-property schema or Construct behavio
   trees, a road/centre line, distance ticks and extinction-driven contrast now communicate aerial perspective directly.
   Local Fog retains its bounded-volume sight-line treatment.
 - This remains an HTML inspector visualisation. It does not claim a native renderer capture or measured atmospheric
-  data.
+  record.
 - Validation: 149 focused checks passed (89 inspector-order, 28 reference-preservation, 21 light-design and 11
   instrument-style), with no reported errors. The generated standalone remains 4.64 MiB with 161 shipped icons and 57
   native vector glyphs.
@@ -2818,7 +2818,7 @@ fracture algorithm, SDF computation, source-property schema or Construct behavio
 - Replaced the outliner's hard-coded values with live, type-specific context for all 35 default entries. Examples include
   light output/type/position, precipitation type and mm/h, lunar phase angle and percentage, wind speed/bearing, camera
   focal length/aperture, cloud coverage/density, fog density/range, and geometry position.
-- Values update with edits; names, hierarchy, visibility, status controls, inspector ordering and bake-last placement are
+- Values update with edits; names, hierarchy, visibility, status controls, inspector ordering and precompute-last placement are
   unchanged. Light units follow their existing authored models: native Area uses lx, Point/Spot use cd, and illustrative
   source-flux panels use lm.
 - Validation: the 212-check C053 regression set still passes, plus 6 entity-context checks covering all 35 entries and the
@@ -2887,7 +2887,7 @@ fracture algorithm, SDF computation, source-property schema or Construct behavio
 - Visibility now follows the supplied dashboard references through one large live metric, a bordered statistics table,
   the existing transmission plot and restrained accent/status details. Beam Chamber remains an inset inside that same
   Visibility card. Medium keeps its original controls and live parameter map with only Fog-scoped visual styling.
-- The correction remains shared by Height, Atmospheric and Local Fog through one `FogPanel`; only their data, labels,
+- The correction remains shared by Height, Atmospheric and Local Fog through one `FogPanel`; only their record, labels,
   calculations and technical content differ. No non-Fog inspector styling changed.
 
 ## C060 — restore C054 Fog cards; Height-only visual correction (2026-10-06)
@@ -2998,7 +2998,7 @@ in C062 where it conflicts with C063/C064.
   spacing, rounded inset treatment, status language and Beam Chamber legibility. Reuse one implementation; do not create
   three lookalike card families or copy independent control state.
 - Keep the common ordering and ownership: header/identity, Fog Settings, Visibility, Medium with nested Beam Chamber,
-  model-specific technical visual, Colour, Wind Binding, then any existing bake/export section at the bottom.
+  model-specific technical visual, Colour, Wind Binding, then any existing precompute/export section at the bottom.
 - Keep model semantics distinct while sharing presentation:
   - **Height Fog:** Density + Falloff Height drive altitude extinction; Sun Scatter drives beam spread; the technical card
     is the interactive altitude-density profile.
@@ -3142,7 +3142,7 @@ not one C++ class per marketing preset:
 - Imported KHR punctual lights adapt to the same component schema rather than maintaining a second inspector model.
 
 Creation commands must replace the no-op Viewport menu items, create a real component and outliner row, select it, and
-support save/reload. Presets remain data/defaults; selecting a preset must not switch to a separate inspector code path.
+support save/reload. Presets remain record/defaults; selecting a preset must not switch to a separate inspector code path.
 
 ### Shared native Light inspector cards
 
@@ -3151,14 +3151,14 @@ which rows are present; all common cards remain visually identical.
 
 | Order | Card | Controls/content | Action relative to current native editor |
 |---:|---|---|---|
-| 1 | Main light visual/data | Existing approved type-specific source drawing plus real output/type/position summary. No copied identity strip. | Add dedicated native card; replace generic-only presentation. |
+| 1 | Main light visual/record | Existing approved type-specific source drawing plus real output/type/position summary. No copied identity strip. | Add dedicated native card; replace generic-only presentation. |
 | 2 | Statistics | Real component type, output unit, range, dimensions/profile and world XYZ. | Add; no synthetic renderer telemetry. |
 | 3 | Quick controls | Enabled, Cast Shadows and only other genuinely wired booleans. | Add shared card. |
 | 4 | Transform | Standard native Position/Rotation/Scale controls and transaction/undo behavior. | Replace read-only Direction-only treatment; reuse standard Transform. |
-| 5 | Source & response | Colour/temperature mode, output, range/falloff and type dimensions in one card with the approved data-oriented response study. | Replace separate/duplicated source, colour and distance-response sections. |
+| 5 | Source & response | Colour/temperature mode, output, range/falloff and type dimensions in one card with the approved record-oriented response study. | Replace separate/duplicated source, colour and distance-response sections. |
 | 6 | Distribution | Spot cone/penumbra, IES/profile selection, automotive cutoff, or area/tube/strip emission shape as applicable. Omit when not applicable. | Add conditional shared card, not preset-specific cards. |
 | 7 | Dynamics | Existing real flicker/pulse controls only when backed by component state; otherwise omit the card. | Do not add decorative controls. |
-| 8 | Baking/export | Existing real bake/export actions and honest unsupported states. | Move/keep at inspector bottom. |
+| 8 | Precomputing/export | Existing real precompute/export actions and honest unsupported states. | Move/keep at inspector bottom. |
 
 The Area Light card keeps the corrected area-source drawing and standard Transform. LED Strip remains one horizontal
 emission direction. Point/Spot use cd, directional/illuminance paths use lx, and authored source-flux panels use lm only
@@ -3166,7 +3166,7 @@ where the underlying component actually stores lumens; unit conversion must not 
 
 ### Implementation sequence
 
-1. Freeze the native property/schema contract and migration for existing punctual/emissive scene data.
+1. Freeze the native property/schema contract and migration for existing punctual/emissive scene record.
 2. Refactor `FogInspectorPanel.cpp` around shared card helpers/model descriptors; move Wind binding and add the shared Beam
    Chamber without changing Fog equations.
 3. Add the Light component record, stable IDs, scene serialization, outliner rows, selection, creation commands and native
@@ -3178,7 +3178,7 @@ where the underlying component actually stores lumens; unit conversion must not 
 6. Add undo/redo and save/reload verification for every editable field and create/delete operation.
 7. Run native Linux and Windows/MSVC builds, existing renderer/editor regression suites, low-stack checks, expanded/narrow
    ImGui captures, and interaction tests using submitted ImGui items. Verify Fog equations and model independence, Light
-   units, preset-to-core mappings, card order, clipping, scrolling and baking-last placement.
+   units, preset-to-core mappings, card order, clipping, scrolling and precomputing-last placement.
 
 ### Completion gates
 
@@ -3217,18 +3217,18 @@ exists but presentation/order/content differs; **Missing** = HTML-approved card/
 | Folder / collection | Collection total → visibility status → composition → searchable browser → optional Notes | Native collection inspector, search/filter/paging and Notes from C021/C055-era native work | **Partial/close.** Recheck optional add/reveal Notes behavior and the latest entity-specific outliner metadata; do not replace the native collection implementation. |
 | Geometry | Standard Transform → capabilities → Material → Fracture/SDF last | Generic Transform/Surface property groups; special Tyre/SolidArc routes exist, but the HTML fracture/SDF authoring stack is not a general native geometry card | **Missing/partial.** Retain standard native Transform and Material; port Fracture only through its separately approved native scope. Do not fold Tyre/SolidArc into generic geometry. |
 | Camera | Lens + field of view → Aperture study → Subject plane/sharpness → Sensor/support | Same four dedicated cards in `CameraInspectorPanel.cpp` | **Aligned functionally.** Compare spacing, responsive pairing and card heights; no replacement architecture required. |
-| Post process | Quick/capability controls and data graphs; no invented preview/statistics | Generic Exposure → Tone Mapping → Lens Effects sheet groups | **Partial.** Add a dedicated shared card presentation only if needed; preserve real EV, saturation, contrast, bloom and vignette fields and do not fabricate renderer statistics. |
-| Atmosphere | Atmosphere Lab/main data → settings → scattering → native controls → Atmosphere bake → Baked atmosphere | Atmospheric scattering → Aerosol haze + Ozone → Density falloff → Ground reflectance → additional settings → bake/baked at bottom | **Partial/close.** Native C024 has real interactive curves and bottom baking. Missing HTML AtmosphereLab atlas/orbital presentation remains a separate decision; do not duplicate the existing native scattering controls. |
-| Sun | Main solar visual/readings → quick controls → authored properties/graphs → Sun lighting/disk baking last | Sun direction + intensity/temperature → Daylight cycle + Sun disc → Dynamic/additional settings → both bake cards last | **Partial/close.** Native C024 has real solver-backed graphs and correct bake-last order. Reconcile the HTML summary/readings and quick-control boundary without replacing native solver controls. |
-| Lens flare | Flare composite → switches/settings → source → legacy settings → Lens flare image/bake last | Lens flare image first → Flare composite → Flare layers + Lens ghosts → Halo/response → Legacy settings | **Order mismatch.** Move the native image/export card to the bottom, retain composite/layer/ghost/halo controls, and group switches below the composite. |
+| Post process | Quick/capability controls and record graphs; no invented preview/statistics | Generic Exposure → Tone Mapping → Lens Effects sheet groups | **Partial.** Add a dedicated shared card presentation only if needed; preserve real EV, saturation, contrast, bloom and vignette fields and do not fabricate renderer statistics. |
+| Atmosphere | Atmosphere Lab/main record → settings → scattering → native controls → Atmosphere precompute → Precomputed atmosphere | Atmospheric scattering → Aerosol haze + Ozone → Density falloff → Ground reflectance → additional settings → precompute/precomputed at bottom | **Partial/close.** Native C024 has real interactive curves and bottom precomputing. Missing HTML AtmosphereLab atlas/orbital presentation remains a separate decision; do not duplicate the existing native scattering controls. |
+| Sun | Main solar visual/readings → quick controls → authored properties/graphs → Sun lighting/disk precomputing last | Sun direction + intensity/temperature → Daylight cycle + Sun disc → Dynamic/additional settings → both precompute cards last | **Partial/close.** Native C024 has real solver-backed graphs and correct precompute-last order. Reconcile the HTML summary/readings and quick-control boundary without replacing native solver controls. |
+| Lens flare | Flare combined → switches/settings → source → legacy settings → Lens flare image/precompute last | Lens flare image first → Flare combined → Flare layers + Lens ghosts → Halo/response → Legacy settings | **Order mismatch.** Move the native image/export card to the bottom, retain combined/layer/ghost/halo controls, and group switches below the combined. |
 | Moon | Lunar phase first → Moon settings → catalogue → Moonlight/size/position/rotation | Moon settings → catalogue → Lunar phase → Moonlight + size → position + rotation | **Order mismatch.** Reorder native Phase before settings/catalogue while retaining the real atlas, four-slot state, follow-sky, roll/pitch and oversized-moon behavior. No imported HTML Atlas frame should be embedded. |
-| Stars | Star field first → Stars settings → Twinkle → Renderer scale → Star field bake last | Stars settings → Star field → Twinkle + Celestial rotation → Renderer scale → Baking/star atlas last | **Order mismatch.** Move Star field ahead of quick settings; retain native rotation and honest unavailable bake state. |
-| Wind | Anemometer/statistics → Composite Flow/Wind field → Wind controls | Direction + magnitude + Flow → Variation + Gust envelope; wind binding is drawn separately for consumers | **Major presentation gap.** Keep the native `WindField` data/solver, add the reviewed Anemometer first, then composite field, then controls. Remove neither Beaufort/variation behavior nor real wind ownership; avoid a browser iframe port. |
+| Stars | Star field first → Stars settings → Twinkle → Renderer scale → Star field precompute last | Stars settings → Star field → Twinkle + Celestial rotation → Renderer scale → Precomputing/star atlas last | **Order mismatch.** Move Star field ahead of quick settings; retain native rotation and honest unavailable precompute state. |
+| Wind | Anemometer/statistics → Combined Flow/Wind field → Wind controls | Direction + magnitude + Flow → Variation + Gust envelope; wind binding is drawn separately for consumers | **Major presentation gap.** Keep the native `WindField` record/solver, add the reviewed Anemometer first, then combined field, then controls. Remove neither Beaufort/variation behavior nor real wind ownership; avoid a browser iframe port. |
 | Height / Atmospheric / Local Fog | Shared Fog settings → shared interactive Visibility → Medium with shared Beam Chamber + model technical peer → Wind binding | Shared native Fog shell already has Settings → Visibility → Medium + technical peer, but lacks coordinated Beam ownership, has standalone Neutral-light reference, and draws Wind binding before the custom panel | **Partial; C068 work remains.** Add Beam inside Medium, move Wind binding to bottom, fold/remove standalone neutral card, preserve independent Fog entities and equations. |
 | Global / Local Clouds | Shared summary/statistics → Cloud settings → shared Coverage → Cloud base/deck; Local retains bounds-derived base/thickness and body | Settings → Coverage → Cloud base/Local bounds + Layer thickness/Volume section → Cloud body → global shadow foldout | **Partial.** Native has the correct real fields and shared global/local route, but not the approved summary/deck presentation/order. Preserve Local Centre/Half Size and global-only shadow controls; do not invent Local Base/Thickness state. |
 | Precipitation | Precipitation type → Emission + collision → Fall + density → remaining simulation cards | Emission + collision → Precipitation type → Fall + density + Particle scale → Simulation/settling | **Order mismatch.** Move native type first, then emission, retaining real particle-scale and simulation/settling cards. |
-| Rainbow | Optical preview → Visibility → Bow response → Bake/image last | Visibility → Optical preview → Bow response → Baking/image last | **Order mismatch.** Swap only the first two cards; retain the real CPU optical preview, authored response controls and explicit unsupported bake state. |
-| Lights | Shared source-family dashboards, statistics, quick controls, standard Transform, merged Source & response, conditional distribution/dynamics, baking last | No dedicated Light appearance. Generic Light sheet exposes Intensity/Colour and read-only Direction; Point/Spot/Area Construct menu entries are no-ops; punctual records are not consumed by the lighting kernel | **Missing.** C068 Light component/schema/creation/writeback/renderer plan remains required. Presets map to core Point/Spot/Area/Tube/Strip types rather than separate inspector classes. |
+| Rainbow | Optical preview → Visibility → Bow response → Precompute/image last | Visibility → Optical preview → Bow response → Precomputing/image last | **Order mismatch.** Swap only the first two cards; retain the real CPU optical preview, authored response controls and explicit unsupported precompute state. |
+| Lights | Shared source-family dashboards, statistics, quick controls, standard Transform, merged Source & response, conditional distribution/dynamics, precomputing last | No dedicated Light appearance. Generic Light sheet exposes Intensity/Colour and read-only Direction; Point/Spot/Area Construct menu entries are no-ops; punctual records are not consumed by the lighting kernel | **Missing.** C068 Light component/schema/creation/writeback/renderer plan remains required. Presets map to core Point/Spot/Area/Tube/Strip types rather than separate inspector classes. |
 | Materials / Shader editing | Material channels/source editor and dockable ShaderEditor | Generic Surface card exposes Albedo, Emission, Roughness and Metallic readout | **Missing/partial.** Keep real native material properties; port the approved source/channel workflow only after native material ownership and shader compilation contracts are defined. |
 | Entity Notes and outliner context | Optional add/reveal Notes on every entity; type-specific values/units in outliner | Native `EditorInstance::Notes` and `RecordNotes` exist; outliner derives native categories/standing and selected metadata | **Partial/verify.** Audit reveal behavior and every latest metadata example (light output/type/XYZ, precipitation mode, Moon phase angle) rather than assuming C055 parity. |
 | Diagnostics / collection workspace | Movable diagnostics and large-collection browser | Native C021/C022 implementations and proofs exist | **Aligned for the scoped native implementation.** Keep actual native timing semantics and do not replace with HTML browser timing. |
@@ -3237,16 +3237,16 @@ exists but presentation/order/content differs; **Missing** = HTML-approved card/
 ### Cards/components to retain without redesign
 
 - Native Camera cards and optics calculations.
-- Native Atmosphere and Sun solver-backed interactive curves, additional native controls and bake-last sections.
-- Native Moon atlas/data ownership, Cloud bounds/body/shadows, precipitation simulation/settling, Rainbow CPU preview,
+- Native Atmosphere and Sun solver-backed interactive curves, additional native controls and precompute-last sections.
+- Native Moon atlas/record ownership, Cloud bounds/body/shadows, precipitation simulation/settling, Rainbow CPU preview,
   Wind solver fields, Fog equations, standard Transform, Notes storage and native diagnostics.
 - Existing Tyre and SolidArc specialized routes remain separate from general Project-Zero card conversion.
 
 ### Cards/components to rearrange only
 
-- Lens Flare: image/export to bottom; composite and switches first.
+- Lens Flare: image/export to bottom; combined and switches first.
 - Moon: Lunar phase before settings/catalogue.
-- Stars: Star field before settings; baking remains last.
+- Stars: Star field before settings; precomputing remains last.
 - Precipitation: type before emission/collision.
 - Rainbow: optical preview before visibility.
 - Clouds: apply the same approved summary/settings/coverage/deck ordering to Global and Local while retaining Local bounds.
@@ -3255,7 +3255,7 @@ exists but presentation/order/content differs; **Missing** = HTML-approved card/
 ### Cards/components requiring new native implementation
 
 - Shared Fog Beam Chamber and coordinated bottom Wind binding.
-- Wind Anemometer and approved composite-field presentation over the existing native wind model.
+- Wind Anemometer and approved combined-field presentation over the existing native wind model.
 - Persistent Light components, creation, dedicated inspector, writeback, save/reload and honest renderer support.
 - General geometry Fracture/SDF cards only within the separately authorized native fracture plan.
 - Material channel/source editor and ShaderEditor parity.
@@ -3265,7 +3265,7 @@ exists but presentation/order/content differs; **Missing** = HTML-approved card/
 
 The dedicated C++ inspectors currently repeat local `Panel`/card drawing helpers. Before converting more families, extract
 or standardize a native inspector card kit for: card surface/radius, heading, metric/readout, tile, slider host, responsive
-pair/stack layout, technical plot, status text and terminal bake section. Model code continues to own calculations and
+pair/stack layout, technical plot, status text and terminal precompute section. Model code continues to own calculations and
 writeback. This prevents Fog, Cloud, Moon, Weather and future Light cards from becoming visually different while merely
 sharing similar names.
 
@@ -3302,7 +3302,7 @@ Representative approved HTML evidence for direct review:
 5. Implement Wind presentation over the real native Wind model.
 6. Implement persistent Light components and the shared Light inspector; remove no-op creation commands.
 7. Audit Folder/Notes/outliner metadata and Post Process.
-8. Handle general Geometry Fracture/SDF and Material/ShaderEditor only under their separate authorized native plans.
+8. Tag general Geometry Fracture/SDF and Material/ShaderEditor only under their separate authorized native plans.
 9. Re-run Linux and Windows/MSVC builds, low-stack checks, native writeback/save-reload tests, expanded/narrow captures
    and existing renderer regressions. A card is not complete merely because a CPU-rasterized screenshot exists.
 
@@ -3320,11 +3320,11 @@ This implementation checkpoint applies the first two C069 stages without replaci
 | Family | Approved HTML order | Native C++ result | Deliberate native difference |
 |---|---|---|---|
 | Height / Atmospheric / Local Fog | Fog settings → Visibility → Medium with Beam Chamber + technical peer → Wind binding | The shared `FogInspectorPanel.cpp` now uses that order for all three sibling entities. Beam is inside Medium, disabled entities show an authored `PREVIEW`, Atmospheric retains an interactive 380–780 nm response, and Wind binding is terminal. | The Beam is an analytic authoring diagnostic rather than a scene-camera image. Height samples its 25 m layer; Aerial begins after authored Start; Local uses the bounded volume model. |
-| Lens Flare | Composite/switches first → image/export last | Confirmed native order is composite → layers/ghosts → halo → legacy → image/export. | Native retains real cached linear pixels and PFM export; baked scene playback remains explicitly unavailable. |
+| Lens Flare | Combined/switches first → image/export last | Confirmed native order is combined → layers/ghosts → halo → legacy → image/export. | Native retains real cached linear pixels and PFM export; precomputed scene playback remains explicitly unavailable. |
 | Moon | Lunar phase first → settings → catalogue → lighting/size/pose | Reordered native card coordinates and proof interactions to exactly this sequence. | Native retains the six-body registered atlas, four independent slots, follow-sky protection and unrestricted typed angular size; no duplicate HTML atlas frame was imported. |
-| Stars | Star field first → settings → Twinkle/rotation → renderer scale → bake last | Reordered field before quick settings while preserving all later cards and the terminal unavailable bake card. | Native field uses the real catalogue and sidereal/rotation controls rather than an HTML-only preview dataset. |
+| Stars | Star field first → settings → Twinkle/rotation → renderer scale → precompute last | Reordered field before quick settings while preserving all later cards and the terminal unavailable precompute card. | Native field uses the real catalogue and sidereal/rotation controls rather than an HTML-only preview dataset. |
 | Precipitation | Type → emission/collision → fall/density → simulation | Reordered Type ahead of Emission; retained particle-scale and simulation/settling cards. | Native telemetry remains backed by the CPU particle simulation and does not claim verified viewport particles. |
-| Rainbow | Optical preview → visibility → bow response → bake last | Swapped only the first two cards; response and unavailable bake state remain unchanged. | Native preview uses the shared CPU spectral kernel under stated fixed test conditions, not the scene camera. |
+| Rainbow | Optical preview → visibility → bow response → precompute last | Swapped only the first two cards; response and unavailable precompute state remain unchanged. | Native preview uses the shared CPU spectral kernel under stated fixed test conditions, not the scene camera. |
 
 ### Proof and infrastructure corrections
 
@@ -3347,7 +3347,7 @@ geometry/material authoring systems.
 - **Global and Local Clouds:** both now begin with the approved shared summary, then Cloud settings, interactive Coverage,
   deck/bounds technical cards and Cloud body. Local base/depth are derived from Centre/Half Size; no duplicate local state
   was introduced. Global-only shadow ownership remains unchanged.
-- **Wind:** the native order is Anemometer → Composite wind field + Wind controls → Variation controls + Gust envelope.
+- **Wind:** the native order is Anemometer → Combined wind field + Wind controls → Variation controls + Gust envelope.
   Every editable value remains the existing `WindField` property and the diagnostics call the real wind model.
 - **Lights:** extended the existing scene luminaire component rather than creating a second property model. Core types are
   Directional, Point, Spot, Rectangle, Tube and Strip; distribution is Uniform, IES or automotive low beam. Components own
@@ -3359,8 +3359,8 @@ geometry/material authoring systems.
 - **Light writeback:** `EditorFeedSequence` now builds and applies a dedicated Light sheet. Intensity, range, type,
   distribution, colour, cone, dimensions, enabled/shadow state and world position survive inspector rebuilds. Outliner
   metadata reports the real type, output and unit.
-- **Light presentation:** one shared native inspector supplies Main visual/data → Statistics → Quick controls → Transform →
-  Source & response → conditional Distribution → terminal Baking/renderer status. Spot/Point/Directional are labelled as
+- **Light presentation:** one shared native inspector supplies Main visual/record → Statistics → Quick controls → Transform →
+  Source & response → conditional Distribution → terminal Precomputing/renderer status. Spot/Point/Directional are labelled as
   native scene sources. Rectangle/Tube/Strip explicitly say `AUTHORING ONLY`; no unsupported lighting result is claimed.
 - **Post Process:** EV, saturation, contrast, bloom and vignette now have project-owned session writeback and a dedicated
   native presentation. Its tone curve is derived from authored contrast and it deliberately contains no fake histogram,
@@ -3374,7 +3374,7 @@ geometry/material authoring systems.
 
 `PunctualLuminaireRecord` is now the persistent in-scene Light component and the native sheet/writeback path is verified.
 The existing file-import adapters continue to populate that record. The current renderer's triangle-emitter sampler still
-does not consume extended Rectangle/Tube/Strip components, and no lightmap bake path exists, so those states are visibly
+does not consume extended Rectangle/Tube/Strip components, and no lightmap precompute path exists, so those states are visibly
 reported as unsupported rather than represented by fabricated images. The component proof verifies reconstruction from the
 scene record (the editor save/rebuild seam); this checkpoint does not claim a new `.space` project-writer workflow that the
 runtime does not currently expose.
@@ -3404,12 +3404,12 @@ browser-only fracture or shader workspace as completed native editor functionali
 |---|---|---|
 | Global / Local Clouds | Summary-led density/deck card, settings and coverage; Local includes an authored volume | Same hierarchy and visual language. Native derives Local base/top from `Centre ± Half Size`, retains `TextureCloudInspectorPanel`/simulation ownership, and omits any browser-only decorative value that is not in `EditorSheet`. |
 | Wind | Anemometer readout, vector field, speed/direction and gust controls | Same order and card design. Native diagnostics use `WindField::QueryVelocity`; speed, direction, variability, frequency, gust, turbulence and shear all write to canonical properties. No Beaufort/steadiness/driving duplicate model was added. |
-| Point / Spot / Area / Strip lights | Main light visual, compact statistics, quick toggles, transform, source response, conditional distribution, terminal renderer/bake status | Same accepted ordering/grouping. Native cards read `PunctualLuminaireRecord` and placement transforms. The HTML-style appearance is retained, while support labels are stricter: extended emitters say `AUTHORING ONLY`, because native raster consumption is not implemented. Strip keeps horizontal direction and Area keeps source/shape controls together. |
+| Point / Spot / Area / Strip lights | Main light visual, compact statistics, quick toggles, transform, source response, conditional distribution, terminal renderer/precompute status | Same accepted ordering/grouping. Native cards read `PunctualLuminaireRecord` and placement transforms. The HTML-style appearance is retained, while support labels are stricter: extended emitters say `AUTHORING ONLY`, because native raster consumption is not implemented. Strip keeps horizontal direction and Area keeps source/shape controls together. |
 | Post Process | Exposure hero, tone response curve and lens effects; some reference designs implied analytics/preview panels | Native keeps the accepted three-card composition and real controls only. The curve is computed from contrast. Histogram, camera preview and renderer statistics were removed because no native source provides them. |
 | Notes / outliner | Editable per-entity Notes and informative identity/meta text | Native Notes now appear after every dedicated panel, keep a stable inspector identity across construction-driven roster refresh, and remain session metadata. Light meta is generated from real type/output/unit rather than copied text. |
 
 The visual proof deliberately presents native captures rather than side-by-side browser screenshots: it establishes the shipped
-C++ result, while this table records every intentional data/feature difference from the HTML reference.
+C++ result, while this table records every intentional record/feature difference from the HTML reference.
 
 ## C072 — exact LED Strip and Folder card correction (2026-10-06)
 

@@ -7,17 +7,17 @@
 //    refit (`BlasRefit.slang`) over a deformed soup and checks that path the same way.
 //
 // 🔑 WHY THIS LIVES IN Tools/Exhibits AND NOT IN THE ENGINE: it is a run, not a feature. The engine's own shaders and
-//    pipelines are created by SwapchainExchange; this program exists to answer one question — does the device produce
+//    chains are created by SwapchainExchange; this program exists to answer one question — does the device produce
 //    the mirror's bytes — and to answer it on whatever machine has a GPU, including ones that never build the engine.
 //
-// ⚠️ Built and compiled in a sandbox with no GPU and no libvulkan: the pipeline objects it drives
-//    (Engine/GeometricRaster/BlasBuildPipeline.{h,cpp}) are compile-checked, and this file is compile-checked against the
+// ⚠️ Built and compiled in a sandbox with no GPU and no libvulkan: the chain objects it drives
+//    (Engine/GeometricRaster/BlasBuildChain.{h,cpp}) are compile-checked, and this file is compile-checked against the
 //    Vulkan-Headers, but THE RUN ITSELF HAS NOT HAPPENED. Running it is the last item on D9, and it needs real hardware:
 //
 //        g++ -std=c++20 -O2 -DFRONTIER_CPU_PORT -IEngine -IEngine/GeometricRaster -IEngine/DeviceExchange
 //            -IEngine/ContentInterchange -I<vulkan headers> -I<tinybvh>
 //            Exhibits/Workbench/Traversal/BlasDeviceRun.cpp Engine/GeometricRaster/BlasBuildMirror.cpp
-//            Engine/GeometricRaster/BlasDevicePayload.cpp Engine/GeometricRaster/BlasBuildPipeline.cpp
+//            Engine/GeometricRaster/BlasDevicePayload.cpp Engine/GeometricRaster/BlasBuildChain.cpp
 //            Engine/GeometricRaster/InstanceAcceleration.cpp Engine/GeometricRaster/TraversalIndex.cpp
 //            Engine/ContentInterchange/MaterialSwatchStructure.cpp Engine/DeviceExchange/OrientationClassifier.cpp
 //            -o blas_device_run -ldl
@@ -28,7 +28,7 @@
 //    builds the SPIR-V first if the .spv files are missing.
 //
 // Exit codes: 0 the device matches the mirror · 1 a mismatch · 2 no Vulkan device (printed as SKIP, not as a pass).
-#include "BlasBuildPipeline.h"
+#include "BlasBuildChain.h"
 #include "../../../Engine/ContentInterchange/MaterialSwatchStructure.h"
 
 #include <dlfcn.h>
@@ -84,7 +84,7 @@ namespace
     //    no -lvulkan in its dev packages, and because this file must still COMPILE where neither exists.
     struct Loader
     {
-        void* Handle = nullptr;
+        void* Tag = nullptr;
         PFN_vkGetInstanceProcAddr GetInstanceProcAddr = nullptr;
         PFN_vkGetDeviceProcAddr GetDeviceProcAddr = nullptr;
 
@@ -103,15 +103,15 @@ namespace
             const char* Names[] = { "libvulkan.so.1", "libvulkan.so", "vulkan-1.dll", "libvulkan.dylib" };
             for (const char* Name : Names)
             {
-                Handle = dlopen(Name, RTLD_NOW | RTLD_LOCAL);
-                if (Handle) break;
+                Tag = dlopen(Name, RTLD_NOW | RTLD_LOCAL);
+                if (Tag) break;
             }
-            if (!Handle)
+            if (!Tag)
             {
                 OutError = "no Vulkan loader found (tried libvulkan.so.1, libvulkan.so, vulkan-1.dll, libvulkan.dylib)";
                 return false;
             }
-            GetInstanceProcAddr = reinterpret_cast<PFN_vkGetInstanceProcAddr>(dlsym(Handle, "vkGetInstanceProcAddr"));
+            GetInstanceProcAddr = reinterpret_cast<PFN_vkGetInstanceProcAddr>(dlsym(Tag, "vkGetInstanceProcAddr"));
             if (!GetInstanceProcAddr) { OutError = "vkGetInstanceProcAddr is missing from the loader"; return false; }
             const auto Load = [&](const char* Name) { return GetInstanceProcAddr(nullptr, Name); };
             CreateInstance                        = reinterpret_cast<PFN_vkCreateInstance>(Load("vkCreateInstance"));
@@ -133,8 +133,8 @@ namespace
 
         void Close()
         {
-            if (Handle) dlclose(Handle);
-            Handle = nullptr;
+            if (Tag) dlclose(Tag);
+            Tag = nullptr;
         }
     };
 
@@ -297,10 +297,10 @@ int main(int ArgumentCount, char** Arguments)
     VkApplicationInfo Application{ VK_STRUCTURE_TYPE_APPLICATION_INFO };
     Application.pApplicationName = "Frontier BLAS device run";
     Application.apiVersion       = VK_API_VERSION_1_1;
-    VkInstanceCreateInfo InstanceInfo{ VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO };
-    InstanceInfo.pApplicationInfo = &Application;
+    VkInstanceCreateInfo InstanceDetails{ VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO };
+    InstanceDetails.pApplicationInfo = &Application;
     VkInstance Instance = VK_NULL_HANDLE;
-    if (Loader_.CreateInstance(&InstanceInfo, nullptr, &Instance) != VK_SUCCESS)
+    if (Loader_.CreateInstance(&InstanceDetails, nullptr, &Instance) != VK_SUCCESS)
     {
         std::printf("[blas-device] SKIP — vkCreateInstance failed (no driver?)\n");
         return 2;
@@ -360,11 +360,11 @@ int main(int ArgumentCount, char** Arguments)
     QueueInfo.queueFamilyIndex = ComputeFamily;
     QueueInfo.queueCount       = 1u;
     QueueInfo.pQueuePriorities = &Priority;
-    VkDeviceCreateInfo DeviceInfo{ VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO };
-    DeviceInfo.queueCreateInfoCount = 1u;
-    DeviceInfo.pQueueCreateInfos    = &QueueInfo;
+    VkDeviceCreateInfo DeviceDetails{ VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO };
+    DeviceDetails.queueCreateInfoCount = 1u;
+    DeviceDetails.pQueueCreateInfos    = &QueueInfo;
     VkDevice Device = VK_NULL_HANDLE;
-    if (Loader_.CreateDevice(Physical, &DeviceInfo, nullptr, &Device) != VK_SUCCESS)
+    if (Loader_.CreateDevice(Physical, &DeviceDetails, nullptr, &Device) != VK_SUCCESS)
     {
         std::printf("[blas-device] SKIP — vkCreateDevice failed\n");
         Loader_.DestroyInstance(Instance, nullptr);
@@ -382,8 +382,8 @@ int main(int ArgumentCount, char** Arguments)
         return 2;
     }
 
-    BlasBuildPipeline Pipeline;
-    if (!Pipeline.Build(Device, Api, ShaderDir, Error))
+    BlasBuildChain Sequence;
+    if (!Sequence.Build(Device, Api, ShaderDir, Error))
     {
         std::printf("[blas-device] RED — %s\n", Error.c_str());
         Loader_.DestroyDevice(Device, nullptr);
@@ -391,24 +391,24 @@ int main(int ArgumentCount, char** Arguments)
         return 1;
     }
 
-    // ── command pool, command buffer, fence ────────────────────────────────────────────────────────────────────────
-    VkCommandPoolCreateInfo PoolInfo{ VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO };
-    PoolInfo.queueFamilyIndex = ComputeFamily;
-    VkCommandPool CommandPool = VK_NULL_HANDLE;
-    Api.CreateCommandPool(Device, &PoolInfo, nullptr, &CommandPool);
-    VkCommandBufferAllocateInfo CommandInfo{ VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO };
-    CommandInfo.commandPool        = CommandPool;
-    CommandInfo.level              = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
-    CommandInfo.commandBufferCount = 1u;
+    // ── command slots, command store, fence ────────────────────────────────────────────────────────────────────────
+    VkCommandPoolCreateInfo SlotsDetails{ VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO };
+    SlotsDetails.queueFamilyIndex = ComputeFamily;
+    VkCommandPool CommandSlots = VK_NULL_HANDLE;
+    Api.CreateCommandPool(Device, &SlotsDetails, nullptr, &CommandSlots);
+    VkCommandBufferAllocateInfo CommandDetails{ VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO };
+    CommandDetails.commandPool        = CommandSlots;
+    CommandDetails.level              = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+    CommandDetails.commandBufferCount = 1u;
     VkCommandBuffer Command = VK_NULL_HANDLE;
-    Api.AllocateCommandBuffers(Device, &CommandInfo, &Command);
-    VkFenceCreateInfo FenceInfo{ VK_STRUCTURE_TYPE_FENCE_CREATE_INFO };
+    Api.AllocateCommandBuffers(Device, &CommandDetails, &Command);
+    VkFenceCreateInfo FenceDetails{ VK_STRUCTURE_TYPE_FENCE_CREATE_INFO };
     VkFence Fence = VK_NULL_HANDLE;
-    Api.CreateFence(Device, &FenceInfo, nullptr, &Fence);
+    Api.CreateFence(Device, &FenceDetails, nullptr, &Fence);
 
     // ① THE BUILD — upload, record the plan's dispatches, submit, wait, and compare against the mirror's bytes.
     BlasDeviceJob Job;
-    if (!Pipeline.CreateJob(Physical, Device, Api, Soup, Bounds.Min, Bounds.Max, MirrorNodes, MirrorLeaves, MirrorMetrics,
+    if (!Sequence.CreateJob(Physical, Device, Api, Soup, Bounds.Min, Bounds.Max, MirrorNodes, MirrorLeaves, MirrorMetrics,
                             MirrorLevels, Job, Error))
     {
         std::printf("[blas-device] RED — job creation: %s\n", Error.c_str());
@@ -417,8 +417,8 @@ int main(int ArgumentCount, char** Arguments)
     Say("arena: %u node slots (bound = triangles / 3 — a cap, not a reservation) · the mirror filled %u of them",
         Job.NodeSlots, MirrorMetrics.NodeCount);
 
-    // ⚠️ The recording happens INSIDE this lambda, after BeginCommandBuffer: passing a pre-recorded buffer in would
-    //    record into a command buffer that is not in the recording state, which is invalid usage and — the first time it
+    // ⚠️ The recording happens INSIDE this lambda, after BeginCommandBuffer: passing a pre-recorded store in would
+    //    record into a command store that is not in the recording state, which is invalid usage and — the first time it
     //    ran on a real device — would have been the whole run's failure, on a machine nobody could debug it on.
     auto SubmitAndWait = [&](const std::function<bool()>& Record) -> bool
     {
@@ -438,7 +438,7 @@ int main(int ArgumentCount, char** Arguments)
     };
 
     const std::chrono::steady_clock::time_point BuildStart = std::chrono::steady_clock::now();
-    const bool Recorded = SubmitAndWait([&] { return Pipeline.RecordBuild(Command, Job, true, Error); });
+    const bool Recorded = SubmitAndWait([&] { return Sequence.RecordBuild(Command, Job, true, Error); });
     const double BuildMs = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - BuildStart).count();
     if (!Recorded)
     {
@@ -446,10 +446,10 @@ int main(int ArgumentCount, char** Arguments)
         return 1;
     }
     Say("build: %u dispatches · %.2f ms (records, submits and waits — the number a frame would pay includes the barriers, "
-        "not the fence)", Pipeline.BuildDispatches(), BuildMs);
+        "not the fence)", Sequence.BuildDispatches(), BuildMs);
 
     std::string Report;
-    const bool BuildMatches = Pipeline.Verify(Device, Api, Job, Report, Error);
+    const bool BuildMatches = Sequence.Verify(Device, Api, Job, Report, Error);
     if (BuildMatches) Pass("① the DEVICE's build equals the MIRROR's build: %s", Report.c_str());
     else              Fail("① the device's build differs from the mirror's: %s (%s)", Report.c_str(), Error.c_str());
 
@@ -477,33 +477,33 @@ int main(int ArgumentCount, char** Arguments)
                                                                     RefitLevels, RefitMetrics);
         const double MirrorRefitMs = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - MirrorRefitStart).count();
 
-        // The device's refit: the deformed soup replaces the soup buffer, then the plan's dispatches run over the blob
+        // The device's refit: the deformed soup replaces the soup store, then the plan's dispatches run over the blob
         //    the build just wrote.
         std::vector<float> DeformedSoup;
         if (!PackBlasSoup(Deformed, DeformedSoup))
         {
             Fail("② could not pack the deformed soup");
         }
-        else if (!Pipeline.UploadSoup(Device, Job, DeformedSoup, Error))
+        else if (!Sequence.UploadSoup(Device, Job, DeformedSoup, Error))
         {
             Fail("② the deformed soup upload failed: %s", Error.c_str());
         }
         else
         {
             const std::chrono::steady_clock::time_point RefitStart = std::chrono::steady_clock::now();
-            const bool RefitRecorded = SubmitAndWait([&] { return Pipeline.RecordRefit(Command, Job, RefitMaxLevel, true, Error); });
+            const bool RefitRecorded = SubmitAndWait([&] { return Sequence.RecordRefit(Command, Job, RefitMaxLevel, true, Error); });
             const double RefitMs = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - RefitStart).count();
             if (!RefitRecorded) Fail("② recording the refit: %s", Error.c_str());
             else
             {
-                Say("refit: %u dispatches · %.2f ms on the device · %.2f ms on the CPU mirror", Pipeline.RefitDispatches(),
+                Say("refit: %u dispatches · %.2f ms on the device · %.2f ms on the CPU mirror", Sequence.RefitDispatches(),
                     RefitMs, MirrorRefitMs);
                 BlasDeviceJob RefitJob = Job;
                 RefitJob.ExpectedNodes  = MirrorRefitNodes;
                 RefitJob.ExpectedLeaves = MirrorRefitLeaves;
                 RefitJob.MirrorMetrics  = MirrorMetrics;   // the refit keeps the topology, so the node count is the same
                 std::string RefitReport;
-                const bool RefitMatches = Pipeline.Verify(Device, Api, RefitJob, RefitReport, Error);
+                const bool RefitMatches = Sequence.Verify(Device, Api, RefitJob, RefitReport, Error);
                 if (!MirrorRefitOk) Fail("② the mirror's own refit refused the deformation");
                 else if (RefitMatches) Pass("② the DEVICE's refit equals the MIRROR's refit: %s", RefitReport.c_str());
                 else Fail("② the device's refit differs from the mirror's: %s (%s)", RefitReport.c_str(), Error.c_str());
@@ -512,10 +512,10 @@ int main(int ArgumentCount, char** Arguments)
     }
 
     // ── teardown ────────────────────────────────────────────────────────────────────────────────────────────────────
-    Pipeline.DestroyJob(Device, Job);
+    Sequence.DestroyJob(Device, Job);
     Api.DestroyFence(Device, Fence, nullptr);
-    Api.DestroyCommandPool(Device, CommandPool, nullptr);
-    Pipeline.Destroy(Device);
+    Api.DestroyCommandPool(Device, CommandSlots, nullptr);
+    Sequence.Destroy(Device);
     Loader_.DestroyDevice(Device, nullptr);
     Loader_.DestroyInstance(Instance, nullptr);
     Loader_.Close();

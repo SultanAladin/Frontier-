@@ -58,7 +58,7 @@ inline const char* TranslateToChinese(const char* English)
         {"Paste secret", "粘贴密钥"},
         {"Remember on this PC (Windows Credential Manager)", "在此电脑上记住（Windows 凭据管理器）"},
         {"Advanced", "高级"},
-        {"Optional portable setup: put your private Charge.local.ini next to Charge.exe. It contains readable credentials; never share or upload it. Carry the same data key between PCs.", "可选便携设置：将私有的 Charge.local.ini 放在 Charge.exe 旁边。其中包含可读凭据，切勿分享或上传。在多台电脑之间使用相同的数据密钥。"},
+        {"Optional portable setup: put your private Charge.local.ini next to Charge.exe. It contains readable credentials; never share or upload it. Carry the same record key between PCs.", "可选便携设置：将私有的 Charge.local.ini 放在 Charge.exe 旁边。其中包含可读凭据，切勿分享或上传。在多台电脑之间使用相同的数据密钥。"},
         {"Cloud storage encryption key (64 hex characters)", "云存储加密密钥（64 位十六进制）"},
         {"Saved developer credential", "已保存的开发者凭据"},
         {"Keep Epic's Developer Auth Tool running on localhost:6547.", "保持 Epic 开发者验证工具运行于 localhost:6547。"},

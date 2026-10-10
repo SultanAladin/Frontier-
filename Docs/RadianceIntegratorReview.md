@@ -10,7 +10,7 @@
 This is an independently implemented, working **WebGPU** radiance-cascades experiment for an original
 **2,788-triangle** architectural scene. It has screen-space probe placement, full-scene triangle tracing,
 animated lighting and rigid triangle geometry, native raster visibility, quality controls and diagnostic views.
-It has no editor outliner, inspector, document tabs or baked lightmaps. The older radiance experiments are unchanged.
+It has no editor outliner, inspector, document tabs or precomputed lightmaps. The older radiance experiments are unchanged.
 
 It is **not an AAA-ready or open-world renderer**. Real-time operation on a gaming GPU has not been established:
 the available execution adapter was SwiftShader software Vulkan/WebGPU. The demo exposes real GPU pass timings
@@ -57,21 +57,21 @@ longer intervals. This is a formal radiative-transfer method, not an AAA graphic
 
 The institutional [paper PDF](https://eprints.gla.ac.uk/343746/1/343746.pdf) was used to read the interval,
 interpolation, scaling and artefact sections. The non-LTE plasma model, wavelength transport and iterative atomic
-population solver were not ported. This demo instead handles opaque RGB triangle surfaces in vacuum.
+population solver were not ported. This demo instead identifiers opaque RGB triangle surfaces in vacuum.
 
 ## 2. The implemented frame
 
 The application requests `navigator.gpu`, creates a native `webgpu` canvas context and executes WGSL compute and
-raster pipelines. Unsupported adapters produce an explicit message; there is **no WebGL or CPU-rendered fallback**.
+raster chains. Unsupported adapters produce an explicit message; there is **no WebGL or CPU-rendered fallback**.
 
 1. **Update rigid instances.** Four model/inverse matrices describe the static architectural aggregate, rotating
-   sculpture and two moving luminaires. Local-space triangle buffers and BLAS nodes are persistent. Moving an
-   instance changes the matrices, not a baked image or a CPU-rendered lighting result.
+   sculpture and two moving luminaires. Local-space triangle stores and BLAS nodes are persistent. Moving an
+   instance changes the matrices, not a precomputed image or a CPU-rendered lighting result.
 2. **Raster point-light shadows.** Two six-face depth maps cover the whole triangle scene. Comparison sampling
    supplies direct-light visibility at both visible pixels and ray-hit surfaces. A luminaire's own proxy geometry
    is excluded from its shadow map. Maps are reused only when light/caster transforms and map allocation remain
    unchanged; moving lights or the caster invalidate them.
-3. **Raster the G-buffer.** World position/instance, normal/roughness, albedo and emission are produced from actual
+3. **Raster the G-store.** World position/instance, normal/roughness, albedo and emission are produced from actual
    triangles with native depth testing. The raster camera does not determine which triangles are traceable.
 4. **Compute spatial links.** Each fine probe gets four coarse-neighbour weights. Distance weighting and optional
    BVH-tested connection visibility are calculated **once per probe pair**, then shared across angular samples.
@@ -90,7 +90,7 @@ raster pipelines. Unsupported adapters produce an explicit message; there is **n
    is capped at 0.65. History is optional and does not make the cascades themselves static.
 9. **Present and measure.** A rational filmic tone curve, gamma encoding and bilinear display resampling produce the
    final image. Timestamp queries cover the major passes where supported. A three-slot asynchronous telemetry ring
-   avoids synchronously mapping a buffer on every frame. At most two GPU frames are in flight.
+   avoids synchronously mapping a store on every frame. At most two GPU frames are in flight.
 
 The shadow maps are a speed/quality trade-off: they replace direct-light BVH shadow rays, **not** the GI interval
 rays. GI visibility remains world-space triangle tracing, including off-camera geometry.
@@ -137,7 +137,7 @@ not a measured ray count: optional connection/reflection rays add work while inv
 ## 4. The illumination model, precisely
 
 - Static emissive triangle strips and the sky are integrated by cascade rays.
-- The two moving luminaire meshes use point-light proxies for direct illumination. Their visible emission is
+- The two moving luminaire geometries use point-light proxies for direct illumination. Their visible emission is
   excluded from cascade source emission to avoid adding the same direct-light contribution twice.
 - A ray hitting a diffuse surface evaluates that surface's directly lit outgoing radiance. Consequently, the
   cascades carry **one diffuse bounce of the point lights**, not converged multibounce transport.
@@ -167,11 +167,11 @@ The display is responsive; the full scene remains interactive rather than becomi
 
 Diagnostic views include direct-only, cascade-only, normals, albedo, probe tiles, a selected merged directional
 atlas, remaining transmittance, primary-ray BVH traversal cost and temporal acceptance. Direct-only and geometric
-diagnostics skip unused cascade/SH work. The atlas shows **merged** intervals, not an unmerged raw-shell buffer.
+diagnostics skip unused cascade/SH work. The atlas shows **merged** intervals, not an unmerged raw-shell store.
 
 ## 6. Executed verification
 
-The final-source tests run actual WebGPU commands and map GPU buffers/textures for comparisons. Screenshots are
+The final-source tests run actual WebGPU commands and map GPU stores/textures for comparisons. Screenshots are
 browser captures, not offline renderings or generated illustrations.
 
 - **Scene and BVH:** 2,788 finite, nondegenerate triangles; 2,134 nodes; maximum depth 20. Leaf coverage is exact,
@@ -185,7 +185,7 @@ browser captures, not offline renderings or generated illustrations.
   front-to-back formula. Readbacks of all four cascades were finite, with transmittance in `[0, 1]` and both open
   and blocked samples present.
 - **No fake ambient floor:** with emitter power and sky zero, every visible surface's measured HDR RGB was exactly
-  zero. Background presentation colour is excluded using the actual G-buffer surface mask.
+  zero. Background presentation colour is excluded using the actual G-store surface mask.
 - **Replay and dynamics:** changing time changed lighting and geometry; restoring time with history disabled
   reproduced the original HDR result exactly. History accepted stationary surfaces and remained optional.
 - **Off-screen test:** all **24 static emissive triangles** were clipped outside the camera frustum. Point proxies
@@ -220,10 +220,10 @@ The live HUD separates:
   Manual verification and screenshot pauses make screenshot FPS unsuitable as a throughput benchmark.
 - **Interval slots:** a resource/work budget when counters are disabled. Enabling counters changes the label to
   **measured rays**, and adds atomic instrumentation overhead.
-- **GPU data estimate:** explicit buffer/texture payload sizes. It excludes swapchain storage, implementation
-  padding, shader/pipeline caches and driver overhead; it is not a GPU-resident-memory query.
+- **GPU record estimate:** explicit store/texture payload sizes. It excludes swapchain storage, implementation
+  padding, shader/chain caches and driver overhead; it is not a GPU-resident-storage query.
 
-The balanced 640-by-448 validation configuration allocates approximately **34.5 MiB** of explicit data, including
+The balanced 640-by-448 validation configuration allocates approximately **34.5 MiB** of explicit record, including
 twelve 512-by-512 depth faces. Large settings increase this substantially. Shadow-map size and angular width both
 have quadratic cost components. Static shadow reuse, shared link visibility, SH projection, early-outs and BVH
 traversal are implemented optimizations; their existence alone is not proof of an AAA frame budget.
@@ -243,7 +243,7 @@ not a real-time hardware result. Exact per-pass timings and adapter metadata are
 A separate static-camera frame with instrumentation enabled recorded **84,566 rays**, **4,633,529 node visits**,
 **300,507 triangle tests** and **21,515 hits**. This includes connection visibility, not just directional interval
 slots. The shadow maps were reused for that unchanged frame; its work is not identical to the moving-frame samples.
-No projected gaming-GPU timing is substituted for missing data.
+No projected gaming-GPU timing is substituted for missing record.
 
 ## 8. Known quality and architecture limits
 
@@ -261,10 +261,10 @@ No projected gaming-GPU timing is substituted for missing data.
    Low render scales therefore retain visible stair-stepping and blur.
 6. **History.** Reprojection/clamping can still lag moving illumination. Instance/position/normal rejection is not
    a full material/motion-vector reactive mask, and all dynamic instance pixels currently reject history.
-7. **Dynamics.** Instances move rigidly. There is no skinning, deforming-mesh BLAS refit, topology editing or GPU
+7. **Dynamics.** Instances move rigidly. There is no skinning, deforming-topology BLAS refit, topology editing or GPU
    BVH construction. The local-space BLASes are built on the CPU at startup, not every frame.
 8. **World scale.** This is a bounded atrium, not a streaming world. It uses four BLAS roots without a TLAS, a simple
-   split heuristic on the longest bounds axis, and half-float G-buffer positions. It lacks origin rebasing,
+   split heuristic on the longest bounds axis, and half-float G-store positions. It lacks origin rebasing,
    residency management, distant lighting, LOD/HLOD, meshlets and scene-scale occlusion culling.
 
 ## 9. Recommended AAA/open-world development order
@@ -291,7 +291,7 @@ visibility reuse, adaptive probe density, temporal reservoirs where justified, a
 Select techniques based on measured bottlenecks; combining every named technique is not automatically faster.
 This WebGPU implementation uses compute traversal, not hardware DXR/Vulkan-RT ray-query instructions.
 
-**P5 — Production robustness.** Add resource eviction, device-loss recovery, warm-up/pipeline caching strategy,
+**P5 — Production robustness.** Add resource eviction, device-loss recovery, warm-up/chain caching strategy,
 streaming stress tests and browser/vendor coverage. Keep unsupported-device behaviour explicit. Promote this
 experiment only after measured image error and hardware frame budgets hold under representative workloads.
 

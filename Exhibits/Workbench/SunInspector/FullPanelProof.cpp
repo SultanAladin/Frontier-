@@ -115,7 +115,7 @@ int main(){
     Old=Find(*Sheet,"Animate").On;Click({O.x+3*(Tile+9)+Tile/2,O.y+436+53});Check(Find(*Sheet,"Animate").On!=Old,"dynamic static tile controls shared clock");
     SliderClick("##sun-day-duration","Day duration");Check(std::abs(24/Sun->Clock.SpeedTimes-Find(*Sheet,"Day duration").Figure)<.001f,"duration pointer input reaches clock rate");
     bool Visible=Row->Visible;Click({O.x+W-45,O.y+78});Check(Row->Visible!=Visible,"enabled header controls actual row visibility");Row->Visible=true;
-    // Disabled bake/load and unbound sunlight/disc quick controls do not invent project state.
+    // Disabled precompute/load and unbound sunlight/disc quick controls do not invent project state.
     float Before=Sun->Light.Intensity;Click({O.x+230,O.y+228});Click({O.x+Tile/2,O.y+489});Check(Sun->Light.Intensity==Before,"unbound controls do not change gain");
     Sun->ApplySheet(CelestialEntity::Sun,*Saved);Sun->Clock.Animate=true;Sun->Tick(0,Camera,0);Sun->BuildSheet(CelestialEntity::Sun,*Sheet);Find(*Sheet,"Temperature").Figure=6000;Apply();Rest();
     auto Capture=[&](const char* Name){

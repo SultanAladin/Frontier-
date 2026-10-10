@@ -20,7 +20,7 @@ The boundary: a domain that is not enclosed vents
   PASS  the corner of an open domain vents most of its gas
   PASS  so does the side wall
   PASS  and the roof
-  PASS  the floor does not, because gas pools on the ground in the authoring tool too
+  PASS  the floor does not, because gas slots on the ground in the authoring tool too
   PASS  and the middle of the domain is untouched
 
 The obstruction: a table, because the two numberings only look alike

@@ -14,7 +14,7 @@
 //
 //    The top level's nodes are tinybvh's 32 B binary nodes, uploaded as 8 floats: [min.xyz, leftFirst bits, max.xyz,
 //    primitive-count bits]. The two integer fields travel bit-cast inside the float array — the same trick the CWBVH
-//    triangle blob already uses for its primitive index in v0.w — so the node buffer is one flat float4 array and needs
+//    triangle blob already uses for its primitive index in v0.w — so the node store is one flat float4 array and needs
 //    no second descriptor.
 
 #ifndef FRONTIER_TRAVERSAL_RECORDS
@@ -35,7 +35,7 @@ struct TraversalTlasInstance
     uint Pad;             // [-] 0
 };
 
-// 16 B — BlasPlacement (InstanceAcceleration.h): where one BLAS' blobs live inside the shared buffers.
+// 16 B — BlasPlacement (InstanceAcceleration.h): where one BLAS' blobs live inside the shared stores.
 struct TraversalBlasPlacement
 {
     uint NodeOffset;      // [vec4 blocks] start of this BLAS' nodes in CwbvhNodes[]

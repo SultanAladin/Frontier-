@@ -14,12 +14,12 @@
 //        Off    no proxy at all — overlay only, exactly today's behaviour, zero cost
 //        Low    proxy in the light list, radiance = the area-weighted average of the lit figures   ← default
 //        High   same geometry and same luminaire; the hit shader evaluates the figures instead of the average
-//        Ultra  one luminaire per emissive figure, so a single lit button casts its own shaped pool
+//        Ultra  one luminaire per emissive figure, so a single lit button casts its own shaped slots
 //
 //    Off and Low are implemented here end to end. HIGH's sampler is built and proven —
 //    Shaders/InterfacePanelSample.slang walks the figures at a hit's plane coordinate and is verified against the
 //    Low-tier average to four decimals (Scratchpad/CheckPanelSample.sh) — but it is not yet REACHABLE from the
-//    ray-tracing kernel: the figure buffer lives in InterfaceExchange's own descriptor set, and the kernel's set
+//    ray-tracing kernel: the figure store lives in InterfaceExchange's own descriptor set, and the kernel's set
 //    is full to binding 18, which is the variable-count bindless array and must stay last. Wiring it needs a
 //    descriptor renumber that touches every write site.
 //

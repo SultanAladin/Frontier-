@@ -1,21 +1,21 @@
 //============================================================================================================================================
 //                                                        TRIANGLEFIELD.SLANG
 //============================================================================================================================================
-// 📦 GPU import bake and dirty-cell composite for mesh signed distance fields. Mirrors TriangleField.h line for line:
+// 📦 GPU import precompute and dirty-cell combined for topology signed distance fields. Mirrors TriangleField.h line for line:
 //    TriangleFieldDeviceMirror.h is the CPU exact mirror of these kernels, and the proof checks it against the CPU reference.
 //
-//    ProjectGridMain       one thread per grid node of one mesh. Exact closest triangle, sign from the closest face normal.
+//    ProjectGridMain       one thread per grid node of one topology. Exact closest triangle, sign from the closest face normal.
 //                   Runs at import time only. Output is the .fsdf distance array (X fastest).
 //    ClipMinimumMain  one thread per dirty cell of one clip level. Minimum over the culled instance list of each instance's
 //                   sample through its inverse transform. Threads outside the dirty box exit, so only dirty cells are written.
 //
 // Bindings (set 0):
-//    0  GridProjectionParams        constant buffer
+//    0  GridProjectionParams        constant store
 //    1  Triangles         StructuredBuffer<float>, 9 floats per triangle (3 corners x xyz)
 //    2  ProjectOutput        RWStructuredBuffer<float>, Resolution^3
-//    3  ClipMinimumParams   constant buffer
+//    3  ClipMinimumParams   constant store
 //    4  Instances         StructuredBuffer<InstanceGpu>
-//    5  FieldSamples         StructuredBuffer<float>, all mesh fields concatenated (each at InstanceGpu.FieldOffset)
+//    5  FieldSamples         StructuredBuffer<float>, all topology fields concatenated (each at InstanceGpu.FieldOffset)
 //    6  ClipVolume        RWStructuredBuffer<float>, Dim^3 cells of one clip level
 
 struct GridProjectionParams
@@ -49,12 +49,12 @@ struct InstanceGpu
     uint3  Pad;
 };
 
-[[vk::binding(0, 0)]] ConstantBuffer<GridProjectionParams>        gBake;
+[[vk::binding(0, 0)]] ConstantBuffer<GridProjectionParams>        gPrecompute;
 [[vk::binding(1, 0)]] StructuredBuffer<float>           gTriangles;
-[[vk::binding(2, 0)]] RWStructuredBuffer<float>         gBakeOutput;
-[[vk::binding(3, 0)]] ConstantBuffer<ClipMinimumParams>   gComposite;
+[[vk::binding(2, 0)]] RWStructuredBuffer<float>         gPrecomputeOutput;
+[[vk::binding(3, 0)]] ConstantBuffer<ClipMinimumParams>   gCombined;
 [[vk::binding(4, 0)]] StructuredBuffer<InstanceGpu>     gInstances;
-[[vk::binding(5, 0)]] StructuredBuffer<float>           gFieldData;
+[[vk::binding(5, 0)]] StructuredBuffer<float>           gFieldPayload;
 [[vk::binding(6, 0)]] RWStructuredBuffer<float>         gClipVolume;
 
 // Closest point on triangle (Ericson). Same branch order as ClosestOnTriangle in TriangleField.h.
@@ -87,17 +87,17 @@ float3 ClosestOnTriangle(float3 P, float3 A, float3 B, float3 C)
 [numthreads(64, 1, 1)]
 void ProjectGridMain(uint3 Id : SV_DispatchThreadID)
 {
-    uint N     = gBake.Resolution;
+    uint N     = gPrecompute.Resolution;
     uint Total = N * N * N;
     uint I     = Id.x;
     if (I >= Total) return;
     uint X = I % N;
     uint Y = (I / N) % N;
     uint Z = I / (N * N);
-    float3 P = gBake.Min + (gBake.Max - gBake.Min) * float3(float(X), float(Y), float(Z)) / float(N - 1u);
+    float3 P = gPrecompute.Min + (gPrecompute.Max - gPrecompute.Min) * float3(float(X), float(Y), float(Z)) / float(N - 1u);
 
     float Best = 1e30, Sign = 1.0;
-    for (uint T = 0u; T < gBake.TriangleCount; ++T)
+    for (uint T = 0u; T < gPrecompute.TriangleCount; ++T)
     {
         uint Base = T * 9u;
         float3 A = float3(gTriangles[Base + 0u], gTriangles[Base + 1u], gTriangles[Base + 2u]);
@@ -113,10 +113,10 @@ void ProjectGridMain(uint3 Id : SV_DispatchThreadID)
             Sign = dot(D, Normal) < 0.0 ? -1.0 : 1.0;
         }
     }
-    gBakeOutput[I] = Sign * Best;
+    gPrecomputeOutput[I] = Sign * Best;
 }
 
-// Trilinear sample of one mesh field in its local space. Same rule as SampleLocal: outside the bounds, the larger of the gap and
+// Trilinear sample of one topology field in its local space. Same rule as SampleLocal: outside the bounds, the larger of the gap and
 // the clamped value minus the gap.
 float SampleField(uint Offset, uint N, float3 Min, float3 Max, float3 P)
 {
@@ -132,7 +132,7 @@ float SampleField(uint Offset, uint N, float3 Min, float3 Max, float3 P)
         uint Dx = Corner & 1u, Dy = (Corner >> 1) & 1u, Dz = (Corner >> 2) & 1u;
         float Weight = (Dx != 0u ? Fr.x : 1.0 - Fr.x) * (Dy != 0u ? Fr.y : 1.0 - Fr.y) * (Dz != 0u ? Fr.z : 1.0 - Fr.z);
         uint Index = Offset + (I0.z + Dz) * N * N + (I0.y + Dy) * N + (I0.x + Dx);
-        Accum += Weight * gFieldData[Index];
+        Accum += Weight * gFieldPayload[Index];
     }
     return Gap > 0.0 ? max(Gap, Accum - Gap) : Accum;
 }
@@ -141,12 +141,12 @@ float SampleField(uint Offset, uint N, float3 Min, float3 Max, float3 P)
 [numthreads(4, 4, 4)]
 void ClipMinimumMain(uint3 Id : SV_DispatchThreadID)
 {
-    uint3 Cell = gComposite.DirtyLo + Id;
-    if (any(Cell > gComposite.DirtyHi)) return;
-    float3 P = gComposite.Origin + (float3(Cell) + 0.5) * gComposite.Cell;
+    uint3 Cell = gCombined.DirtyLo + Id;
+    if (any(Cell > gCombined.DirtyHi)) return;
+    float3 P = gCombined.Origin + (float3(Cell) + 0.5) * gCombined.Cell;
 
     float Best = 1e30;
-    for (uint K = 0u; K < gComposite.InstanceCount; ++K)
+    for (uint K = 0u; K < gCombined.InstanceCount; ++K)
     {
         InstanceGpu Inst = gInstances[K];
         float3 Local = float3(
@@ -156,6 +156,6 @@ void ClipMinimumMain(uint3 Id : SV_DispatchThreadID)
         float D = SampleField(Inst.FieldOffset, uint(Inst.FieldMax.w), Inst.FieldMin.xyz, Inst.FieldMax.xyz, Local) * Inst.FieldMin.w;
         Best = min(Best, D);
     }
-    uint Index = (Cell.z * gComposite.Dim + Cell.y) * gComposite.Dim + Cell.x;
+    uint Index = (Cell.z * gCombined.Dim + Cell.y) * gCombined.Dim + Cell.x;
     gClipVolume[Index] = Best;
 }

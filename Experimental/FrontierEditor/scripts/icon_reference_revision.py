@@ -24,7 +24,7 @@ add('camera','A minimal rounded charcoal camera with a broad glass lens, restrai
 
 material_defs='''<radialGradient id="material-satin" cx="32%" cy="24%" r="79%"><stop stop-color="#efebe0"/><stop offset=".25" stop-color="#d8d7d1"/><stop offset=".53" stop-color="#a4afb5"/><stop offset=".75" stop-color="#647885"/><stop offset=".93" stop-color="#354b5f"/><stop offset="1" stop-color="#66818e"/></radialGradient><radialGradient id="material-highlight" cx="37%" cy="28%" r="48%"><stop stop-color="#fffdf5" stop-opacity=".65"/><stop offset=".4" stop-color="#fffaf0" stop-opacity=".2"/><stop offset="1" stop-color="#f2efe4" stop-opacity="0"/></radialGradient><linearGradient id="material-rim" x2=".8" y2="1"><stop stop-color="#f7f3e7" stop-opacity=".8"/><stop offset=".45" stop-color="#9cbdc9" stop-opacity=".05"/><stop offset="1" stop-color="#9dbccc" stop-opacity=".5"/></linearGradient><clipPath id="material-clip"><circle cx="128" cy="125" r="79"/></clipPath>'''
 material_body='<circle cx="128" cy="125" r="79" fill="url(#material-satin)"/><g clip-path="url(#material-clip)">'
-# Seeded micro-pitting follows the sphere; no raster noise or baked texture.
+# Seeded micro-pitting follows the sphere; no raster noise or precomputed texture.
 rng=random.Random(85)
 for i in range(1000):
     x,y=rng.uniform(-1,1),rng.uniform(-1,1)

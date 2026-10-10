@@ -204,7 +204,7 @@ function Test-ObjectFresh([string] $ObjectPath, [string] $SourcePath, [string] $
     try
     {
         $Recorded = Get-Content $DependencyPath -Raw | ConvertFrom-Json
-        $Included = $Recorded.Data.Includes
+        $Included = $Recorded.Packet.Includes
     }
     catch { return $false }
 

@@ -2,7 +2,7 @@
 //                                                    TRIANGLEFIELDGPUMIRROR.H
 //============================================================================================================================================
 // 📦 CPU exact mirror of Engine/GeometricRaster/Shaders/TriangleField.slang. Each function follows its shader counterpart line for line and
-//    works on the same flat buffers (9 floats per triangle, concatenated field data, InstanceGpu records, clip volume X fastest).
+//    works on the same flat stores (9 floats per triangle, concatenated field record, InstanceGpu records, clip volume X fastest).
 //    The proof checks this mirror against the CPU reference in TriangleField.h. The GPU must match this mirror, and that check
 //    needs a device run, which this sandbox cannot do.
 

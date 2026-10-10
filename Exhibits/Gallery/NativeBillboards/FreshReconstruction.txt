@@ -33,16 +33,16 @@ For archive-based proofs set GIT_CEILING_DIRECTORIES=/home/user/Frontier/.cache/
 [ImGui]    applied PatchC-RoundTabButtons.patch
 [ImGui]    applied PatchD-TabAddButton.patch
 [ImGui]    applied PatchE-NoTabScrollButtons.patch
-PASS 326 checks: full InspectorPanel, two bake targets, five reference cards, bound temperature and intensity, renderer-record and CPU-atmosphere response, native sliders and quick-cycle write-back, read-only direction, visibility, property round trips, supplement, scroll, narrow and 2x captures.
+PASS 326 checks: full InspectorPanel, two precompute targets, five reference cards, bound temperature and intensity, renderer-record and CPU-atmosphere response, native sliders and quick-cycle write-back, read-only direction, visibility, property round trips, supplement, scroll, narrow and 2x captures.
 
 ICON Camera: ready —
-ICON FolderEnvironment: ready — Approved SVG, browser-baked with filters intact; source bytes verified.
-ICON Sun: ready — Approved SVG, browser-baked with filters intact; source bytes verified.
-ICON Moon: ready — Approved SVG, browser-baked with filters intact; source bytes verified.
+ICON FolderEnvironment: ready — Approved SVG, browser-precomputed with filters intact; source bytes verified.
+ICON Sun: ready — Approved SVG, browser-precomputed with filters intact; source bytes verified.
+ICON Moon: ready — Approved SVG, browser-precomputed with filters intact; source bytes verified.
 ICON OutlinerStars: ready —
-ICON Clouds: ready — Approved SVG, browser-baked with filters intact; source bytes verified.
-ICON LocalCloud: ready — Approved SVG, browser-baked with filters intact; source bytes verified.
-ICON LocalFog: ready — Approved SVG, browser-baked with filters intact; source bytes verified.
+ICON Clouds: ready — Approved SVG, browser-precomputed with filters intact; source bytes verified.
+ICON LocalCloud: ready — Approved SVG, browser-precomputed with filters intact; source bytes verified.
+ICON LocalFog: ready — Approved SVG, browser-precomputed with filters intact; source bytes verified.
 ICON SkyScattering: ready —
 ICON Wind: ready —
 ICON OutlinerPrecipitation: ready —
@@ -51,13 +51,13 @@ ICON LensFlare: ready —
 PASS 46 checks: real host selection, native input, project bindings, reorder identity and visibility. CPU only.
 
 ICON Camera: ready —
-ICON FolderEnvironment: ready — Approved SVG, browser-baked with filters intact; source bytes verified.
-ICON Sun: ready — Approved SVG, browser-baked with filters intact; source bytes verified.
-ICON Moon: ready — Approved SVG, browser-baked with filters intact; source bytes verified.
+ICON FolderEnvironment: ready — Approved SVG, browser-precomputed with filters intact; source bytes verified.
+ICON Sun: ready — Approved SVG, browser-precomputed with filters intact; source bytes verified.
+ICON Moon: ready — Approved SVG, browser-precomputed with filters intact; source bytes verified.
 ICON OutlinerStars: ready —
-ICON Clouds: ready — Approved SVG, browser-baked with filters intact; source bytes verified.
-ICON LocalCloud: ready — Approved SVG, browser-baked with filters intact; source bytes verified.
-ICON LocalFog: ready — Approved SVG, browser-baked with filters intact; source bytes verified.
+ICON Clouds: ready — Approved SVG, browser-precomputed with filters intact; source bytes verified.
+ICON LocalCloud: ready — Approved SVG, browser-precomputed with filters intact; source bytes verified.
+ICON LocalFog: ready — Approved SVG, browser-precomputed with filters intact; source bytes verified.
 ICON SkyScattering: ready —
 ICON Wind: ready —
 ICON OutlinerPrecipitation: ready —
@@ -152,44 +152,44 @@ PASS Markers toggle restores proxies
 PASS billboard or native control in view
 PASS billboard selects matching outliner row
 PASS billboard mounts real matching inspector
-PASS billboard click consumed before mesh picker
-PASS billboard cancels older asynchronous mesh selection
+PASS billboard click consumed before topology picker
+PASS billboard cancels older asynchronous topology selection
 PASS selection notification consumed once
 PASS billboard or native control in view
 PASS billboard selects matching outliner row
 PASS billboard mounts real matching inspector
-PASS billboard click consumed before mesh picker
-PASS billboard cancels older asynchronous mesh selection
+PASS billboard click consumed before topology picker
+PASS billboard cancels older asynchronous topology selection
 PASS selection notification consumed once
 PASS billboard or native control in view
 PASS billboard selects matching outliner row
 PASS billboard mounts real matching inspector
-PASS billboard click consumed before mesh picker
-PASS billboard cancels older asynchronous mesh selection
+PASS billboard click consumed before topology picker
+PASS billboard cancels older asynchronous topology selection
 PASS selection notification consumed once
 PASS billboard or native control in view
 PASS billboard selects matching outliner row
 PASS billboard mounts real matching inspector
-PASS billboard click consumed before mesh picker
-PASS billboard cancels older asynchronous mesh selection
+PASS billboard click consumed before topology picker
+PASS billboard cancels older asynchronous topology selection
 PASS selection notification consumed once
 PASS billboard or native control in view
 PASS billboard selects matching outliner row
 PASS billboard mounts real matching inspector
-PASS billboard click consumed before mesh picker
-PASS billboard cancels older asynchronous mesh selection
+PASS billboard click consumed before topology picker
+PASS billboard cancels older asynchronous topology selection
 PASS selection notification consumed once
 PASS billboard or native control in view
 PASS billboard selects matching outliner row
 PASS billboard mounts real matching inspector
-PASS billboard click consumed before mesh picker
-PASS billboard cancels older asynchronous mesh selection
+PASS billboard click consumed before topology picker
+PASS billboard cancels older asynchronous topology selection
 PASS selection notification consumed once
 PASS billboard or native control in view
 PASS billboard selects matching outliner row
 PASS billboard mounts real matching inspector
-PASS billboard click consumed before mesh picker
-PASS billboard cancels older asynchronous mesh selection
+PASS billboard click consumed before topology picker
+PASS billboard cancels older asynchronous topology selection
 PASS selection notification consumed once
 PASS billboard or native control in view
 PASS real native editor capture
@@ -218,7 +218,7 @@ PASS billboard or native control in view
 PASS real native editor capture
 PASS billboard or native control in view
 PASS modal blocks billboard selection
-PASS modal blocks mesh selection too
+PASS modal blocks topology selection too
 PASS billboard or native control in view
 PASS nearest overlapping local billboard wins
 PASS billboard or native control in view

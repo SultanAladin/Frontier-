@@ -61,7 +61,7 @@ public:
     // Reads Path into Clip (replacing its contents). Integer formats are scaled to [-1, 1) by their full-scale value.
     static bool Decode(std::string_view Path, WaveClip& Clip, std::string* Error = nullptr) noexcept;
 
-    // In-memory variants (the file variants wrap these) — used by the harnesses to avoid touching disk.
+    // In-storage variants (the file variants wrap these) — used by the harnesses to avoid touching disk.
     static void EncodeBytes(const WaveClip& Clip, WaveEncodingCategory Encoding, std::vector<uint8_t>& Bytes) noexcept;
     static bool DecodeBytes(const uint8_t* Bytes, size_t ByteCount, WaveClip& Clip, std::string* Error = nullptr) noexcept;
 };

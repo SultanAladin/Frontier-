@@ -70,10 +70,10 @@ constexpr float LegendGap   = 10.0f;   // [px] .wind-legend gap
 constexpr float LegendBar   =  4.0f;   // [px] .wind-legend i height
 constexpr float CaptionSize = 10.0f;   // [px] .wind-visual > small font-size
 
-// ImGui bakes a face so that ascent - descent equals the requested size; CSS sizes the em box instead. For
+// ImGui precomputes a face so that ascent - descent equals the requested size; CSS sizes the em box instead. For
 //    DM Sans (hhea ascent 992, descent -310, gap 0 per 1000 em) the two differ by exactly 1.302, so a CSS
 //    pixel size is ground up by that factor before it is handed to ImGui. The same number is the font's
-//    `normal` line-height, which is why a baked line of text is also exactly one CSS line box tall.
+//    `normal` line-height, which is why a precomputed line of text is also exactly one CSS line box tall.
 constexpr float EmScale       = 1.302f;   // [-] (992 + 310) / 1000, DM Sans hhea
 constexpr float AscentShare   = 0.992f;   // [-] 992 / 1000, the CSS baseline drop inside a line box
 constexpr float BaselineShare = AscentShare;
@@ -210,7 +210,7 @@ struct WindPart
 
 constexpr int WindPartLimit = 64;
 
-struct WindComposite
+struct WindCombined
 {
     float    Wide = 1000.0f;        // [m] slice width,  ResolveWind clamp 100..10000
     float    Deep = 1000.0f;        // [m] slice depth,  ResolveWind clamp 100..10000
@@ -223,7 +223,7 @@ inline float Clamped(float Value, float Low, float High, float Fallback)
     return std::isfinite(Value) ? std::max(Low, std::min(High, Value)) : Fallback;
 }
 
-inline void Adopt(WindComposite& Field, const WindPart& Part)
+inline void Adopt(WindCombined& Field, const WindPart& Part)
 {
     if (Field.Count >= WindPartLimit) return;
     WindPart& Slot = Field.Parts[Field.Count++];
@@ -237,9 +237,9 @@ inline void Adopt(WindComposite& Field, const WindPart& Part)
 }
 
 // ResolveWind's fallback pair when the subject carries no authored WindField.
-inline WindComposite Resolve(float Speed, float Bearing, float Gust)
+inline WindCombined Resolve(float Speed, float Bearing, float Gust)
 {
-    WindComposite Field;
+    WindCombined Field;
     WindPart Prevailing;
     std::snprintf(Prevailing.Name, sizeof(Prevailing.Name), "%s", "Prevailing wind");
     Prevailing.Kind     = WindKind::Directional;
@@ -259,7 +259,7 @@ inline WindComposite Resolve(float Speed, float Bearing, float Gust)
 }
 
 // EvaluateWind: linear superposition of every enabled component, in metres per second.
-inline void Evaluate(const WindComposite& Field, float X, float Z, float Time, float Out[2])
+inline void Evaluate(const WindCombined& Field, float X, float Z, float Time, float Out[2])
 {
     float VX = 0.0f, VZ = 0.0f;
     for (int I = 0; I < Field.Count; ++I)
@@ -304,7 +304,7 @@ inline void Evaluate(const WindComposite& Field, float X, float Z, float Time, f
 //                                                     FLOW FIELD
 //------------------------------------------------------------------------------------------------------------------------
 // WindCanvas paints four layers into one 2D context: a smoothed 64x48 speed field, a 32 px lattice, optional
-//    vector arrows, and 190 fading flow strokes advected through the composite field.
+//    vector arrows, and 190 fading flow strokes advected through the combined field.
 
 constexpr int MoteCount = 190;
 constexpr int HeatWide  = 64;
@@ -347,7 +347,7 @@ struct CanvasSettings
 
 // Motes drift along the field they sit in and wrap at the slice edges. Split out of the paint so a caller can
 //    wind the clock forward without drawing, which is what a deterministic capture needs.
-inline void Advect(const WindComposite& Field, float Wide, float Tall, WindMotes& Motes, float Step,
+inline void Advect(const WindCombined& Field, float Wide, float Tall, WindMotes& Motes, float Step,
                    bool Active, bool Playing)
 {
     if (!Motes.Ready) Seed(Motes);
@@ -364,7 +364,7 @@ inline void Advect(const WindComposite& Field, float Wide, float Tall, WindMotes
 }
 
 // One whole frame of motion, matching what PaintCanvas applies as it draws.
-inline void Advance(const WindComposite& Field, float Wide, float Tall, WindMotes& Motes, float Delta,
+inline void Advance(const WindCombined& Field, float Wide, float Tall, WindMotes& Motes, float Delta,
                     bool Active, bool Playing)
 {
     if (!Motes.Ready) Seed(Motes);
@@ -375,7 +375,7 @@ inline void Advance(const WindComposite& Field, float Wide, float Tall, WindMote
 
 // Spot is the canvas top-left in screen pixels. Delta advances the clock exactly as the 32 ms frame gate does.
 inline void PaintCanvas(ImDrawList* Draw, ImFont* Face, ImVec2 Spot, float Wide, float Tall,
-                        const WindComposite& Field, const CanvasSettings& Look, WindMotes& Motes, float Delta,
+                        const WindCombined& Field, const CanvasSettings& Look, WindMotes& Motes, float Delta,
                         ImU32 Backdrop = CardTop)
 {
     if (!Motes.Ready) Seed(Motes);
@@ -516,7 +516,7 @@ inline float VisualHeight(float CanvasHeight)
 }
 
 inline void PaintVisual(ImDrawList* Draw, ImFont* Face, ImVec2 Spot, float Wide, float CanvasHeight,
-                        const WindComposite& Field, const CanvasSettings& Look, WindMotes& Motes, float Delta,
+                        const WindCombined& Field, const CanvasSettings& Look, WindMotes& Motes, float Delta,
                         ImU32 Backdrop = CardTop)
 {
     PaintCanvas(Draw, Face, Spot, Wide, CanvasHeight, Field, Look, Motes, Delta, Backdrop);
@@ -611,7 +611,7 @@ struct BindingHits
 // Spot is the body's top-left, inside whatever card chrome the panel already draws. Returns the hit rectangles
 //    so the caller can mount the interactions it owns.
 inline BindingHits PaintBindingBody(ImDrawList* Draw, ImFont* Face, ImVec2 Spot, float Inner,
-                                    const BindingValues& Values, const WindComposite& Field,
+                                    const BindingValues& Values, const WindCombined& Field,
                                     WindMotes& Motes, float Delta, ImU32 Backdrop = CardTop)
 {
     BindingHits Hits;
@@ -657,7 +657,7 @@ inline BindingHits PaintBindingBody(ImDrawList* Draw, ImFont* Face, ImVec2 Spot,
 
 // The whole card, chrome included, for a panel that does not draw its own.
 inline BindingHits PaintBinding(ImDrawList* Draw, ImFont* Face, ImVec2 Spot, float Wide,
-                                const BindingValues& Values, const WindComposite& Field,
+                                const BindingValues& Values, const WindCombined& Field,
                                 WindMotes& Motes, float Delta)
 {
     const float Foot = Spot.y + BindingHeight(Face, Wide, Values);

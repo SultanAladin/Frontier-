@@ -8,7 +8,7 @@
 //    order, is known to produce a structure the D8 walker can walk.
 //
 // Why a mirror instead of "just call tinybvh on the CPU": the GPU kernels exist to do what tinybvh does TODAY, on the
-//    device, with the frame's own data — a host build of a deforming character is 74.8 ms (D8's measurement), which is
+//    device, with the frame's own record — a host build of a deforming character is 74.8 ms (D8's measurement), which is
 //    a frame's worth of CPU. The mirror therefore implements the GPU algorithm (H-PLOC-style Morton build; level-order
 //    in-place re-quantise) rather than wrapping the library's SAH builder.
 //
@@ -16,7 +16,7 @@
 //
 //   BUILD (topology changed — `BuildHPloc`)
 //     1. Morton code each triangle from its centroid, normalised into the object AABB (30 bits, 10 per axis).
-//     2. Sort by code (LSD radix, 8 bits × 4 passes here; the kernel does the same in shared memory).
+//     2. Sort by code (LSD radix, 8 bits × 4 passes here; the kernel does the same in shared storage).
 //     3. Partition the sorted range TOP-DOWN into the wide tree. A node covers a Morton prefix and its eight child
 //        slots are the eight prefixes one octant deeper — so a child's SLOT IS ITS OCTANT, which is exactly what the
 //        traversal's octant-permuted hit mask assumes. A slot holding 1–3 triangles is a leaf; more recurses.
@@ -37,7 +37,7 @@
 //       is what a kernel can schedule.
 //
 // ⚠️ A node's block count cannot change under a refit (≤ 255 quantised cells of its own extent), so both paths write
-//    in place. `BuildHPloc` allocates a fresh pair of blobs: that is the double-buffer the frame graph swaps.
+//    in place. `BuildHPloc` allocates a fresh pair of blobs: that is the double-store the frame graph swaps.
 #pragma once
 
 #include <cstdint>

@@ -2,21 +2,21 @@
 
 > **CPU optimization update:** the historical timings below describe the initial import. The subsequent [optimization report](FluidOptimization.md) records a controlled five-run comparison: changed extraction reduced from 2592 ms to 18.05 ms, solver from 31.65 to 17.05 ms. GPU extraction remains outstanding.
 
-Date: 2026-09-25. **Verdict: useful research prototype; not production-ready water.** Ripple is the more practical starting point for broad, calm water surfaces. Flux is useful for small-basin experiments, but its current CPU mesh extraction is far too slow for live engine geometry on the measured machine.
+Date: 2026-09-25. **Verdict: useful research prototype; not production-ready water.** Ripple is the more practical starting point for broad, calm water surfaces. Flux is useful for small-basin experiments, but its current CPU topology extraction is far too slow for live engine geometry on the measured machine.
 
 ## Import and exact integration scope
 
 Imported `Projects/Project-Fluid` from `SultanAladin/Frontier-`, branch `arena/01a0c575-frontier`, **6d230bb3406f7e574c07a8a4cc4df87942a914b7**. No upstream engine files or exhibit bundle replaced the newer consolidated engine. Original README, PAPER_FIDELITY, RESEARCH, shaders, Web experiment and notices are retained. This is a selective source import, not a merge of the entire upstream history.
 
 Included:
-- **Flux:** CPU position-based particle fluid, boundary sampling, viscosity presets/PCG, covariance/PCA surface kernels and marching-cubes mesh extraction.
+- **Flux:** CPU position-based particle fluid, boundary sampling, viscosity presets/PCG, covariance/PCA surface kernels and marching-cubes topology extraction.
 - **Ripple:** damped height-field waves, fixed rock masks, lightweight body/wake interaction and CPU proof renderer.
 - Optional standalone Vulkan projected-particle renderer, and the separate WebGL2 NearShore experiment.
-- **New native bridge:** `Projects/Project-Zero/Source/WaterBodySequence.*` converts Ripple heights/normals into the actual `GeometryStructure`, registers a material, mesh instances and a named scene placement. Y-up is rotated into Frontier Z-up. Integration occurs before acceleration construction and GPU upload, through the normal scene-loading path. Both CMake and the direct Windows source list include it.
+- **New native bridge:** `Projects/Project-Zero/Source/WaterBodySequence.*` converts Ripple heights/normals into the actual `GeometryStructure`, registers a material, topology instances and a named scene placement. Y-up is rotated into Frontier Z-up. Integration occurs before acceleration construction and GPU upload, through the normal scene-loading path. Both CMake and the direct Windows source list include it.
 
-**This bridge is a load-time snapshot, not live simulation.** It uses the ordinary mesh picking/material-inspector path; no dedicated water entity inspector, adjustable wave controls, time-step scheduling, dynamic GPU vertex/BLAS updates, wind coupling or scene-codec serialization for simulation settings has been added. Interactive selection and appearance have not been verified in the Windows viewport. The CPU bridge test verifies native scene records, not UI behavior.
+**This bridge is a load-time snapshot, not live simulation.** It uses the ordinary topology picking/material-inspector path; no dedicated water entity inspector, adjustable wave controls, time-step scheduling, dynamic GPU vertex/BLAS updates, wind coupling or scene-codec serialization for simulation settings has been added. Interactive selection and appearance have not been verified in the Windows viewport. The CPU bridge test verifies native scene records, not UI behavior.
 
-The material has IOR 1.333, roughness 0.035 and transmission weight 1. It is explicitly a **thin-walled sheet**, not a closed refractive volume. Default dimensions are 12 × 8 metres at Z=0.2; the scene's existing floor may obscure it depending on scene layout. Solver rock masks create approximate holes; corresponding rock meshes are not added by this bridge. Those rocks/body shown in the standalone pond proof belong to that separate demo.
+The material has IOR 1.333, roughness 0.035 and transmission weight 1. It is explicitly a **thin-walled sheet**, not a closed refractive volume. Default dimensions are 12 × 8 metres at Z=0.2; the scene's existing floor may obscure it depending on scene layout. Solver rock masks create approximate holes; corresponding rock geometries are not added by this bridge. Those rocks/body shown in the standalone pond proof belong to that separate demo.
 
 ## Build and run
 
@@ -50,7 +50,7 @@ The standalone fluid project also configures with `cmake -S Projects/Project-Flu
 ## Changes made during integration
 
 1. Added native snapshot bridge, CLI flag, root CPU preset and matching application build-source lists.
-2. Corrected mesh-cache invalidation: rotation, minor-axis changes, weight changes and arbitrarily small centre movement now invalidate affected bricks. Previously these could leave stale geometry indefinitely. Unchanged inputs skip assembly/smoothing altogether.
+2. Corrected topology-cache invalidation: rotation, minor-axis changes, weight changes and arbitrarily small centre movement now invalidate affected bricks. Previously these could leave stale geometry indefinitely. Unchanged inputs skip assembly/smoothing altogether.
 3. Added pond dimension guards: finite extents in [0.01, 10000] metres, at least three samples per axis, maximum 160000 cells. Invalid disturbance radius/nonfinite inputs are rejected. This is not exhaustive validation of every public fluid API.
 4. Added scene-bridge and regression tests plus a reproducible stage benchmark. The regression test compiled against the untouched import **fails at rotation invalidation**; the fixed version passes.
 5. Retained attribution and included the full MIT text for the Three.js-derived lookup tables. This does not grant a licence for the entire upstream project; see root NOTICE.
@@ -63,7 +63,7 @@ Linux, GCC 12.2.0, C++20:
 - GameExecution.cpp syntax-check passed against installed dependency headers and the repository's GLFW header counterpart. No full application link or GPU execution implied.
 - Build-source parity gate passed: 100 CMake Project-Zero translation units, all present in the 105-entry direct Windows batch; existing project parity checks remained green.
 - Actual CPU proof frames generated for water, honey and pond; no generated/AI artwork used. These are **standalone CPU demo captures, not Project-Zero Vulkan screenshots**.
-- Scene-bridge checks cover nonempty geometry, placement/material registration, IOR/thin-wall settings, axis mapping, triangle winding, normals, index validity, refusal to append over existing geometry and solver height changes reaching the mesh.
+- Scene-bridge checks cover nonempty geometry, placement/material registration, IOR/thin-wall settings, axis mapping, triangle winding, normals, index validity, refusal to append over existing geometry and solver height changes reaching the topology.
 
 ![Standalone native Ripple CPU proof](FluidEvidence/ripple-pond.png)
 
@@ -79,12 +79,12 @@ Release `-O3`, sandbox exposing two CPUs, Intel Xeon @ 2.60 GHz. Single benchmar
 |---|---:|---|
 | Flux step, 1440 particles | 30.97 ms average over 60 steps | Already exceeds a 16.7 ms / 60 Hz whole-frame budget before rendering |
 | PCA reconstruction | 6.90 ms average over 10 repeats | Additional CPU work, separate from solver |
-| Initial mesh extraction | 3821 ms | Seconds, not an interactive frame |
-| Changed-frame extraction | 2565 ms; 192 dirty bricks | Primary obstacle to live reconstructed mesh use |
+| Initial topology extraction | 3821 ms | Seconds, not an interactive frame |
+| Changed-frame extraction | 2565 ms; 192 dirty bricks | Primary obstacle to live reconstructed topology use |
 | Unchanged extraction | 0.0128 ms average over 100 repeats | Fixed cache is cheap only when input actually stays unchanged |
-| Ripple, 13824 cells | 0.196 ms average over 360 steps | Promising CPU surface-wave cost, excluding mesh upload/render |
+| Ripple, 13824 cells | 0.196 ms average over 360 steps | Promising CPU surface-wave cost, excluding topology upload/render |
 
-The 90-step/1.5-second water proof used 1620 particles, produced 32984 triangles and reported zero open/nonmanifold edges for that state. Mean/peak compression diagnostics were 0.00245/0.02244. The corresponding honey run reported 15 PCG iterations and approximately 0.00001 relative residual. End-to-end proof runs were approximately 7.58 seconds each, including simulation, reconstruction, mesh extraction, rendering and output; **these are not isolated render times or FPS**.
+The 90-step/1.5-second water proof used 1620 particles, produced 32984 triangles and reported zero open/nonmanifold edges for that state. Mean/peak compression diagnostics were 0.00245/0.02244. The corresponding honey run reported 15 PCG iterations and approximately 0.00001 relative residual. End-to-end proof runs were approximately 7.58 seconds each, including simulation, reconstruction, topology extraction, rendering and output; **these are not isolated render times or FPS**.
 
 ## Quality and remaining problems
 
@@ -99,14 +99,14 @@ The 90-step/1.5-second water proof used 1620 particles, produced 32984 triangles
 2. **Finite extraction domain:** current 65 × 48 × 45 grid at spacing 0.07 covers Y only to 3.13, while particle bounds extend to Y=3.70. High particles/surfaces can be clipped. This remains unfixed; one watertight test state is not a universal guarantee.
 3. **Physics fidelity:** presets are not SI-calibrated material validation. Limited pressure iterations do not establish divergence-free incompressibility. Lightweight body/wake interaction is not equal-and-opposite rigid/fluid pressure coupling.
 4. **Ripple is 2.5D:** one height per horizontal point, reflective rectangle and fixed masks. No overturning waves, breaking surf, splashes or full shallow-water mass/momentum model. Frame-time caps intentionally drop excess simulation time.
-5. **Rendering is incomplete:** the standalone Vulkan view projects particle depth/thickness; it does not ray-trace the extracted mesh. Closed volumes, correct entry/exit refraction, scattering, caustics and matching path-traced validation remain work. The native snapshot material does not solve those omissions.
+5. **Rendering is incomplete:** the standalone Vulkan view projects particle depth/thickness; it does not ray-trace the extracted topology. Closed volumes, correct entry/exit refraction, scattering, caustics and matching path-traced validation remain work. The native snapshot material does not solve those omissions.
 6. **GPU robustness unproven:** Vulkan device/queue selection and swapchain format/usage assumptions need capability checks and fallback/error paths. No NVIDIA/AMD/Intel runtime matrix was run. Shader/compiler and resize/runtime compatibility are unverified.
-7. **Editor integration is early:** no live water authoring/inspector loop or native viewport capture verified in this change. A selectable standard mesh is not equivalent to a complete editable water system.
+7. **Editor integration is early:** no live water authoring/inspector loop or native viewport capture verified in this change. A selectable standard topology is not equivalent to a complete editable water system.
 8. **Web experiment is separate:** NearShore's WebGL2 wet/dry and foam work has not been ported to the engine's Vulkan path.
 
 ## Recommended order of next work
 
-1. Turn Ripple into a persistent water component with genuine inspector parameters, live height/normal buffer updates and picking/outliner verification in the native viewport.
+1. Turn Ripple into a persistent water component with genuine inspector parameters, live height/normal store updates and picking/outliner verification in the native viewport.
 2. Add shoreline/bottom/obstacle geometry and correct scene-depth/refraction handling, with explicit thin-sheet versus closed-volume modes.
 3. Spatially index Flux neighbours and extraction kernels; fix extraction bounds and establish correctness/performance regressions across moving states.
 4. Validate rigid-body coupling and physical calibration; then add splashes/foam and cross-vendor Vulkan validation.

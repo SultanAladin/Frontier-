@@ -100,7 +100,7 @@ namespace
     };
 
     // One span of the M10 soup becomes one object: every triangle contributes its three corners (a soup, not a welded
-    //    mesh — vertex welding is the importer's job and is not what this gate is about). The point is that the object's
+    //    topology — vertex welding is the importer's job and is not what this gate is about). The point is that the object's
     //    vertices ARE VertexRecords: the container stores resident records, so the round trip is a memcmp.
     Object ObjectFromSpan(const std::vector<TriangleIndex>& Soup, const TriangleSpanRecord& Span)
     {
@@ -173,7 +173,7 @@ namespace
     {
         SpaceWriter Writer;
         BeginOk(Writer, SpaceTag("GEOM"), 1u, MakeMeta(Source.Name, kSpacePackEmbedSmall));
-        Writer.BeginTable(kTagMesh);
+        Writer.BeginTable(kTagGeometry);
         const uint32_t VertexCount = static_cast<uint32_t>(Source.Vertices.size());
         const uint32_t IndexCount = static_cast<uint32_t>(Source.Indices.size());
         Writer.WriteBytes(&VertexCount, sizeof(VertexCount));
@@ -195,9 +195,9 @@ namespace
     {
         SpaceReader Reader;
         if (!Reader.Open(Bytes, OutError)) return false;
-        const SpaceTableRecord* Mesh = Reader.Find(kTagMesh);
-        if (!Mesh) { OutError = "no MESH table"; return false; }
-        const std::vector<uint8_t> Payload = Reader.Payload(*Mesh);
+        const SpaceTableRecord* Hull = Reader.Find(kTagGeometry);
+        if (!Hull) { OutError = "no MESH table"; return false; }
+        const std::vector<uint8_t> Payload = Reader.Payload(*Hull);
         if (Payload.size() < 8u) { OutError = "MESH is short"; return false; }
         uint32_t VertexCount = 0u, IndexCount = 0u;
         std::memcpy(&VertexCount, Payload.data(), 4u);
@@ -274,7 +274,7 @@ int main()
             const SpaceStateRow State{};
             const SpaceArchiveEntry Archive{};
 
-            if (Type.Required == kTagMesh)        RowTable(kTagMesh, &Vertex, sizeof(Vertex));
+            if (Type.Required == kTagGeometry)        RowTable(kTagGeometry, &Vertex, sizeof(Vertex));
             else if (Type.Required == kTagClst)   RowTable(kTagClst, &Cluster, 48u);
             else if (Type.Required == kTagUvsp)   RowTable(kTagUvsp, &Island, sizeof(Island));
             else if (Type.Required == kTagPigm)   RowTable(kTagPigm, &Channel, sizeof(Channel));
@@ -298,7 +298,7 @@ int main()
             RowTable(kTagCama, &Camera, sizeof(Camera));
             RowTable(kTagLite, &Luminaire, sizeof(Luminaire));
             if (Type.Required != kTagMatl) RowTable(kTagMatl, &Material, sizeof(Material));
-            if (Type.Required != kTagMesh) RowTable(kTagMesh, &Vertex, sizeof(Vertex));
+            if (Type.Required != kTagGeometry) RowTable(kTagGeometry, &Vertex, sizeof(Vertex));
 
             std::vector<uint8_t> First, Second;
             std::string Error;
@@ -600,7 +600,7 @@ int main()
         // A newer exporter's file: a table this reader has never heard of ("NAVI"), between the ones it knows.
         SpaceWriter Writer;
         BeginOk(Writer, SpaceTag("GEOM"), 1u, MakeMeta("Future", kSpacePackEmbedSmall));
-        Writer.BeginTable(kTagMesh);
+        Writer.BeginTable(kTagGeometry);
         const uint32_t VertexCount = static_cast<uint32_t>(Objects[0].Vertices.size());
         const uint32_t IndexCount = static_cast<uint32_t>(Objects[0].Indices.size());
         Writer.WriteBytes(&VertexCount, sizeof(VertexCount));
@@ -627,18 +627,18 @@ int main()
                 const bool Loaded = ReadGeometry(Bytes, Reloaded, GeometryError);
                 // …and a corrupted payload is named, not rendered.
                 std::vector<uint8_t> Corrupt = Bytes;
-                const SpaceTableRecord* Mesh = Reader.Find(kTagMesh);
-                if (!Mesh) { Fail("⑤ the MESH table vanished between writes"); }
+                const SpaceTableRecord* Hull = Reader.Find(kTagGeometry);
+                if (!Hull) { Fail("⑤ the MESH table vanished between writes"); }
                 else
                 {
-                    Corrupt[Mesh->Offset + 16u] ^= 0x40u;   // one bit inside the vertices
+                    Corrupt[Hull->Offset + 16u] ^= 0x40u;   // one bit inside the vertices
                     SpaceReader CorruptReader;
                     std::string CorruptError;
                     const bool OpenedCorrupt = CorruptReader.Open(Corrupt, CorruptError);
                     const bool Named = CorruptReader.ChecksumFailures().size() == 1u &&
                                        CorruptReader.ChecksumFailures()[0] == "MESH";
                     std::string PayloadError;
-                    const uint32_t Rows = OpenedCorrupt ? CorruptReader.RowCount(kTagMesh, PayloadError) : 0u;
+                    const uint32_t Rows = OpenedCorrupt ? CorruptReader.RowCount(kTagGeometry, PayloadError) : 0u;
                     const bool Fatal = Rows == 0u && PayloadError.find("checksum") != std::string::npos;
                     if (Loaded && Named && Fatal)
                         Pass("⑤ an unknown table ('NAVI') is skipped and the file still loads; one flipped bit in MESH is a "
@@ -696,7 +696,7 @@ int main()
         CommandOptions ToolOptions;
         std::string ToolError;
         const bool ToolParsed = ParseCommandLine(5, const_cast<char**>(Tool), "", "Projects", ToolOptions, ToolError);
-        const bool ToolOk = ToolParsed && ToolOptions.Pack && ToolOptions.BakeSky && ToolOptions.Export == "All";
+        const bool ToolOk = ToolParsed && ToolOptions.Pack && ToolOptions.PrecomputeSky && ToolOptions.Export == "All";
 
         // The project the CLI would open, opened: its SCEN table answers for the level name above.
         SpaceWriter Project;
@@ -794,7 +794,7 @@ int main()
             MaterialSlabRecord Slab{};
             Writer.WriteBytes(&Slab, sizeof(Slab));
             Writer.EndTable();
-            const std::vector<uint8_t> Map(1024u, 0x5Au);   // a stand-in for a baked pigment map
+            const std::vector<uint8_t> Map(1024u, 0x5Au);   // a stand-in for a precomputed pigment map
             const uint32_t MapBlob = Writer.AddBlob("PIGM", Map);
             Writer.BeginTable(kTagTexr);
             SpaceTextureRow Texture{};
@@ -1136,7 +1136,7 @@ int main()
         SpaceWriter Offender;
         SpaceMetaRecord Meta = MakeMeta("Offending", kSpacePackEmbedSmall | kSpacePackStateEmbedded);
         BeginOk(Offender, SpaceTag("GEOM"), 1u, Meta);
-        Offender.BeginTable(kTagMesh);
+        Offender.BeginTable(kTagGeometry);
         const uint32_t Zero[2] = { 0u, 0u };
         Offender.WriteBytes(Zero, sizeof(Zero));
         Offender.EndTable();

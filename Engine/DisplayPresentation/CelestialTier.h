@@ -42,7 +42,7 @@ struct CelestialBudget
     uint32_t StarLayers             = 3u;
     uint32_t StarSuperSamples       = 1u;
     float    CloudResolutionScale   = 0.5f;
-    uint32_t ParticleCapacity       = 8192u;   // the precipitation pool
+    uint32_t ParticleCapacity       = 8192u;   // the precipitation slots
 };
 
 class CelestialTier

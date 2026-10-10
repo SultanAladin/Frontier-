@@ -9,7 +9,7 @@ exactly by increasing its minor radius while preserving its major radius, centre
 This is distinct from the Phase 51 revolved annular-prism cap route: the torus has no planar caps,
 and one closed analytic face with only the kernel's periodic seam topology, giving genus-one
 `V1/E2/C4/L1/F1` topology. It is not a cone/bicone apex operation, a generic freeform offset, or a
-healing/mesh fallback.
+healing/topology fallback.
 
 The focused fixture uses major radius `8`, minor radius `2`, centre `(0,0,0)`, Z axis, and positive
 face offset `0.75`. The result has major radius `8`, minor radius `2.75`, and the same topology.

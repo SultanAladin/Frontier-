@@ -98,7 +98,7 @@ npm --prefix Experimental/FrontierEditor run build
 
 ## 2. Updating the codebase without losing downloaded packages
 
-Keep **both** `ExternalPackages/` and `.cache/dependency-archives/` when updating source. Both are ignored/generated, so a fresh clone, clean ZIP or `git clean -xfd` will not preserve them automatically. Avoid that clean command unless you intend to erase dependencies and local authoring data.
+Keep **both** `ExternalPackages/` and `.cache/dependency-archives/` when updating source. Both are ignored/generated, so a fresh clone, clean ZIP or `git clean -xfd` will not preserve them automatically. Avoid that clean command unless you intend to erase dependencies and local authoring record.
 
 1. Update the source, including `ExternalPackages/Dependencies.lock.json`.
 2. Run `python Tools/Bootstrap.py --check`. It makes **no network requests** and reports every missing/incomplete/wrong-pin package in the selected set.

@@ -34,7 +34,7 @@ g++ -std=c++20 -O1 -g -I. -I"$STB_ROOT" \
     Engine/GeometricRaster/StarCatalogueIndex.cpp
 
 # Deliberately run from the repository root: the gate asserts the CONTENT is good. The separate question of whether
-#    paths resolve from another working directory is what AssetResolution handles, and the check below covers it.
+#    paths resolve from another working directory is what AssetResolution identifiers, and the check below covers it.
 "$Stage/CelestialContentGate"
 
 # ...and again from somewhere else entirely, which is the exact condition that produced placeholder moons: the

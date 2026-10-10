@@ -12,7 +12,7 @@
 //    is the only question the admission asks. Nothing has to author a primitive for it.
 //
 // ⚠️ A SAMPLE IS A CLIPMAP LOOKUP AND THE ADMISSION TAKES 32768 OF THEM. That is the price of level ② and the
-//    reason level ① exists: a crate is a box, and a box is six signed distances with no memory traffic. Give
+//    reason level ① exists: a crate is a box, and a box is six signed distances with no storage traffic. Give
 //    the distance field the geometry that has no primitive, and only that.
 //
 // 📐 Both sides are metres, both put +Z up, and both call a negative distance "inside". There is nothing to
@@ -50,12 +50,12 @@ inline float ReadSceneDistance(const void* Context, const float Position[3]) noe
 //
 //    GlobalDistanceFieldSpace composites by rasterising every placement into a world volume — UpdateGlobalGrid()
 //    is a triple loop over the whole grid — and a placement carries a translation and a scale and NO ROTATION.
-//    For static geometry that is the right trade: bake once, sample cheaply, forever. For a car it is the wrong
-//    one twice over: the composite is stale the moment the car moves, and it could not have turned the car
+//    For static geometry that is the right trade: precompute once, sample cheaply, forever. For a car it is the wrong
+//    one twice over: the combined is stale the moment the car moves, and it could not have turned the car
 //    anyway.
 //
-//    The alternative costs nothing and is what Unreal does with its mesh distance fields: the object's field is
-//    baked ONCE in its own local space and never rebaked; a world query is carried INTO that space by the
+//    The alternative costs nothing and is what Unreal does with its topology distance fields: the object's field is
+//    precomputed ONCE in its own local space and never rebaked; a world query is carried INTO that space by the
 //    inverse of the body's transform, sampled there, and the answer carried back out by the scale. A body that
 //    moves 30 m/s and spins is exactly as cheap as one standing still, and rotation is free because it is the
 //    query that rotates, not the geometry.
@@ -70,7 +70,7 @@ inline float ReadSceneDistance(const void* Context, const float Position[3]) noe
 
 struct GasRigidDistanceBody
 {
-    const DistanceFieldSpace* Local = nullptr;                  // [-]   - baked once, in object space
+    const DistanceFieldSpace* Local = nullptr;                  // [-]   - precomputed once, in object space
     float Translation[3] = { 0.0f, 0.0f, 0.0f };                // [m]   - where its origin sits in the world
     float Basis[9]       = { 1.0f, 0.0f, 0.0f,                  // [-]   - column-major, orthonormal
                              0.0f, 1.0f, 0.0f,
@@ -88,7 +88,7 @@ struct GasRigidDistanceScene
 {
     const GasRigidDistanceBody*     Bodies = nullptr;
     uint32_t                        Count  = 0u;
-    const GlobalDistanceFieldSpace* Static = nullptr;   // [-] - the baked world, or null
+    const GlobalDistanceFieldSpace* Static = nullptr;   // [-] - the precomputed world, or null
 };
 
 

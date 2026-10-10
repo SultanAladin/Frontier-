@@ -1,7 +1,7 @@
 //============================================================================================================================================
 //                                                      TELEMETRYMETRICS.H
 //============================================================================================================================================
-// 🧩 Frame-time ring buffer and the top-left FPS overlay the Control Centre "FPS Overlay" tile toggles.
+// 🧩 Frame-time ring store and the top-left FPS overlay the Control Centre "FPS Overlay" tile toggles.
 //
 //    Overlay: 11 px monospace-style readout "60 FPS  16.7 ms" plus a 120-sample sparkline, on a #0A0A0B/70 pill.
 //    Placed top-left beneath the notch line so it never collides with the notch or the toast column.
@@ -27,7 +27,7 @@ struct TelemetryGpuTimings
 
 struct TelemetryRowStructure
 {
-    bool        ShowMemory = false;   // "Show RAM Usage" — process resident set, sampled every 0.5 s
+    bool        ShowStorage = false;   // "Show RAM Usage" — process resident set, sampled every 0.5 s
     bool        ShowScene  = false;   // "Scene Metadata" — SceneLine as supplied by the project
     bool        ShowGpuStages = false;// "Show GPU Stage Timings" — ReSTIR / Raster / Resolve / Post
     std::string SceneLine;            // e.g. "Cornell  |  36 tris  |  1 luminaire  |  1280x720"
@@ -69,7 +69,7 @@ private:
     TelemetryRowStructure ExtraRows;
     TelemetryGpuTimings   GpuTimings;
     float    ResidentMebibytes = 0.0f;        // [MiB]
-    float    MemorySampleAge   = 1.0f;        // [s] since the last RSS query
+    float    StorageSampleAge   = 1.0f;        // [s] since the last RSS query
     bool     DropArmed         = true;
     static float SampleResidentMebibytes() noexcept;
 };

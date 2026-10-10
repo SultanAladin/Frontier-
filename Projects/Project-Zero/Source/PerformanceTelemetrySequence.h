@@ -12,9 +12,9 @@
 //    them. Both forms are emitted here: the sentence for someone reading the log, the row for everything else.
 //
 //    Why the GPU numbers are trustworthy. They are device timestamps, not host-side clocks. VisibilityExchange
-//    writes them from its Vulkan query pool around each stage and scales by timestampPeriod, so "ReSTIR 6.2 ms" is
+//    writes them from its Vulkan query slots around each stage and scales by timestampPeriod, so "ReSTIR 6.2 ms" is
 //    the dispatch as the GPU measured it, not what the submission looked like from the CPU. They read as invalid
-//    until the pool has a completed frame to report, which is why the telemetry is gated on Valid — a stage that
+//    until the slots has a completed frame to report, which is why the telemetry is gated on Valid — a stage that
 //    did not run this frame contributes zero rather than garbage.
 //
 //    Why a wall-clock cadence rather than every N frames. The cost of reporting then does not scale with frame rate,
@@ -46,7 +46,7 @@ struct PerformanceWorkload
     uint32_t    SpatialTaps      = 0u;        // [cnt]
     uint32_t    DenoiseLevels    = 0u;        // [cnt] à-trous levels
     double CpuCelestialTickMs=0, CpuSunMoonSolveMs=0, CpuSkyPackUploadMs=0, CpuWeatherPostPackUploadMs=0;
-    uint64_t CelestialBufferPayloadBytes=0, CelestialBufferAllocationBytes=0;
+    uint64_t CelestialStorePayloadBytes=0, CelestialStoreAllocationBytes=0;
     uint32_t SkySunUniformBytes=0, CloudFogUniformBytes=0, PostUniformBytes=0;
     uint32_t CloudSteps=0, LocalSteps=0, LightTaps=0;
     bool SunShown=false, SkyShown=false, CloudActive=false, LocalCloudActive=false, FogActive=false;

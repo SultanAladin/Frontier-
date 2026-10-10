@@ -2,7 +2,7 @@
 //                                                  MATERIALFURNACEPROOF.CPP
 //============================================================================================================================================
 // 🧩 M0 — the R4b math proofs re-seated in the verification wing: Engine/Shaders/MaterialEvaluation.slang compiled 1:1
-//    as C++ (FRONTIER_CPU_PORT, see SlangCpuShim.h) against ShadingTableCodec-baked tables. White furnace (EON / GGX +
+//    as C++ (FRONTIER_CPU_PORT, see SlangCpuShim.h) against ShadingTableCodec-precomputed tables. White furnace (EON / GGX +
 //    Kulla–Conty / fuzz / coat stack), reciprocity, and sampling consistency. Deterministic (splitmix64); MC tolerances
 //    are %level, analytic ones tight.
 //
@@ -473,7 +473,7 @@ void ProofAnisotropyFrames()
     }
 }
 
-// M3: the SheenLut .w bake (Charlie albedo) is range-safe and the cloth rescale can never leak — per texel AND
+// M3: the SheenLut .w precompute (Charlie albedo) is range-safe and the cloth rescale can never leak — per texel AND
 // (by the same argument) per bilinear interpolation, since both clamp inputs stay in range under lerp.
 void ProofSheenTable()
 {
@@ -654,7 +654,7 @@ void ProofCloth()
         CHECK(Ls.SheenRescale == 1.0f, "non-cloth rescale exactly 1");
     }
 
-    // ⑥ Rescale end-to-end: layer weight matches the baked texel, and the sheen (eval, pdf) pair integrates to it —
+    // ⑥ Rescale end-to-end: layer weight matches the precomputed texel, and the sheen (eval, pdf) pair integrates to it —
     // in BOTH regimes (0.35: hi-clamped, 0.8: unclamped-lo). The ratio is near-constant per sample, hence the 0.5 %.
     for (float fuzzRough : { 0.35f, 0.8f })
     {
@@ -1154,7 +1154,7 @@ void ProofTransmissionSingle()
             }
         }
     }
-    // ②c Eta-sweep: the single-interface lobe carries no baked tables, so off-eta behaviour is bounded, not tight.
+    // ②c Eta-sweep: the single-interface lobe carries no precomputed tables, so off-eta behaviour is bounded, not tight.
     for (float ior : { 1.1f, 2.0f })
     {
         vec2 a = AnisotropicAlpha(0.5f, 0.0f);
@@ -1878,7 +1878,7 @@ void ProofSss()
 
 int main()
 {
-    Frontier::ShadingTableSet Tables = Frontier::ShadingTableCodec::Bake(1024u);   // production bakes 4096; 1024 proves the maths
+    Frontier::ShadingTableSet Tables = Frontier::ShadingTableCodec::Precompute(1024u);   // production precomputes 4096; 1024 proves the maths
     g_Tables = &Tables;
     std::printf("[furnace] tables baked (32×32, 1024 spp/cell)\n");
     ProofEon();

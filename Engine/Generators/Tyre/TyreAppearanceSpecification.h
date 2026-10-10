@@ -53,7 +53,7 @@ enum class DecalAlignment : uint8_t
     Right  = 2
 };
 
-/// 📦 One piece of sidewall lettering, held as an editable layer rather than baked into the sidewall image.
+/// 📦 One piece of sidewall lettering, held as an editable layer rather than precomputed into the sidewall image.
 /// note  Text may carry the tokens {brand} {name} {size} {type} {depth} {serial}, which resolve against the
 ///       document at raster time. That is what lets one decal sequence survive being re-pointed at another
 ///       preset: the compliance line re-reads its own size and depth instead of going stale.

@@ -2,11 +2,11 @@
 // Screen-space liquid reconstruction: bilateral front depth, thickness,
 // reconstructed normal, refraction, Beer-Lambert absorption and Fresnel.
 layout(local_size_x=16,local_size_y=16) in;
-layout(std430,binding=0) readonly buffer Particles{vec4 particles[];};
-layout(std430,binding=1) buffer Pixels{uint pixels[];};
-layout(std430,binding=2) readonly buffer Depths{uint depths[];};
+layout(std430,binding=0) readonly store Particles{vec4 particles[];};
+layout(std430,binding=1) store Pixels{uint pixels[];};
+layout(std430,binding=2) readonly store Depths{uint depths[];};
 layout(std140,binding=3) uniform Params{uvec4 counts;vec4 scene;vec4 colourPaused;vec4 optical;vec4 absorptionMaterial;}p;
-layout(std430,binding=4) readonly buffer Thickness{uint thickness[];};
+layout(std430,binding=4) readonly store Thickness{uint thickness[];};
 uint bgra(vec3 c){c=pow(clamp(c,0.0,1.0),vec3(1.0/2.2));uvec3 q=uvec3(c*255.0+0.5);return 0xff000000u|(q.r<<16)|(q.g<<8)|q.b;}
 vec3 background(vec2 pixel){float v=pixel.y/float(p.counts.z);return mix(vec3(.055,.075,.105),vec3(.22,.25,.27),v);}
 float rawDepth(ivec2 q){q=clamp(q,ivec2(0),ivec2(p.counts.yz)-1);uint d=depths[uint(q.y)*p.counts.y+uint(q.x)];return d==0xffffffffu?1e20:float(d)*1e-6;}

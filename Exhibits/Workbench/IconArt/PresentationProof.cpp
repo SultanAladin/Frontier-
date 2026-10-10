@@ -69,9 +69,9 @@ int main() {
     L->AddImage(Fixture.GetTexRef(),ImVec2(10,10),ImVec2(20,20),{0,0},{1,1},IM_COL32(128,255,255,128));
     L->PopClipRect();
     ImGui::Render();
-    for (int I=0; I<4; ++I) L->VtxBuffer.push_back(L->VtxBuffer[I]);
+    for (int I=0; I<4; ++I) L->VtxStore.push_back(L->VtxStore[I]);
     for (auto& Cmd : L->CmdBuffer) Cmd.VtxOffset = 4;
-    for (int I=0; I<4; ++I) L->VtxBuffer[I].pos = ImVec2(-100,-100);
+    for (int I=0; I<4; ++I) L->VtxStore[I].pos = ImVec2(-100,-100);
     std::vector<unsigned char> Pixels(64*64*3,0);
     FrontierProof::Draw(L,Pixels.data(),64,64,{5,5},{2,2});
     for (int Y=0; Y<64; ++Y) for (int X=0; X<64; ++X) {

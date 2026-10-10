@@ -6,7 +6,7 @@
 //
 // ⚠️ ① IT SPAWNS IN FRONT OF THE CAMERA. The demo biases every spawn point ahead of the view
 //        (`px = cam.x + fx*R*.45 + ...`, with fx from the camera yaw). Turn around and the sky behind you is
-//        empty until the pool refills, which reads as rain that follows you. Here the emitter is a WORLD-SPACE
+//        empty until the slots refills, which reads as rain that follows you. Here the emitter is a WORLD-SPACE
 //        cylinder about the camera with no directional bias: turning the camera changes nothing about where
 //        particles are, because they were never placed relative to where you were looking.
 //
@@ -20,7 +20,7 @@
 //        Here cover is a hard gate: below the threshold the column produces nothing. Rain comes out of clouds.
 //
 // ⚠️ ④ SNOW ACCUMULATION IS NOT KEPT AS PARTICLES. A landed flake is not a particle any more — it is a patch of
-//        ground that happens to be white. Keeping millions of settled flakes in the pool is what makes a snow
+//        ground that happens to be white. Keeping millions of settled flakes in the slots is what makes a snow
 //        system fall over, so a landed flake is retired into a coarse DEPTH FIELD (see SnowField) and its slot
 //        is returned immediately. The field is a grid of heights, so ten million flakes cost the same as ten.
 //        The renderer draws one surface from it rather than a particle per flake.
@@ -94,11 +94,11 @@ struct PrecipitationSettings
 
     // ⚠️ The emitter's height is bounded by FALL TIME, not by a fixed distance, and the difference is a budget
     //    matter rather than a nicety. A 400 m ceiling is 62 s of falling for rain and 400 s for snow — measured,
-    //    a 50 s snowfall spawned 8 192 flakes and landed 108, because the pool filled with flakes still hundreds
+    //    a 50 s snowfall spawned 8 192 flakes and landed 108, because the slots filled with flakes still hundreds
     //    of metres up and spawning stopped. Every type then spends its budget on particles too far away to see.
     //
     //    Bounding the time instead makes the ceiling type-aware for free: snow tops out low and close, hail high
-    //    and fast, and the pool turns over quickly enough that the ground actually gets wet.
+    //    and fast, and the slots turns over quickly enough that the ground actually gets wet.
     float EmitterFallSeconds = 12.0f;   // [s] the longest a spawned particle should take to arrive
     float EmitterCeilingAboveCamera = 400.0f;   // [m] hard cap regardless of the above
 
@@ -125,7 +125,7 @@ struct PrecipitationParticle
 
 // Settled snow, as a height field rather than a heap of retired particles.
 //
-//    ⚠️ THIS IS THE WHOLE POINT OF THE SYSTEM'S MEMORY BEHAVIOUR. A landed flake carries no information except
+//    ⚠️ THIS IS THE WHOLE POINT OF THE SYSTEM'S STORAGE BEHAVIOUR. A landed flake carries no information except
 //    "there is now slightly more snow near here". Keeping it as a particle costs 40 bytes and a simulation slot
 //    forever, for a fact that fits in a fraction of a float. Ten minutes of heavy snow is tens of millions of
 //    flakes; as particles that is gigabytes and a dead frame rate, as a field it is a fixed 256 KB that never
@@ -134,7 +134,7 @@ struct PrecipitationParticle
 //    So accumulation is a MERGE, continuously and in O(1) per flake: the flake's mass is added to one cell and
 //    the flake is retired the same tick. There is no cluster search, no rebuild, and no growth in cost as the
 //    snow deepens — which is what "merged continuously but efficiently" has to mean if it is to survive a long
-//    session. The renderer draws ONE mesh from this grid, not one quad per flake.
+//    session. The renderer draws ONE topology from this grid, not one quad per flake.
 class SnowField
 {
 public:
@@ -214,7 +214,7 @@ public:
         Snow.Reset();
     }
 
-    [[nodiscard]] const std::vector<PrecipitationParticle>& Pool() const noexcept { return Particles; }
+    [[nodiscard]] const std::vector<PrecipitationParticle>& Bank() const noexcept { return Particles; }
     [[nodiscard]] const SnowField& Field() const noexcept { return Snow; }
     [[nodiscard]] const PrecipitationTelemetry& Telemetry() const noexcept { return Last; }
 
@@ -358,7 +358,7 @@ public:
                 {
                     // ── ④ Retire into the field, immediately ──────────────────────────────────────────────────
                     // The flake stops being a particle the moment it lands. Its slot is freed the same tick, so
-                    //    the pool never grows with accumulation and the memory cost of settled snow is fixed.
+                    //    the slots never grows with accumulation and the storage cost of settled snow is fixed.
                     if (Physics.Accumulates && Settings.Accumulation > 0.0f)
                         Snow.Settle(P.Position[0], P.Position[1],
                                     Physics.RadiusMetres * P.Size * Settings.Accumulation * 0.4f);

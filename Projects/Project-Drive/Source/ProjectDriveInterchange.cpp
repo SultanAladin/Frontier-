@@ -83,7 +83,7 @@ struct DriveSequence
                 return ++SpawnNumber;
             });
             if (!Spawned) return false;
-            ActivePlayer = std::move(Spawned); // player data outlives a consumed deployment actor
+            ActivePlayer = std::move(Spawned); // player record outlives a consumed deployment actor
             Input = Frontier::Vehicle::DriverInputIntegrator{};
             return true;
         }

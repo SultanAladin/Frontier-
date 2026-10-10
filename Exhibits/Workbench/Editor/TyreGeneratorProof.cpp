@@ -32,7 +32,7 @@ namespace {
 //                                                     THE RASTERISER
 //------------------------------------------------------------------------------------------------------------------------
 // The same job every ImGui backend does: scissor, barycentric-interpolate the vertex colour, modulate by the
-//    glyph sheet, composite. Software, so the proof needs no device.
+//    glyph sheet, combined. Software, so the proof needs no device.
 
 struct Surface
 {
@@ -87,9 +87,9 @@ void RasterizeList(const ImDrawList* List, const unsigned char* Sheet, int Sheet
             //    offset. Ignoring it does not drop the overflow — it silently reads the WRONG vertices,
             //    which is why a long preset grid used to go blank partway down instead of failing loudly.
             const unsigned int Base = Cmd.VtxOffset;
-            const ImDrawVert& A = List->VtxBuffer[Base + List->IdxBuffer[Offset + E + 0u]];
-            const ImDrawVert& B = List->VtxBuffer[Base + List->IdxBuffer[Offset + E + 1u]];
-            const ImDrawVert& D = List->VtxBuffer[Base + List->IdxBuffer[Offset + E + 2u]];
+            const ImDrawVert& A = List->VtxStore[Base + List->IdxStore[Offset + E + 0u]];
+            const ImDrawVert& B = List->VtxStore[Base + List->IdxStore[Offset + E + 1u]];
+            const ImDrawVert& D = List->VtxStore[Base + List->IdxStore[Offset + E + 2u]];
 
             float MinX = A.pos.x, MaxX = A.pos.x, MinY = A.pos.y, MaxY = A.pos.y;
             MinX = B.pos.x < MinX ? B.pos.x : MinX;  MaxX = B.pos.x > MaxX ? B.pos.x : MaxX;
@@ -217,7 +217,7 @@ int main()
     std::snprintf(Readout.Scene, sizeof(Readout.Scene), "Drive");
     Editor.AssignReadout(&Readout);
 
-    // ① the real sequence, seated with the same preset the tread mesh gate runs
+    // ① the real sequence, seated with the same preset the tread topology gate runs
     Frontier::Drive::TyreGeneratorSequence Generator;
     Frontier::Drive::SeatGrizzlyMagnum(Generator.Document);
 
@@ -332,11 +332,11 @@ int main()
             ImGui::Render();
         }
 
-        const ImDrawData* Data = ImGui::GetDrawData();
+        const ImDrawData* Packet = ImGui::GetDrawData();
         Target.Seat(int(IO.DisplaySize.x), int(IO.DisplaySize.y));
-        for (int L = 0; L < Data->CmdListsCount; ++L)
+        for (int L = 0; L < Packet->CmdListsCount; ++L)
         {
-            RasterizeList(Data->CmdLists[L], Sheet, SheetW, SheetH, Target);
+            RasterizeList(Packet->CmdLists[L], Sheet, SheetW, SheetH, Target);
         }
 
         char Path[160];

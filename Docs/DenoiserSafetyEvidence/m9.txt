@@ -87,7 +87,7 @@ ok 63 - C6.0 the shader's KernelWeight is the B₃ spline (1/16, 1/4, 3/8, 1/4, 
 ok 64 - C6.1 the B₃ spline kernel is normalised (Σw = 1)
 ok 65 - C6.2 filtered variance == σ²·Σw²/(Σw)² = 7.47681e-05 (worst relative error 2.23e-07)
 [denoise] variance: unfiltered 0.000968963, filtered 6.62178e-05 (ratio 0.0683, theory 0.0748)
-ok 66 - C6.3 Monte-Carlo: filtered/unfiltered spread = Σw²/(Σw)² with data-independent weights (±20 %, 512 trials)
+ok 66 - C6.3 Monte-Carlo: filtered/unfiltered spread = Σw²/(Σw)² with record-independent weights (±20 %, 512 trials)
 ok 67 - C6.4 Monte-Carlo: the unfiltered spread matches the input variance (±20 %)
 ok 68 - D1 a static frame reprojects onto its own pixel (motion = 0 is the identity)
 ok 69 - D2 a surface that moved (+3, −2) px between frames reads the pixel it came from

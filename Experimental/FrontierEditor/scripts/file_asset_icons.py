@@ -76,7 +76,7 @@ def register_file_asset_icons(icon):
         size,items=FOLDER_METADATA[key]
         body+=f'<text x="99" y="178" font-family="Arial, sans-serif" font-size="14" font-weight="500" fill="#dededb">{escape(name)}</text><text x="99" y="194" font-family="Arial, sans-serif" font-size="9" font-weight="400" fill="#969694">{escape(size)} · {items} items</text></g>'
         identity='asset-folder-'+key
-        icon(identity,name+' folder','Files & folders',f'A charcoal {name.lower()} folder with pale inset content sheets, a solid charcoal pocket with its name printed at the bottom and a small muted semantic badge. Sample size and item count appear below the name (illustrative, not live folder data). Transparent native SVG.',defs(tint).replace('@',identity),body.replace('@',identity))
+        icon(identity,name+' folder','Files & folders',f'A charcoal {name.lower()} folder with pale inset content sheets, a solid charcoal pocket with its name printed at the bottom and a small muted semantic badge. Sample size and item count appear below the name (illustrative, not live folder record). Transparent native SVG.',defs(tint).replace('@',identity),body.replace('@',identity))
     for fmt,category in FORMATS:
         name,_,kind=TYPES[category]
         tint=FORMAT_COLORS[fmt]

@@ -49,7 +49,7 @@ static std::string ToLowerString(std::string_view Text)
 }
 
 // Strip optical-size, axis, and format suffixes from a filename stem before weight classification.
-// Handles: Inter_18pt, Inter_24pt, Inter[Display], InterVariable, Inter-VariableFont_wght
+// Identifiers: Inter_18pt, Inter_24pt, Inter[Display], InterVariable, Inter-VariableFont_wght
 static std::string StripOpticalSuffixes(std::string_view Stem)
 {
     std::string Result(Stem);

@@ -6,9 +6,9 @@ Open `Exhibits/Gallery/NativeBillboards/index.html` for the actual native captur
 
 - `Engine/Editor/ViewportBillboards.h`: constant-pixel screen-facing icons, projection through the rendered camera basis/aspect, stable-key hit testing, nearest-overlap resolution, selected label, input ownership and clipping.
 - `Projects/Project-Zero/Source/EditorInspectorSequence.h`: supplies the current camera and actual environment roster. Identity is `(2ull << 32) | (CelestialEntity + 1)`, never a cached row ordinal.
-- `Tools/Build/Patches/NativeBillboards.patch`: integrates the overlay into the reconstructed native ViewportPanel, EditorHost, RenderScheduler and GameExecution. The viewport is enabled for this task. A billboard click selects the row before fetching its inspector, consumes the scene tap and cancels an older pending mesh-pick answer.
+- `Tools/Build/Patches/NativeBillboards.patch`: integrates the overlay into the reconstructed native ViewportPanel, EditorHost, RenderScheduler and GameExecution. The viewport is enabled for this task. A billboard click selects the row before fetching its inspector, consumes the scene tap and cancels an older pending topology-pick answer.
 - The existing **Markers** toolbar button controls drawing and hit testing. Hidden rows/ancestors suppress their markers, without destroying authored visibility state.
-- Local cloud/fog markers use the actual `Centre` properties. Global systems do not have a physical centre; their clearly labelled editor proxies sit on a camera-facing shelf. They are not movable physical objects. Local markers are intentionally editor overlays, not mesh-depth-occluded surfaces.
+- Local cloud/fog markers use the actual `Centre` properties. Global systems do not have a physical centre; their clearly labelled editor proxies sit on a camera-facing shelf. They are not movable physical objects. Local markers are intentionally editor overlays, not topology-depth-occluded surfaces.
 - Fog rows now explicitly resolve the same native Fog artwork used by the outliner/catalogue.
 
 ## Renderer fix found during verification
@@ -17,7 +17,7 @@ The CPU volume march previously received `Observation.LocalHours * 3600`. A Stat
 
 ## Actual rendered test
 
-`NativeSceneProof.cpp` constructs real mesh columns at multiple distances, a plinth, ground and an off-camera area fill in `SceneStructure`. It renders the actual `VisibilityRaster`, configured through `CelestialSequence::ApplyTo`. No alternate sky gradient, generated scenery, painted cloud layer or browser inspector is substituted.
+`NativeSceneProof.cpp` constructs real topology columns at multiple distances, a plinth, ground and an off-camera area fill in `SceneStructure`. It renders the actual `VisibilityRaster`, configured through `CelestialSequence::ApplyTo`. No alternate sky gradient, generated scenery, painted cloud layer or browser inspector is substituted.
 
 The fixture includes atmosphere, global/local clouds, height/aerial fog and local volumetric fog. Assertions compare inspector commit/fetch, renderer settings and RGB differences. Wind is verified by cloud motion while the Sun remains Static; zero Wind produces identical pixels at both times. Native ImGui mouse events select markers and edit Wind/Fog sliders. The Fog mouse test verifies the entire input → inspector → model → pixels path.
 

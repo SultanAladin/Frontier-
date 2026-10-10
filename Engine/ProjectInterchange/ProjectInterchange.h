@@ -168,7 +168,7 @@ typedef struct FrontierProjectInterchange
     uint64_t                    InterfaceFingerprint;      // [-] - exact callback-record layout fingerprint
     FrontierProjectConstruct    ConstructProject;          // [-] - project-owned scene and simulation construction
     FrontierProjectAdvance      AdvanceProject;            // [-] - one project simulation cycle
-    FrontierProjectRetire       RetireProject;             // [-] - project-memory retirement before image release
+    FrontierProjectRetire       RetireProject;             // [-] - project-storage retirement before image release
 } FrontierProjectInterchange;
 
 typedef uint32_t(FRONTIER_CODE_IMAGE_CALL* FrontierConstructProjectInterchange)(

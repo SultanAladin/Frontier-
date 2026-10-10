@@ -11,7 +11,7 @@ import {
 } from "./AssetDepot.js";
 
 function FilePreview({ Asset }) {
-  const [Source, Show] = useState(Asset.Data || ""),
+  const [Source, Show] = useState(Asset.Packet || ""),
     [Status, Report] = useState("Loading original…"),
     [Family, Font] = useState("");
   useEffect(() => {
@@ -20,8 +20,8 @@ function FilePreview({ Asset }) {
       Face;
     (async () => {
       try {
-        const File = Asset.Data
-          ? await (await fetch(Asset.Data)).blob()
+        const File = Asset.Packet
+          ? await (await fetch(Asset.Packet)).blob()
           : await AssetFile(Asset.Id);
         if (!File)
           throw Error("Original bytes unavailable. Reimport this file.");
@@ -292,7 +292,7 @@ export default function AssetPanel({
           <nav
             className="asset-category-rail"
             aria-label="Asset categories"
-            data-drawer-scroll
+            record-drawer-scroll
           >
             {AssetKinds.map((Name) => (
               <button
@@ -323,14 +323,14 @@ export default function AssetPanel({
               <h2>{Kind === "All" ? "All assets" : Kind}</h2>
               <span>{Visible.length} results</span>
             </header>
-            <div className={"asset-catalogue " + View} data-drawer-scroll>
+            <div className={"asset-catalogue " + View} record-drawer-scroll>
               {Visible.map((Asset) => (
                 <button
                   className={
                     "asset-cell " + (Asset.Id === Selection ? "selected" : "")
                   }
                   key={Asset.Id}
-                  data-asset-id={Asset.Id}
+                  record-asset-id={Asset.Id}
                   aria-label={"Select asset " + Asset.Name}
                   aria-pressed={Asset.Id === Selection}
                   onClick={() => {
@@ -351,10 +351,10 @@ export default function AssetPanel({
                       />
                     ) : Asset.Kind === "Fonts" ? (
                       <span className="asset-font-icon">Aa</span>
-                    ) : (Asset.Thumbnail || Asset.Data) &&
+                    ) : (Asset.Thumbnail || Asset.Packet) &&
                       ["Images", "Icons"].includes(Asset.Kind) ? (
                       <img
-                        src={Asset.Thumbnail || Asset.Data}
+                        src={Asset.Thumbnail || Asset.Packet}
                         alt=""
                         loading="lazy"
                       />
@@ -393,7 +393,7 @@ export default function AssetPanel({
               )}
             </div>
           </section>
-          <aside className="asset-preview" data-drawer-scroll>
+          <aside className="asset-preview" record-drawer-scroll>
             {Current ? (
               <>
                 <div className="asset-preview-heading">
@@ -545,7 +545,7 @@ export default function AssetPanel({
             {Message ||
               "Drag the header or page grip to close · scroll the catalogue independently"}
           </span>
-          <span>HTML LIBRARY · NO NATIVE ASSET PIPELINE</span>
+          <span>HTML LIBRARY · NO NATIVE ASSET CHAIN</span>
         </footer>
       </div>
     </DrawerPanel>

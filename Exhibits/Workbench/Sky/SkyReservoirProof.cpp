@@ -77,14 +77,14 @@ const Triple kSunToward     = Normalise(Triple{ 0.3f, 0.2f, 0.9f });
 constexpr float kSunRadius  = 0.00465f;                 // [rad] the disc's angular radius
 const Triple kSunRadiance   = { 20.0f, 18.0f, 15.0f };  // [-] disc radiance (already /Ω — the kernel's SunEmission form)
 
-// The lamp: a quad at height 3, side 1, facing down — area sampling with pdf 1/Area, exactly the mesh species.
+// The lamp: a quad at height 3, side 1, facing down — area sampling with pdf 1/Area, exactly the topology species.
 const Triple kLampCorner    = { 1.5f, -0.5f, 3.0f };
 constexpr float kLampSide   = 1.0f;
 const Triple kLampNormal    = { 0.0f, 0.0f, -1.0f };
 const Triple kLampRadiance  = { 6.0f, 5.5f, 5.0f };
 
 // The sky: a smooth gradient dome — brighter at the zenith, warmer at the horizon. Smoothness is the point:
-//    it stands in for the baked dome the kernel fetches, and quadrature integrates it exactly.
+//    it stands in for the precomputed dome the kernel fetches, and quadrature integrates it exactly.
 Triple SkyDome(const Triple& Toward)
 {
     const float Up = std::max(0.0f, Toward.Z);
@@ -141,7 +141,7 @@ Triple QuadratureReflected()
         Sum.X += kSunRadiance.X * Weight; Sum.Y += kSunRadiance.Y * Weight; Sum.Z += kSunRadiance.Z * Weight;
     }
 
-    // The lamp: 512 x 512 area strata, the exact form the mesh species integrates (f·L·cosθ·cosφ/d² dA).
+    // The lamp: 512 x 512 area strata, the exact form the topology species integrates (f·L·cosθ·cosφ/d² dA).
     constexpr uint32_t kGrid = 512u;
     for (uint32_t V = 0u; V < kGrid; ++V)
         for (uint32_t U = 0u; U < kGrid; ++U)

@@ -2,7 +2,7 @@
 #include "VolumetricMedia.h"
 #include <algorithm>
 namespace Frontier {
-// Diagnostic density projections, not radiance, opacity, sky-cover measurements or GPU bakes.
+// Diagnostic density projections, not radiance, opacity, sky-cover measurements or GPU precomputes.
 // Global: fixed 6 km-wide window at the world origin. Local: aspect-correct framing of actual box bounds, world-anchored noise.
 inline void CloudDensityPreview(unsigned char* Top,unsigned char* Side,unsigned W,unsigned H,
                                 const CloudLayerSettings& Global,const LocalVolumeSettings& Local,bool IsLocal,float Aspect=2) noexcept {

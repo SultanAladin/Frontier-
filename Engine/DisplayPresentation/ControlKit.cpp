@@ -50,7 +50,7 @@ ColorQuad Blend(ColorQuad From, ColorQuad To, float T) noexcept
 
 } // namespace
 
-void ControlKit::AssignTheme(const ThemeStructure& Theme, ColorQuad WarningColour, ColorQuad SuccessColour, ColorQuad InfoColour, ColorQuad CautionColour) noexcept
+void ControlKit::AssignTheme(const ThemeStructure& Theme, ColorQuad WarningColour, ColorQuad SuccessColour, ColorQuad DetailsColour, ColorQuad CautionColour) noexcept
 {
     const ThemePalette& P = Theme.QueryPalette();
     ControlKitPalette& K = ActivePalette;
@@ -102,7 +102,7 @@ void ControlKit::AssignTheme(const ThemeStructure& Theme, ColorQuad WarningColou
     K.SwitchKnobOff= K.LightSurface ? P.TextMuted : ColorQuad{ 0xBD / 255.0f, 0xBD / 255.0f, 0xBD / 255.0f, 1.0f };
     K.Warning      = WarningColour;
     K.Ok           = SuccessColour;
-    K.Info         = InfoColour;
+    K.Facts         = DetailsColour;
     K.Caution      = CautionColour;
 }
 
@@ -127,7 +127,7 @@ void ControlKit::BlendPalette(const ControlKitPalette& From, const ControlKitPal
     K.PrimaryInk = Mix(From.PrimaryInk, To.PrimaryInk);  K.Accent = Mix(From.Accent, To.Accent);
     K.AccentInk = Mix(From.AccentInk, To.AccentInk);     K.AccentSoft = Mix(From.AccentSoft, To.AccentSoft);
     K.Highlight = Mix(From.Highlight, To.Highlight);     K.Danger = Mix(From.Danger, To.Danger);
-    K.Ok = Mix(From.Ok, To.Ok);                          K.Info = Mix(From.Info, To.Info);
+    K.Ok = Mix(From.Ok, To.Ok);                          K.Facts = Mix(From.Facts, To.Facts);
     K.Warning = Mix(From.Warning, To.Warning);           K.Caution = Mix(From.Caution, To.Caution);
     K.SliderTrack = Mix(From.SliderTrack, To.SliderTrack);
     K.SliderFill = Mix(From.SliderFill, To.SliderFill);  K.SliderThumb = Mix(From.SliderThumb, To.SliderThumb);

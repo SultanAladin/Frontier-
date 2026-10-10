@@ -4,15 +4,15 @@
 // 📦 The pull-down shade behind a notch that hangs from the top edge of the display.
 //
 //    Geometry  (from the Notch reference, ArcNotch.tsx):
-//      • notch handle 400 × 36 px, SVG outline
+//      • notch identifier 400 × 36 px, SVG outline
 //            M 0 0  C 15 0, 20 6, 25 15  L 35 28  C 40 34, 45 36, 52 36  L 348 36  C 355 36, 360 34, 365 28
 //            L 375 15  C 380 6, 385 0, 400 0  Z
-//        tessellated once; the handle carries the project name centred in it.
-//      • shade: a full-width sheet whose lower edge sits at the handle's top; closed at Y = 0, open at
+//        tessellated once; the identifier carries the project name centred in it.
+//      • shade: a full-width sheet whose lower edge sits at the identifier's top; closed at Y = 0, open at
 //        Y = DisplayHeight − 36. Scrim over the scene fades 0 → 40 % black across that travel.
 //
 //    Interaction (from the Slate DrawerSpace):
-//      • press on the handle grabs it; a release within 6 px / 350 ms is a TAP → toggle open/closed.
+//      • press on the identifier grabs it; a release within 6 px / 350 ms is a TAP → toggle open/closed.
 //      • the first travel past 6 px decides the axis ONCE: mostly-vertical → carry the shade (Y);
 //        mostly-horizontal → slide the notch along the top edge (X) within ±(DisplayWidth − 400)/2.
 //        Beyond a bound the carry accepts 5 % of the overshoot (elastic) and springs back on release.
@@ -345,11 +345,11 @@ public:
     void AssignNotchWidth(float Width) noexcept
     {
         NotchWidth_ = Width < 120.0f ? 120.0f : (Width > 600.0f ? 600.0f : Width);
-        GenerateHandleContour();
+        GenerateIdentifierContour();
     }
     [[nodiscard]] float     QueryHandleHeight() const noexcept { return NotchHeight; }
     [[nodiscard]] PlaneExtent QueryHandleExtent() const noexcept;
-    [[nodiscard]] const std::vector<BezierPointIndex>& QueryHandleContour() const noexcept { return HandleContour; }
+    [[nodiscard]] const std::vector<BezierPointIndex>& QueryHandleContour() const noexcept { return IdentifierContour; }
 
     template<typename TargetType>
     [[nodiscard]] TargetType Convert() const noexcept;
@@ -380,7 +380,7 @@ private:
     void                    ConstructPillLayout(PixelSpace& Surface, float Opacity) const noexcept;
     [[nodiscard]] int       SlotUnder(float CursorX, float CursorY) const noexcept;  // -1 none
 
-    void                    GenerateHandleContour() noexcept;
+    void                    GenerateIdentifierContour() noexcept;
     void                    Grab(GrabSubject Subject, float CursorX, float CursorY) noexcept;
     void                    Carry(float CursorX, float CursorY, float DeltaSeconds) noexcept;
     void                    Relinquish() noexcept;
@@ -488,7 +488,7 @@ private:
     float                   ThemeBlendT = 1.0f;                  // [-] 0 → 1 over ThemeBlendDuration; ≥1 = settled
     std::string             ProjectName;
     float                   NotchWidth_ = 400.0f;      // [px] seated pull width; the editor narrows it
-    std::vector<BezierPointIndex> HandleContour;   // [px] outline in notch-local space (0..W × 0..36)
+    std::vector<BezierPointIndex> IdentifierContour;   // [px] outline in notch-local space (0..W × 0..36)
     bool                    InitializedCondition;
 };
 

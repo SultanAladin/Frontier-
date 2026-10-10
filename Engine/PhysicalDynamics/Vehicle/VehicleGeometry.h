@@ -1,10 +1,10 @@
 //============================================================================================================================================
-// 📦 Frontier/PhysicalDynamics/Vehicle/VehicleGeometry.h — the vehicle's physical dimensions, as authored DATA
+// 📦 Frontier/PhysicalDynamics/Vehicle/VehicleGeometry.h — the vehicle's physical dimensions, as authored PAYLOAD
 //============================================================================================================================================
 //
-//    In GRIT the wheel positions and aero force-application points came from skeletal-mesh SOCKETS, which live on the
+//    In GRIT the wheel positions and aero force-application points came from skeletal-topology SOCKETS, which live on the
 //    game thread; GRIT had to pre-resolve them to CoM-relative offsets and marshal them across to the physics thread.
-//    Frontier is our own engine, so we have none of that: the geometry is a single plain-data block that BOTH threads
+//    Frontier is our own engine, so we have none of that: the geometry is a single plain-record block that BOTH threads
 //    read directly. `VehicleGeometry` is that block. From it we derive the four `WheelMount`s, every aero device's
 //    `ForceApplicationPoint_COM`, the CoM-above-floor reference for ride height, and the inertia tensor.
 //
@@ -23,10 +23,10 @@
 //        Suspension strut span         —                   0.552 m   (mount Z 0.6436 − hub Z 0.0914)
 //    The model is a wide, long muscle/GT wedge; the horizontal geometry below IS the model, and it is within ~13 %
 //    of GRIT on wheelbase. Mass and the vertical scalars (CoM height, tyre radius, ride height) are NOT stored in the
-//    .blend as reliable authored data — they need the applied-modifier mesh bounds, which only local Blender can give
+//    .blend as reliable authored record — they need the applied-modifier topology bounds, which only local Blender can give
 //    (ExportControlVehicle.py emits them). Until then they stay at documented GT/muscle-class values, tunable freely.
 //
-//    Wheels are DELIBERATELY not read from the model: the RubberFL* / RimFL* mesh objects are excluded and the sim
+//    Wheels are DELIBERATELY not read from the model: the RubberFL* / RimFL* topology objects are excluded and the sim
 //    builds procedural wheels at the four Socket_AxleMount_* positions instead.
 //    ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 
@@ -83,10 +83,10 @@ struct VehicleGeometry
     //    1.98 g so the car still slides before it rolls. It was 0.35 m, which in the corrected frame is BELOW the
     //    floor pan, because the model-to-ground offset below was missing and the two errors hid each other.
     float CoMHeight          = 0.53f;    // [m]  centre of mass above flat ground at rest
-    // ---- Wheel dimensions, MEASURED from ControlVehicle.blend (RubberFL / RimFL mesh bounds) ----
+    // ---- Wheel dimensions, MEASURED from ControlVehicle.blend (RubberFL / RimFL topology bounds) ----
     //   The vertical numbers are no longer placeholders. ExtractWheels.py walks the .blend block table and reports
-    //   the tyre mesh as 1.0171 m across and 0.3958 m wide, and the rim mesh as 0.6892 m across. The frames close on
-    //   themselves: the axle sockets sit at model Z +0.0914 and the body mesh bottoms out at −0.4172, and
+    //   the tyre topology as 1.0171 m across and 0.3958 m wide, and the rim topology as 0.6892 m across. The frames close on
+    //   themselves: the axle sockets sit at model Z +0.0914 and the body topology bottoms out at −0.4172, and
     //   0.0914 − (−0.4172) = 0.5086 = the measured tyre radius, so the modelled car stands exactly on its tyres.
     float TyreRadius         = 0.50855f; // [m]  unloaded tread radius   (blend: RubberFL Z/X span 1.0171 / 2)
     float TyreRimRadius      = 0.34460f; // [m]  bead / rim radius       (blend: RimFL Z/X span 0.6892 / 2)
@@ -121,7 +121,7 @@ struct VehicleGeometry
     [[nodiscard]] float ModelGroundOffset() const noexcept
     { return TyreRadius - ControlVehicleSockets::AxleMount_FL.z; }
 
-    // Centre of mass expressed in the authored model frame, so mesh vertices can be rebased onto it directly.
+    // Centre of mass expressed in the authored model frame, so topology vertices can be rebased onto it directly.
     [[nodiscard]] float CoMModelZ() const noexcept { return CoMHeight - ModelGroundOffset(); }
 
     [[nodiscard]] float WheelLocalZ() const noexcept { return TyreRadius - CoMHeight; }                  // hub z rel. CoM

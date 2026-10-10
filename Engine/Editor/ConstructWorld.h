@@ -19,7 +19,7 @@ struct ConstructResult {
     explicit operator bool() const { return Placement != kPlacementNone; }
 };
 const char* ConstructName(ConstructKind Kind);
-// The five base meshes the shipped editor opens with carry their own artwork, and everything downstream
+// The five base geometries the shipped editor opens with carry their own artwork, and everything downstream
 //    reads the primitive back off it (FractureSpecification.js Describe). Anything else is Count.
 IconSymbol  ConstructArtwork(ConstructKind Kind);
 const char* ConstructPrimitive(ConstructKind Kind);

@@ -1,15 +1,15 @@
 //============================================================================================================================================
-// 📦 Exhibits/Workbench/Sky/SkyDomeKernelProof.cpp — the ENGINE's bake against the ENGINE's march, through the KERNEL's fetch
+// 📦 Exhibits/Workbench/Sky/SkyDomeKernelProof.cpp — the ENGINE's precompute against the ENGINE's march, through the KERNEL's fetch
 //============================================================================================================================================
-// SkyProbeProof.cpp proved the SPLIT (what bakes, what stays analytic) on the panel's sky. This proof covers
+// SkyProbeProof.cpp proved the SPLIT (what precomputes, what stays analytic) on the panel's sky. This proof covers
 //    the code that shipped into the engine build afterwards:
 //
-//    · the bake:  SkyDomeSheet.h's BakeSkyDomeSheet over AtmosphereModel::Integrate — RGBA16F halves, two
+//    · the precompute:  SkyDomeSheet.h's PrecomputeSkyDomeSheet over AtmosphereModel::Integrate — RGBA16F halves, two
 //      stacked octahedral squares (radiance over transmittance), sun cone inpainted;
 //    · the fetch: the EXACT texel arithmetic SkyRecords.slang runs — the same octahedral fold, the same
 //      half-texel clamps, the same row split — transcribed here over a CPU bilinear sampler, so the figure
 //      this proof prints is the figure the kernel computes;
-//    · the boolean's guardrails: SkyDomeCovers' three refusals (no bake, horizon band, solar cone) and
+//    · the boolean's guardrails: SkyDomeCovers' three refusals (no precompute, horizon band, solar cone) and
 //      SkyDomeStagingMatches' staleness rule (a moved sun, a changed medium, a re-budgeted sample count all
 //      drop the frame back to the march).
 //
@@ -52,7 +52,7 @@ float HalfToFloat(uint16_t Half) noexcept
     if (Exponent == 0u)
     {
         if (Mantissa == 0u) { float F; uint32_t B = Sign; std::memcpy(&F, &B, 4u); return F; }
-        // subnormal half — the bake flushes these, but the reader stays correct anyway
+        // subnormal half — the precompute flushes these, but the reader stays correct anyway
         float F = static_cast<float>(Mantissa) / 16777216.0f;
         return Sign ? -F : F;
     }
@@ -115,7 +115,7 @@ void ProveStaging(const char* Caption, const AtmosphereLight& Light)
     constexpr uint32_t kViewSamples = 16u, kLightSamples = 6u;   // the Standard tier's budget
 
     std::vector<uint16_t> Halves;
-    BakeSkyDomeSheet(Medium, Light, kViewSamples, kLightSamples, Halves);
+    PrecomputeSkyDomeSheet(Medium, Light, kViewSamples, kLightSamples, Halves);
     Expect(Halves.size() == static_cast<size_t>(kSkyDomeSide) * kSkyDomeSide * 2u * 4u,
            "the sheet is 256 x 512 RGBA16F exactly");
 
@@ -185,7 +185,7 @@ int main()
     std::fprintf(stderr, "[SkyDomeKernelProof] the engine bake through the kernel's own fetch arithmetic\n");
 
     // Three stagings: high sun, low sun (the gradient's steepest daylight), and a set sun (the twilight-black
-    //    integral — the bake must reproduce even the near-zero dome without inventing light).
+    //    integral — the precompute must reproduce even the near-zero dome without inventing light).
     {
         AtmosphereLight Noon{};
         Noon.Direction[0] = 0.0f; Noon.Direction[1] = 0.3714f; Noon.Direction[2] = 0.9285f;
@@ -217,27 +217,27 @@ int main()
 
     // The staleness rule: the exact refusals PackSkyRecord relies on.
     {
-        SkyConstantRecord Baked{};
-        Baked.SunDirection[0] = 0.0f; Baked.SunDirection[1] = 0.3714f; Baked.SunDirection[2] = 0.9285f;
-        Baked.SunRadiance[0] = 22.0f; Baked.SunRadiance[1] = 22.0f; Baked.SunRadiance[2] = 22.0f; Baked.SunRadiance[3] = 1.0f;
-        Baked.Rayleigh[0] = 5.8e-6f; Baked.Rayleigh[1] = 13.5e-6f; Baked.Rayleigh[2] = 33.1e-6f; Baked.Rayleigh[3] = 8000.0f;
-        Baked.Mie[0] = 21.0e-6f; Baked.Mie[1] = 1200.0f; Baked.Mie[2] = 0.78f;
-        Baked.Planet[0] = 6360000.0f; Baked.Planet[1] = 60000.0f; Baked.Planet[2] = 2.0f;
-        Baked.Control[0] = 16u; Baked.Control[1] = 6u;
+        SkyConstantRecord Precomputed{};
+        Precomputed.SunDirection[0] = 0.0f; Precomputed.SunDirection[1] = 0.3714f; Precomputed.SunDirection[2] = 0.9285f;
+        Precomputed.SunRadiance[0] = 22.0f; Precomputed.SunRadiance[1] = 22.0f; Precomputed.SunRadiance[2] = 22.0f; Precomputed.SunRadiance[3] = 1.0f;
+        Precomputed.Rayleigh[0] = 5.8e-6f; Precomputed.Rayleigh[1] = 13.5e-6f; Precomputed.Rayleigh[2] = 33.1e-6f; Precomputed.Rayleigh[3] = 8000.0f;
+        Precomputed.Mie[0] = 21.0e-6f; Precomputed.Mie[1] = 1200.0f; Precomputed.Mie[2] = 0.78f;
+        Precomputed.Planet[0] = 6360000.0f; Precomputed.Planet[1] = 60000.0f; Precomputed.Planet[2] = 2.0f;
+        Precomputed.Control[0] = 16u; Precomputed.Control[1] = 6u;
 
-        SkyConstantRecord Current = Baked;
-        Expect(SkyDomeStagingMatches(Baked, Current), "an unchanged staging keeps the fetch");
-        Current = Baked; Current.SunDirection[1] += 0.01f;
-        Expect(!SkyDomeStagingMatches(Baked, Current), "a moved sun falls back to the march");
-        Current = Baked; Current.Mie[0] *= 1.5f;
-        Expect(!SkyDomeStagingMatches(Baked, Current), "a hazier medium falls back to the march");
-        Current = Baked; Current.Control[0] = 32u;
-        Expect(!SkyDomeStagingMatches(Baked, Current), "a re-budgeted sample count falls back to the march");
-        Current = Baked; Current.Twilight[0] = 3.0f; Current.Mie[3] = 40.0f;
-        Expect(SkyDomeStagingMatches(Baked, Current), "twilight and shadow lanes never invalidate the dome (they are not in the integral)");
+        SkyConstantRecord Current = Precomputed;
+        Expect(SkyDomeStagingMatches(Precomputed, Current), "an unchanged staging keeps the fetch");
+        Current = Precomputed; Current.SunDirection[1] += 0.01f;
+        Expect(!SkyDomeStagingMatches(Precomputed, Current), "a moved sun falls back to the march");
+        Current = Precomputed; Current.Mie[0] *= 1.5f;
+        Expect(!SkyDomeStagingMatches(Precomputed, Current), "a hazier medium falls back to the march");
+        Current = Precomputed; Current.Control[0] = 32u;
+        Expect(!SkyDomeStagingMatches(Precomputed, Current), "a re-budgeted sample count falls back to the march");
+        Current = Precomputed; Current.Twilight[0] = 3.0f; Current.Mie[3] = 40.0f;
+        Expect(SkyDomeStagingMatches(Precomputed, Current), "twilight and shadow lanes never invalidate the dome (they are not in the integral)");
     }
 
-    // The RGBA16F round trip: the bake's writer against the reader above, across the dome's dynamic range.
+    // The RGBA16F round trip: the precompute's writer against the reader above, across the dome's dynamic range.
     {
         double Worst = 0.0;
         for (float Value : { 0.0f, 1e-4f, 3e-3f, 0.05f, 0.5f, 1.0f, 1.4913f })
@@ -250,18 +250,18 @@ int main()
         Expect(Worst < 1.0 / 1024.0, "RGBA16F round trip stays inside half precision's own 2^-10");
     }
 
-    // #26c the persisted bake: the exact container layout CelestialSequence writes and reads — ENVR row +
+    // #26c the persisted precompute: the exact container layout CelestialSequence writes and reads — ENVR row +
     //    PROB blob of (staging record, RGBA16F halves) — round-tripped through the REAL SpaceExport/SpaceCodec,
     //    with the staleness rule exercised at the file boundary. The layout constants here ARE the contract:
     //    a drift in either body fails this gate before it fails a launch.
     std::fprintf(stderr, "[SkyDomeKernelProof] the persisted bake (.environment ENVR + PROB)\n");
     {
-        // A small real bake to carry (the low-sun staging — the steepest gradients).
+        // A small real precompute to carry (the low-sun staging — the steepest gradients).
         AtmosphereMedium Medium{};
         AtmosphereLight Light{};
         Light.Direction[0] = 0.0f; Light.Direction[1] = 0.9848f; Light.Direction[2] = 0.1736f;
         std::vector<uint16_t> Halves;
-        BakeSkyDomeSheet(Medium, Light, 16u, 6u, Halves);
+        PrecomputeSkyDomeSheet(Medium, Light, 16u, 6u, Halves);
 
         SkyConstantRecord Staging{};
         for (int C = 0; C < 3; ++C)

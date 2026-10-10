@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 """
-Builds the SolidArc raster proof exhibit from the raw frames written by Verification/PipelineMirrorProof.cpp.
+Builds the SolidArc raster proof exhibit from the raw frames written by Verification/ChainMirrorProof.cpp.
 
     python3 build_proofs.py <proof-out-dir>
 
 Inputs  (from the C++ harness): frames_{surface,line,point}.rgba, timings.tsv, checks.txt
-Outputs (this folder): *_orbit.gif, *_still.png, three_pipelines.png, chart_*.png, timings_summary.tsv, README.md
+Outputs (this folder): *_orbit.gif, *_still.png, three_chains.png, chart_*.png, timings_summary.tsv, README.md
 
 Every number printed here is CPU exact-mirror wall-clock on the machine that ran the harness. Nothing in this exhibit is a GPU
 measurement or a GPU model; see README.md.
@@ -23,15 +23,15 @@ import numpy as np
 from PIL import Image
 
 W, H, FRAMES = 480, 300, 72
-PIPELINES = [("surface", "Surface", "SurfaceVS / SurfaceFS"),
+CHAINS = [("surface", "Surface", "SurfaceVS / SurfaceFS"),
              ("line", "Line", "LineVS / LineFS"),
              ("point", "Point", "PointVS / PointFS")]
 HERE = Path(__file__).resolve().parent
 
 
 def load_frames(raw_dir: Path, name: str) -> np.ndarray:
-    data = np.fromfile(raw_dir / f"frames_{name}.rgba", dtype=np.uint8)
-    frames = data.reshape(-1, H, W, 4)[..., :3]
+    record = np.fromfile(raw_dir / f"frames_{name}.rgba", dtype=np.uint8)
+    frames = record.reshape(-1, H, W, 4)[..., :3]
     if frames.shape[0] != FRAMES:
         sys.exit(f"RED — {name}: expected {FRAMES} frames, found {frames.shape[0]}")
     return frames
@@ -66,7 +66,7 @@ def summarise(rows: list) -> dict:
 
 
 def write_gifs(raw_dir: Path) -> None:
-    for name, _, _ in PIPELINES:
+    for name, _, _ in CHAINS:
         frames = load_frames(raw_dir, name)
         images = [Image.fromarray(f).convert("P", palette=Image.ADAPTIVE, colors=128) for f in frames]
         images[0].save(HERE / f"{name}_orbit.gif", save_all=True, append_images=images[1:],
@@ -76,25 +76,25 @@ def write_gifs(raw_dir: Path) -> None:
 
 def write_three_panel(raw_dir: Path) -> None:
     fig, axes = plt.subplots(1, 3, figsize=(15, 4.6), dpi=110)
-    for ax, (name, label, shader) in zip(axes, PIPELINES):
+    for ax, (name, label, shader) in zip(axes, CHAINS):
         ax.imshow(load_frames(raw_dir, name)[18])
         ax.set_title(f"{label} pipeline · {shader}", fontsize=10)
         ax.axis("off")
     fig.suptitle("SolidArc raster pipelines · CPU exact mirror of the Slang bodies (frame 18 of 72)", fontsize=11)
     fig.tight_layout()
-    fig.savefig(HERE / "three_pipelines.png")
+    fig.savefig(HERE / "three_chains.png")
     plt.close(fig)
 
 
 def write_charts(stats: dict) -> None:
-    labels = [label for _, label, _ in PIPELINES]
+    labels = [label for _, label, _ in CHAINS]
     colours = ["#4c78a8", "#f2b134", "#54a24b"]
     footer = f"CPU exact mirror (SoftwareRaster) · {platform.machine()} · {platform.python_implementation()} {platform.python_version()} · NOT GPU"
 
     fig, ax = plt.subplots(figsize=(8, 4.8), dpi=120)
-    data = [stats[n]["ms"] for n, _, _ in PIPELINES]
-    ax.boxplot(data, tick_labels=labels, showfliers=False)
-    for i, d in enumerate(data, start=1):
+    record = [stats[n]["ms"] for n, _, _ in CHAINS]
+    ax.boxplot(record, tick_labels=labels, showfliers=False)
+    for i, d in enumerate(record, start=1):
         ax.scatter(np.full(len(d), i) + np.random.default_rng(i).uniform(-0.08, 0.08, len(d)), d, s=6, alpha=0.5, color=colours[i - 1])
     ax.set_ylabel("CPU mirror frame time per target [ms]")
     ax.set_title("Frame time per pipeline over one 72-frame orbit")
@@ -105,7 +105,7 @@ def write_charts(stats: dict) -> None:
     plt.close(fig)
 
     fig, ax = plt.subplots(figsize=(8, 4.8), dpi=120)
-    fps = [stats[n]["cpu_fps_mean"] for n, _, _ in PIPELINES]
+    fps = [stats[n]["cpu_fps_mean"] for n, _, _ in CHAINS]
     bars = ax.bar(labels, fps, color=colours)
     for b, v in zip(bars, fps):
         ax.text(b.get_x() + b.get_width() / 2, v, f"{v:,.1f}", ha="center", va="bottom", fontsize=9)
@@ -118,11 +118,11 @@ def write_charts(stats: dict) -> None:
     plt.close(fig)
 
     fig, ax = plt.subplots(figsize=(8, 4.8), dpi=120)
-    x = np.arange(len(PIPELINES))
-    tri = [stats[n]["triangles"] for n, _, _ in PIPELINES]
-    seg = [stats[n]["segments"] for n, _, _ in PIPELINES]
-    pts = [stats[n]["points"] for n, _, _ in PIPELINES]
-    frag = [stats[n]["fragments_mean"] for n, _, _ in PIPELINES]
+    x = np.arange(len(CHAINS))
+    tri = [stats[n]["triangles"] for n, _, _ in CHAINS]
+    seg = [stats[n]["segments"] for n, _, _ in CHAINS]
+    pts = [stats[n]["points"] for n, _, _ in CHAINS]
+    frag = [stats[n]["fragments_mean"] for n, _, _ in CHAINS]
     width = 0.2
     ax.bar(x - 1.5 * width, tri, width, label="triangles")
     ax.bar(x - 0.5 * width, seg, width, label="segments")
@@ -147,7 +147,7 @@ MATCAP_NAMES = ["steel", "chrome", "gold", "copper", "plastic-white", "plastic-r
         ax.imshow(img)
         ax.set_title(name, fontsize=9)
         ax.axis("off")
-    fig.suptitle("Baked matcap presets · CPU exact mirror (SoftwareRaster) · same texels uploaded to the Vulkan path", fontsize=10)
+    fig.suptitle("Precomputed matcap presets · CPU exact mirror (SoftwareRaster) · same texels uploaded to the Vulkan path", fontsize=10)
     fig.tight_layout()
     fig.savefig(HERE / "matcap_presets.png")
     plt.close(fig)
@@ -159,7 +159,7 @@ MATCAP_NAMES = ["steel", "chrome", "gold", "copper", "plastic-white", "plastic-r
         ax.imshow(layer)
         ax.set_title(f"{name} · layer", fontsize=9)
         ax.axis("off")
-    fig.suptitle("Baked sheet: 14 layers of 128 x 128 RGB (clamped to 0..1 for display)", fontsize=10)
+    fig.suptitle("Precomputed sheet: 14 layers of 128 x 128 RGB (clamped to 0..1 for display)", fontsize=10)
     fig.tight_layout()
     fig.savefig(HERE / "matcap_sheet.png")
     plt.close(fig)
@@ -171,21 +171,21 @@ def write_summary(stats: dict) -> None:
     with open(HERE / "timings_summary.tsv", "w", newline="") as fh:
         w = csv.writer(fh, delimiter="\t")
         w.writerow(["pipeline"] + keys)
-        for name, _, _ in PIPELINES:
+        for name, _, _ in CHAINS:
             w.writerow([name] + [f"{stats[name][k]:.4f}" if isinstance(stats[name][k], float) else stats[name][k] for k in keys])
 
 
 def write_readme(stats: dict, checks: str) -> None:
     rows = []
-    for name, label, shader in PIPELINES:
+    for name, label, shader in CHAINS:
         s = stats[name]
         rows.append(f"| {label} | `{shader}` | {s['mean_ms']:.2f} | {s['median_ms']:.2f} | {s['p95_ms']:.2f} | "
                     f"{s['cpu_fps_mean']:.1f} | {s['triangles']:,} | {s['segments']:,} | {s['points']:,} | {s['fragments_mean']:,.0f} |")
     table = "\n".join(rows)
-    text = f"""# SolidArc · Vulkan raster pipelines · CPU exact-mirror proof
+    text = f"""# SolidArc · Vulkan raster chains · CPU exact-mirror proof
 
-**What this is.** Visual and timing proof for the three SolidArc raster pipelines of the Vulkan path: **Surface**, **Line** and
-**Point**. Each pipeline is driven in isolation over one full 72-frame turntable orbit (5° per frame) at 480×300.
+**What this is.** Visual and timing proof for the three SolidArc raster chains of the Vulkan path: **Surface**, **Line** and
+**Point**. Each chain is driven in isolation over one full 72-frame turntable orbit (5° per frame) at 480×300.
 
 **What it is not.** No GPU was available when this was produced (no Vulkan ICD in the build sandbox). **These are CPU timings of the
 exact mirror, not GPU frame rates.** No GPU FPS is claimed or modelled here. The Vulkan path
@@ -196,20 +196,20 @@ on a device**. Its parity with this mirror is therefore unmeasured.
 
 | File | Content |
 |---|---|
-| `three_pipelines.png` | One still per pipeline (frame 18) |
-| `matcap_presets.png` | Fourteen baked studio presets on a sphere (metal, plastic, rubber, clay, pearl, carbon) |
-| `matcap_sheet.png` | The baked 128×128 layers themselves |
+| `three_chains.png` | One still per chain (frame 18) |
+| `matcap_presets.png` | Fourteen precomputed studio presets on a sphere (metal, plastic, rubber, clay, pearl, carbon) |
+| `matcap_sheet.png` | The precomputed 128×128 layers themselves |
 | `surface_orbit.gif`, `line_orbit.gif`, `point_orbit.gif` | 72-frame orbits, 80 ms per frame |
 | `surface_still.png`, `line_still.png`, `point_still.png` | Frame 0 of each orbit, full size |
-| `chart_frame_time.png` | Distribution of CPU frame time per pipeline |
-| `chart_cpu_fps.png` | Mean CPU-mirror frames per second per pipeline |
+| `chart_frame_time.png` | Distribution of CPU frame time per chain |
+| `chart_cpu_fps.png` | Mean CPU-mirror frames per second per chain |
 | `chart_workload.png` | Exact per-frame counts (triangles, segments, points, fragments) |
 | `timings_summary.tsv` | All numbers behind the charts |
 | `checks.txt` | Self-checks run by the harness |
 
 ## Timings (CPU exact mirror, one run, warm-up of 3 frames excluded)
 
-| Pipeline | Shader | Mean ms | Median ms | p95 ms | Mean CPU FPS | Triangles | Segments | Points | Fragments / frame (mean) |
+| Sequence | Shader | Mean ms | Median ms | p95 ms | Mean CPU FPS | Triangles | Segments | Points | Fragments / frame (mean) |
 |---|---|---|---|---|---|---|---|---|---|
 {table}
 
@@ -243,8 +243,8 @@ bash run_proof.sh          # builds the C++ harness at -O2, runs it, then runs b
 def main() -> None:
     raw_dir = Path(sys.argv[1]).resolve()
     timings = read_timings(raw_dir)
-    stats = {name: summarise(timings[name]) for name, _, _ in PIPELINES}
-    for name, label, _ in PIPELINES:
+    stats = {name: summarise(timings[name]) for name, _, _ in CHAINS}
+    for name, label, _ in CHAINS:
         s = stats[name]
         print(f"{label:8s} mean {s['mean_ms']:.2f} ms · {s['cpu_fps_mean']:.1f} CPU-mirror FPS · frames {s['frames']}")
     write_gifs(raw_dir)

@@ -27,8 +27,8 @@ Page.on("pageerror", (Error) => Errors.push(Error.message));
 Page.on("console", (Message) => {
   if (Message.type() === "error") Errors.push(Message.text());
 });
-const Top = Page.locator('[data-drawer="top"]'),
-  Bottom = Page.locator('[data-drawer="bottom"]'),
+const Top = Page.locator('[record-drawer="top"]'),
+  Bottom = Page.locator('[record-drawer="bottom"]'),
   Assets = Page.locator(".asset-browser");
 const Saved = () =>
   Page.evaluate(() =>
@@ -52,7 +52,7 @@ async function Drag(Node, DX, DY, Hold = 180) {
   await Settled();
 }
 const Stage = async (Node, Expected) =>
-  assert.equal(await Node.getAttribute("data-stage"), Expected);
+  assert.equal(await Node.getAttribute("record-stage"), Expected);
 async function OpenAssets() {
   if (
     (await Page.locator(".asset-notch-handle").getAttribute(
@@ -110,7 +110,7 @@ try {
     waitUntil: "networkidle",
   });
   await Page.evaluate(() => document.fonts.ready);
-  // Both handles drag in mirrored directions, and share all three stops.
+  // Both identifiers drag in mirrored directions, and share all three stops.
   await Drag(Page.locator(".notch-handle"), 0, 380);
   await Stage(Top, "half");
   await Drag(Page.locator(".notch-handle"), 0, 410);
@@ -293,17 +293,17 @@ try {
     {
       name: "Moss.png",
       mimeType: "image/png",
-      buffer: Buffer.from(Image, "base64"),
+      store: Block.from(Image, "base64"),
     },
     {
       name: "StoredShape.obj",
       mimeType: "text/plain",
-      buffer: Buffer.from("v 0 0 0\nv 1 0 0\nv 0 1 0\nf 1 2 3"),
+      store: Block.from("v 0 0 0\nv 1 0 0\nv 0 1 0\nf 1 2 3"),
     },
     {
       name: "Jade.material.json",
       mimeType: "application/json",
-      buffer: Buffer.from(
+      store: Block.from(
         JSON.stringify({
           Format: "FrontierMaterial.v1",
           Material: Material.Material,
@@ -318,7 +318,7 @@ try {
   await Assets.getByLabel("Import assets", { exact: true }).setInputFiles({
     name: "Broken.png",
     mimeType: "image/png",
-    buffer: Buffer.from("not an image"),
+    store: Block.from("not an image"),
   });
   await Assets.getByText(/0 imported/).waitFor();
   assert.equal(
@@ -337,7 +337,7 @@ try {
   }).click();
   assert.deepEqual(
     fs.readFileSync(await (await ImageDownload).path()),
-    Buffer.from(Image, "base64"),
+    Block.from(Image, "base64"),
   );
   await Assets.getByRole("button", {
     name: "Remove asset",
@@ -353,7 +353,7 @@ try {
   );
   await Filter("All", "Materials");
   await Select("Glass surface");
-  await Assets.locator('canvas[data-preview-status="Preview ready"]').waitFor();
+  await Assets.locator('canvas[record-preview-status="Preview ready"]').waitFor();
   await Page.screenshot({ path: path.join(Proof, "AssetBrowser.png") });
   // Drawer resize and full/half layouts remain within the viewport.
   for (const Width of [1024, 1280, 1366, 1920]) {
@@ -395,7 +395,7 @@ try {
   const Result = {
     Checks: [
       "Shared top/bottom closed-half-full gesture stops",
-      "Handle and open-page dragging",
+      "Tag and open-page dragging",
       "Horizontal handle repositioning",
       "Real touch opening/closing/cancellation",
       "Velocity closing flick",

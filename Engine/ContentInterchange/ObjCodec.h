@@ -7,7 +7,7 @@
 //    Simple class). OBJ has no cameras, lights or transforms — everything is a root placement with identity.
 //
 // Axis / units: OBJ has no declared convention; the de-facto exporters write right-handed Y-up, so the glTF swap
-//    (x, y, z) → (x, −z, y) is applied via ConstructGltfToWorldProjection() and `UniformScale` handles units.
+//    (x, y, z) → (x, −z, y) is applied via ConstructGltfToWorldProjection() and `UniformScale` identifiers units.
 
 #pragma once
 

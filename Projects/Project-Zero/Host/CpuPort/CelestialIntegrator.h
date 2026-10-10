@@ -137,13 +137,13 @@ public:
                                                  float& OutDistance, Vector3& OutNormal) const noexcept;
 
     //    The whole ground branch: terrain, then checker plane, shaded and returned unfogged so the caller can
-    //    composite it exactly where the reference does.
+    //    combined it exactly where the reference does.
     [[nodiscard]] GroundSample  SampleGround(const Vector3& Direction, const ObserverFrame& Observer,
                                              float PixelFootprint) const noexcept;
 
     //    `applyMedia` + `marchLocal` over a surface at `Distance`, which is what the reference does to
     //    `planeCol` before anything else is composited over it.
-    [[nodiscard]] Vector3       CompositeGround(const Vector3& Radiance, const Vector3& Direction, float Distance,
+    [[nodiscard]] Vector3       CombinedGround(const Vector3& Radiance, const Vector3& Direction, float Distance,
                                                 const ObserverFrame& Observer,
                                                 uint32_t PixelX, uint32_t PixelY) const noexcept;
 

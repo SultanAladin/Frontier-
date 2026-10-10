@@ -5,7 +5,7 @@
 //    nothing but novelty — so they share one small uniform block at binding 24 instead of three. The STAR TABLES
 //    ride separately at binding 23 (StarCatalogueIndex wrote them for exactly this: cells then binned stars, no
 //    fix-ups) because they are static — uploaded once, never per frame — while everything in this record moves.
-//    The layout foresaw exactly this shape (23 pooled as storage, 24 as the UBO hole), so no pool counts change.
+//    The layout foresaw exactly this shape (23 pooled as storage, 24 as the UBO hole), so no slots counts change.
 //
 //    ⚠️ WHAT LIVES WHERE, because the next reader will ask. Per-frame scalars (sidereal time, sun UV, rain state,
 //    the pixel spread the star profile floors against) pack here. The 9 100-star catalogue does NOT — it uploads

@@ -10,7 +10,7 @@ class BootstrapTests(unittest.TestCase):
     def archive(self, root, name='owner/source.h', link=False):
         path=root/'input.tar.gz'
         with tarfile.open(path,'w:gz') as t:
-            m=tarfile.TarInfo(name)
+            m=tarfile.TarDetails(name)
             if link:m.type=tarfile.SYMTYPE;m.linkname='/etc/passwd';t.addfile(m)
             else:m.size=4;t.addfile(m,io.BytesIO(b'test'))
         return path

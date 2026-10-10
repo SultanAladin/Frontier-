@@ -91,7 +91,7 @@ Banner("Admitting what a host sends");
 
 Banner("Only plain values cross");
 {
-  const Out = Handoff.Writable({ rate: 1, name: "x", on: true, origin: [1, 2, 3], gpu: { buffer: 1 },
+  const Out = Handoff.Writable({ rate: 1, name: "x", on: true, origin: [1, 2, 3], gpu: { store: 1 },
                                  tick: () => 0, stops: [{ col: [1, 1, 1] }] });
   Check(Out.rate === 1 && Out.name === "x" && Out.on === true, "scalars cross");
   Check(Array.isArray(Out.origin), "and numeric vectors");

@@ -151,17 +151,17 @@ export default function ReferencePanel({
     const Receive = (Event) => {
       if (
         Event.source !== Frame.current?.contentWindow ||
-        !Event.data?.ReferenceInspector
+        !Event.record?.ReferenceInspector
       )
         return;
-      if (Event.data.Type === "ready") {
+      if (Event.record.Type === "ready") {
         Ready.current = true;
         Transmit();
       }
-      if (Event.data.Type === "height" && Number.isFinite(Event.data.Height))
-        Size(Math.max(1, Math.min(500000, Event.data.Height)));
-      if (Event.data.Type === "state")
-        Current.current.Apply(Event.data.Records);
+      if (Event.record.Type === "height" && Number.isFinite(Event.record.Height))
+        Size(Math.max(1, Math.min(500000, Event.record.Height)));
+      if (Event.record.Type === "state")
+        Current.current.Apply(Event.record.Records);
     };
     addEventListener("message", Receive);
     return () => removeEventListener("message", Receive);
@@ -173,8 +173,8 @@ export default function ReferencePanel({
   return (
     <section
       className="reference-inspector-copy"
-      data-reference-kind={TypeOf(Subject)}
-      data-reference-slice={Slice}
+      record-reference-kind={TypeOf(Subject)}
+      record-reference-slice={Slice}
     >
       <iframe
         ref={Frame}

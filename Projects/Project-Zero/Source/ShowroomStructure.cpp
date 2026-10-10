@@ -279,7 +279,7 @@ void ShowroomStructure::Construct(uint32_t DropBodyCount) noexcept
             //    body must be modelled about its own origin offset — the transform replaces this placement rather
             //    than adding to it, exactly as InstanceMotionSequence assumes.
             //
-            // ⚠️ Tessellation is a PER-FRAME cost here, not just a memory one. These are the only triangles that
+            // ⚠️ Tessellation is a PER-FRAME cost here, not just a storage one. These are the only triangles that
             //    move, so every one of them is re-transformed and re-emitted into the acceleration structure each
             //    frame. Measured on the real drop scene, alongside the silhouette error each choice costs (a
             //    0.16 m ball spans ≈111 px at 720p / 55° / 2 m, so sub-pixel is the bar for an invisible change):

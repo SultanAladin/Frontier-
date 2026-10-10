@@ -22,6 +22,6 @@ for image in O.glob('*.png'):
   out+=struct.pack('>I',len(d))+t+d+struct.pack('>I',zlib.crc32(t+d)&0xffffffff)
  assert zlib.decompress(packed)==raw
  image.write_bytes(out)
-assets=[*O.glob('*.png'),*list((R/'EngineContent/Icons/Baked').glob('*')),R/'EngineContent/Icons/Manifest.json']
+assets=[*O.glob('*.png'),*list((R/'EngineContent/Icons/Precomputed').glob('*')),R/'EngineContent/Icons/Manifest.json']
 (O/'AssetParity.json').write_text(json.dumps({'htmlFolderParity':folders,'captureEncoding':'lossless IDAT recompression; unchanged native draw-list pixels','sha256':{str(p.relative_to(R)):hashlib.sha256(p.read_bytes()).hexdigest() for p in assets}},indent=2)+'\n')
 print('PASS: native category folders exactly match HTML compactFolder; captured pixels unchanged.')

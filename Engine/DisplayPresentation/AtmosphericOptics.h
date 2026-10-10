@@ -186,7 +186,7 @@ public:
     //    Celestial port that is legitimately screen-space — the ghosts really do march along the line joining the
     //    sun's image to the frame centre, because that is the optical axis of the lens they are reflecting in.
     //
-    //    ⚠️ AND IT COMPOSITES OVER GEOMETRY, WHICH IS CORRECT — do not "fix" this to match the rainbow. The two
+    //    ⚠️ AND IT COMBINED OVER GEOMETRY, WHICH IS CORRECT — do not "fix" this to match the rainbow. The two
     //    look like the same class of effect and are opposites. A rainbow is light returned by drops in the WORLD,
     //    so it sits at a depth and anything in front of it hides it (see the RainDistance note on Rainbow()). A
     //    flare is scattered across the SENSOR after the light has already entered the lens, so it lies over

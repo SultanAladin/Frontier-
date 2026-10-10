@@ -78,9 +78,9 @@ std::string F(float V) { char B[32]; std::snprintf(B, sizeof B, "%.9g", V); retu
 
 cgltf_data* ParseDoc(const std::string& Json)
 {
-    cgltf_options Opt{}; cgltf_data* Data = nullptr;
-    if (cgltf_parse(&Opt, Json.c_str(), Json.size(), &Data) != cgltf_result_success) return nullptr;
-    return Data;
+    cgltf_options Opt{}; cgltf_data* Packet = nullptr;
+    if (cgltf_parse(&Opt, Json.c_str(), Json.size(), &Packet) != cgltf_result_success) return nullptr;
+    return Packet;
 }
 std::string Doc(const char* Material, const char* Extra = "")
 {
@@ -114,12 +114,12 @@ std::string WrapMaterial(const std::string& MaterialJson)
     return Doc(MaterialJson.c_str(), Extra.c_str());
 }
 // Identity harness: texture pointer → index within the parse = resident slot; encode maps the slot back.
-GltfTextureResolver IdentityResolver(const cgltf_data* Data)
+GltfTextureResolver IdentityResolver(const cgltf_data* Packet)
 {
-    return [Data](const cgltf_texture_view& View, bool) -> uint32_t
+    return [Packet](const cgltf_texture_view& View, bool) -> uint32_t
     {
         if (!View.texture) return kMaterialTextureNone;
-        return static_cast<uint32_t>(View.texture - Data->textures);
+        return static_cast<uint32_t>(View.texture - Packet->textures);
     };
 }
 bool OnlyBound(const MaterialSlabDescriptor& S, std::initializer_list<MaterialTextureChannel> Allowed)
@@ -135,9 +135,9 @@ bool OnlyBound(const MaterialSlabDescriptor& S, std::initializer_list<MaterialTe
 MaterialDescriptor DecodeFirst(const std::string& Json, const MaterialDecodeConfiguration& Cfg = {})
 {
     MaterialDescriptor D;
-    cgltf_data* Data = ParseDoc(Json);
-    if (Data && Data->materials_count > 0) D = MaterialCodec::DecodeGltf(&Data->materials[0], Cfg, IdentityResolver(Data));
-    cgltf_free(Data);
+    cgltf_data* Packet = ParseDoc(Json);
+    if (Packet && Packet->materials_count > 0) D = MaterialCodec::DecodeGltf(&Packet->materials[0], Cfg, IdentityResolver(Packet));
+    cgltf_free(Packet);
     return D;
 }
 std::string EncodeIdentity(const MaterialDescriptor& D, std::vector<std::string>* Ext = nullptr)
@@ -209,11 +209,11 @@ bool Tier2Equal(const MaterialDescriptor& A, const MaterialDescriptor& B, std::s
 
 void T01_EmptyMaterial()
 {
-    cgltf_data* Data = ParseDoc(Doc("{}"));
-    Check(Data && Data->materials_count == 1, "T01 parse");
-    const bool HasPbr = Data->materials[0].has_pbr_metallic_roughness;
-    MaterialDescriptor D = MaterialCodec::DecodeGltf(&Data->materials[0], {}, IdentityResolver(Data));
-    cgltf_free(Data);
+    cgltf_data* Packet = ParseDoc(Doc("{}"));
+    Check(Packet && Packet->materials_count == 1, "T01 parse");
+    const bool HasPbr = Packet->materials[0].has_pbr_metallic_roughness;
+    MaterialDescriptor D = MaterialCodec::DecodeGltf(&Packet->materials[0], {}, IdentityResolver(Packet));
+    cgltf_free(Packet);
     Check(!HasPbr, "T01 cgltf leaves has_pbr false for {}");
     const MaterialSlabDescriptor& S = D.Slabs[0];
     Check(S.BaseColor[0] == 0.8f && S.BaseMetalness == 0.0f && S.SpecularRoughness == 0.5f && S.GeometryOpacity == 1.0f,
@@ -705,17 +705,17 @@ void T36_FastObjTrFold()
     std::fputs("mtllib M6TrFold.mtl\nv 0 0 0\nv 1 0 0\nv 0 1 0\nusemtl t\nf 1 2 3\nusemtl d\nf 1 2 3\n", O);
     std::fputs("newmtl t\nTr 0.3\nnewmtl d\nd 0.8\nTr 0.3\n", Mt);
     std::fclose(O); std::fclose(Mt);
-    fastObjMesh* Mesh = fast_obj_read(ObjPath);
-    Check(Mesh && Mesh->material_count == 2u, "T36 fast_obj parses (named slots only)");
+    fastObjMesh* Hull = fast_obj_read(ObjPath);
+    Check(Hull && Hull->material_count == 2u, "T36 fast_obj parses (named slots only)");
     float TrD = -1.0f, DD = -1.0f;
-    if (Mesh) for (unsigned I = 0; I < Mesh->material_count; ++I)
+    if (Hull) for (unsigned I = 0; I < Hull->material_count; ++I)
     {
-        if (Mesh->materials[I].name && std::strcmp(Mesh->materials[I].name, "t") == 0) TrD = Mesh->materials[I].d;
-        if (Mesh->materials[I].name && std::strcmp(Mesh->materials[I].name, "d") == 0) DD = Mesh->materials[I].d;
+        if (Hull->materials[I].name && std::strcmp(Hull->materials[I].name, "t") == 0) TrD = Hull->materials[I].d;
+        if (Hull->materials[I].name && std::strcmp(Hull->materials[I].name, "d") == 0) DD = Hull->materials[I].d;
     }
     Check(NearRel(TrD, 0.7f), "T36 Tr folds to 1 − Tr", F(TrD));
     Check(NearRel(DD, 0.8f), "T36 explicit d wins over Tr", F(DD));
-    fast_obj_destroy(Mesh);
+    fast_obj_destroy(Hull);
     std::remove(ObjPath); std::remove(MtlPath);
 }
 
@@ -732,7 +732,7 @@ void T37_FbxFullHouse()
 {
     static ufbx_material M; std::memset(&M, 0, sizeof M);
     static ufbx_texture Tex[4]; std::memset(Tex, 0, sizeof Tex);
-    M.name.data = "full"; M.name.length = 4;
+    M.name.record = "full"; M.name.length = 4;
     ufbx_material_pbr_maps& P = M.pbr;
     SetReal(P.base_factor, 0.9); SetVec3(P.base_color, 0.2, 0.3, 0.4);
     P.base_color.texture = &Tex[0]; P.base_color.texture_enabled = true;

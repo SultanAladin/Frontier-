@@ -4,7 +4,7 @@
 //
 //    The tyre is the one deformable element in the vehicle (the user's explicit call: tyres are XPBD soft bodies, everything
 //    else stays rigid in Jolt). This follows Müller et al. 2020, "Detailed Rigid Body Simulation with XPBD" — the same paper
-//    whose Fig. 1 RC car has compliant-constraint tyres rather than an FEM mesh. A ring of particles is held to the hub by
+//    whose Fig. 1 RC car has compliant-constraint tyres rather than an FEM topology. A ring of particles is held to the hub by
 //    compliant radial "spokes" (carcass + inflation pressure) and to its neighbours by stiff "hoop" constraints (tread
 //    band). Ground contact is an inequality constraint with Coulomb friction. Because XPBD is unconditionally stable it can
 //    be sub-stepped hard — the vehicle thread drives it at hundreds of Hz inside one 60 Hz Jolt step.

@@ -12,9 +12,9 @@
 //
 // Recorded into the presentation colour target after the path kernel has resolved the scene, so the interface
 //    composites over the lit image with premultiplied alpha. Depth is tested (so a panel is correctly occluded by
-//    world geometry) but not written (so the sorted transparents composite correctly among themselves).
+//    world geometry) but not written (so the sorted transparents combined correctly among themselves).
 //
-// Every Vulkan handle lives in the .cpp-only VulkanRecord, so this header stays Vulkan-free for the layers above —
+// Every Vulkan identifier lives in the .cpp-only VulkanRecord, so this header stays Vulkan-free for the layers above —
 //    the same rule VisibilityExchange follows.
 
 #pragma once
@@ -78,7 +78,7 @@ public:
     InterfaceExchange(const InterfaceExchange&)            = delete;
     InterfaceExchange& operator=(const InterfaceExchange&) = delete;
 
-    // Handles are opaque (VkDevice, VkPhysicalDevice) so the header stays Vulkan-free. ColourFormat / DepthFormat
+    // Identifiers are opaque (VkDevice, VkPhysicalDevice) so the header stays Vulkan-free. ColourFormat / DepthFormat
     //    are VkFormat values; they must match the targets RecordInterface writes into.
     [[nodiscard]] bool Bring(void* Device, void* PhysicalDevice, uint32_t CycleSlotCount,
                              uint32_t ColourFormat, uint32_t DepthFormat, uint32_t FigureCapacity = 1024u) noexcept;
@@ -107,7 +107,7 @@ private:
     struct VulkanRecord;
     VulkanRecord* Vulkan;
 
-    [[nodiscard]] bool BringPipeline() noexcept;
+    [[nodiscard]] bool BringChain() noexcept;
     [[nodiscard]] bool BringDescriptorSets() noexcept;
     void               WriteDescriptorSets() noexcept;
     void               WriteViewConstants(uint32_t CycleSlot, const InterfaceViewClip& View) noexcept;

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# M8 gate — full-scene validation + the Tier B decision data. Compiles MaterialSceneProof.cpp against the real
+# M8 gate — full-scene validation + the Tier B decision record. Compiles MaterialSceneProof.cpp against the real
 #    engine TUs (ContentCodec + SceneCodec + MaterialCodec + ObjCodec + FbxCodec + UfbxTranslation + SceneStructure +
 #    GeometryStructure + OrientationClassifier + TextureIndex + MaterialIndex + ShaderBallStructure + the CPU
 #    shaderball exhibit as a SHADERBALL_PREVIEW_LIB TU): CornellBox, GlassProof, and the generated R4b shaderball

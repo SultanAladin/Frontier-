@@ -9,7 +9,7 @@
 //    emissive MESH triangles alone. Two consequences, both of which look like a broken renderer:
 //      · an outdoor level with a sun AND lamps rasterised lamp shadows only — the sun lit every surface flatly, with
 //        no shadow behind anything, because no shadow map was ever rasterised from it;
-//      · a level lit ONLY by the sun (no emissive mesh at all) placed zero taps, so RecordShadowFrame refused and the
+//      · a level lit ONLY by the sun (no emissive topology at all) placed zero taps, so RecordShadowFrame refused and the
 //        whole shadow stage was skipped.
 //
 //    The checks below drive the real PlaceShadowTaps (the shipped TU is linked in, not a copy) through the three
@@ -72,16 +72,16 @@ int main()
     std::printf("   CELESTIAL SHADOW GATE — the GI-off shadow stage must give the sun AND the moon a tap\n");
     std::printf("================================================================================\n");
 
-    // A level with no emissive mesh whatsoever. The exchange is default-constructed, so Emitters is empty — exactly
+    // A level with no emissive topology whatsoever. The exchange is default-constructed, so Emitters is empty — exactly
     //    the state an outdoor level lit only by the sun arrives in.
     VisibilityExchange SunOnly;
 
-    // ── ① sun up, no mesh emitters: the stage must run, with the sun in slot 0 ───────────────────────────────────
+    // ── ① sun up, no topology emitters: the stage must run, with the sun in slot 0 ───────────────────────────────────
     {
         ShadowFrameConfiguration Shadow = WithSun({}, -0.5f, 0.0f, 0.86f, 3.2f);
         const bool Placed = SunOnly.PlaceShadowTaps(Shadow);
         std::printf("sun-only level: placed=%s taps=%u mask=0x%x\n", Placed ? "yes" : "no", Shadow.TapCount, Shadow.DirectionalMask);
-        Check(Placed,                       "a sun-lit level with no emissive mesh still places taps (it used to refuse)");
+        Check(Placed,                       "a sun-lit level with no emissive topology still places taps (it used to refuse)");
         Check(Shadow.TapCount == 1u,        "exactly one tap: the sun");
         Check(Directional(Shadow, 0u),      "tap 0 is flagged directional");
         Check(Shadow.Taps[0].Radiance[0] > 0.0f, "the sun tap carries the record's radiance");
@@ -104,14 +104,14 @@ int main()
     {
         ShadowFrameConfiguration Shadow = WithSun({}, -0.5f, 0.0f, -0.4f, 0.0f);   // below the horizon ⇒ SunDirect 0
         const bool Placed = SunOnly.PlaceShadowTaps(Shadow);
-        std::printf("night, no mesh emitters: placed=%s taps=%u\n", Placed ? "yes" : "no", Shadow.TapCount);
+        std::printf("night, no topology emitters: placed=%s taps=%u\n", Placed ? "yes" : "no", Shadow.TapCount);
         Check(!Placed,               "a dark level places no taps (the caller must not present an unwritten image)");
         Check(Shadow.TapCount == 0u, "no taps are left behind from a previous frame");
         Check(Shadow.DirectionalMask == 0u, "the directional mask is cleared too");
     }
 
     // ── ③ the sun must not silently dim the lamps ───────────────────────────────────────────────────────────────
-    //    The mesh taps divide the emitter set between themselves. When the sun takes a slot there are three mesh taps
+    //    The topology taps divide the emitter set between themselves. When the sun takes a slot there are three topology taps
     //    rather than four, and the per-tap weight must be recomputed against three — dividing by the slot maximum
     //    would quietly lose a quarter of every lamp's energy the moment the sun rose.
     {
@@ -119,8 +119,8 @@ int main()
         ShadowFrameConfiguration Day   = WithSun({}, -0.5f, 0.0f, 0.86f, 3.2f);
         (void)SunOnly.PlaceShadowTaps(Night);
         (void)SunOnly.PlaceShadowTaps(Day);
-        // With no mesh emitters present this pair only proves the sun's own slot accounting; the weight rule itself is
-        //    asserted by reading the source's divisor, which the mesh branch computes from the mesh tap count.
+        // With no topology emitters present this pair only proves the sun's own slot accounting; the weight rule itself is
+        //    asserted by reading the source's divisor, which the topology branch computes from the topology tap count.
         std::printf("day taps=%u (sun) vs night taps=%u (nothing)\n", Day.TapCount, Night.TapCount);
         Check(Day.TapCount == 1u && Night.TapCount == 0u, "the sun's slot appears and disappears with the sun");
     }
@@ -141,7 +141,7 @@ int main()
         ShadowFrameConfiguration Shadow = WithMoon({}, 0.2f, -0.3f, 0.93f, 0.0021f);
         const bool Placed = SunOnly.PlaceShadowTaps(Shadow);
         std::printf("moonlit night: placed=%s taps=%u mask=0x%x\n", Placed ? "yes" : "no", Shadow.TapCount, Shadow.DirectionalMask);
-        Check(Placed,                  "a moonlit night with no emissive mesh places a tap (the moon used to light nothing)");
+        Check(Placed,                  "a moonlit night with no emissive topology places a tap (the moon used to light nothing)");
         Check(Shadow.TapCount == 1u,   "exactly one tap: the moon");
         Check(Directional(Shadow, 0u), "the moon is directional — a light at infinity, no 1/d fall-off");
         Check(Shadow.Taps[0].LightSize > 0.0f, "the lunar disc gives the moon shadow a PCSS penumbra");
@@ -177,7 +177,7 @@ int main()
     // ── ⑦ a moonless, sunless night still refuses ───────────────────────────────────────────────────────────────
     {
         ShadowFrameConfiguration Shadow{};
-        Check(!SunOnly.PlaceShadowTaps(Shadow), "no sun, no moon, no mesh: the stage still declines to run");
+        Check(!SunOnly.PlaceShadowTaps(Shadow), "no sun, no moon, no topology: the stage still declines to run");
         Check(!Shadow.MoonEnabled, "the moon is off unless a caller supplies it");
     }
 

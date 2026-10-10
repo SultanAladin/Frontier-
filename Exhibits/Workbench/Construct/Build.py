@@ -18,12 +18,12 @@ def prepare():
   if not destination.exists():
    # Reuse only content that verifies against the upstream Git object.
    cached=ROOT/'.cache/cpp-sun-full'/name
-   if cached.exists():data=cached.read_bytes()
-   else:data=base64.b64decode(json.loads(subprocess.check_output(['gh','api',f'repos/SultanAladin/Frontier-/contents/{name}?ref={PIN}']))['content'])
-   destination.parent.mkdir(parents=True,exist_ok=True);destination.write_bytes(data)
-  data=destination.read_bytes()
-  assert hashlib.sha1(b'blob '+str(len(data)).encode()+b'\0'+data).hexdigest()==entries[name]['sha'],'Modified pinned source: '+name
-  for include in re.findall(r'^\s*#include\s+"([^\"]+)"',data.decode(),re.M):
+   if cached.exists():record=cached.read_bytes()
+   else:record=base64.b64decode(json.loads(subprocess.check_output(['gh','api',f'repos/SultanAladin/Frontier-/contents/{name}?ref={PIN}']))['content'])
+   destination.parent.mkdir(parents=True,exist_ok=True);destination.write_bytes(record)
+  record=destination.read_bytes()
+  assert hashlib.sha1(b'blob '+str(len(record)).encode()+b'\0'+record).hexdigest()==entries[name]['sha'],'Modified pinned source: '+name
+  for include in re.findall(r'^\s*#include\s+"([^\"]+)"',record.decode(),re.M):
    relative=os.path.normpath(str(Path(name).parent/include))
    if relative in entries:fetch(relative)
    else:

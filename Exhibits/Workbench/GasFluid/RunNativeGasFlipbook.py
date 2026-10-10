@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
-"""Build and run the flipbook checks, baking one real sheet from the shipped solver.
+"""Build and run the flipbook checks, precomputing one real sheet from the shipped solver.
 
     python3 Exhibits/Workbench/GasFluid/RunNativeGasFlipbook.py
 
 Dependency-free apart from toml++, which the descriptor is written for and read back with. No ImGui, no
 window, no Vulkan. The sheet, its descriptor and the transcript land in Exhibits/Gallery/GasFlipbook.
 
-The bake runs twice inside the proof itself and the two sheets are compared byte for byte, because a sheet is
-shipped as content: an effect that bakes differently on the build machine than on an artist's is not content,
+The precompute runs twice inside the proof itself and the two sheets are compared byte for byte, because a sheet is
+shipped as content: an effect that precomputes differently on the build machine than on an artist's is not content,
 it is a liability.
 """
 import hashlib
@@ -43,7 +43,7 @@ print(Result.stdout, end='')
 (Gallery / 'Proof.txt').write_text(Result.stdout + f'Exit: {Result.returncode}\n')
 assert Result.returncode == 0, 'native gas flipbook proof failed'
 
-# Lossless PNG re-encoding, no retouching of the bake. The writer emits stored deflate blocks; zlib level 9
+# Lossless PNG re-encoding, no retouching of the precompute. The writer emits stored deflate blocks; zlib level 9
 # shrinks the sheet by roughly an order of magnitude without changing a single pixel.
 for Capture in sorted(Gallery.glob('*.png')):
     Blob = Capture.read_bytes()

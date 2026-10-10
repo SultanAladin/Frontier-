@@ -16,17 +16,17 @@ struct DistanceFieldStageInit
     VkPhysicalDevice                 PhysicalDevice = VK_NULL_HANDLE;
     VkDevice                         Device         = VK_NULL_HANDLE;
     VkPhysicalDeviceMemoryProperties MemoryProperties{};
-    VkBuffer                         CwbvhNodeBuffer        = VK_NULL_HANDLE;
-    VkBuffer                         CwbvhLeafBuffer        = VK_NULL_HANDLE;
+    VkBuffer                         CwbvhNodeStore        = VK_NULL_HANDLE;
+    VkBuffer                         CwbvhLeafStore        = VK_NULL_HANDLE;
     VkImageView                      OutputImageView        = VK_NULL_HANDLE;
     VkImageView                      SurfaceImageView       = VK_NULL_HANDLE;
     VkImageView                      NormalImageView        = VK_NULL_HANDLE;
-    VkBuffer                         TriangleBuffer         = VK_NULL_HANDLE;
-    VkBuffer                         MaterialBuffer         = VK_NULL_HANDLE;
-    VkBuffer                         InstanceBuffer         = VK_NULL_HANDLE;
-    VkBuffer                         SlabBuffer             = VK_NULL_HANDLE;
-    VkBuffer                         VertexBuffer           = VK_NULL_HANDLE;
-    VkBuffer                         IndexBuffer            = VK_NULL_HANDLE;
+    VkBuffer                         TriangleStore         = VK_NULL_HANDLE;
+    VkBuffer                         MaterialStore         = VK_NULL_HANDLE;
+    VkBuffer                         InstanceStore         = VK_NULL_HANDLE;
+    VkBuffer                         SlabStore             = VK_NULL_HANDLE;
+    VkBuffer                         VertexStore           = VK_NULL_HANDLE;
+    VkBuffer                         IndexStore            = VK_NULL_HANDLE;
     VkSampler                        TableSampler           = VK_NULL_HANDLE;
     VkImageView                      EnergyLutView          = VK_NULL_HANDLE;
     VkImageView                      SheenLutView           = VK_NULL_HANDLE;
@@ -57,7 +57,7 @@ struct DistanceFieldFrameParams
     uint64_t MaterialRevision = 0u;
     uint32_t FrameIndex       = 0u;
     uint32_t FeatureFlags     = 0u;
-    uint32_t ReflectionMode   = 1u; // 0 = Off, 1 = Sky, 2 = Raytraced (Mesh BVH, no SDF blocks)
+    uint32_t ReflectionMode   = 1u; // 0 = Off, 1 = Sky, 2 = Raytraced (Hull BVH, no SDF blocks)
     uint32_t RenderWidth      = 1920u;
     uint32_t RenderHeight     = 1080u;
 };
@@ -91,10 +91,10 @@ class DistanceFieldGIStage
     {
         return Refusal;
     }
-    // 📝 Borrowed readback handles for execution verification; owned and retired by this stage.
+    // 📝 Borrowed readback identifiers for execution verification; owned and retired by this stage.
     VkBuffer QueryDistanceBuffer() const
     {
-        return Buffers[0];
+        return Stores[0];
     }
     VkImage QueryRadianceImage() const
     {
@@ -128,17 +128,17 @@ class DistanceFieldGIStage
   private:
     bool                   Allocate(uint32_t Slot, VkDeviceSize Bytes);
     bool                   ConstructCardImages();
-    bool                   ConstructPipelines();
+    bool                   ConstructChains();
     bool                   WriteDescriptors();
     DistanceFieldStageInit Initialization{};
-    VkBuffer               Buffers[6]{};
-    VkDeviceMemory         Memory[6]{};
+    VkBuffer               Stores[6]{};
+    VkDeviceMemory         Store[6]{};
     VkDeviceSize           Sizes[6]{};
-    VkDescriptorPool       Pool             = VK_NULL_HANDLE;
+    VkDescriptorPool       Bank             = VK_NULL_HANDLE;
     VkDescriptorSetLayout  DescriptorLayout = VK_NULL_HANDLE;
     VkPipelineLayout       PipelineLayout   = VK_NULL_HANDLE;
     VkDescriptorSet        Sets[2]{};
-    VkPipeline             Pipelines[5]{};
+    VkPipeline             Chains[5]{};
     VkImage                CardImages[7]{};
     VkImageView            CardViews[7]{};
     VkDeviceMemory         CardStorage[7]{};

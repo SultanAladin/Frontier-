@@ -1,7 +1,7 @@
 //============================================================================================================================================
 //                                                        SCENECODEC.CPP
 //============================================================================================================================================
-// 🧩 glTF 2.0 decode via cgltf and a minimal embedded-buffer encoder.
+// 🧩 glTF 2.0 decode via cgltf and a minimal embedded-store encoder.
 
 #define CGLTF_IMPLEMENTATION
 #include <cgltf.h>
@@ -29,18 +29,18 @@ namespace {
 const cgltf_accessor* FindAttribute(const cgltf_primitive& Primitive, cgltf_attribute_type Type, int Set = 0) noexcept
 {
     for (cgltf_size I = 0; I < Primitive.attributes_count; ++I)
-        if (Primitive.attributes[I].type == Type && Primitive.attributes[I].index == Set) return Primitive.attributes[I].data;
+        if (Primitive.attributes[I].type == Type && Primitive.attributes[I].index == Set) return Primitive.attributes[I].record;
     return nullptr;
 }
 
-// Registers a glTF texture's image in the TextureIndex: file URI (relative to the .gltf) or GLB buffer view.
+// Registers a glTF texture's image in the TextureIndex: file URI (relative to the .gltf) or GLB store view.
 uint32_t RegisterGltfTexture(const cgltf_texture_view& View, bool Linear, TextureIndex* Textures, const std::filesystem::path& Directory) noexcept
 {
     if (!Textures || !View.texture || !View.texture->image) return kMaterialTextureNone;
     const cgltf_image& Image = *View.texture->image;
     if (Image.uri)
     {
-        if (std::strncmp(Image.uri, "data:", 5) == 0) return kMaterialTextureNone;   // base64 data URI images: not supported yet (reported by caller)
+        if (std::strncmp(Image.uri, "record:", 5) == 0) return kMaterialTextureNone;   // base64 record URI images: not supported yet (reported by caller)
         std::string Uri = Image.uri;
         cgltf_decode_uri(Uri.data()); Uri.resize(std::strlen(Uri.c_str()));
         return Textures->RegisterPath((Directory / Uri).lexically_normal().string(), Linear);
@@ -62,43 +62,43 @@ bool SceneCodec::Decode(const std::string& Path, SceneStructure& Out, TextureInd
     const std::filesystem::path Directory = std::filesystem::path(Path).parent_path();
 
     cgltf_options Options{};
-    cgltf_data*   Data = nullptr;
-    cgltf_result  Result = cgltf_parse_file(&Options, Path.c_str(), &Data);
+    cgltf_data*   Packet = nullptr;
+    cgltf_result  Result = cgltf_parse_file(&Options, Path.c_str(), &Packet);
     if (Result != cgltf_result_success) { if (Error) *Error = "cgltf_parse_file failed (" + std::to_string(static_cast<int>(Result)) + ")"; return false; }
-    Result = cgltf_load_buffers(&Options, Data, Path.c_str());
-    if (Result != cgltf_result_success) { if (Error) *Error = "cgltf_load_buffers failed (" + std::to_string(static_cast<int>(Result)) + ")"; cgltf_free(Data); return false; }
+    Result = cgltf_load_buffers(&Options, Packet, Path.c_str());
+    if (Result != cgltf_result_success) { if (Error) *Error = "cgltf_load_buffers failed (" + std::to_string(static_cast<int>(Result)) + ")"; cgltf_free(Packet); return false; }
 
     // Materials: glTF order, plus one fallback slot at the end for primitives without a material.
     MaterialDecodeConfiguration MaterialConfig;
     MaterialConfig.EmissiveRadiance = Config.EmissiveRadiance;
     const GltfTextureResolver Resolve = [&](const cgltf_texture_view& View, bool Linear) { return RegisterGltfTexture(View, Linear, Textures, Directory); };
-    std::vector<uint32_t> MaterialSlot(Data->materials_count);
-    for (cgltf_size I = 0; I < Data->materials_count; ++I)
-        MaterialSlot[I] = Out.RegisterMaterial(MaterialCodec::DecodeGltf(&Data->materials[I], MaterialConfig, Resolve));
+    std::vector<uint32_t> MaterialSlot(Packet->materials_count);
+    for (cgltf_size I = 0; I < Packet->materials_count; ++I)
+        MaterialSlot[I] = Out.RegisterMaterial(MaterialCodec::DecodeGltf(&Packet->materials[I], MaterialConfig, Resolve));
     const uint32_t FallbackSlot = Out.RegisterMaterial(MaterialCodec::DecodeGltf(nullptr, MaterialConfig, nullptr));
 
     // Cameras and punctual lights, glTF order (attached to placements below).
-    for (cgltf_size I = 0; I < Data->cameras_count; ++I)
+    for (cgltf_size I = 0; I < Packet->cameras_count; ++I)
     {
-        const cgltf_camera& C = Data->cameras[I];
+        const cgltf_camera& C = Packet->cameras[I];
         CameraRecord R; R.Name = C.name ? C.name : "";
         if (C.type == cgltf_camera_type_perspective)
         {
-            R.VerticalFieldOfView = C.data.perspective.yfov;
-            R.AspectRatio = C.data.perspective.has_aspect_ratio ? C.data.perspective.aspect_ratio : 0.0f;
-            R.NearPlane = C.data.perspective.znear * Config.UniformScale;
-            R.FarPlane  = C.data.perspective.has_zfar ? C.data.perspective.zfar * Config.UniformScale : 0.0f;
+            R.VerticalFieldOfView = C.record.perspective.yfov;
+            R.AspectRatio = C.record.perspective.has_aspect_ratio ? C.record.perspective.aspect_ratio : 0.0f;
+            R.NearPlane = C.record.perspective.znear * Config.UniformScale;
+            R.FarPlane  = C.record.perspective.has_zfar ? C.record.perspective.zfar * Config.UniformScale : 0.0f;
         }
         else
         {
-            R.Orthographic = true; R.OrthographicHalfHeight = C.data.orthographic.ymag * Config.UniformScale;
-            R.NearPlane = C.data.orthographic.znear * Config.UniformScale; R.FarPlane = C.data.orthographic.zfar * Config.UniformScale;
+            R.Orthographic = true; R.OrthographicHalfHeight = C.record.orthographic.ymag * Config.UniformScale;
+            R.NearPlane = C.record.orthographic.znear * Config.UniformScale; R.FarPlane = C.record.orthographic.zfar * Config.UniformScale;
         }
         (void)Out.RegisterCamera(R, kPlacementNone);
     }
-    for (cgltf_size I = 0; I < Data->lights_count; ++I)
+    for (cgltf_size I = 0; I < Packet->lights_count; ++I)
     {
-        const cgltf_light& L = Data->lights[I];
+        const cgltf_light& L = Packet->lights[I];
         PunctualLuminaireRecord R; R.Name = L.name ? L.name : "";
         R.Category = L.type == cgltf_light_type_directional ? PunctualLuminaireCategory::Directional : L.type == cgltf_light_type_spot ? PunctualLuminaireCategory::Spot : PunctualLuminaireCategory::Point;
         std::memcpy(R.Colour, L.color, sizeof(R.Colour));
@@ -107,10 +107,10 @@ bool SceneCodec::Decode(const std::string& Path, SceneStructure& Out, TextureInd
         (void)Out.RegisterPunctualLuminaire(R, kPlacementNone);
     }
 
-    // Meshes are decoded once into GeometryStructures (object space, engine axes) and instanced per node.
+    // Geometries are decoded once into GeometryStructures (object space, engine axes) and instanced per node.
     struct DecodedPrimitive { GeometryStructure Geometry; uint32_t Material; uint32_t Flags; };
     std::map<const cgltf_primitive*, DecodedPrimitive> Decoded;
-    // An INSTANCED file gives every placement its own mesh and primitive — glTF carries material on the
+    // An INSTANCED file gives every placement its own topology and primitive — glTF carries material on the
     //    primitive, so it has to — but those primitives all point at one set of accessors. Keyed on the
     //    primitive pointer alone, the shader ball grid would decode 35 897 vertices 400 times. Keyed on the
     //    accessor set, it decodes once and the other 399 placements reuse the geometry. The material is NOT
@@ -134,13 +134,13 @@ bool SceneCodec::Decode(const std::string& Path, SceneStructure& Out, TextureInd
     const Matrix4x4 Root = MultiplyProjection(Scale, AxisSwap);
 
     // Placements: every node in scene order (ancestors first, so the ancestor's row exists when the descendant links).
-    std::vector<uint32_t> PlacementOf(Data->nodes_count, kPlacementNone);
-    std::vector<const cgltf_node*> Order; Order.reserve(Data->nodes_count);
+    std::vector<uint32_t> PlacementOf(Packet->nodes_count, kPlacementNone);
+    std::vector<const cgltf_node*> Order; Order.reserve(Packet->nodes_count);
     {
         std::vector<const cgltf_node*> Stack;
-        const cgltf_scene* Scene = Data->scene ? Data->scene : (Data->scenes_count ? &Data->scenes[0] : nullptr);
+        const cgltf_scene* Scene = Packet->scene ? Packet->scene : (Packet->scenes_count ? &Packet->scenes[0] : nullptr);
         if (Scene) for (cgltf_size I = Scene->nodes_count; I-- > 0;) Stack.push_back(Scene->nodes[I]);
-        else       for (cgltf_size I = Data->nodes_count; I-- > 0;) if (!Data->nodes[I].parent) Stack.push_back(&Data->nodes[I]);
+        else       for (cgltf_size I = Packet->nodes_count; I-- > 0;) if (!Packet->nodes[I].parent) Stack.push_back(&Packet->nodes[I]);
         while (!Stack.empty())
         {
             const cgltf_node* N = Stack.back(); Stack.pop_back();
@@ -148,32 +148,32 @@ bool SceneCodec::Decode(const std::string& Path, SceneStructure& Out, TextureInd
             for (cgltf_size I = N->children_count; I-- > 0;) Stack.push_back(N->children[I]);
         }
     }
-    uint32_t Skipped = 0u, DataUriImages = 0u;
+    uint32_t Skipped = 0u, PayloadUriImages = 0u;
     for (const cgltf_node* NodePointer : Order)
     {
         const cgltf_node& Node = *NodePointer;
-        const cgltf_size N = static_cast<cgltf_size>(&Node - Data->nodes);
+        const cgltf_size N = static_cast<cgltf_size>(&Node - Packet->nodes);
 
         float WorldColumns[16], LocalColumns[16];
         cgltf_node_transform_world(&Node, WorldColumns);
         cgltf_node_transform_local(&Node, LocalColumns);
         const Matrix4x4 World = MultiplyProjection(Root, ProjectionFromColumns(WorldColumns));
-        const uint32_t Ancestor = Node.parent ? PlacementOf[static_cast<size_t>(Node.parent - Data->nodes)] : kPlacementNone;
+        const uint32_t Ancestor = Node.parent ? PlacementOf[static_cast<size_t>(Node.parent - Packet->nodes)] : kPlacementNone;
         // Local transform in engine axes: Root · L · Root⁻¹ for roots is the same as World; for descendants the local
         //    stays in the ancestor's frame, which is already engine-space after the ancestor's own swap.
         const Matrix4x4 Local = Ancestor == kPlacementNone ? World : ProjectionFromColumns(LocalColumns);
         const uint32_t Placement = Out.RegisterPlacement(Node.name ? Node.name : ("node_" + std::to_string(N)), Ancestor, Local, World);
         PlacementOf[N] = Placement;
-        if (Node.extras.data != nullptr && std::strstr(Node.extras.data, "frontier_dynamic") != nullptr)
+        if (Node.extras.record != nullptr && std::strstr(Node.extras.record, "frontier_dynamic") != nullptr)
             Out.AssignPlacementDynamic(Placement, true);
-        if (Node.camera) Out.AttachCamera(Placement, static_cast<uint32_t>(Node.camera - Data->cameras));
-        if (Node.light)  Out.AttachPunctualLuminaire(Placement, static_cast<uint32_t>(Node.light - Data->lights));
-        if (!Node.mesh) continue;
+        if (Node.camera) Out.AttachCamera(Placement, static_cast<uint32_t>(Node.camera - Packet->cameras));
+        if (Node.light)  Out.AttachPunctualLuminaire(Placement, static_cast<uint32_t>(Node.light - Packet->lights));
+        if (!Node.topology) continue;
         const uint32_t FirstInstance = static_cast<uint32_t>(Out.QueryInstances().size());
 
-        for (cgltf_size P = 0; P < Node.mesh->primitives_count; ++P)
+        for (cgltf_size P = 0; P < Node.topology->primitives_count; ++P)
         {
-            const cgltf_primitive& Primitive = Node.mesh->primitives[P];
+            const cgltf_primitive& Primitive = Node.topology->primitives[P];
             if (Primitive.type != cgltf_primitive_type_triangles) { ++Skipped; continue; }
 
             auto Found = Decoded.find(&Primitive);
@@ -197,7 +197,7 @@ bool SceneCodec::Decode(const std::string& Path, SceneStructure& Out, TextureInd
                         DecodedPrimitive& Copy = Decoded[&Primitive];
                         Copy.Geometry.AppendVertices(Source.Geometry.QueryVertices().data(), Source.Geometry.QueryVertices().size());
                         Copy.Geometry.AppendIndices(Source.Geometry.QueryIndices().data(), Source.Geometry.QueryIndices().size());
-                        Copy.Material = Primitive.material ? MaterialSlot[static_cast<size_t>(Primitive.material - Data->materials)] : FallbackSlot;
+                        Copy.Material = Primitive.material ? MaterialSlot[static_cast<size_t>(Primitive.material - Packet->materials)] : FallbackSlot;
                         Copy.Flags    = (Primitive.material && Primitive.material->double_sided) ? InstanceFlagDoubleSided : 0u;
                         (void)Out.RegisterInstance(Copy.Geometry, World, Copy.Material, Copy.Flags);
                         continue;
@@ -241,7 +241,7 @@ bool SceneCodec::Decode(const std::string& Path, SceneStructure& Out, TextureInd
                 Indices.resize(Indices.size() - Indices.size() % 3u);
                 D.Geometry.AppendIndices(Indices.data(), Indices.size());
 
-                D.Material = Primitive.material ? MaterialSlot[static_cast<size_t>(Primitive.material - Data->materials)] : FallbackSlot;
+                D.Material = Primitive.material ? MaterialSlot[static_cast<size_t>(Primitive.material - Packet->materials)] : FallbackSlot;
                 D.Flags    = (Primitive.material && Primitive.material->double_sided) ? InstanceFlagDoubleSided : 0u;
                 Found = Decoded.find(&Primitive);
             }
@@ -251,9 +251,9 @@ bool SceneCodec::Decode(const std::string& Path, SceneStructure& Out, TextureInd
         const uint32_t InstanceCount = static_cast<uint32_t>(Out.QueryInstances().size()) - FirstInstance;
         if (InstanceCount) Out.AttachInstances(Placement, FirstInstance, InstanceCount);
     }
-    for (cgltf_size I = 0; I < Data->images_count; ++I) if (Data->images[I].uri && std::strncmp(Data->images[I].uri, "data:", 5) == 0) ++DataUriImages;
+    for (cgltf_size I = 0; I < Packet->images_count; ++I) if (Packet->images[I].uri && std::strncmp(Packet->images[I].uri, "record:", 5) == 0) ++PayloadUriImages;
 
-    cgltf_free(Data);
+    cgltf_free(Packet);
     std::vector<std::string> Report;
     Out.Finalise(Config.SlabLimit, &Report);
 
@@ -262,7 +262,7 @@ bool SceneCodec::Decode(const std::string& Path, SceneStructure& Out, TextureInd
     {
         std::string Warning;
         if (Skipped)       Warning += std::to_string(Skipped) + " non-triangle primitive(s) skipped; ";
-        if (DataUriImages) Warning += std::to_string(DataUriImages) + " data-URI image(s) not decoded (placeholder); ";
+        if (PayloadUriImages) Warning += std::to_string(PayloadUriImages) + " record-URI image(s) not decoded (placeholder); ";
         for (const std::string& Line : Report) Warning += Line + "; ";
         if (!Warning.empty()) Warning.resize(Warning.size() - 2u);
         *Error = Warning;
@@ -273,7 +273,7 @@ bool SceneCodec::Decode(const std::string& Path, SceneStructure& Out, TextureInd
 //------------------------------------------------------------------------------------------------------------------------
 //                                                        ENCODE
 //------------------------------------------------------------------------------------------------------------------------
-// One mesh, one primitive per material (flat-shaded: three unique vertices per triangle so per-face normals survive).
+// One topology, one primitive per material (flat-shaded: three unique vertices per triangle so per-face normals survive).
 
 namespace {
 
@@ -305,16 +305,16 @@ void AppendFloats(std::vector<uint8_t>& Bytes, const float* F, size_t Count)
 
 std::string Number(float F)
 {
-    char Buffer[32];
-    std::snprintf(Buffer, sizeof(Buffer), "%.9g", static_cast<double>(F));
-    std::string S = Buffer;
+    char Block[32];
+    std::snprintf(Block, sizeof(Block), "%.9g", static_cast<double>(F));
+    std::string S = Block;
     if (S.find_first_of(".einf") == std::string::npos) S += ".0";
     return S;
 }
 
 } // namespace
 
-// Spanned encode: one node + mesh per object span (the outliner walks these). The per-material gathering below
+// Spanned encode: one node + topology per object span (the outliner walks these). The per-material gathering below
 //    repeats Encode's own loop on purpose — sharing it would touch the byte-pinned R2 path, and the pin matters
 //    more than the duplication.
 
@@ -401,8 +401,8 @@ bool EncodeSpanned(const std::string& Path, const std::vector<TriangleIndex>& Tr
     std::stable_partition(Order.begin(), Order.end(),
         [&](const TriangleSpanRecord* S) { return !SpanEmits(Triangles, *S, Materials); });
 
-    std::vector<uint8_t> Buffer;
-    std::ostringstream Views, Accessors, Nodes, Meshes, SceneNodes;
+    std::vector<uint8_t> Block;
+    std::ostringstream Views, Accessors, Nodes, Geometries, SceneNodes;
     uint32_t ViewIndex = 0u, AccessorIndex = 0u;
     const std::string Name = Configuration.Name.empty() ? std::string("CornellBox") : Configuration.Name;
     const bool Smooth = Configuration.CornerNormals && Configuration.CornerNormals->size() == Triangles.size() * 3u;
@@ -456,22 +456,22 @@ bool EncodeSpanned(const std::string& Path, const std::vector<TriangleIndex>& Tr
                 return ViewIndex++;
             };
 
-            size_t Offset = Buffer.size();
-            AppendFloats(Buffer, Positions.data(), Positions.size());
+            size_t Offset = Block.size();
+            AppendFloats(Block, Positions.data(), Positions.size());
             const uint32_t PositionView = EmitView(Offset, Positions.size() * 4u, 34962);
-            Offset = Buffer.size();
-            AppendFloats(Buffer, Normals.data(), Normals.size());
+            Offset = Block.size();
+            AppendFloats(Block, Normals.data(), Normals.size());
             const uint32_t NormalView = EmitView(Offset, Normals.size() * 4u, 34962);
             uint32_t TexcoordView = 0u;
             if (Configuration.WriteTexcoords)
             {
-                Offset = Buffer.size();
-                AppendFloats(Buffer, Texcoords.data(), Texcoords.size());
+                Offset = Block.size();
+                AppendFloats(Block, Texcoords.data(), Texcoords.size());
                 TexcoordView = EmitView(Offset, Texcoords.size() * 4u, 34962);
             }
-            Offset = Buffer.size();
-            Buffer.resize(Offset + Indices.size() * 4u);
-            std::memcpy(Buffer.data() + Offset, Indices.data(), Indices.size() * 4u);
+            Offset = Block.size();
+            Block.resize(Offset + Indices.size() * 4u);
+            std::memcpy(Block.data() + Offset, Indices.data(), Indices.size() * 4u);
             const uint32_t IndexView = EmitView(Offset, Indices.size() * 4u, 34963);
 
             const uint32_t Count = static_cast<uint32_t>(Positions.size() / 3u);
@@ -499,22 +499,22 @@ bool EncodeSpanned(const std::string& Path, const std::vector<TriangleIndex>& Tr
                        << ",\"material\":" << M << ",\"mode\":4}";
         }
 
-        if (N) { Nodes << ","; Meshes << ","; SceneNodes << ","; }
-        Nodes << "{\"mesh\":" << N << ",\"name\":\"";
+        if (N) { Nodes << ","; Geometries << ","; SceneNodes << ","; }
+        Nodes << "{\"topology\":" << N << ",\"name\":\"";
         AppendEscapedName(Nodes, Span.Name);
         Nodes << "\"";
         if (Span.Dynamic) Nodes << ",\"extras\":{\"frontier_dynamic\":1}";
         Nodes << "}";
-        Meshes << "{\"name\":\"";
-        AppendEscapedName(Meshes, Span.Name);
-        Meshes << "\",\"primitives\":[" << Primitives.str() << "]}";
+        Geometries << "{\"name\":\"";
+        AppendEscapedName(Geometries, Span.Name);
+        Geometries << "\",\"primitives\":[" << Primitives.str() << "]}";
         SceneNodes << N;
     }
 
     // ── Instanced placements ────────────────────────────────────────────────────────────────────────────────
     // Each offered geometry writes its vertex block ONCE and keeps the accessor indices; each placement then
-    //    emits a mesh whose single primitive reuses those accessors and names its own material, plus a node
-    //    carrying the conjugated transform. Nothing in the buffer repeats.
+    //    emits a topology whose single primitive reuses those accessors and names its own material, plus a node
+    //    carrying the conjugated transform. Nothing in the store repeats.
     size_t NodeCount = Order.size();
     if (Configuration.InstancedGeometry && Configuration.InstancedPlacements
      && !Configuration.InstancedGeometry->empty() && !Configuration.InstancedPlacements->empty())
@@ -551,22 +551,22 @@ bool EncodeSpanned(const std::string& Path, const std::vector<TriangleIndex>& Tr
                 return ViewIndex++;
             };
 
-            size_t Offset = Buffer.size();
-            AppendFloats(Buffer, Positions.data(), Positions.size());
+            size_t Offset = Block.size();
+            AppendFloats(Block, Positions.data(), Positions.size());
             const uint32_t PositionView = EmitView(Offset, Positions.size() * 4u, 34962);
-            Offset = Buffer.size();
-            AppendFloats(Buffer, Normals.data(), Normals.size());
+            Offset = Block.size();
+            AppendFloats(Block, Normals.data(), Normals.size());
             const uint32_t NormalView = EmitView(Offset, Normals.size() * 4u, 34962);
             uint32_t TexcoordView = 0u;
             if (Configuration.WriteTexcoords)
             {
-                Offset = Buffer.size();
-                AppendFloats(Buffer, Texcoords.data(), Texcoords.size());
+                Offset = Block.size();
+                AppendFloats(Block, Texcoords.data(), Texcoords.size());
                 TexcoordView = EmitView(Offset, Texcoords.size() * 4u, 34962);
             }
-            Offset = Buffer.size();
-            Buffer.resize(Offset + Geometry.Indices->size() * 4u);
-            std::memcpy(Buffer.data() + Offset, Geometry.Indices->data(), Geometry.Indices->size() * 4u);
+            Offset = Block.size();
+            Block.resize(Offset + Geometry.Indices->size() * 4u);
+            std::memcpy(Block.data() + Offset, Geometry.Indices->data(), Geometry.Indices->size() * 4u);
             const uint32_t IndexView = EmitView(Offset, Geometry.Indices->size() * 4u, 34963);
 
             const uint32_t Count = static_cast<uint32_t>(Geometry.Vertices->size());
@@ -594,10 +594,10 @@ bool EncodeSpanned(const std::string& Path, const std::vector<TriangleIndex>& Tr
             const SharedAccessors& A = Shared[Placement.Geometry];
             const uint32_t Slot = Placement.Material < Materials.size() ? Placement.Material : 0u;
 
-            if (NodeCount) { Nodes << ","; Meshes << ","; SceneNodes << ","; }
+            if (NodeCount) { Nodes << ","; Geometries << ","; SceneNodes << ","; }
             float Node[16];
             ConjugateToGltf(Placement.World, Node);
-            Nodes << "{\"mesh\":" << NodeCount << ",\"name\":\"";
+            Nodes << "{\"topology\":" << NodeCount << ",\"name\":\"";
             AppendEscapedName(Nodes, Placement.Name);
             Nodes << "\",\"matrix\":[";
             for (int I = 0; I < 16; ++I) Nodes << (I ? "," : "") << Number(Node[I]);
@@ -605,11 +605,11 @@ bool EncodeSpanned(const std::string& Path, const std::vector<TriangleIndex>& Tr
             if (Placement.Dynamic) Nodes << ",\"extras\":{\"frontier_dynamic\":1}";
             Nodes << "}";
 
-            Meshes << "{\"name\":\"";
-            AppendEscapedName(Meshes, Placement.Name);
-            Meshes << "\",\"primitives\":[{\"attributes\":{\"POSITION\":" << A.Position << ",\"NORMAL\":" << A.Normal;
-            if (Configuration.WriteTexcoords) Meshes << ",\"TEXCOORD_0\":" << A.Texcoord;
-            Meshes << "},\"indices\":" << A.Index << ",\"material\":" << Slot << ",\"mode\":4}]}";
+            Geometries << "{\"name\":\"";
+            AppendEscapedName(Geometries, Placement.Name);
+            Geometries << "\",\"primitives\":[{\"attributes\":{\"POSITION\":" << A.Position << ",\"NORMAL\":" << A.Normal;
+            if (Configuration.WriteTexcoords) Geometries << ",\"TEXCOORD_0\":" << A.Texcoord;
+            Geometries << "},\"indices\":" << A.Index << ",\"material\":" << Slot << ",\"mode\":4}]}";
 
             SceneNodes << NodeCount;
             ++NodeCount;
@@ -633,11 +633,11 @@ bool EncodeSpanned(const std::string& Path, const std::vector<TriangleIndex>& Tr
          << "\"scene\":0,\"scenes\":[{\"name\":\"";
     AppendEscapedName(File, Name);
     File << "\",\"nodes\":[" << SceneNodes.str() << "]}],\"nodes\":[" << Nodes.str() << "],"
-         << "\"meshes\":[" << Meshes.str() << "],"
+         << "\"meshes\":[" << Geometries.str() << "],"
          << "\"materials\":[" << MaterialsJson.str() << "],"
          << "\"accessors\":[" << Accessors.str() << "],"
          << "\"bufferViews\":[" << Views.str() << "],"
-         << "\"buffers\":[{\"byteLength\":" << Buffer.size() << ",\"uri\":\"data:application/octet-stream;base64," << Base64(Buffer) << "\"}]}\n";
+         << "\"buffers\":[{\"byteLength\":" << Block.size() << ",\"uri\":\"record:application/octet-stream;base64," << Base64(Block) << "\"}]}\n";
     return static_cast<bool>(File);
 }
 
@@ -647,13 +647,13 @@ bool SceneCodec::Encode(const std::string& Path, const std::vector<TriangleIndex
                         const std::vector<MaterialDescriptor>& Materials, std::string* Error,
                         const SceneEncodeConfiguration& Configuration) noexcept
 {
-    // Instanced placements are written by the spanned path, which is where the node/mesh machinery lives.
+    // Instanced placements are written by the spanned path, which is where the node/topology machinery lives.
     const bool HasInstances = Configuration.InstancedGeometry && Configuration.InstancedPlacements
                            && !Configuration.InstancedGeometry->empty() && !Configuration.InstancedPlacements->empty();
     if ((Configuration.Spans != nullptr && !Configuration.Spans->empty()) || HasInstances)
         return EncodeSpanned(Path, Triangles, Materials, Error, Configuration, *Configuration.Spans);
 
-    std::vector<uint8_t> Buffer;
+    std::vector<uint8_t> Block;
     std::ostringstream Views, Accessors, Primitives;
     uint32_t ViewIndex = 0u, AccessorIndex = 0u;
     bool FirstPrimitive = true;
@@ -700,22 +700,22 @@ bool SceneCodec::Encode(const std::string& Path, const std::vector<TriangleIndex
             return ViewIndex++;
         };
 
-        size_t Offset = Buffer.size();
-        AppendFloats(Buffer, Positions.data(), Positions.size());
+        size_t Offset = Block.size();
+        AppendFloats(Block, Positions.data(), Positions.size());
         const uint32_t PositionView = EmitView(Offset, Positions.size() * 4u, 34962);
-        Offset = Buffer.size();
-        AppendFloats(Buffer, Normals.data(), Normals.size());
+        Offset = Block.size();
+        AppendFloats(Block, Normals.data(), Normals.size());
         const uint32_t NormalView = EmitView(Offset, Normals.size() * 4u, 34962);
         uint32_t TexcoordView = 0u;
         if (Configuration.WriteTexcoords)
         {
-            Offset = Buffer.size();
-            AppendFloats(Buffer, Texcoords.data(), Texcoords.size());
+            Offset = Block.size();
+            AppendFloats(Block, Texcoords.data(), Texcoords.size());
             TexcoordView = EmitView(Offset, Texcoords.size() * 4u, 34962);
         }
-        Offset = Buffer.size();
-        Buffer.resize(Offset + Indices.size() * 4u);
-        std::memcpy(Buffer.data() + Offset, Indices.data(), Indices.size() * 4u);
+        Offset = Block.size();
+        Block.resize(Offset + Indices.size() * 4u);
+        std::memcpy(Block.data() + Offset, Indices.data(), Indices.size() * 4u);
         const uint32_t IndexView = EmitView(Offset, Indices.size() * 4u, 34963);
 
         const uint32_t Count = static_cast<uint32_t>(Positions.size() / 3u);
@@ -757,12 +757,12 @@ bool SceneCodec::Encode(const std::string& Path, const std::vector<TriangleIndex
     if (!File) { if (Error) *Error = "cannot open " + Path + " for writing"; return false; }
     File << "{\"asset\":{\"version\":\"2.0\",\"generator\":\"Frontier SceneCodec\"},"
          << "\"extensionsUsed\":[" << ExtensionsJson.str() << "],"
-         << "\"scene\":0,\"scenes\":[{\"nodes\":[0]}],\"nodes\":[{\"mesh\":0,\"name\":\"" << Name << "\"}],"
+         << "\"scene\":0,\"scenes\":[{\"nodes\":[0]}],\"nodes\":[{\"topology\":0,\"name\":\"" << Name << "\"}],"
          << "\"meshes\":[{\"name\":\"" << Name << "\",\"primitives\":[" << Primitives.str() << "]}],"
          << "\"materials\":[" << MaterialsJson.str() << "],"
          << "\"accessors\":[" << Accessors.str() << "],"
          << "\"bufferViews\":[" << Views.str() << "],"
-         << "\"buffers\":[{\"byteLength\":" << Buffer.size() << ",\"uri\":\"data:application/octet-stream;base64," << Base64(Buffer) << "\"}]}\n";
+         << "\"buffers\":[{\"byteLength\":" << Block.size() << ",\"uri\":\"record:application/octet-stream;base64," << Base64(Block) << "\"}]}\n";
     return static_cast<bool>(File);
 }
 

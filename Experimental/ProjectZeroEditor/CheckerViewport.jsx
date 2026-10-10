@@ -133,7 +133,7 @@ export default function CheckerViewport({
             {Visible.map((Subject) => (
               <button
                 key={Subject.Id}
-                data-preview-id={Subject.Id}
+                record-preview-id={Subject.Id}
                 className={
                   "preview-placement " +
                   (Subject.Id === Selected ? "selected" : "")

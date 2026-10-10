@@ -36,10 +36,10 @@ LobbyCreationSettings PendingLobbySettings;
 MatchSessionSettings PendingSessionSettings;
 EOS_NotificationId MemberUpdate = EOS_INVALID_NOTIFICATIONID, MemberStatus = EOS_INVALID_NOTIFICATIONID,
     RoomConnection = EOS_INVALID_NOTIFICATIONID;
-// Search handles and retained session handles for Join.
-EOS_HLobbySearch LobbySearchHandle = nullptr;
-EOS_HSessionSearch SessionSearchHandle = nullptr;
-std::vector<EOS_HSessionDetails> SessionResultHandles;
+// Search identifiers and retained session identifiers for Join.
+EOS_HLobbySearch LobbySearchIdentifier = nullptr;
+EOS_HSessionSearch SessionSearchIdentifier = nullptr;
+std::vector<EOS_HSessionDetails> SessionResultIdentifiers;
 std::string JoinSessionTargetId;
 
 EOS_ELobbyPermissionLevel ToEosLobbyPermission(LobbyPermission P) noexcept
@@ -81,12 +81,12 @@ bool Success(const char* Op, EOS_EResult Result)
 void Refresh();
 void Prepare();
 void Created();
-void ReleaseSearchHandles()
+void ReleaseSearchIdentifiers()
 {
-    if (LobbySearchHandle) { EOS_LobbySearch_Release(LobbySearchHandle); LobbySearchHandle = nullptr; }
-    if (SessionSearchHandle) { EOS_SessionSearch_Release(SessionSearchHandle); SessionSearchHandle = nullptr; }
-    for (auto H : SessionResultHandles) if (H) EOS_SessionDetails_Release(H);
-    SessionResultHandles.clear();
+    if (LobbySearchIdentifier) { EOS_LobbySearch_Release(LobbySearchIdentifier); LobbySearchIdentifier = nullptr; }
+    if (SessionSearchIdentifier) { EOS_SessionSearch_Release(SessionSearchIdentifier); SessionSearchIdentifier = nullptr; }
+    for (auto H : SessionResultIdentifiers) if (H) EOS_SessionDetails_Release(H);
+    SessionResultIdentifiers.clear();
 }
 void ResetDummyReadiness() { DummyReady.fill(false); ReadyDesired = false; AttributesDirty = true; Dirty = true; }
 void SaveMatch(const char* Kind)
@@ -95,11 +95,11 @@ void SaveMatch(const char* Kind)
     const auto Duration = std::chrono::duration_cast<std::chrono::seconds>(std::chrono::steady_clock::now() - MatchClock).count();
     RecordHistory(Kind, Room, Duration); MatchRecorded = true;
 }
-void EOS_CALL Changed(const EOS_Lobby_LobbyMemberUpdateReceivedCallbackInfo* C)
-{ if (Current(C->ClientData) && C->LobbyId && Room.LobbyId == C->LobbyId) Dirty = true; }
-void EOS_CALL Members(const EOS_Lobby_LobbyMemberStatusReceivedCallbackInfo* C)
+void EOS_CALL Changed(const EOS_Lobby_LobbyMemberUpdateReceivedCallbackDetails* C)
+{ if (Current(C->ClientPayload) && C->LobbyId && Room.LobbyId == C->LobbyId) Dirty = true; }
+void EOS_CALL Members(const EOS_Lobby_LobbyMemberStatusReceivedCallbackDetails* C)
 {
-    if (!Current(C->ClientData) || !C->LobbyId || Room.LobbyId != C->LobbyId) return;
+    if (!Current(C->ClientPayload) || !C->LobbyId || Room.LobbyId != C->LobbyId) return;
     Dirty = true;
     if (C->TargetUserId == User && (C->CurrentStatus == EOS_ELobbyMemberStatus::EOS_LMS_KICKED ||
         C->CurrentStatus == EOS_ELobbyMemberStatus::EOS_LMS_CLOSED || C->CurrentStatus == EOS_ELobbyMemberStatus::EOS_LMS_DISCONNECTED))
@@ -108,9 +108,9 @@ void EOS_CALL Members(const EOS_Lobby_LobbyMemberStatusReceivedCallbackInfo* C)
         WantLeave = true; Room.Status = "Removed from lobby; closing local match session";
     }
 }
-void EOS_CALL VoiceChanged(const EOS_Lobby_RTCRoomConnectionChangedCallbackInfo* C)
+void EOS_CALL VoiceChanged(const EOS_Lobby_RTCRoomConnectionChangedCallbackDetails* C)
 {
-    if (!Current(C->ClientData) || !C->LobbyId || Room.LobbyId != C->LobbyId || C->LocalUserId != User) return;
+    if (!Current(C->ClientPayload) || !C->LobbyId || Room.LobbyId != C->LobbyId || C->LocalUserId != User) return;
     Room.VoiceConnected = C->bIsConnected == EOS_TRUE;
     if (!Room.VoiceConnected) Room.Microphone = false;
     Room.VoiceStatus = Room.VoiceConnected ? "EOS RTC connected - microphone muted initially" :
@@ -131,10 +131,10 @@ void Refresh()
 {
     if (!Lobby || Room.LobbyId.empty()) return;
     Dirty = false; LastRefresh = std::chrono::steady_clock::now();
-    EOS_Lobby_CopyLobbyDetailsHandleOptions O{};
+    EOS_Lobby_CopyLobbyDetailsIdentifierOptions O{};
     O.ApiVersion = EOS_LOBBY_COPYLOBBYDETAILSHANDLE_API_LATEST; O.LobbyId = Room.LobbyId.c_str(); O.LocalUserId = User;
     EOS_HLobbyDetails Details = nullptr;
-    if (EOS_Lobby_CopyLobbyDetailsHandle(Lobby, &O, &Details) != EOS_EResult::EOS_Success)
+    if (EOS_Lobby_CopyLobbyDetailsIdentifier(Lobby, &O, &Details) != EOS_EResult::EOS_Success)
     { Room.Players.clear(); RealMembers.clear(); Room.LocalReady = false; return; }
     EOS_LobbyDetails_GetLobbyOwnerOptions Owner{}; Owner.ApiVersion = EOS_LOBBYDETAILS_GETLOBBYOWNER_API_LATEST;
     Room.Owner = EOS_LobbyDetails_GetLobbyOwner(Details, &Owner) == User;
@@ -154,7 +154,7 @@ void Refresh()
         EOS_Lobby_Attribute* Attribute = nullptr;
         if (EOS_LobbyDetails_CopyMemberAttributeByKey(Details, &Key, &Attribute) == EOS_EResult::EOS_Success && Attribute)
         {
-            Player.Ready = Attribute->Data && Attribute->Data->ValueType == EOS_ELobbyAttributeType::EOS_AT_BOOLEAN && Attribute->Data->Value.AsBool == EOS_TRUE;
+            Player.Ready = Attribute->Packet && Attribute->Packet->ValueType == EOS_ELobbyAttributeType::EOS_AT_BOOLEAN && Attribute->Packet->Value.AsBool == EOS_TRUE;
             EOS_Lobby_Attribute_Release(Attribute);
         }
         if (!Player.Local)
@@ -162,8 +162,8 @@ void Refresh()
             Key.AttrKey = "display_name"; Attribute = nullptr;
             if (EOS_LobbyDetails_CopyMemberAttributeByKey(Details, &Key, &Attribute) == EOS_EResult::EOS_Success && Attribute)
             {
-                if (Attribute->Data && Attribute->Data->ValueType == EOS_ELobbyAttributeType::EOS_AT_STRING && Attribute->Data->Value.AsUtf8)
-                    Player.Name.assign(Attribute->Data->Value.AsUtf8, std::min<size_t>(64, std::strlen(Attribute->Data->Value.AsUtf8)));
+                if (Attribute->Packet && Attribute->Packet->ValueType == EOS_ELobbyAttributeType::EOS_AT_STRING && Attribute->Packet->Value.AsUtf8)
+                    Player.Name.assign(Attribute->Packet->Value.AsUtf8, std::min<size_t>(64, std::strlen(Attribute->Packet->Value.AsUtf8)));
                 EOS_Lobby_Attribute_Release(Attribute);
             }
         }
@@ -180,10 +180,10 @@ void Refresh()
             EOS_Lobby_Attribute* V = nullptr;
             if (EOS_LobbyDetails_CopyAttributeByKey(Details, &A, &V) == EOS_EResult::EOS_Success && V)
             {
-                if (V->Data && V->Data->ValueType == EOS_ELobbyAttributeType::EOS_AT_STRING && V->Data->Value.AsUtf8)
+                if (V->Packet && V->Packet->ValueType == EOS_ELobbyAttributeType::EOS_AT_STRING && V->Packet->Value.AsUtf8)
                 {
-                    if (std::strcmp(KeyName, "session_id") == 0) Room.SessionId = V->Data->Value.AsUtf8;
-                    else RemoteState = V->Data->Value.AsUtf8;
+                    if (std::strcmp(KeyName, "session_id") == 0) Room.SessionId = V->Packet->Value.AsUtf8;
+                    else RemoteState = V->Packet->Value.AsUtf8;
                 }
                 EOS_Lobby_Attribute_Release(V);
             }
@@ -206,18 +206,18 @@ void Refresh()
     EOS_LobbyDetails_Release(Details);
     for (unsigned I = 0; I < Dummies; ++I)
         Room.Players.push_back({"Test player " + std::to_string(I + 1), DummyReady[I], true, false});
-    char Buffer[512]{}; uint32_t Capacity = sizeof(Buffer);
+    char Block[512]{}; uint32_t Capacity = sizeof(Block);
     EOS_Lobby_GetRTCRoomNameOptions R{}; R.ApiVersion = EOS_LOBBY_GETRTCROOMNAME_API_LATEST; R.LobbyId = Room.LobbyId.c_str(); R.LocalUserId = User;
-    if (EOS_Lobby_GetRTCRoomName(Lobby, &R, Buffer, &Capacity) == EOS_EResult::EOS_Success) VoiceRoom = Buffer;
+    if (EOS_Lobby_GetRTCRoomName(Lobby, &R, Block, &Capacity) == EOS_EResult::EOS_Success) VoiceRoom = Block;
     EOS_Lobby_IsRTCRoomConnectedOptions V{}; V.ApiVersion = EOS_LOBBY_ISRTCROOMCONNECTED_API_LATEST; V.LobbyId = Room.LobbyId.c_str(); V.LocalUserId = User;
     EOS_Bool Connected = EOS_FALSE;
     if (EOS_Lobby_IsRTCRoomConnected(Lobby, &V, &Connected) == EOS_EResult::EOS_Success)
     { Room.VoiceConnected = Connected == EOS_TRUE; if (!Room.VoiceConnected) Room.Microphone = false; }
     SyncSessionFlags();
 }
-void EOS_CALL AttributesDone(const EOS_Lobby_UpdateLobbyCallbackInfo* C)
+void EOS_CALL AttributesDone(const EOS_Lobby_UpdateLobbyCallbackDetails* C)
 {
-    if (!Current(C->ClientData)) return;
+    if (!Current(C->ClientPayload)) return;
     Room.ReadyPending = false; Dirty = true;
     if (!Success("lobby_member_update", C->ResultCode)) { ReadyDesired = Room.LocalReady; AttributesDirty = false; AutoArmed = false; }
 }
@@ -228,7 +228,7 @@ void PublishAttributes()
     O.ApiVersion = EOS_LOBBY_UPDATELOBBYMODIFICATION_API_LATEST; O.LocalUserId = User; O.LobbyId = Room.LobbyId.c_str();
     EOS_HLobbyModification Modification = nullptr;
     if (!Success("lobby_modify", EOS_Lobby_UpdateLobbyModification(Lobby, &O, &Modification))) { AttributesDirty = false; return; }
-    EOS_Lobby_AttributeData D{}; D.ApiVersion = EOS_LOBBY_ATTRIBUTEDATA_API_LATEST; D.Key = "ready";
+    EOS_Lobby_AttributePayload D{}; D.ApiVersion = EOS_LOBBY_ATTRIBUTEDATA_API_LATEST; D.Key = "ready";
     D.ValueType = EOS_ELobbyAttributeType::EOS_AT_BOOLEAN; D.Value.AsBool = ReadyDesired ? EOS_TRUE : EOS_FALSE;
     EOS_LobbyModification_AddMemberAttributeOptions A{}; A.ApiVersion = EOS_LOBBYMODIFICATION_ADDMEMBERATTRIBUTE_API_LATEST;
     A.Attribute = &D; A.Visibility = EOS_ELobbyAttributeVisibility::EOS_LAT_PUBLIC;
@@ -284,14 +284,14 @@ void PublishAttributes()
     AttributesDirty = false; OwnerAttributesDirty = false; LiveSettingsDirty = false;
     if (Success("lobby_attributes", Result))
     {
-        EOS_Lobby_UpdateLobbyOptions U{}; U.ApiVersion = EOS_LOBBY_UPDATELOBBY_API_LATEST; U.LobbyModificationHandle = Modification;
+        EOS_Lobby_UpdateLobbyOptions U{}; U.ApiVersion = EOS_LOBBY_UPDATELOBBY_API_LATEST; U.LobbyModificationIdentifier = Modification;
         Room.ReadyPending = true; EOS_Lobby_UpdateLobby(Lobby, &U, Cookie(), AttributesDone);
     }
     EOS_LobbyModification_Release(Modification);
 }
-void EOS_CALL Prepared(const EOS_Sessions_UpdateSessionCallbackInfo* C)
+void EOS_CALL Prepared(const EOS_Sessions_UpdateSessionCallbackDetails* C)
 {
-    if (!Current(C->ClientData)) return;
+    if (!Current(C->ClientPayload)) return;
     Operation = false;
     if (!Success("session_create", C->ResultCode))
     {
@@ -310,7 +310,7 @@ void EOS_CALL Prepared(const EOS_Sessions_UpdateSessionCallbackInfo* C)
 void AddSessionStringAttribute(EOS_HSessionModification M, const char* Key, const std::string& Value, EOS_EResult& Result)
 {
     if (Result != EOS_EResult::EOS_Success || Value.empty()) return;
-    EOS_Sessions_AttributeData D{}; D.ApiVersion = EOS_SESSIONS_ATTRIBUTEDATA_API_LATEST;
+    EOS_Sessions_AttributePayload D{}; D.ApiVersion = EOS_SESSIONS_ATTRIBUTEDATA_API_LATEST;
     D.Key = Key; D.ValueType = EOS_ESessionAttributeType::EOS_AT_STRING; D.Value.AsUtf8 = Value.c_str();
     EOS_SessionModification_AddAttributeOptions A{}; A.ApiVersion = EOS_SESSIONMODIFICATION_ADDATTRIBUTE_API_LATEST;
     A.SessionAttribute = &D; A.AdvertisementType = EOS_ESessionAttributeAdvertisementType::EOS_SAAT_Advertise;
@@ -351,7 +351,7 @@ void Prepare()
     AddSessionStringAttribute(M, "mode", S.ModeName, Result);
     if (Success("session_options", Result))
     {
-        EOS_Sessions_UpdateSessionOptions U{}; U.ApiVersion = EOS_SESSIONS_UPDATESESSION_API_LATEST; U.SessionModificationHandle = M;
+        EOS_Sessions_UpdateSessionOptions U{}; U.ApiVersion = EOS_SESSIONS_UPDATESESSION_API_LATEST; U.SessionModificationIdentifier = M;
         Operation = true; EOS_Sessions_UpdateSession(Sessions, &U, Cookie(), Prepared);
     }
     else Room.Phase = RoomPhase::Failed;
@@ -365,23 +365,23 @@ void Created()
     Room.SessionStatus = Room.Owner ? "Preparing match session..." : "Host manages the match session.";
     Refresh(); Prepare();
 }
-void EOS_CALL LobbyCreated(const EOS_Lobby_CreateLobbyCallbackInfo* C)
+void EOS_CALL LobbyCreated(const EOS_Lobby_CreateLobbyCallbackDetails* C)
 {
-    if (!Current(C->ClientData)) return;
+    if (!Current(C->ClientPayload)) return;
     Operation = false;
     if (!Success("lobby_create", C->ResultCode)) { Room.Phase = RoomPhase::Failed; return; }
     Room.LobbyId = C->LobbyId; Created();
 }
-void EOS_CALL Joined(const EOS_Lobby_JoinLobbyByIdCallbackInfo* C)
+void EOS_CALL Joined(const EOS_Lobby_JoinLobbyByIdCallbackDetails* C)
 {
-    if (!Current(C->ClientData)) return;
+    if (!Current(C->ClientPayload)) return;
     Operation = false;
     if (!Success("lobby_join", C->ResultCode)) { Room.Phase = RoomPhase::Failed; return; }
     Room.LobbyId = C->LobbyId; Dummies = 0; Created();
 }
-void EOS_CALL Started(const EOS_Sessions_StartSessionCallbackInfo* C)
+void EOS_CALL Started(const EOS_Sessions_StartSessionCallbackDetails* C)
 {
-    if (!Current(C->ClientData)) return;
+    if (!Current(C->ClientPayload)) return;
     Operation = false;
     if (!Success("session_start", C->ResultCode)) { Room.Phase = RoomPhase::Failed; AutoArmed = false; SyncSessionFlags(); return; }
     OwnerAttributesDirty = true;
@@ -399,9 +399,9 @@ void RequestStartSession()
     EOS_Sessions_StartSessionOptions O{}; O.ApiVersion = EOS_SESSIONS_STARTSESSION_API_LATEST; O.SessionName = SessionNameC();
     Operation = true; SyncSessionFlags(); EOS_Sessions_StartSession(Sessions, &O, Cookie(), Started);
 }
-void EOS_CALL RegisteredPlayers(const EOS_Sessions_RegisterPlayersCallbackInfo* C)
+void EOS_CALL RegisteredPlayers(const EOS_Sessions_RegisterPlayersCallbackDetails* C)
 {
-    if (!Current(C->ClientData)) return;
+    if (!Current(C->ClientPayload)) return;
     Operation = false;
     if (C->ResultCode == EOS_EResult::EOS_ClientPolicyMissingAction)
     {
@@ -417,9 +417,9 @@ void EOS_CALL RegisteredPlayers(const EOS_Sessions_RegisterPlayersCallbackInfo* 
     { Room.Phase = RoomPhase::Failed; AutoArmed = false; Room.Status = "Readiness or membership changed. Start cancelled."; SyncSessionFlags(); return; }
     RequestStartSession();
 }
-void EOS_CALL Ended(const EOS_Sessions_EndSessionCallbackInfo* C)
+void EOS_CALL Ended(const EOS_Sessions_EndSessionCallbackDetails* C)
 {
-    if (!Current(C->ClientData)) return;
+    if (!Current(C->ClientPayload)) return;
     Operation = false;
     if (!Success("session_end", C->ResultCode)) { Room.Phase = RoomPhase::Running; AutoArmed = false; WantLeave = false; SyncSessionFlags(); return; }
     SaveMatch(WantLeave ? "abandoned" : "completed");
@@ -429,9 +429,9 @@ void EOS_CALL Ended(const EOS_Sessions_EndSessionCallbackInfo* C)
     SyncSessionFlags();
     ResetDummyReadiness();
 }
-void EOS_CALL Unregistered(const EOS_Sessions_UnregisterPlayersCallbackInfo* C)
+void EOS_CALL Unregistered(const EOS_Sessions_UnregisterPlayersCallbackDetails* C)
 {
-    if (!Current(C->ClientData)) return;
+    if (!Current(C->ClientPayload)) return;
     UnregisterPending = false; Operation = false;
     Report("session_unregister", C->ResultCode);
     Registered.clear(); SyncSessionFlags();
@@ -445,9 +445,9 @@ void RequestUnregisterAll()
     UnregisterPending = true; Operation = true; SyncSessionFlags();
     EOS_Sessions_UnregisterPlayers(Sessions, &O, Cookie(), Unregistered);
 }
-void EOS_CALL DestroyedSession(const EOS_Sessions_DestroySessionCallbackInfo* C)
+void EOS_CALL DestroyedSession(const EOS_Sessions_DestroySessionCallbackDetails* C)
 {
-    if (!Current(C->ClientData)) return;
+    if (!Current(C->ClientPayload)) return;
     Operation = false;
     if (!Success("session_destroy", C->ResultCode)) { Room.Phase = RoomPhase::Failed; WantLeave = false; SyncSessionFlags(); return; }
     SessionExists = false; Room.SessionId.clear(); Registered.clear(); Room.StartedAt = 0;
@@ -479,19 +479,19 @@ void FinishLeave(EOS_EResult Result)
     SyncSessionFlags();
     if (!JoinAfterLeave.empty()) { auto Id = JoinAfterLeave; JoinAfterLeave.clear(); JoinRoom(Id.c_str()); }
 }
-void EOS_CALL DestroyedLobby(const EOS_Lobby_DestroyLobbyCallbackInfo* C) { if (Current(C->ClientData)) FinishLeave(C->ResultCode); }
-void EOS_CALL LeftLobby(const EOS_Lobby_LeaveLobbyCallbackInfo* C) { if (Current(C->ClientData)) FinishLeave(C->ResultCode); }
-void EOS_CALL Sending(const EOS_RTCAudio_UpdateSendingCallbackInfo* C)
+void EOS_CALL DestroyedLobby(const EOS_Lobby_DestroyLobbyCallbackDetails* C) { if (Current(C->ClientPayload)) FinishLeave(C->ResultCode); }
+void EOS_CALL LeftLobby(const EOS_Lobby_LeaveLobbyCallbackDetails* C) { if (Current(C->ClientPayload)) FinishLeave(C->ResultCode); }
+void EOS_CALL Sending(const EOS_RTCAudio_UpdateSendingCallbackDetails* C)
 {
-    if (!Current(C->ClientData)) return;
+    if (!Current(C->ClientPayload)) return;
     Room.VoicePending = false;
     const bool Ok = Success("rtc_sending", C->ResultCode);
     if (Ok) Room.Microphone = PendingMicrophone;
     Room.VoiceStatus = Ok ? (Room.Microphone ? "Microphone on - EOS RTC" : "Microphone muted - EOS RTC") : "Microphone update failed";
 }
-void EOS_CALL Receiving(const EOS_RTCAudio_UpdateReceivingCallbackInfo* C)
+void EOS_CALL Receiving(const EOS_RTCAudio_UpdateReceivingCallbackDetails* C)
 {
-    if (!Current(C->ClientData)) return;
+    if (!Current(C->ClientPayload)) return;
     Room.VoicePending = false;
     if (Success("rtc_receiving", C->ResultCode)) Room.Listening = PendingListening;
     else Room.VoiceStatus = "Speaker update failed; previous state retained";
@@ -499,17 +499,17 @@ void EOS_CALL Receiving(const EOS_RTCAudio_UpdateReceivingCallbackInfo* C)
 // ---- Search ----
 void ParseLobbyDetails(EOS_HLobbyDetails Details, LobbySearchResult& Out)
 {
-    EOS_LobbyDetails_CopyInfoOptions I{}; I.ApiVersion = EOS_LOBBYDETAILS_COPYINFO_API_LATEST;
-    EOS_LobbyDetails_Info* Info = nullptr;
-    if (EOS_LobbyDetails_CopyInfo(Details, &I, &Info) == EOS_EResult::EOS_Success && Info)
+    EOS_LobbyDetails_CopyDetailsOptions I{}; I.ApiVersion = EOS_LOBBYDETAILS_COPYINFO_API_LATEST;
+    EOS_LobbyDetails_Details* Facts = nullptr;
+    if (EOS_LobbyDetails_CopyDetails(Details, &I, &Facts) == EOS_EResult::EOS_Success && Facts)
     {
-        if (Info->LobbyId) Out.LobbyId = Info->LobbyId;
-        if (Info->BucketId) Out.BucketId = Info->BucketId;
-        Out.MaxMembers = Info->MaxMembers;
-        Out.Members = Info->MaxMembers > Info->AvailableSlots ? Info->MaxMembers - Info->AvailableSlots : 0;
-        Out.Permission = static_cast<int>(Info->PermissionLevel);
-        Out.RtcEnabled = Info->bRTCRoomEnabled == EOS_TRUE;
-        EOS_LobbyDetails_Info_Release(Info);
+        if (Facts->LobbyId) Out.LobbyId = Facts->LobbyId;
+        if (Facts->BucketId) Out.BucketId = Facts->BucketId;
+        Out.MaxMembers = Facts->MaxMembers;
+        Out.Members = Facts->MaxMembers > Facts->AvailableSlots ? Facts->MaxMembers - Facts->AvailableSlots : 0;
+        Out.Permission = static_cast<int>(Facts->PermissionLevel);
+        Out.RtcEnabled = Facts->bRTCRoomEnabled == EOS_TRUE;
+        EOS_LobbyDetails_Details_Release(Facts);
     }
     const std::pair<const char*, std::string*> Keys[] = {
         {"map", &Out.MapName}, {"mode", &Out.ModeName}, {"region", &Out.Region},
@@ -520,8 +520,8 @@ void ParseLobbyDetails(EOS_HLobbyDetails Details, LobbySearchResult& Out)
         EOS_Lobby_Attribute* V = nullptr;
         if (EOS_LobbyDetails_CopyAttributeByKey(Details, &A, &V) == EOS_EResult::EOS_Success && V)
         {
-            if (V->Data && V->Data->ValueType == EOS_ELobbyAttributeType::EOS_AT_STRING && V->Data->Value.AsUtf8)
-                *Value = V->Data->Value.AsUtf8;
+            if (V->Packet && V->Packet->ValueType == EOS_ELobbyAttributeType::EOS_AT_STRING && V->Packet->Value.AsUtf8)
+                *Value = V->Packet->Value.AsUtf8;
             EOS_Lobby_Attribute_Release(V);
         }
     }
@@ -529,34 +529,34 @@ void ParseLobbyDetails(EOS_HLobbyDetails Details, LobbySearchResult& Out)
     const uint32_t N = EOS_LobbyDetails_GetMemberCount(Details, &C);
     if (N && !Out.Members) Out.Members = std::min<uint32_t>(N, 64);
 }
-void EOS_CALL LobbySearchDone(const EOS_LobbySearch_FindCallbackInfo* C)
+void EOS_CALL LobbySearchDone(const EOS_LobbySearch_FindCallbackDetails* C)
 {
-    const bool Mine = Current(C->ClientData);
+    const bool Mine = Current(C->ClientPayload);
     Room.Search.LobbyBusy = false;
-    EOS_HLobbySearch Handle = LobbySearchHandle; LobbySearchHandle = nullptr;
-    if (!Mine) { if (Handle) EOS_LobbySearch_Release(Handle); return; }
+    EOS_HLobbySearch Tag = LobbySearchIdentifier; LobbySearchIdentifier = nullptr;
+    if (!Mine) { if (Tag) EOS_LobbySearch_Release(Tag); return; }
     if (C->ResultCode != EOS_EResult::EOS_Success)
     {
         Report("lobby_search", C->ResultCode);
         Room.Search.LobbyStatus = std::string("Lobby search failed: ") + EOS_EResult_ToString(C->ResultCode);
-        if (Handle) EOS_LobbySearch_Release(Handle); return;
+        if (Tag) EOS_LobbySearch_Release(Tag); return;
     }
     Report("lobby_search", C->ResultCode);
     Room.Search.Lobbies.clear();
-    if (Handle)
+    if (Tag)
     {
         EOS_LobbySearch_GetSearchResultCountOptions O{}; O.ApiVersion = EOS_LOBBYSEARCH_GETSEARCHRESULTCOUNT_API_LATEST;
-        const uint32_t N = EOS_LobbySearch_GetSearchResultCount(Handle, &O);
+        const uint32_t N = EOS_LobbySearch_GetSearchResultCount(Tag, &O);
         for (uint32_t I = 0; I < std::min<uint32_t>(N, 20); ++I)
         {
             EOS_LobbySearch_CopySearchResultByIndexOptions S{}; S.ApiVersion = EOS_LOBBYSEARCH_COPYSEARCHRESULTBYINDEX_API_LATEST; S.LobbyIndex = I;
             EOS_HLobbyDetails Details = nullptr;
-            if (EOS_LobbySearch_CopySearchResultByIndex(Handle, &S, &Details) != EOS_EResult::EOS_Success || !Details) continue;
+            if (EOS_LobbySearch_CopySearchResultByIndex(Tag, &S, &Details) != EOS_EResult::EOS_Success || !Details) continue;
             LobbySearchResult R; ParseLobbyDetails(Details, R);
             EOS_LobbyDetails_Release(Details);
             if (!R.LobbyId.empty()) Room.Search.Lobbies.push_back(R);
         }
-        EOS_LobbySearch_Release(Handle);
+        EOS_LobbySearch_Release(Tag);
     }
     Room.Search.LobbyStatus = Room.Search.Lobbies.empty() ?
         "No public lobbies found. Create one or check the bucket filter." :
@@ -564,20 +564,20 @@ void EOS_CALL LobbySearchDone(const EOS_LobbySearch_FindCallbackInfo* C)
 }
 void ParseSessionDetails(EOS_HSessionDetails Details, SessionSearchResult& Out)
 {
-    EOS_SessionDetails_CopyInfoOptions I{}; I.ApiVersion = EOS_SESSIONDETAILS_COPYINFO_API_LATEST;
-    EOS_SessionDetails_Info* Info = nullptr;
-    if (EOS_SessionDetails_CopyInfo(Details, &I, &Info) == EOS_EResult::EOS_Success && Info)
+    EOS_SessionDetails_CopyDetailsOptions I{}; I.ApiVersion = EOS_SESSIONDETAILS_COPYINFO_API_LATEST;
+    EOS_SessionDetails_Details* Facts = nullptr;
+    if (EOS_SessionDetails_CopyDetails(Details, &I, &Facts) == EOS_EResult::EOS_Success && Facts)
     {
-        if (Info->SessionId) Out.SessionId = Info->SessionId;
-        Out.OpenConnections = Info->NumOpenPublicConnections;
-        if (Info->Settings)
+        if (Facts->SessionId) Out.SessionId = Facts->SessionId;
+        Out.OpenConnections = Facts->NumOpenPublicConnections;
+        if (Facts->Settings)
         {
-            if (Info->Settings->BucketId) Out.BucketId = Info->Settings->BucketId;
-            Out.MaxConnections = Info->Settings->NumPublicConnections;
-            Out.Permission = static_cast<int>(Info->Settings->PermissionLevel);
-            Out.JoinInProgress = Info->Settings->bAllowJoinInProgress == EOS_TRUE;
+            if (Facts->Settings->BucketId) Out.BucketId = Facts->Settings->BucketId;
+            Out.MaxConnections = Facts->Settings->NumPublicConnections;
+            Out.Permission = static_cast<int>(Facts->Settings->PermissionLevel);
+            Out.JoinInProgress = Facts->Settings->bAllowJoinInProgress == EOS_TRUE;
         }
-        EOS_SessionDetails_Info_Release(Info);
+        EOS_SessionDetails_Details_Release(Facts);
     }
     for (const char* Key : {"map", "mode"})
     {
@@ -585,45 +585,45 @@ void ParseSessionDetails(EOS_HSessionDetails Details, SessionSearchResult& Out)
         EOS_SessionDetails_Attribute* V = nullptr;
         if (EOS_SessionDetails_CopySessionAttributeByKey(Details, &A, &V) == EOS_EResult::EOS_Success && V)
         {
-            if (V->Data && V->Data->ValueType == EOS_ESessionAttributeType::EOS_AT_STRING && V->Data->Value.AsUtf8)
+            if (V->Packet && V->Packet->ValueType == EOS_ESessionAttributeType::EOS_AT_STRING && V->Packet->Value.AsUtf8)
             {
-                if (std::strcmp(Key, "map") == 0) Out.MapName = V->Data->Value.AsUtf8;
-                else Out.ModeName = V->Data->Value.AsUtf8;
+                if (std::strcmp(Key, "map") == 0) Out.MapName = V->Packet->Value.AsUtf8;
+                else Out.ModeName = V->Packet->Value.AsUtf8;
             }
             EOS_SessionDetails_Attribute_Release(V);
         }
     }
 }
-void EOS_CALL SessionSearchDone(const EOS_SessionSearch_FindCallbackInfo* C)
+void EOS_CALL SessionSearchDone(const EOS_SessionSearch_FindCallbackDetails* C)
 {
-    const bool Mine = Current(C->ClientData);
+    const bool Mine = Current(C->ClientPayload);
     Room.Search.SessionBusy = false;
-    EOS_HSessionSearch Handle = SessionSearchHandle; SessionSearchHandle = nullptr;
-    if (!Mine) { if (Handle) EOS_SessionSearch_Release(Handle); return; }
+    EOS_HSessionSearch Tag = SessionSearchIdentifier; SessionSearchIdentifier = nullptr;
+    if (!Mine) { if (Tag) EOS_SessionSearch_Release(Tag); return; }
     if (C->ResultCode != EOS_EResult::EOS_Success)
     {
         Report("session_search", C->ResultCode);
         Room.Search.SessionStatus = std::string("Session search failed: ") + EOS_EResult_ToString(C->ResultCode);
-        if (Handle) EOS_SessionSearch_Release(Handle); return;
+        if (Tag) EOS_SessionSearch_Release(Tag); return;
     }
     Report("session_search", C->ResultCode);
     Room.Search.Sessions.clear();
-    for (auto H : SessionResultHandles) if (H) EOS_SessionDetails_Release(H);
-    SessionResultHandles.clear();
-    if (Handle)
+    for (auto H : SessionResultIdentifiers) if (H) EOS_SessionDetails_Release(H);
+    SessionResultIdentifiers.clear();
+    if (Tag)
     {
         EOS_SessionSearch_GetSearchResultCountOptions O{}; O.ApiVersion = EOS_SESSIONSEARCH_GETSEARCHRESULTCOUNT_API_LATEST;
-        const uint32_t N = EOS_SessionSearch_GetSearchResultCount(Handle, &O);
+        const uint32_t N = EOS_SessionSearch_GetSearchResultCount(Tag, &O);
         for (uint32_t I = 0; I < std::min<uint32_t>(N, 20); ++I)
         {
             EOS_SessionSearch_CopySearchResultByIndexOptions S{}; S.ApiVersion = EOS_SESSIONSEARCH_COPYSEARCHRESULTBYINDEX_API_LATEST; S.SessionIndex = I;
             EOS_HSessionDetails Details = nullptr;
-            if (EOS_SessionSearch_CopySearchResultByIndex(Handle, &S, &Details) != EOS_EResult::EOS_Success || !Details) continue;
+            if (EOS_SessionSearch_CopySearchResultByIndex(Tag, &S, &Details) != EOS_EResult::EOS_Success || !Details) continue;
             SessionSearchResult R; ParseSessionDetails(Details, R);
-            if (!R.SessionId.empty()) { Room.Search.Sessions.push_back(R); SessionResultHandles.push_back(Details); }
+            if (!R.SessionId.empty()) { Room.Search.Sessions.push_back(R); SessionResultIdentifiers.push_back(Details); }
             else EOS_SessionDetails_Release(Details);
         }
-        EOS_SessionSearch_Release(Handle);
+        EOS_SessionSearch_Release(Tag);
     }
     Room.Search.SessionStatus = Room.Search.Sessions.empty() ?
         "No sessions found. New sessions can take a few seconds to index." :
@@ -637,9 +637,9 @@ void EOS_CALL SessionSearchDone(const EOS_SessionSearch_FindCallbackInfo* C)
     }
     else JoinSessionTargetId.clear();
 }
-void EOS_CALL JoinedSession(const EOS_Sessions_JoinSessionCallbackInfo* C)
+void EOS_CALL JoinedSession(const EOS_Sessions_JoinSessionCallbackDetails* C)
 {
-    if (!Current(C->ClientData)) return;
+    if (!Current(C->ClientPayload)) return;
     JoinSessionPending = false; Operation = false;
     if (!Success("session_join", C->ResultCode))
     {
@@ -785,12 +785,12 @@ bool UpdateLobbyLiveSettings()
 bool RefreshLobbySearch(const LobbyTagFilter& Tags, const char* TextFilter)
 {
     if (!Lobby || !User || Room.Search.LobbyBusy) return false;
-    if (LobbySearchHandle) { EOS_LobbySearch_Release(LobbySearchHandle); LobbySearchHandle = nullptr; }
+    if (LobbySearchIdentifier) { EOS_LobbySearch_Release(LobbySearchIdentifier); LobbySearchIdentifier = nullptr; }
     Room.Search.LobbyFilter = TextFilter ? TextFilter : "";
     Room.Search.ActiveTags = Tags; // owns tag strings for the async Find below
     Room.Search.Lobbies.clear();
     EOS_Lobby_CreateLobbySearchOptions O{}; O.ApiVersion = EOS_LOBBY_CREATELOBBYSEARCH_API_LATEST; O.MaxResults = 20;
-    if (EOS_Lobby_CreateLobbySearch(Lobby, &O, &LobbySearchHandle) != EOS_EResult::EOS_Success || !LobbySearchHandle)
+    if (EOS_Lobby_CreateLobbySearch(Lobby, &O, &LobbySearchIdentifier) != EOS_EResult::EOS_Success || !LobbySearchIdentifier)
     { Room.Search.LobbyStatus = "Could not create lobby search."; return false; }
     const std::pair<const char*, const std::string*> Params[] = {
         {"style", &Room.Search.ActiveTags.Style}, {"language", &Room.Search.ActiveTags.Language},
@@ -798,37 +798,37 @@ bool RefreshLobbySearch(const LobbyTagFilter& Tags, const char* TextFilter)
     for (const auto& [Key, Value] : Params)
     {
         if (Value->empty()) continue;
-        EOS_Lobby_AttributeData Data{};
-        Data.ApiVersion = EOS_LOBBY_ATTRIBUTEDATA_API_LATEST;
-        Data.Key = Key;
-        Data.ValueType = EOS_ELobbyAttributeType::EOS_AT_STRING;
-        Data.Value.AsUtf8 = Value->c_str();
+        EOS_Lobby_AttributePayload Packet{};
+        Packet.ApiVersion = EOS_LOBBY_ATTRIBUTEDATA_API_LATEST;
+        Packet.Key = Key;
+        Packet.ValueType = EOS_ELobbyAttributeType::EOS_AT_STRING;
+        Packet.Value.AsUtf8 = Value->c_str();
         EOS_LobbySearch_SetParameterOptions P{};
         P.ApiVersion = EOS_LOBBYSEARCH_SETPARAMETER_API_LATEST;
-        P.Parameter = &Data;
+        P.Parameter = &Packet;
         P.ComparisonOp = EOS_EComparisonOp::EOS_CO_EQUAL;
-        const EOS_EResult ParamResult = EOS_LobbySearch_SetParameter(LobbySearchHandle, &P);
+        const EOS_EResult ParamResult = EOS_LobbySearch_SetParameter(LobbySearchIdentifier, &P);
         if (ParamResult != EOS_EResult::EOS_Success)
             Report("lobby_search_param", ParamResult);
     }
     Room.Search.LobbyBusy = true; Room.Search.LobbyStatus = "Searching lobbies...";
     EOS_LobbySearch_FindOptions F{}; F.ApiVersion = EOS_LOBBYSEARCH_FIND_API_LATEST; F.LocalUserId = User;
-    EOS_LobbySearch_Find(LobbySearchHandle, &F, Cookie(), LobbySearchDone); return true;
+    EOS_LobbySearch_Find(LobbySearchIdentifier, &F, Cookie(), LobbySearchDone); return true;
 }
 bool RefreshSessionSearch(const char* Filter)
 {
     if (!Sessions || !User || Room.Search.SessionBusy) return false;
-    if (SessionSearchHandle) { EOS_SessionSearch_Release(SessionSearchHandle); SessionSearchHandle = nullptr; }
+    if (SessionSearchIdentifier) { EOS_SessionSearch_Release(SessionSearchIdentifier); SessionSearchIdentifier = nullptr; }
     Room.Search.SessionFilter = Filter ? Filter : "";
     Room.Search.Sessions.clear();
-    for (auto H : SessionResultHandles) if (H) EOS_SessionDetails_Release(H);
-    SessionResultHandles.clear();
+    for (auto H : SessionResultIdentifiers) if (H) EOS_SessionDetails_Release(H);
+    SessionResultIdentifiers.clear();
     EOS_Sessions_CreateSessionSearchOptions O{}; O.ApiVersion = EOS_SESSIONS_CREATESESSIONSEARCH_API_LATEST; O.MaxSearchResults = 20;
-    if (EOS_Sessions_CreateSessionSearch(Sessions, &O, &SessionSearchHandle) != EOS_EResult::EOS_Success || !SessionSearchHandle)
+    if (EOS_Sessions_CreateSessionSearch(Sessions, &O, &SessionSearchIdentifier) != EOS_EResult::EOS_Success || !SessionSearchIdentifier)
     { Room.Search.SessionStatus = "Could not create session search."; return false; }
     Room.Search.SessionBusy = true; Room.Search.SessionStatus = "Searching sessions...";
     EOS_SessionSearch_FindOptions F{}; F.ApiVersion = EOS_SESSIONSEARCH_FIND_API_LATEST; F.LocalUserId = User;
-    EOS_SessionSearch_Find(SessionSearchHandle, &F, Cookie(), SessionSearchDone); return true;
+    EOS_SessionSearch_Find(SessionSearchIdentifier, &F, Cookie(), SessionSearchDone); return true;
 }
 bool JoinLobbyResult(size_t Index)
 {
@@ -837,12 +837,12 @@ bool JoinLobbyResult(size_t Index)
 }
 bool JoinSessionResult(size_t Index)
 {
-    if (!Sessions || !User || Index >= Room.Search.Sessions.size() || Index >= SessionResultHandles.size()) return false;
+    if (!Sessions || !User || Index >= Room.Search.Sessions.size() || Index >= SessionResultIdentifiers.size()) return false;
     if (SessionExists || Operation || JoinSessionPending) return false;
-    auto Handle = SessionResultHandles[Index];
-    if (!Handle) return false;
+    auto Tag = SessionResultIdentifiers[Index];
+    if (!Tag) return false;
     EOS_Sessions_JoinSessionOptions O{}; O.ApiVersion = EOS_SESSIONS_JOINSESSION_API_LATEST;
-    O.SessionName = SessionNameC(); O.SessionHandle = Handle; O.LocalUserId = User;
+    O.SessionName = SessionNameC(); O.SessionIdentifier = Tag; O.LocalUserId = User;
     O.bPresenceEnabled = Room.SessionSettings.PresenceEnabled ? EOS_TRUE : EOS_FALSE;
     Room.SessionId = Room.Search.Sessions[Index].SessionId;
     JoinSessionPending = true; Operation = true; SyncSessionFlags();
@@ -853,17 +853,17 @@ bool JoinMatchSession()
 {
     if (!Sessions || !User || SessionExists || Operation || JoinSessionPending || Room.SessionId.empty()) return false;
     // Find the host session by its backend session ID, then join it.
-    if (SessionSearchHandle) { EOS_SessionSearch_Release(SessionSearchHandle); SessionSearchHandle = nullptr; }
+    if (SessionSearchIdentifier) { EOS_SessionSearch_Release(SessionSearchIdentifier); SessionSearchIdentifier = nullptr; }
     EOS_Sessions_CreateSessionSearchOptions O{}; O.ApiVersion = EOS_SESSIONS_CREATESESSIONSEARCH_API_LATEST; O.MaxSearchResults = 4;
-    if (EOS_Sessions_CreateSessionSearch(Sessions, &O, &SessionSearchHandle) != EOS_EResult::EOS_Success || !SessionSearchHandle) return false;
+    if (EOS_Sessions_CreateSessionSearch(Sessions, &O, &SessionSearchIdentifier) != EOS_EResult::EOS_Success || !SessionSearchIdentifier) return false;
     EOS_SessionSearch_SetSessionIdOptions S{}; S.ApiVersion = EOS_SESSIONSEARCH_SETSESSIONID_API_LATEST; S.SessionId = Room.SessionId.c_str();
-    if (EOS_SessionSearch_SetSessionId(SessionSearchHandle, &S) != EOS_EResult::EOS_Success)
-    { EOS_SessionSearch_Release(SessionSearchHandle); SessionSearchHandle = nullptr; return false; }
+    if (EOS_SessionSearch_SetSessionId(SessionSearchIdentifier, &S) != EOS_EResult::EOS_Success)
+    { EOS_SessionSearch_Release(SessionSearchIdentifier); SessionSearchIdentifier = nullptr; return false; }
     JoinSessionTargetId = Room.SessionId;
     Room.Search.SessionBusy = true;
     Room.SessionStatus = "Finding host match session..."; SyncSessionFlags();
     EOS_SessionSearch_FindOptions F{}; F.ApiVersion = EOS_SESSIONSEARCH_FIND_API_LATEST; F.LocalUserId = User;
-    EOS_SessionSearch_Find(SessionSearchHandle, &F, Cookie(), SessionSearchDone); return true;
+    EOS_SessionSearch_Find(SessionSearchIdentifier, &F, Cookie(), SessionSearchDone); return true;
 }
 bool LeaveMatchSession()
 {
@@ -929,7 +929,7 @@ void DetachRoomRuntime()
         if (RoomConnection != EOS_INVALID_NOTIFICATIONID) EOS_Lobby_RemoveNotifyRTCRoomConnectionChanged(Lobby, RoomConnection);
     }
     MemberUpdate = MemberStatus = RoomConnection = EOS_INVALID_NOTIFICATIONID;
-    ReleaseSearchHandles();
+    ReleaseSearchIdentifiers();
     DetachHistory(); Room = {}; Lobby = nullptr; Sessions = nullptr; Audio = nullptr; User = nullptr; Log = nullptr;
     RealMembers.clear(); Registered.clear(); VoiceRoom.clear(); JoinAfterLeave.clear(); Name = "You";
     JoinSessionTargetId.clear();

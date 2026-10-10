@@ -191,7 +191,7 @@ EditorProperty& OpenProp(EditorPropertyGroup& Group, const char* Label,
 
 // The flat triangles are engine-space (Finalise converts them); the instance worlds carry the file-to-engine
 //    swap on top of the node transform, so applying a world to a flat triangle converts TWICE. What the sheet
-//    wants is the MOTION since the bake: Delta = Live · Baked⁻¹, identity for untouched rows. All our matrices
+//    wants is the MOTION since the precompute: Delta = Live · Precomputed⁻¹, identity for untouched rows. All our matrices
 //    are rigid, so the inverse is a transpose, exact to float dust.
 void InvertRigid(const float* M, float Inv[16]) noexcept
 {
@@ -217,11 +217,11 @@ void MultiplyMatrix(const float* A, const float* B, float C[16]) noexcept
 const float* EffectiveWorld(uint32_t Instance, const SceneStructure& Level,
                             const std::vector<InstanceRecord>& Live) noexcept
 {
-    const auto& Baked = Level.QueryInstances();
-    if (Instance < Baked.size() && Instance < Live.size()
-        && std::memcmp(Live[Instance].World, Baked[Instance].World, sizeof(float) * 16u) != 0)
+    const auto& Precomputed = Level.QueryInstances();
+    if (Instance < Precomputed.size() && Instance < Live.size()
+        && std::memcmp(Live[Instance].World, Precomputed[Instance].World, sizeof(float) * 16u) != 0)
         return Live[Instance].World;
-    return Instance < Baked.size() ? Baked[Instance].World : nullptr;
+    return Instance < Precomputed.size() ? Precomputed[Instance].World : nullptr;
 }
 
 void MotionDelta(uint32_t Instance, const SceneStructure& Level,
@@ -229,13 +229,13 @@ void MotionDelta(uint32_t Instance, const SceneStructure& Level,
 {
     static constexpr float kIdentity[16] = { 1.0f, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f,
                                              0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f };
-    const auto& Baked = Level.QueryInstances();
+    const auto& Precomputed = Level.QueryInstances();
     std::memcpy(Delta, kIdentity, sizeof(float) * 16u);
-    if (Instance >= Baked.size() || Instance >= Live.size()
-        || std::memcmp(Live[Instance].World, Baked[Instance].World, sizeof(float) * 16u) == 0)
+    if (Instance >= Precomputed.size() || Instance >= Live.size()
+        || std::memcmp(Live[Instance].World, Precomputed[Instance].World, sizeof(float) * 16u) == 0)
         return;
     float Inv[16];
-    InvertRigid(Baked[Instance].World, Inv);
+    InvertRigid(Precomputed[Instance].World, Inv);
     MultiplyMatrix(Live[Instance].World, Inv, Delta);
 }
 
@@ -247,7 +247,7 @@ void TransformPoint(const float* M, const float P[3], float Out[3]) noexcept
 }
 
 // Area-weighted centroid and geometric normal of the placement's engine-space triangles, carried by the motion
-//    delta. Untouched rows average the bake, bit for bit; driven bodies show where they ARE. Empty placements
+//    delta. Untouched rows average the precompute, bit for bit; driven bodies show where they ARE. Empty placements
 //    (no instances, no triangles) fall back to the placement's own translation.
 void MeasurePlacement(const PlacementRecord& P, const SceneStructure& Level,
                       const std::vector<InstanceRecord>& Live, float Centroid[3], float Normal[3]) noexcept
@@ -262,15 +262,15 @@ void MeasurePlacement(const PlacementRecord& P, const SceneStructure& Level,
     for (uint32_t I = 0u; I < P.InstanceCount; ++I)
     {
         const uint32_t      Ordinal = P.FirstInstance + I;
-        const InstanceRecord& Baked = Instances[Ordinal];
-        if (Baked.FlatTriangleOffset >= Flat.size()
-            || Baked.TriangleCount > Flat.size() - Baked.FlatTriangleOffset)
+        const InstanceRecord& Precomputed = Instances[Ordinal];
+        if (Precomputed.FlatTriangleOffset >= Flat.size()
+            || Precomputed.TriangleCount > Flat.size() - Precomputed.FlatTriangleOffset)
             continue;
         float M[16];
         MotionDelta(Ordinal, Level, Live, M);
-        for (uint32_t T = 0u; T < Baked.TriangleCount; ++T)
+        for (uint32_t T = 0u; T < Precomputed.TriangleCount; ++T)
         {
-            const TriangleIndex& Tri = Flat[Baked.FlatTriangleOffset + T];
+            const TriangleIndex& Tri = Flat[Precomputed.FlatTriangleOffset + T];
             const float A[3] = { Tri.VertexAlphaX, Tri.VertexAlphaY, Tri.VertexAlphaZ };
             const float B[3] = { Tri.VertexBetaX, Tri.VertexBetaY, Tri.VertexBetaZ };
             const float C[3] = { Tri.VertexGammaX, Tri.VertexGammaY, Tri.VertexGammaZ };
@@ -365,10 +365,10 @@ uint32_t EditorFeedSequence::FillRoster(EditorInstance* Instances, const SceneSt
             {
                 Row.Category = EditorInstanceCategory::Geometry;
                 OutlinerMetadata(RowPanel::Geometry, Reading, Row.Meta, sizeof(Row.Meta));
-                // A constructed base mesh names itself through its artwork, exactly as Editor.jsx seats
-                //    the five it opens with. Imports keep the generic mesh glyph.
-                if (P.BaseMesh != kNoBaseMesh)
-                    Row.Artwork = ConstructArtwork(static_cast<ConstructKind>(P.BaseMesh));
+                // A constructed base topology names itself through its artwork, exactly as Editor.jsx seats
+                //    the five it opens with. Imports keep the generic topology glyph.
+                if (P.BaseGeometry != kNoBaseGeometry)
+                    Row.Artwork = ConstructArtwork(static_cast<ConstructKind>(P.BaseGeometry));
                 const uint32_t First = P.FirstInstance < LevelInstances.size() ? P.FirstInstance : 0u;
                 const uint32_t Slot = (P.InstanceCount > 0u && First < LevelInstances.size())
                     ? LevelInstances[First].MaterialIndex : 0xFFFFFFFFu;

@@ -94,7 +94,7 @@ void WaveCodec::EncodeBytes(const WaveClip& Clip, WaveEncodingCategory Encoding,
         Put32 (Bytes, uint32_t(Frames));
     }
 
-    PutTag(Bytes, "data");
+    PutTag(Bytes, "record");
     Put32 (Bytes, PayloadBytes);
 
     DitherGenerator Dither;
@@ -158,7 +158,7 @@ bool WaveCodec::DecodeBytes(const uint8_t* Bytes, size_t ByteCount, WaveClip& Cl
     if (ByteCount < 12u || !TagIs(Bytes, "RIFF") || !TagIs(Bytes + 8, "WAVE")) return Fail(Error, "WaveCodec::Decode: not a RIFF/WAVE stream");
 
     uint32_t FormatTag = 0u, Channels = 0u, SampleRate = 0u, BitsPer = 0u, FrameBytes = 0u;
-    const uint8_t* Data = nullptr;
+    const uint8_t* Packet = nullptr;
     uint32_t       PayloadBytes = 0u;
 
     size_t Cursor = 12u;
@@ -184,16 +184,16 @@ bool WaveCodec::DecodeBytes(const uint8_t* Bytes, size_t ByteCount, WaveClip& Cl
                 FormatTag = Get16(Body + 24);   // first two bytes of the sub-format GUID carry the real tag
             }
         }
-        else if (TagIs(Chunk, "data"))
+        else if (TagIs(Chunk, "record"))
         {
-            Data      = Body;
+            Packet      = Body;
             PayloadBytes = Used;
         }
         Cursor += 8u + size_t(Size) + (Size & 1u);
     }
 
     if (!Channels || !SampleRate)            return Fail(Error, "WaveCodec::Decode: fmt chunk missing");
-    if (!Data)                                return Fail(Error, "WaveCodec::Decode: data chunk missing");
+    if (!Packet)                                return Fail(Error, "WaveCodec::Decode: record chunk missing");
     const uint32_t BytesPer = BitsPer / 8u;
     if (!BytesPer || FrameBytes != BytesPer * Channels) return Fail(Error, "WaveCodec::Decode: inconsistent block alignment");
 
@@ -208,7 +208,7 @@ bool WaveCodec::DecodeBytes(const uint8_t* Bytes, size_t ByteCount, WaveClip& Cl
     Clip.ChannelCount = Channels;
     Clip.Samples.resize(size_t(Frames) * Channels);
 
-    const uint8_t* P = Data;
+    const uint8_t* P = Packet;
     for (size_t I = 0, N = Clip.Samples.size(); I < N; ++I, P += BytesPer)
     {
         float S;

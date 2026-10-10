@@ -64,7 +64,7 @@ namespace Frontier
     // TYPE is mandatory in every file; META is mandatory in every file; the rest are the family's vocabulary.
     inline constexpr SpaceTag kTagType  = SpaceTag("TYPE");   // what this file IS: a four-byte type tag + a revision
     inline constexpr SpaceTag kTagMeta  = SpaceTag("META");   // name, exporter, revisions, build config, sources
-    inline constexpr SpaceTag kTagMesh  = SpaceTag("MESH");   // VertexRecord[] + u32 indices
+    inline constexpr SpaceTag kTagGeometry  = SpaceTag("MESH");   // VertexRecord[] + u32 indices
     inline constexpr SpaceTag kTagClst  = SpaceTag("CLST");   // frozen 48-byte ClusterRecord prefix[]; runtime patch tail is NOT serialized here
     inline constexpr SpaceTag kTagUvsp  = SpaceTag("UVSP");   // UV islands: ranges, seams, texel density
     inline constexpr SpaceTag kTagMatl  = SpaceTag("MATL");   // MaterialRecord + MaterialSlabRecord[]
@@ -73,7 +73,7 @@ namespace Frontier
     inline constexpr SpaceTag kTagScen  = SpaceTag("SCEN");   // level rows + placement rows
     inline constexpr SpaceTag kTagCama  = SpaceTag("CAMA");   // SpaceCameraRow[]
     inline constexpr SpaceTag kTagLite  = SpaceTag("LITE");   // LuminaireRecord[]
-    inline constexpr SpaceTag kTagEnvr  = SpaceTag("ENVR");   // world staging + terrain + the baked sky probe
+    inline constexpr SpaceTag kTagEnvr  = SpaceTag("ENVR");   // world staging + terrain + the precomputed sky probe
     inline constexpr SpaceTag kTagMslT  = SpaceTag("MSLT");   // MaterialSlot[] — one per instance row
     inline constexpr SpaceTag kTagFlow  = SpaceTag("FLOW");   // workflow steps
     inline constexpr SpaceTag kTagStat  = SpaceTag("STAT");   // the state family's one payload {domain, revision, …}
@@ -95,7 +95,7 @@ namespace Frontier
     inline constexpr SpaceFileType kSpaceFileTypes[] = {
         { SpaceTag("PROJ"), kTagScen, ".projectspace", "Project Space" },
         { SpaceTag("SOLN"), kTagMeta, ".solution",     "Solution" },
-        { SpaceTag("GEOM"), kTagMesh, ".geometry",     "Geometry" },
+        { SpaceTag("GEOM"), kTagGeometry, ".geometry",     "Geometry" },
         { SpaceTag("UVSP"), kTagUvsp, ".uvspace",      "UV Space" },
         { SpaceTag("MATL"), kTagMatl, ".material",     "Material" },
         { SpaceTag("PIGM"), kTagPigm, ".pigment",      "Pigment" },
@@ -114,8 +114,8 @@ namespace Frontier
 
     // ── the hashes. FNV-1a: 32 for a table checksum (the plan's choice — it is what sfnt's record carries), 64 for a ──
     //    content address (dedup, identity, and "same object twice" for free).
-    [[nodiscard]] uint32_t SpaceHash32(const void* Data, size_t Bytes) noexcept;
-    [[nodiscard]] uint64_t SpaceHash64(const void* Data, size_t Bytes) noexcept;
+    [[nodiscard]] uint32_t SpaceHash32(const void* Packet, size_t Bytes) noexcept;
+    [[nodiscard]] uint64_t SpaceHash64(const void* Packet, size_t Bytes) noexcept;
 
     // ── the header, and the record the directory is made of ──────────────────────────────────────────────────────────
 #pragma pack(push, 4)
@@ -345,7 +345,7 @@ namespace Frontier
         uint32_t Resolution[2];               // [px]
         uint32_t LayerCount;
         uint32_t FirstLayer;                  // into the layer rows that follow
-        uint32_t BakedTexture;                // TEXR row this channel bakes into, 0xFFFFFFFF = not baked
+        uint32_t PrecomputedTexture;                // TEXR row this channel precomputes into, 0xFFFFFFFF = not precomputed
     };
     static_assert(sizeof(SpacePigmentRow) == 36u, "pigment channel rows are a name, a resolution, a layer range and a bake target");
 
@@ -368,7 +368,7 @@ namespace Frontier
         float    MoonPhase;                   // [0..1]
         uint32_t TerrainRef;                  // REFS row of the heightfield's geometry, 0xFFFFFFFF = none
         uint32_t TerrainBlob;                 // BLOB index of the heightfield payload
-        uint32_t SkyProbeBlob;                // BLOB index of the baked probe, 0xFFFFFFFF = not baked
+        uint32_t SkyProbeBlob;                // BLOB index of the precomputed probe, 0xFFFFFFFF = not precomputed
         uint32_t SkyProbeLevels;              // mip levels in the probe
         uint32_t Flags;
         uint32_t Reserved;
@@ -377,7 +377,7 @@ namespace Frontier
 
     struct SpaceFlowStepRow
     {
-        uint32_t Kind;                        // 0 import · 1 bake · 2 validate · 3 package · 4 custom
+        uint32_t Kind;                        // 0 import · 1 precompute · 2 validate · 3 package · 4 custom
         uint32_t ScriptRef;                   // REFS row of the step's .script, 0xFFFFFFFF = none
         uint32_t InputBlob, OutputBlob;       // BLOB indices, 0xFFFFFFFF = none
         uint32_t NameOffset;                  // into the table's string block

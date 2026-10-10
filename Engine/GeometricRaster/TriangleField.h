@@ -1,11 +1,11 @@
 //============================================================================================================================================
 //                                                    TRIANGLEFIELD.H
 //============================================================================================================================================
-// 📦 Per-mesh signed distance fields baked at import time, plus the CPU mirror of how an instance samples one and how clipmap cells
-//    become dirty. Header-only so the bake tool, the engine and the CPU proof all run the same arithmetic.
+// 📦 Per-topology signed distance fields precomputed at import time, plus the CPU mirror of how an instance samples one and how clipmap cells
+//    become dirty. Header-only so the precompute tool, the engine and the CPU proof all run the same arithmetic.
 //
-// Runtime rule: nothing in this header is called per frame to build a field. The bake runs once per unique mesh, in the import
-// tool, and the result is cached on disk under a hash of its source and resolution. At runtime an instance samples its mesh field
+// Runtime rule: nothing in this header is called per frame to build a field. The precompute runs once per unique topology, in the import
+// tool, and the result is cached on disk under a hash of its source and resolution. At runtime an instance samples its topology field
 // through its inverse world matrix, so moving it changes its transform and never its field.
 //
 // Layout of a .fsdf file (little-endian):
@@ -103,12 +103,12 @@ inline void ClosestOnTriangle(const float P[3], const float A[3], const float B[
 }
 
 //------------------------------------------------------------------------------------------------------------------------
-//                                                        BAKE
+//                                                        PRECOMPUTE
 //------------------------------------------------------------------------------------------------------------------------
 // Exact signed distance at every grid node, brute force over triangles. Runs in the import tool only (cost is
 // Resolution^3 x triangles). Sign comes from the closest triangle's face normal, the same convention the device construct uses:
-// correct for closed, consistently wound meshes, and the sign can flip for points that sit exactly on an edge.
-// Number of bakes run in this process. The runtime loader never bakes, and the proof checks this counter stays put at runtime.
+// correct for closed, consistently wound geometries, and the sign can flip for points that sit exactly on an edge.
+// Number of precomputes run in this process. The runtime loader never precomputes, and the proof checks this counter stays put at runtime.
 inline uint64_t& ProjectCallCount() noexcept
 {
     static uint64_t Count = 0u;
@@ -355,7 +355,7 @@ inline bool MakeAffine(const float World[16], Affine& Out) noexcept
     return true;
 }
 
-// An instance samples its mesh field through the inverse transform. Nothing about the field changes when the instance moves.
+// An instance samples its topology field through the inverse transform. Nothing about the field changes when the instance moves.
 inline float SampleInstance(const Field& F, const Affine& A, const float WorldPoint[3]) noexcept
 {
     float Local[3];
@@ -452,9 +452,9 @@ inline uint64_t ExposedCellsOnShift(const ClipLevel& Previous, const ClipLevel& 
 }
 
 //------------------------------------------------------------------------------------------------------------------------
-//                                             IMPORT (BAKE) AND RUNTIME (LOAD ONLY)
+//                                             IMPORT (PRECOMPUTE) AND RUNTIME (LOAD ONLY)
 //------------------------------------------------------------------------------------------------------------------------
-// The import step bakes every .obj under a content root and writes sdf_index.tsv in the cache directory:
+// The import step precomputes every .obj under a content root and writes sdf_index.tsv in the cache directory:
 //     <relative source path> TAB <hash, 16 hex digits> TAB <cache file name> TAB <resolution>
 // The runtime step only reads that index. It recomputes the source hash and refuses any entry that does not match, so a stale
 // or missing field is reported, never silently rebuilt.
@@ -468,7 +468,7 @@ inline std::string HexHash(uint64_t Hash)
     return Text;
 }
 
-// Project one source file into CacheDir (cache hit skips the bake). Returns the entry hash through Out.
+// Project one source file into CacheDir (cache hit skips the precompute). Returns the entry hash through Out.
 inline bool ProjectSource(const std::string& SourcePath, const std::string& CacheDir, uint32_t Resolution, float Padding,
                        uint64_t& OutHash, std::string& OutFileName, bool& OutHit, std::string& Error)
 {
@@ -523,7 +523,7 @@ inline int ProjectDirectory(const std::string& Root, const std::string& CacheDir
 
 enum class RuntimeStatus { Loaded, NoIndexEntry, Stale, Missing };
 
-// Runtime step: load only. Never bakes. SourceRelative is the key written by ProjectDirectory.
+// Runtime step: load only. Never precomputes. SourceRelative is the key written by ProjectDirectory.
 inline RuntimeStatus RuntimeLoad(const std::string& CacheDir, const std::string& SourceRoot, const std::string& SourceRelative,
                                  uint32_t Resolution, float Padding, Field& Out, std::string& Reason)
 {

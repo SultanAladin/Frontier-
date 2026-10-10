@@ -6,8 +6,8 @@ class Capture : public std::streambuf {
     std::mutex mutex;
     std::condition_variable changed;
     std::string text;
-    std::streamsize xsputn(const char* data, std::streamsize count) override {
-        {std::lock_guard lock(mutex);text.append(data,static_cast<size_t>(count));}
+    std::streamsize xsputn(const char* record, std::streamsize count) override {
+        {std::lock_guard lock(mutex);text.append(record,static_cast<size_t>(count));}
         changed.notify_all();return count;
     }
     int_type overflow(int_type c) override {
@@ -35,7 +35,7 @@ int main(){
         assert(std::this_thread::get_id()==caller);
         assert(capture.WaitFor("WAIT"));return 0;
     },10ms)==0);
-    assert(Calls==1); // WAIT is an observer, not a pipeline retry loop
+    assert(Calls==1); // WAIT is an observer, not a chain retry loop
     assert(DriverProgress::Call("failure",[]{return -7;},10ms)==-7);
     bool caught=false;
     try{DriverProgress::Call("exception",[]()->int{throw std::runtime_error("test");},10ms);}

@@ -86,10 +86,10 @@ struct ShadingRecord
 {
 #ifdef FRONTIER_AUTOMOTIVE_SHOWCASE
 #ifdef __cplusplus
-    vec4 AutomotiveData = vec4(0.0f); // profile, sweep, UV metres
+    vec4 AutomotivePayload = vec4(0.0f); // profile, sweep, UV metres
     float AutomotiveDensity = 0.0f, AutomotiveFootprint = 0.0f;
 #else
-    vec4 AutomotiveData;
+    vec4 AutomotivePayload;
     float AutomotiveDensity, AutomotiveFootprint;
 #endif
 #endif
@@ -901,7 +901,7 @@ vec3 EvaluateSubsurface(ShadingRecord m, ResolvedLayers L, vec3 wo, vec3 wi)
 vec3 EvaluateBsdf(FRONTIER_BSDF_INPUT(ShadingRecord) m, FRONTIER_BSDF_INPUT(ResolvedLayers) L, vec3 wo, vec3 wi)
 {
 #ifdef FRONTIER_AUTOMOTIVE_SHOWCASE
-    if(m.AutomotiveData.x >= 1.0 && m.AutomotiveData.x <= 5.0) return AutomotiveShowcaseEvaluate(m, wo, wi);
+    if(m.AutomotivePayload.x >= 1.0 && m.AutomotivePayload.x <= 5.0) return AutomotiveShowcaseEvaluate(m, wo, wi);
 #endif
     if (wo.z <= 0.0) return vec3(0.0);
     // M4: the below-horizon arm — lights behind the surface. M5: the SSS wrap joins it (same gate, same exit
@@ -968,7 +968,7 @@ vec3 SampleCosineBelow(vec2 u)
 float PdfBsdf(FRONTIER_BSDF_INPUT(ShadingRecord) m, FRONTIER_BSDF_INPUT(ResolvedLayers) L, vec3 wo, vec3 wi)
 {
 #ifdef FRONTIER_AUTOMOTIVE_SHOWCASE
-    if(m.AutomotiveData.x >= 1.0 && m.AutomotiveData.x <= 5.0) return AutomotiveShowcasePdf(m, wo, wi);
+    if(m.AutomotivePayload.x >= 1.0 && m.AutomotivePayload.x <= 5.0) return AutomotiveShowcasePdf(m, wo, wi);
 #endif
     if (wo.z <= 0.0) return 0.0;
     if (wi.z <= 0.0 && L.TransmitMix <= 0.0)   // below with no T arm: the dipole density, or nothing (opaque)
@@ -1016,7 +1016,7 @@ float PdfBsdf(FRONTIER_BSDF_INPUT(ShadingRecord) m, FRONTIER_BSDF_INPUT(Resolved
 vec4 SampleBsdf(FRONTIER_BSDF_INPUT(ShadingRecord) m, FRONTIER_BSDF_INPUT(ResolvedLayers) L, vec3 wo, vec4 u)
 {
 #ifdef FRONTIER_AUTOMOTIVE_SHOWCASE
-    if(m.AutomotiveData.x >= 1.0 && m.AutomotiveData.x <= 5.0) return AutomotiveShowcaseSample(m, wo, u);
+    if(m.AutomotivePayload.x >= 1.0 && m.AutomotivePayload.x <= 5.0) return AutomotiveShowcaseSample(m, wo, u);
 #endif
     vec3 wi;
     bool transmitted = false;

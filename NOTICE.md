@@ -10,7 +10,7 @@ This repository consolidates the existing Frontier workspace with native sources
 
 No project-wide licence was present in the imported Frontier snapshot. This consolidation **does not invent a licence grant or assert that unlicensed upstream material is unrestricted**. The repository owner must determine the applicable permissions/licence before redistributing or relicensing it. Existing attribution and individual notices have been retained.
 
-Third-party code is fetched from the public repositories/revisions listed in `ExternalPackages/Dependencies.lock.json`, not represented as original Frontier work. Each downloaded archive retains its licence files. Font licences are retained alongside the fonts in `EngineContent/FontArchives` and `EngineContent/Fonts`. Existing inspector/Lucide notices remain adjacent to their native implementations. Runtime celestial texture/star-data provenance is inherited from the upstream content and associated docs; no new ownership claim is made.
+Third-party code is fetched from the public repositories/revisions listed in `ExternalPackages/Dependencies.lock.json`, not represented as original Frontier work. Each downloaded archive retains its licence files. Font licences are retained alongside the fonts in `EngineContent/FontArchives` and `EngineContent/Fonts`. Existing inspector/Lucide notices remain adjacent to their native implementations. Runtime celestial texture/star-record provenance is inherited from the upstream content and associated docs; no new ownership claim is made.
 
 Build outputs, local scenes, credentials, downloaded dependency trees and large historical screenshot bundles are not part of the source consolidation.
 

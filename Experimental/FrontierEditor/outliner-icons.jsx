@@ -11,7 +11,7 @@ import precipitation from './ui-icons/outliner-precipitation.svg?url';
 import forest from './custom-icons/forest.svg?url';
 import terrain from './custom-icons/terrain.svg?url';
 import liquid from './custom-icons/fluid-glass.svg?url';
-import mesh from './custom-icons/editor-mesh.svg?url';
+import topology from './custom-icons/editor-topology.svg?url';
 import material from './custom-icons/editor-material.svg?url';
 import camera from './custom-icons/camera.svg?url';
 import flare from './custom-icons/lens-flare.svg?url';
@@ -26,10 +26,10 @@ import modelFolder from './custom-icons/asset-folder-models.svg?raw';
 import materialFolder from './custom-icons/asset-folder-materials.svg?raw';
 
 // Compact UI variants keep the folder artwork, but never show illustrative names,
-// sizes or item counts from the standalone gallery as if they were live data.
-const compactFolder=svg=>'data:image/svg+xml;charset=utf-8,'+encodeURIComponent(svg.replace(/<text\b[^>]*>[\s\S]*?<\/text>/g,'').replace(/<title\b[^>]*>[\s\S]*?<\/title>/g,'').replace(/\saria-labelledby="[^"]*"/g,''));
+// sizes or item counts from the standalone gallery as if they were live record.
+const compactFolder=svg=>'record:image/svg+xml;charset=utf-8,'+encodeURIComponent(svg.replace(/<text\b[^>]*>[\s\S]*?<\/text>/g,'').replace(/<title\b[^>]*>[\s\S]*?<\/title>/g,'').replace(/\saria-labelledby="[^"]*"/g,''));
 const folders={Environment:environmentFolder,'Water bodies':waterFolder,Scene:compactFolder(sceneFolder),World:compactFolder(modelFolder),Materials:compactFolder(materialFolder)};
-const assets={'local-cloud':localCloud,'local-fog':localFog,sun,moon,stars,sky,cloud:clouds,air:wind,forest,terrain,liquid,cube:mesh,material,camera,flare,rainbow,collection,project:earth};
+const assets={'local-cloud':localCloud,'local-fog':localFog,sun,moon,stars,sky,cloud:clouds,air:wind,forest,terrain,liquid,cube:topology,material,camera,flare,rainbow,collection,project:earth};
 export function outlinerIconSource(object,values={}){
  const kind=object.base||object.id;
  if(kind==='folder'){
@@ -45,5 +45,5 @@ export default function OutlinerIcon({object,values={},size=30}){
  // Retain specific primitive/species/water symbols where no matching gallery
  // artwork exists instead of labelling every shape with the same cube or tree.
  if(!src||failed===src)return Fallback?<Fallback className="outliner-icon-fallback" size={size} style={{...style,color:object.color}} aria-hidden="true"/>:null;
- return <img className="outliner-asset-icon" src={src} alt="" aria-hidden="true" draggable={false} width={size} height={size} style={style} onError={()=>setFailed(src)} data-icon-kind={object.base||object.id}/>;
+ return <img className="outliner-asset-icon" src={src} alt="" aria-hidden="true" draggable={false} width={size} height={size} style={style} onError={()=>setFailed(src)} record-icon-kind={object.base||object.id}/>;
 }

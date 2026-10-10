@@ -69,10 +69,10 @@ constexpr float SpecRound  = 14.0f;   // [px] .mp-spec > div border-radius
 constexpr float SpecKey    =  8.5f;   // [px] .mp-spec .k font-size
 constexpr float SpecValue  = 13.0f;   // [px] .mp-spec b font-size
 
-// ImGui bakes a face so that ascent - descent equals the requested size; CSS sizes the em box instead. For
+// ImGui precomputes a face so that ascent - descent equals the requested size; CSS sizes the em box instead. For
 //    DM Sans (hhea ascent 992, descent -310, gap 0 per 1000 em) the two differ by exactly 1.302, so a CSS
 //    pixel size is ground up by that factor before it is handed to ImGui. The same number is the font's
-//    `normal` line-height, which is why a baked line is also exactly one CSS line box tall.
+//    `normal` line-height, which is why a precomputed line is also exactly one CSS line box tall.
 constexpr float EmScale       = 1.302f;   // [-] (992 + 310) / 1000, DM Sans hhea
 constexpr float AscentShare   = 0.992f;   // [-] 992 / 1000, the baseline drop inside a line box
 // Canvas text is baseline-anchored; ImGui places the line box top.
@@ -115,14 +115,14 @@ inline float HeadHeight() { return Grind(HeadTitle) + HeadGap + Grind(HeadSub) +
 
 inline float TrackedWidth(ImFont* Face, float Size, const char* Body, float Extra)
 {
-    ImFontBaked* Baked = Face->GetFontBaked(Grind(Size));
+    ImFontBaked* Precomputed = Face->GetFontPrecomputed(Grind(Size));
     float Run = 0.0f;
     for (const char* Scan = Body; *Scan;)
     {
         unsigned Point = 0;
         const int Used = ImTextCharFromUtf8(&Point, Scan, nullptr);
         if (Used <= 0) break;
-        Run += Baked->GetCharAdvance(static_cast<ImWchar>(Point)) + Extra;
+        Run += Precomputed->GetCharAdvance(static_cast<ImWchar>(Point)) + Extra;
         Scan += Used;
     }
     return Run;
@@ -139,8 +139,8 @@ inline float Tracked(ImDrawList* Draw, ImFont* Face, float X, float Y, float Siz
         const int Used = ImTextCharFromUtf8(&Point, Scan, nullptr);
         if (Used <= 0) break;
         if (Paint) Draw->AddText(Face, Grind(Size), { Pen, Y }, Colour, Scan, Scan + Used);
-        ImFontBaked* Baked = Face->GetFontBaked(Grind(Size));
-        Pen += Baked->GetCharAdvance(static_cast<ImWchar>(Point)) + Extra;
+        ImFontBaked* Precomputed = Face->GetFontPrecomputed(Grind(Size));
+        Pen += Precomputed->GetCharAdvance(static_cast<ImWchar>(Point)) + Extra;
         Scan += Used;
     }
     return Pen - X;

@@ -22,7 +22,7 @@ Construct menu → same-origin POST /api/construct → native WorldHost
 ```
 
 Supported entries: Cube, Sphere, Cylinder, Cone, Plane, Torus, Area emitter,
-Camera, Empty entity. Meshes use metres and Z-up; area geometry faces downward
+Camera, Empty entity. Geometries use metres and Z-up; area geometry faces downward
 and emits 1,000 nits. Geometry has valid outward winding and no degenerate
 latitude-pole triangles. IDs are append-only placement indices, **not outliner
 row ordinals**. Names are made unique in the native scene.
@@ -30,8 +30,8 @@ row ordinals**. Names are made unique in the native scene.
 Rejected native requests produce no outliner entry. A failed durable write
 reconstructs the native world from the previous successful journal. Browser
 reload and worker restart retain placements and identities. The journal is
-`.frontier/construct-world.json`; it is local authoring data, intentionally not
-committed. Existing browser-only project data is left intact and is not silently
+`.frontier/construct-world.json`; it is local authoring record, intentionally not
+committed. Existing browser-only project record is left intact and is not silently
 claimed to have been imported into the native scene.
 
 ## Scope / important unfinished integration

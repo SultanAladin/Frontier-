@@ -257,7 +257,7 @@ export function GasInspector({
       </div>
 
       {/* ① The transform, first, because this is a 3D entity before it is an effect. Bounds take the row
-          Scale occupies on a mesh: the domain's extent is its scale, in metres, and is not a child. */}
+          Scale occupies on a topology: the domain's extent is its scale, in metres, and is not a child. */}
       <TransformPanel Values={Values} Change={Change} Rows={GasTransformRows} Space="WORLD SPACE" />
       <div className="section-caption">
         ROTATION ORIENTS CHILDREN, NOT THE LATTICE — the solver cube is axis-aligned
@@ -369,7 +369,7 @@ export function GasInspector({
       <Card Title="Appearance">{F("Density", "Albedo", "Fire", "Exposure")}</Card>
 
       {/* ② Children. Emitters only — see the header of GasSpecification.js for why a collider is not here. */}
-      <section className="generic-card gas-children" data-card="Hierarchy">
+      <section className="generic-card gas-children" record-card="Hierarchy">
         <h4>HIERARCHY</h4>
         {Children.length === 0 ? (
           <p className="gas-note">
@@ -409,7 +409,7 @@ export function GasInspector({
       <button className="gas-open" onClick={Open} aria-label="Expand FluidEditor">
         <Glyph Name="ExpandDiagonal" Size={14} />
         Open FluidEditor
-        <small>all 85 settings · presets · flipbook bake</small>
+        <small>all 85 settings · presets · flipbook precompute</small>
       </button>
     </>
   );
@@ -443,7 +443,7 @@ export function GasEmitterInspector({ Values, Change, Parent, SelectParent, Open
 
       <Card Title="Emission">{F("Radius", "Emission Rate", "Smoke", "Temperature", "Fuel", "Rise Speed", "Swirl")}</Card>
 
-      <section className="generic-card gas-children" data-card="Domain">
+      <section className="generic-card gas-children" record-card="Domain">
         <h4>DOMAIN</h4>
         {Parent ? (
           <>
@@ -518,11 +518,11 @@ export default function GasEditor({ Subject, Values, Change, Domains, SelectDoma
   //    this editor keeps working when it is not being served.
   useEffect(() => {
     const Receive = (Event) => {
-      if (Event.data?.Frontier !== "gas-scene-changed" || !Event.data.Settings) return;
+      if (Event.record?.Frontier !== "gas-scene-changed" || !Event.record.Settings) return;
       // The page speaks the simulator's parameter names; the card stores the editor's labels. The sheet is
       //    the dictionary between them, and a setting the card does not expose simply has no label to
       //    land in — it stays in the full editor, which is where it was being adjusted.
-      const Arrived = Event.data.Settings;
+      const Arrived = Event.record.Settings;
       for (const Field of GasSheet)
         if (Arrived[Field.Key] !== undefined) Change(Field.Label, Arrived[Field.Key]);
       if (Arrived.boundsWidth !== undefined || Arrived.boundsHeight !== undefined)
@@ -611,7 +611,7 @@ export default function GasEditor({ Subject, Values, Change, Domains, SelectDoma
               <p>
                 It carries the preset rail and its four filters, the grouped inspector over all 85 settings,
                 the viewport with bounds box and lattice lines, the debug channel selector, and the flipbook
-                bake panel. The eleven settings on the card are a subset of that page, not a parallel copy.
+                precompute panel. The eleven settings on the card are a subset of that page, not a parallel copy.
               </p>
             </div>
           )}
@@ -662,8 +662,8 @@ export function ParticleEditor({ Subject, Values, Change, Rename, Close }) {
   //    GasEmitterToParticles cross; everything else on either side stays where it was authored.
   useEffect(() => {
     const Receive = (Event) => {
-      if (Event.data?.Frontier !== "particle-system-changed" || !Event.data.Settings) return;
-      const Arrived = EmitterValuesFromParticles(Event.data.Settings);
+      if (Event.record?.Frontier !== "particle-system-changed" || !Event.record.Settings) return;
+      const Arrived = EmitterValuesFromParticles(Event.record.Settings);
       for (const [Label, Reading] of Object.entries(Arrived)) Change(Label, Reading);
     };
     window.addEventListener("message", Receive);

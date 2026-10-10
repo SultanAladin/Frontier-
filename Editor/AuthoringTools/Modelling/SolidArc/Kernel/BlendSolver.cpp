@@ -4490,7 +4490,7 @@ namespace
         return Deliver<BrepBody>::Accept(std::move(Result));
     }
 
-    // A root edge of a prismatic handle can be reflex: its material angle is greater than π even though the two
+    // A root edge of a prismatic identifier can be reflex: its material angle is greater than π even though the two
     // adjacent face normals have the smaller supplementary angle.  Treating it as a convex corner and subtracting a
     // box cutter makes the cutter re-enter the head (the broken, pinched pictures this case originally produced).
     //
@@ -5343,7 +5343,7 @@ Deliver<BrepBody> BlendSolver::ChamferEdges(const BrepBody& Body, const std::vec
         return Result;
     }
 
-    // Convex planar solids get the exact half-space reconstruction first. It handles adjacent loops and arbitrary
+    // Convex planar solids get the exact half-space reconstruction first. It identifiers adjacent loops and arbitrary
     // dihedral angles without Boolean end-cap contacts; the volume guard rejects a numerically valid but over-cut result.
     if (Deliver<BrepBody> Exact = ConvexPlanarChamfer(Body, Frames, SetBack))
     {
@@ -7173,18 +7173,18 @@ Deliver<ConeApexChamferSpecification> BlendSolver::ClassifyConeApexChamferVertex
                                                               "selected vertex is not the unique native cone apex");
 
     int Rim = 0, Seam = 0;
-    for (const BrepEdge& EdgeData : Body.Edges)
+    for (const BrepEdge& EdgePayload : Body.Edges)
     {
-        if (EdgeData.Coedges.size() != 2)
+        if (EdgePayload.Coedges.size() != 2)
             return Deliver<ConeApexChamferSpecification>::Reject(RefusalReason::NonManifold,
                                                                   "native cone edge is not manifold");
-        if (EdgeData.Closed() && EdgeData.VertexStart == BaseVertex &&
-            EdgeData.Curve.Classification == CurveClassification::Circle && EdgeData.Curve.Degree == 2 &&
-            EdgeData.Curve.Rational()) ++Rim;
-        else if (!EdgeData.Closed() && EdgeData.Curve.Classification == CurveClassification::Line &&
-                 EdgeData.Curve.Degree == 1 &&
-                 ((EdgeData.VertexStart == BaseVertex && EdgeData.VertexEnd == Apex) ||
-                  (EdgeData.VertexStart == Apex && EdgeData.VertexEnd == BaseVertex))) ++Seam;
+        if (EdgePayload.Closed() && EdgePayload.VertexStart == BaseVertex &&
+            EdgePayload.Curve.Classification == CurveClassification::Circle && EdgePayload.Curve.Degree == 2 &&
+            EdgePayload.Curve.Rational()) ++Rim;
+        else if (!EdgePayload.Closed() && EdgePayload.Curve.Classification == CurveClassification::Line &&
+                 EdgePayload.Curve.Degree == 1 &&
+                 ((EdgePayload.VertexStart == BaseVertex && EdgePayload.VertexEnd == Apex) ||
+                  (EdgePayload.VertexStart == Apex && EdgePayload.VertexEnd == BaseVertex))) ++Seam;
         else return Deliver<ConeApexChamferSpecification>::Reject(RefusalReason::Unsupported,
                                                                     "native cone has unsupported edge geometry");
     }
@@ -7383,13 +7383,13 @@ Deliver<PartialConeApexChamferSpecification> BlendSolver::ClassifyPartialConeApe
     int RimEdge = -1;
     for (size_t I = 0; I < Body.Edges.size(); ++I)
     {
-        const BrepEdge& EdgeData = Body.Edges[I];
-        const bool JoinsRim = (EdgeData.VertexStart == RimA && EdgeData.VertexEnd == RimB) ||
-                              (EdgeData.VertexStart == RimB && EdgeData.VertexEnd == RimA);
-        if (!EdgeData.Closed() && JoinsRim &&
-            (EdgeData.Curve.Classification == CurveClassification::Arc ||
-             EdgeData.Curve.Classification == CurveClassification::Circle) &&
-            EdgeData.Curve.Degree == 2 && EdgeData.Curve.Rational())
+        const BrepEdge& EdgePayload = Body.Edges[I];
+        const bool JoinsRim = (EdgePayload.VertexStart == RimA && EdgePayload.VertexEnd == RimB) ||
+                              (EdgePayload.VertexStart == RimB && EdgePayload.VertexEnd == RimA);
+        if (!EdgePayload.Closed() && JoinsRim &&
+            (EdgePayload.Curve.Classification == CurveClassification::Arc ||
+             EdgePayload.Curve.Classification == CurveClassification::Circle) &&
+            EdgePayload.Curve.Degree == 2 && EdgePayload.Curve.Rational())
         {
             if (RimEdge >= 0)
                 return Deliver<PartialConeApexChamferSpecification>::Reject(RefusalReason::Unsupported,
@@ -7578,14 +7578,14 @@ Deliver<UnequalConeApexChamferSpecification> BlendSolver::ClassifyUnequalConeApe
                                                                           "source is not the exact native unequal bicone revolve set");
 
     std::vector<int> RimEdges, LineEdges;
-    for (const BrepEdge& EdgeData : Body.Edges)
+    for (const BrepEdge& EdgePayload : Body.Edges)
     {
-        if (EdgeData.Coedges.size() != 2) return Deliver<UnequalConeApexChamferSpecification>::Reject(
+        if (EdgePayload.Coedges.size() != 2) return Deliver<UnequalConeApexChamferSpecification>::Reject(
             RefusalReason::NonManifold, "unequal bicone edge is not manifold");
-        if (EdgeData.Closed() && EdgeData.Curve.Classification == CurveClassification::Circle &&
-            EdgeData.Curve.Degree == 2 && EdgeData.Curve.Rational()) RimEdges.push_back(static_cast<int>(&EdgeData - Body.Edges.data()));
-        else if (!EdgeData.Closed() && EdgeData.Curve.Classification == CurveClassification::Line &&
-                 EdgeData.Curve.Degree == 1) LineEdges.push_back(static_cast<int>(&EdgeData - Body.Edges.data()));
+        if (EdgePayload.Closed() && EdgePayload.Curve.Classification == CurveClassification::Circle &&
+            EdgePayload.Curve.Degree == 2 && EdgePayload.Curve.Rational()) RimEdges.push_back(static_cast<int>(&EdgePayload - Body.Edges.data()));
+        else if (!EdgePayload.Closed() && EdgePayload.Curve.Classification == CurveClassification::Line &&
+                 EdgePayload.Curve.Degree == 1) LineEdges.push_back(static_cast<int>(&EdgePayload - Body.Edges.data()));
         else return Deliver<UnequalConeApexChamferSpecification>::Reject(RefusalReason::Unsupported,
                                                                             "native unequal bicone has unsupported edge geometry");
     }
@@ -7601,9 +7601,9 @@ Deliver<UnequalConeApexChamferSpecification> BlendSolver::ClassifyUnequalConeApe
         bool ToA = false, ToB = false;
         for (int Edge : LineEdges)
         {
-            const BrepEdge& Data = Body.Edges[Edge];
-            const int Other = Data.VertexStart == Candidate ? Data.VertexEnd :
-                              (Data.VertexEnd == Candidate ? Data.VertexStart : -1);
+            const BrepEdge& Packet = Body.Edges[Edge];
+            const int Other = Packet.VertexStart == Candidate ? Packet.VertexEnd :
+                              (Packet.VertexEnd == Candidate ? Packet.VertexStart : -1);
             if (Other == RimVertexA) ToA = true;
             if (Other == RimVertexB) ToB = true;
         }
@@ -7638,8 +7638,8 @@ Deliver<UnequalConeApexChamferSpecification> BlendSolver::ClassifyUnequalConeApe
                     if (Edge >= 0 && Edge < static_cast<int>(Body.Edges.size()) &&
                         std::find(LineEdges.begin(), LineEdges.end(), Edge) != LineEdges.end())
                     {
-                        const BrepEdge& Data = Body.Edges[Edge];
-                        if (Data.VertexStart == Apex || Data.VertexEnd == Apex) UsesApexLine = true;
+                        const BrepEdge& Packet = Body.Edges[Edge];
+                        if (Packet.VertexStart == Apex || Packet.VertexEnd == Apex) UsesApexLine = true;
                     }
                 }
             if (!UsesRim) continue;
@@ -7816,14 +7816,14 @@ Deliver<EqualRadiusBiconeApexChamferSpecification> BlendSolver::ClassifyEqualRad
                                                                           "source is not the exact native equal bicone revolve set");
 
     std::vector<int> RimEdges, LineEdges;
-    for (const BrepEdge& EdgeData : Body.Edges)
+    for (const BrepEdge& EdgePayload : Body.Edges)
     {
-        if (EdgeData.Coedges.size() != 2) return Deliver<EqualRadiusBiconeApexChamferSpecification>::Reject(
+        if (EdgePayload.Coedges.size() != 2) return Deliver<EqualRadiusBiconeApexChamferSpecification>::Reject(
             RefusalReason::NonManifold, "equal bicone edge is not manifold");
-        if (EdgeData.Closed() && EdgeData.Curve.Classification == CurveClassification::Circle &&
-            EdgeData.Curve.Degree == 2 && EdgeData.Curve.Rational()) RimEdges.push_back(static_cast<int>(&EdgeData - Body.Edges.data()));
-        else if (!EdgeData.Closed() && EdgeData.Curve.Classification == CurveClassification::Line &&
-                 EdgeData.Curve.Degree == 1) LineEdges.push_back(static_cast<int>(&EdgeData - Body.Edges.data()));
+        if (EdgePayload.Closed() && EdgePayload.Curve.Classification == CurveClassification::Circle &&
+            EdgePayload.Curve.Degree == 2 && EdgePayload.Curve.Rational()) RimEdges.push_back(static_cast<int>(&EdgePayload - Body.Edges.data()));
+        else if (!EdgePayload.Closed() && EdgePayload.Curve.Classification == CurveClassification::Line &&
+                 EdgePayload.Curve.Degree == 1) LineEdges.push_back(static_cast<int>(&EdgePayload - Body.Edges.data()));
         else return Deliver<EqualRadiusBiconeApexChamferSpecification>::Reject(RefusalReason::Unsupported,
                                                                             "native equal bicone has unsupported edge geometry");
     }
@@ -7839,9 +7839,9 @@ Deliver<EqualRadiusBiconeApexChamferSpecification> BlendSolver::ClassifyEqualRad
         bool ToA = false, ToB = false;
         for (int Edge : LineEdges)
         {
-            const BrepEdge& Data = Body.Edges[Edge];
-            const int Other = Data.VertexStart == Candidate ? Data.VertexEnd :
-                              (Data.VertexEnd == Candidate ? Data.VertexStart : -1);
+            const BrepEdge& Packet = Body.Edges[Edge];
+            const int Other = Packet.VertexStart == Candidate ? Packet.VertexEnd :
+                              (Packet.VertexEnd == Candidate ? Packet.VertexStart : -1);
             if (Other == RimVertexA) ToA = true;
             if (Other == RimVertexB) ToB = true;
         }
@@ -7876,8 +7876,8 @@ Deliver<EqualRadiusBiconeApexChamferSpecification> BlendSolver::ClassifyEqualRad
                     if (Edge >= 0 && Edge < static_cast<int>(Body.Edges.size()) &&
                         std::find(LineEdges.begin(), LineEdges.end(), Edge) != LineEdges.end())
                     {
-                        const BrepEdge& Data = Body.Edges[Edge];
-                        if (Data.VertexStart == Apex || Data.VertexEnd == Apex) UsesApexLine = true;
+                        const BrepEdge& Packet = Body.Edges[Edge];
+                        if (Packet.VertexStart == Apex || Packet.VertexEnd == Apex) UsesApexLine = true;
                     }
                 }
             if (!UsesRim) continue;
@@ -8519,10 +8519,10 @@ Deliver<EqualRadiusBiconeApexFilletSpecification> BlendSolver::ClassifyEqualRadi
     std::vector<int> Rims, Lines;
     for (size_t I = 0; I < Body.Edges.size(); ++I)
     {
-        const BrepEdge& EdgeData = Body.Edges[I];
-        if (EdgeData.Coedges.size() != 2) return Deliver<EqualRadiusBiconeApexFilletSpecification>::Reject(RefusalReason::NonManifold, "equal bicone edge is not manifold");
-        if (EdgeData.Closed() && EdgeData.Curve.Classification == CurveClassification::Circle && EdgeData.Curve.Degree == 2 && EdgeData.Curve.Rational()) Rims.push_back(static_cast<int>(I));
-        else if (!EdgeData.Closed() && EdgeData.Curve.Classification == CurveClassification::Line && EdgeData.Curve.Degree == 1) Lines.push_back(static_cast<int>(I));
+        const BrepEdge& EdgePayload = Body.Edges[I];
+        if (EdgePayload.Coedges.size() != 2) return Deliver<EqualRadiusBiconeApexFilletSpecification>::Reject(RefusalReason::NonManifold, "equal bicone edge is not manifold");
+        if (EdgePayload.Closed() && EdgePayload.Curve.Classification == CurveClassification::Circle && EdgePayload.Curve.Degree == 2 && EdgePayload.Curve.Rational()) Rims.push_back(static_cast<int>(I));
+        else if (!EdgePayload.Closed() && EdgePayload.Curve.Classification == CurveClassification::Line && EdgePayload.Curve.Degree == 1) Lines.push_back(static_cast<int>(I));
         else return Deliver<EqualRadiusBiconeApexFilletSpecification>::Reject(RefusalReason::Unsupported, "equal bicone has unsupported edge geometry");
     }
     if (Rims.size() != 2 || Lines.size() != 4) return Deliver<EqualRadiusBiconeApexFilletSpecification>::Reject(RefusalReason::Unsupported, "equal bicone does not have two rims and four generators");
@@ -8534,8 +8534,8 @@ Deliver<EqualRadiusBiconeApexFilletSpecification> BlendSolver::ClassifyEqualRadi
         bool ToA = false, ToB = false;
         for (int Edge : Lines)
         {
-            const BrepEdge& Data = Body.Edges[Edge];
-            const int Other = Data.VertexStart == Candidate ? Data.VertexEnd : (Data.VertexEnd == Candidate ? Data.VertexStart : -1);
+            const BrepEdge& Packet = Body.Edges[Edge];
+            const int Other = Packet.VertexStart == Candidate ? Packet.VertexEnd : (Packet.VertexEnd == Candidate ? Packet.VertexStart : -1);
             ToA = ToA || Other == RimVertexA; ToB = ToB || Other == RimVertexB;
         }
         if (ToA && ToB) { if (Apex >= 0) return Deliver<EqualRadiusBiconeApexFilletSpecification>::Reject(RefusalReason::Unsupported, "equal bicone has multiple apex vertices"); Apex = Candidate; }
@@ -8695,10 +8695,10 @@ BlendSolver::ClassifyPartialUnequalConeApexChamferVertex(const BrepBody& Body, i
     std::vector<int> RimEdges, LineEdges;
     for (size_t I = 0; I < Body.Edges.size(); ++I)
     {
-        const BrepEdge& EdgeData = Body.Edges[I];
-        if (EdgeData.Coedges.size() != 2) return Deliver<PartialUnequalConeApexChamferSpecification>::Reject(RefusalReason::NonManifold, "partial unequal bicone edge is not manifold");
-        if (!EdgeData.Closed() && EdgeData.Curve.Classification == CurveClassification::Arc && EdgeData.Curve.Degree == 2 && EdgeData.Curve.Rational()) RimEdges.push_back(static_cast<int>(I));
-        else if (!EdgeData.Closed() && EdgeData.Curve.Classification == CurveClassification::Line && EdgeData.Curve.Degree == 1) LineEdges.push_back(static_cast<int>(I));
+        const BrepEdge& EdgePayload = Body.Edges[I];
+        if (EdgePayload.Coedges.size() != 2) return Deliver<PartialUnequalConeApexChamferSpecification>::Reject(RefusalReason::NonManifold, "partial unequal bicone edge is not manifold");
+        if (!EdgePayload.Closed() && EdgePayload.Curve.Classification == CurveClassification::Arc && EdgePayload.Curve.Degree == 2 && EdgePayload.Curve.Rational()) RimEdges.push_back(static_cast<int>(I));
+        else if (!EdgePayload.Closed() && EdgePayload.Curve.Classification == CurveClassification::Line && EdgePayload.Curve.Degree == 1) LineEdges.push_back(static_cast<int>(I));
         else return Deliver<PartialUnequalConeApexChamferSpecification>::Reject(RefusalReason::Unsupported, "partial unequal bicone has unsupported edge geometry");
     }
     if (RimEdges.size() != 2 || LineEdges.size() != 9)
@@ -8882,14 +8882,14 @@ BlendSolver::ClassifyPartialEqualRadiusBiconeApexChamferVertex(
     std::vector<int> RimEdges, LineEdges;
     for (size_t I = 0; I < Body.Edges.size(); ++I)
     {
-        const BrepEdge& EdgeData = Body.Edges[I];
-        if (EdgeData.Coedges.size() != 2)
+        const BrepEdge& EdgePayload = Body.Edges[I];
+        if (EdgePayload.Coedges.size() != 2)
             return Deliver<PartialEqualRadiusBiconeApexChamferSpecification>::Reject(
                 RefusalReason::NonManifold, "partial equal bicone edge is not manifold");
-        if (!EdgeData.Closed() && EdgeData.Curve.Classification == CurveClassification::Arc &&
-            EdgeData.Curve.Degree == 2 && EdgeData.Curve.Rational()) RimEdges.push_back(static_cast<int>(I));
-        else if (!EdgeData.Closed() && EdgeData.Curve.Classification == CurveClassification::Line &&
-                 EdgeData.Curve.Degree == 1) LineEdges.push_back(static_cast<int>(I));
+        if (!EdgePayload.Closed() && EdgePayload.Curve.Classification == CurveClassification::Arc &&
+            EdgePayload.Curve.Degree == 2 && EdgePayload.Curve.Rational()) RimEdges.push_back(static_cast<int>(I));
+        else if (!EdgePayload.Closed() && EdgePayload.Curve.Classification == CurveClassification::Line &&
+                 EdgePayload.Curve.Degree == 1) LineEdges.push_back(static_cast<int>(I));
         else return Deliver<PartialEqualRadiusBiconeApexChamferSpecification>::Reject(
             RefusalReason::Unsupported, "partial equal bicone has unsupported edge geometry");
     }
@@ -9114,14 +9114,14 @@ BlendSolver::ClassifyPartialUnequalBiconeUnequalSetbackChamferVertex(
     std::vector<int> RimEdges, LineEdges;
     for (size_t I = 0; I < Body.Edges.size(); ++I)
     {
-        const BrepEdge& EdgeData = Body.Edges[I];
-        if (EdgeData.Coedges.size() != 2)
+        const BrepEdge& EdgePayload = Body.Edges[I];
+        if (EdgePayload.Coedges.size() != 2)
             return Deliver<PartialUnequalBiconeUnequalSetbackChamferSpecification>::Reject(
                 RefusalReason::NonManifold, "partial unequal-setback edge is not manifold");
-        if (!EdgeData.Closed() && EdgeData.Curve.Classification == CurveClassification::Arc &&
-            EdgeData.Curve.Degree == 2 && EdgeData.Curve.Rational()) RimEdges.push_back(static_cast<int>(I));
-        else if (!EdgeData.Closed() && EdgeData.Curve.Classification == CurveClassification::Line &&
-                 EdgeData.Curve.Degree == 1) LineEdges.push_back(static_cast<int>(I));
+        if (!EdgePayload.Closed() && EdgePayload.Curve.Classification == CurveClassification::Arc &&
+            EdgePayload.Curve.Degree == 2 && EdgePayload.Curve.Rational()) RimEdges.push_back(static_cast<int>(I));
+        else if (!EdgePayload.Closed() && EdgePayload.Curve.Classification == CurveClassification::Line &&
+                 EdgePayload.Curve.Degree == 1) LineEdges.push_back(static_cast<int>(I));
         else return Deliver<PartialUnequalBiconeUnequalSetbackChamferSpecification>::Reject(
             RefusalReason::Unsupported, "partial unequal-setback has unsupported edge geometry");
     }
@@ -9353,14 +9353,14 @@ BlendSolver::ClassifyHalfTurnEqualRadiusBiconeUnequalSetbackChamferVertex(
     std::vector<int> RimEdges, LineEdges;
     for (size_t I = 0; I < Body.Edges.size(); ++I)
     {
-        const BrepEdge& EdgeData = Body.Edges[I];
-        if (EdgeData.Coedges.size() != 2)
+        const BrepEdge& EdgePayload = Body.Edges[I];
+        if (EdgePayload.Coedges.size() != 2)
             return Deliver<HalfTurnEqualRadiusBiconeUnequalSetbackChamferSpecification>::Reject(
                 RefusalReason::NonManifold, "half-turn equal bicone edge is not manifold");
-        if (!EdgeData.Closed() && EdgeData.Curve.Classification == CurveClassification::Arc &&
-            EdgeData.Curve.Degree == 2 && EdgeData.Curve.Rational()) RimEdges.push_back(static_cast<int>(I));
-        else if (!EdgeData.Closed() && EdgeData.Curve.Classification == CurveClassification::Line &&
-                 EdgeData.Curve.Degree == 1) LineEdges.push_back(static_cast<int>(I));
+        if (!EdgePayload.Closed() && EdgePayload.Curve.Classification == CurveClassification::Arc &&
+            EdgePayload.Curve.Degree == 2 && EdgePayload.Curve.Rational()) RimEdges.push_back(static_cast<int>(I));
+        else if (!EdgePayload.Closed() && EdgePayload.Curve.Classification == CurveClassification::Line &&
+                 EdgePayload.Curve.Degree == 1) LineEdges.push_back(static_cast<int>(I));
         else return Deliver<HalfTurnEqualRadiusBiconeUnequalSetbackChamferSpecification>::Reject(
             RefusalReason::Unsupported, "half-turn equal bicone has unsupported edge geometry");
     }
@@ -9586,14 +9586,14 @@ BlendSolver::ClassifyHalfTurnUnequalRadiusBiconeUnequalSetbackChamferVertex(
     std::vector<int> RimEdges, LineEdges;
     for (size_t I = 0; I < Body.Edges.size(); ++I)
     {
-        const BrepEdge& EdgeData = Body.Edges[I];
-        if (EdgeData.Coedges.size() != 2)
+        const BrepEdge& EdgePayload = Body.Edges[I];
+        if (EdgePayload.Coedges.size() != 2)
             return Deliver<HalfTurnUnequalRadiusBiconeUnequalSetbackChamferSpecification>::Reject(
                 RefusalReason::NonManifold, "half-turn unequal-setback edge is not manifold");
-        if (!EdgeData.Closed() && EdgeData.Curve.Classification == CurveClassification::Arc &&
-            EdgeData.Curve.Degree == 2 && EdgeData.Curve.Rational()) RimEdges.push_back(static_cast<int>(I));
-        else if (!EdgeData.Closed() && EdgeData.Curve.Classification == CurveClassification::Line &&
-                 EdgeData.Curve.Degree == 1) LineEdges.push_back(static_cast<int>(I));
+        if (!EdgePayload.Closed() && EdgePayload.Curve.Classification == CurveClassification::Arc &&
+            EdgePayload.Curve.Degree == 2 && EdgePayload.Curve.Rational()) RimEdges.push_back(static_cast<int>(I));
+        else if (!EdgePayload.Closed() && EdgePayload.Curve.Classification == CurveClassification::Line &&
+                 EdgePayload.Curve.Degree == 1) LineEdges.push_back(static_cast<int>(I));
         else return Deliver<HalfTurnUnequalRadiusBiconeUnequalSetbackChamferSpecification>::Reject(
             RefusalReason::Unsupported, "half-turn unequal-setback has unsupported edge geometry");
     }
@@ -10142,14 +10142,14 @@ BlendSolver::ClassifyHalfTurnUnequalRadiusBiconeApexFilletVertex(const BrepBody&
     std::vector<int> RimEdges, LineEdges;
     for (size_t I = 0; I < Body.Edges.size(); ++I)
     {
-        const BrepEdge& EdgeData = Body.Edges[I];
-        if (EdgeData.Coedges.size() != 2)
+        const BrepEdge& EdgePayload = Body.Edges[I];
+        if (EdgePayload.Coedges.size() != 2)
             return Deliver<HalfTurnUnequalRadiusBiconeApexFilletSpecification>::Reject(
                 RefusalReason::NonManifold, "half-turn unequal bicone edge is not manifold");
-        if (!EdgeData.Closed() && EdgeData.Curve.Classification == CurveClassification::Arc &&
-            EdgeData.Curve.Degree == 2 && EdgeData.Curve.Rational()) RimEdges.push_back(static_cast<int>(I));
-        else if (!EdgeData.Closed() && EdgeData.Curve.Classification == CurveClassification::Line &&
-                 EdgeData.Curve.Degree == 1) LineEdges.push_back(static_cast<int>(I));
+        if (!EdgePayload.Closed() && EdgePayload.Curve.Classification == CurveClassification::Arc &&
+            EdgePayload.Curve.Degree == 2 && EdgePayload.Curve.Rational()) RimEdges.push_back(static_cast<int>(I));
+        else if (!EdgePayload.Closed() && EdgePayload.Curve.Classification == CurveClassification::Line &&
+                 EdgePayload.Curve.Degree == 1) LineEdges.push_back(static_cast<int>(I));
         else return Deliver<HalfTurnUnequalRadiusBiconeApexFilletSpecification>::Reject(
             RefusalReason::Unsupported, "half-turn unequal bicone has unsupported edge geometry");
     }
@@ -10352,10 +10352,10 @@ BlendSolver::ClassifyHalfTurnUnequalRadiusBiconeApexChamferVertex(const BrepBody
     std::vector<int> RimEdges, LineEdges;
     for (size_t I = 0; I < Body.Edges.size(); ++I)
     {
-        const BrepEdge& EdgeData = Body.Edges[I];
-        if (EdgeData.Coedges.size() != 2) return Deliver<HalfTurnUnequalRadiusBiconeApexChamferSpecification>::Reject(RefusalReason::NonManifold, "half-turn unequal bicone edge is not manifold");
-        if (!EdgeData.Closed() && EdgeData.Curve.Classification == CurveClassification::Arc && EdgeData.Curve.Degree == 2 && EdgeData.Curve.Rational()) RimEdges.push_back(static_cast<int>(I));
-        else if (!EdgeData.Closed() && EdgeData.Curve.Classification == CurveClassification::Line && EdgeData.Curve.Degree == 1) LineEdges.push_back(static_cast<int>(I));
+        const BrepEdge& EdgePayload = Body.Edges[I];
+        if (EdgePayload.Coedges.size() != 2) return Deliver<HalfTurnUnequalRadiusBiconeApexChamferSpecification>::Reject(RefusalReason::NonManifold, "half-turn unequal bicone edge is not manifold");
+        if (!EdgePayload.Closed() && EdgePayload.Curve.Classification == CurveClassification::Arc && EdgePayload.Curve.Degree == 2 && EdgePayload.Curve.Rational()) RimEdges.push_back(static_cast<int>(I));
+        else if (!EdgePayload.Closed() && EdgePayload.Curve.Classification == CurveClassification::Line && EdgePayload.Curve.Degree == 1) LineEdges.push_back(static_cast<int>(I));
         else return Deliver<HalfTurnUnequalRadiusBiconeApexChamferSpecification>::Reject(RefusalReason::Unsupported, "half-turn unequal bicone has unsupported edge geometry");
     }
     if (RimEdges.size() != 2 || LineEdges.size() != 9)
@@ -10537,10 +10537,10 @@ BlendSolver::ClassifyReflexUnequalRadiusBiconeApexChamferVertex(const BrepBody& 
     std::vector<int> RimEdges, LineEdges;
     for (size_t I = 0; I < Body.Edges.size(); ++I)
     {
-        const BrepEdge& EdgeData = Body.Edges[I];
-        if (EdgeData.Coedges.size() != 2) return Deliver<ReflexUnequalRadiusBiconeApexChamferSpecification>::Reject(RefusalReason::NonManifold, "reflex unequal bicone edge is not manifold");
-        if (!EdgeData.Closed() && EdgeData.Curve.Classification == CurveClassification::Arc && EdgeData.Curve.Degree == 2 && EdgeData.Curve.Rational()) RimEdges.push_back(static_cast<int>(I));
-        else if (!EdgeData.Closed() && EdgeData.Curve.Classification == CurveClassification::Line && EdgeData.Curve.Degree == 1) LineEdges.push_back(static_cast<int>(I));
+        const BrepEdge& EdgePayload = Body.Edges[I];
+        if (EdgePayload.Coedges.size() != 2) return Deliver<ReflexUnequalRadiusBiconeApexChamferSpecification>::Reject(RefusalReason::NonManifold, "reflex unequal bicone edge is not manifold");
+        if (!EdgePayload.Closed() && EdgePayload.Curve.Classification == CurveClassification::Arc && EdgePayload.Curve.Degree == 2 && EdgePayload.Curve.Rational()) RimEdges.push_back(static_cast<int>(I));
+        else if (!EdgePayload.Closed() && EdgePayload.Curve.Classification == CurveClassification::Line && EdgePayload.Curve.Degree == 1) LineEdges.push_back(static_cast<int>(I));
         else return Deliver<ReflexUnequalRadiusBiconeApexChamferSpecification>::Reject(RefusalReason::Unsupported, "reflex unequal bicone has unsupported edge geometry");
     }
     if (RimEdges.size() != 2 || LineEdges.size() != 9)
@@ -10731,14 +10731,14 @@ BlendSolver::ClassifyHalfTurnEqualRadiusBiconeApexChamferVertex(
     std::vector<int> RimEdges, LineEdges;
     for (size_t I = 0; I < Body.Edges.size(); ++I)
     {
-        const BrepEdge& EdgeData = Body.Edges[I];
-        if (EdgeData.Coedges.size() != 2)
+        const BrepEdge& EdgePayload = Body.Edges[I];
+        if (EdgePayload.Coedges.size() != 2)
             return Deliver<HalfTurnEqualRadiusBiconeApexChamferSpecification>::Reject(
                 RefusalReason::NonManifold, "half-turn equal bicone edge is not manifold");
-        if (!EdgeData.Closed() && EdgeData.Curve.Classification == CurveClassification::Arc &&
-            EdgeData.Curve.Degree == 2 && EdgeData.Curve.Rational()) RimEdges.push_back(static_cast<int>(I));
-        else if (!EdgeData.Closed() && EdgeData.Curve.Classification == CurveClassification::Line &&
-                 EdgeData.Curve.Degree == 1) LineEdges.push_back(static_cast<int>(I));
+        if (!EdgePayload.Closed() && EdgePayload.Curve.Classification == CurveClassification::Arc &&
+            EdgePayload.Curve.Degree == 2 && EdgePayload.Curve.Rational()) RimEdges.push_back(static_cast<int>(I));
+        else if (!EdgePayload.Closed() && EdgePayload.Curve.Classification == CurveClassification::Line &&
+                 EdgePayload.Curve.Degree == 1) LineEdges.push_back(static_cast<int>(I));
         else return Deliver<HalfTurnEqualRadiusBiconeApexChamferSpecification>::Reject(
             RefusalReason::Unsupported, "half-turn equal bicone has unsupported edge geometry");
     }
@@ -10966,14 +10966,14 @@ BlendSolver::ClassifyHalfTurnEqualRadiusBiconeApexFilletVertex(const BrepBody& B
     std::vector<int> RimEdges, LineEdges;
     for (size_t I = 0; I < Body.Edges.size(); ++I)
     {
-        const BrepEdge& EdgeData = Body.Edges[I];
-        if (EdgeData.Coedges.size() != 2)
+        const BrepEdge& EdgePayload = Body.Edges[I];
+        if (EdgePayload.Coedges.size() != 2)
             return Deliver<HalfTurnEqualRadiusBiconeApexFilletSpecification>::Reject(RefusalReason::NonManifold,
                                                                                       "half-turn equal bicone edge is not manifold");
-        if (!EdgeData.Closed() && EdgeData.Curve.Classification == CurveClassification::Arc &&
-            EdgeData.Curve.Degree == 2 && EdgeData.Curve.Rational()) RimEdges.push_back(static_cast<int>(I));
-        else if (!EdgeData.Closed() && EdgeData.Curve.Classification == CurveClassification::Line &&
-                 EdgeData.Curve.Degree == 1) LineEdges.push_back(static_cast<int>(I));
+        if (!EdgePayload.Closed() && EdgePayload.Curve.Classification == CurveClassification::Arc &&
+            EdgePayload.Curve.Degree == 2 && EdgePayload.Curve.Rational()) RimEdges.push_back(static_cast<int>(I));
+        else if (!EdgePayload.Closed() && EdgePayload.Curve.Classification == CurveClassification::Line &&
+                 EdgePayload.Curve.Degree == 1) LineEdges.push_back(static_cast<int>(I));
         else return Deliver<HalfTurnEqualRadiusBiconeApexFilletSpecification>::Reject(RefusalReason::Unsupported,
                                                                                        "half-turn equal bicone has unsupported edge geometry");
     }
@@ -11198,14 +11198,14 @@ BlendSolver::ClassifyPartialEqualRadiusBiconeApexFilletVertex(const BrepBody& Bo
     std::vector<int> RimEdges, LineEdges;
     for (size_t I = 0; I < Body.Edges.size(); ++I)
     {
-        const BrepEdge& EdgeData = Body.Edges[I];
-        if (EdgeData.Coedges.size() != 2)
+        const BrepEdge& EdgePayload = Body.Edges[I];
+        if (EdgePayload.Coedges.size() != 2)
             return Deliver<PartialEqualRadiusBiconeApexFilletSpecification>::Reject(RefusalReason::NonManifold,
                                                                                       "partial equal bicone edge is not manifold");
-        if (!EdgeData.Closed() && EdgeData.Curve.Classification == CurveClassification::Arc &&
-            EdgeData.Curve.Degree == 2 && EdgeData.Curve.Rational()) RimEdges.push_back(static_cast<int>(I));
-        else if (!EdgeData.Closed() && EdgeData.Curve.Classification == CurveClassification::Line &&
-                 EdgeData.Curve.Degree == 1) LineEdges.push_back(static_cast<int>(I));
+        if (!EdgePayload.Closed() && EdgePayload.Curve.Classification == CurveClassification::Arc &&
+            EdgePayload.Curve.Degree == 2 && EdgePayload.Curve.Rational()) RimEdges.push_back(static_cast<int>(I));
+        else if (!EdgePayload.Closed() && EdgePayload.Curve.Classification == CurveClassification::Line &&
+                 EdgePayload.Curve.Degree == 1) LineEdges.push_back(static_cast<int>(I));
         else return Deliver<PartialEqualRadiusBiconeApexFilletSpecification>::Reject(RefusalReason::Unsupported,
                                                                                        "partial equal bicone has unsupported edge geometry");
     }
@@ -11431,15 +11431,15 @@ Deliver<ConeApexFilletSpecification> BlendSolver::ClassifyConeApexFilletVertex(
         return Deliver<ConeApexFilletSpecification>::Reject(RefusalReason::Unsupported,
                                                              "selected vertex is not the unique native cone apex");
     int Rim = 0, Seam = 0;
-    for (const BrepEdge& EdgeData : Body.Edges)
+    for (const BrepEdge& EdgePayload : Body.Edges)
     {
-        if (EdgeData.Coedges.size() != 2) return Deliver<ConeApexFilletSpecification>::Reject(RefusalReason::NonManifold,
+        if (EdgePayload.Coedges.size() != 2) return Deliver<ConeApexFilletSpecification>::Reject(RefusalReason::NonManifold,
                                                                                                 "native cone edge is not manifold");
-        if (EdgeData.Closed() && EdgeData.VertexStart == BaseVertex &&
-            EdgeData.Curve.Classification == CurveClassification::Circle && EdgeData.Curve.Rational()) ++Rim;
-        else if (!EdgeData.Closed() && EdgeData.Curve.Classification == CurveClassification::Line &&
-                 ((EdgeData.VertexStart == BaseVertex && EdgeData.VertexEnd == Apex) ||
-                  (EdgeData.VertexStart == Apex && EdgeData.VertexEnd == BaseVertex))) ++Seam;
+        if (EdgePayload.Closed() && EdgePayload.VertexStart == BaseVertex &&
+            EdgePayload.Curve.Classification == CurveClassification::Circle && EdgePayload.Curve.Rational()) ++Rim;
+        else if (!EdgePayload.Closed() && EdgePayload.Curve.Classification == CurveClassification::Line &&
+                 ((EdgePayload.VertexStart == BaseVertex && EdgePayload.VertexEnd == Apex) ||
+                  (EdgePayload.VertexStart == Apex && EdgePayload.VertexEnd == BaseVertex))) ++Seam;
         else return Deliver<ConeApexFilletSpecification>::Reject(RefusalReason::Unsupported,
                                                                    "native cone has unsupported edge geometry");
     }
@@ -11679,9 +11679,9 @@ Deliver<PartialConeApexFilletSpecification> BlendSolver::ClassifyReflexPartialCo
     int RimEdge = -1;
     for (size_t I = 0; I < Body.Edges.size(); ++I)
     {
-        const BrepEdge& EdgeData = Body.Edges[I];
-        if (!EdgeData.Closed() && ((EdgeData.VertexStart == RimA && EdgeData.VertexEnd == RimB) ||
-                                   (EdgeData.VertexStart == RimB && EdgeData.VertexEnd == RimA)))
+        const BrepEdge& EdgePayload = Body.Edges[I];
+        if (!EdgePayload.Closed() && ((EdgePayload.VertexStart == RimA && EdgePayload.VertexEnd == RimB) ||
+                                   (EdgePayload.VertexStart == RimB && EdgePayload.VertexEnd == RimA)))
         {
             if (RimEdge >= 0) return Deliver<PartialConeApexFilletSpecification>::Reject(RefusalReason::Unsupported,
                                                                                            "reflex partial cone has multiple base-rim paths");
@@ -12242,8 +12242,8 @@ Deliver<NurbsCurve> BlendSolver::BuildG2CornerProfile(const G2PlanarCornerSpecif
         Specification.Width <= Specification.Radius + ScalarCriteria::MergeTolerance)
         return Deliver<NurbsCurve>::Reject(RefusalReason::DegenerateInput,
                                             "G2 corner radius and width are not feasible");
-    if (!std::isfinite(Specification.HandleFraction) || Specification.HandleFraction <= ScalarCriteria::GeometricTolerance ||
-        Specification.HandleFraction >= 0.5 - ScalarCriteria::GeometricTolerance)
+    if (!std::isfinite(Specification.IdentifierFraction) || Specification.IdentifierFraction <= ScalarCriteria::GeometricTolerance ||
+        Specification.IdentifierFraction >= 0.5 - ScalarCriteria::GeometricTolerance)
         return Deliver<NurbsCurve>::Reject(RefusalReason::DegenerateInput,
                                             "G2 corner handle fraction must lie strictly between zero and one half");
     const Vec3 Axis = Specification.EdgeAxis.Normalised();
@@ -12256,7 +12256,7 @@ Deliver<NurbsCurve> BlendSolver::BuildG2CornerProfile(const G2PlanarCornerSpecif
     U = U.Normalised();
     const Vec3 V = Axis.Cross(U).Normalised();
     const double R = Specification.Radius;
-    const double H = R * Specification.HandleFraction;
+    const double H = R * Specification.IdentifierFraction;
     const auto Point = [&](double AlongU, double AlongV) { return Specification.Origin + U * AlongU + V * AlongV; };
     // E -> A: vertical tangent at E, horizontal tangent at A, and zero second derivative at both ends.
     return NurbsCurve::Bezier({ Point(0.0, R), Point(0.0, R - H), Point(0.0, R - 2.0 * H),
@@ -12303,9 +12303,9 @@ bool BlendSolver::ValidateG2CornerProfile(const NurbsCurve& Profile,
     return true;
 }
 
-double BlendSolver::G2CornerRemovalArea(double Radius, double HandleFraction) noexcept
+double BlendSolver::G2CornerRemovalArea(double Radius, double IdentifierFraction) noexcept
 {
-    const double H = Radius * HandleFraction;
+    const double H = Radius * IdentifierFraction;
     // Green's theorem on the quintic control polygon, reduced symbolically for this symmetric
     // control net. The sign is reversed from the E->A traversal, so this is the removed area.
     return 0.5 * Radius * Radius - (55.0 / 42.0) * Radius * H + (65.0 / 84.0) * H * H;
@@ -12362,7 +12362,7 @@ Deliver<BrepBody> BlendSolver::ReconstructG2PlanarCorner(const G2PlanarCornerSpe
     if (!Result) return Result;
     const BodyReport Report = Result.Payload.Validate();
     const double ExpectedVolume = Specification.Length *
-        (Specification.Width * Specification.Width - G2CornerRemovalArea(Specification.Radius, Specification.HandleFraction));
+        (Specification.Width * Specification.Width - G2CornerRemovalArea(Specification.Radius, Specification.IdentifierFraction));
     if (!Report.Solid() || Report.Hulls != 1 || Report.Genus != 0 || Report.OpenEdges != 0 ||
         Report.NonManifoldEdges != 0 || Report.MisorientedEdges != 0 ||
         Result.Payload.Vertices.size() != 10 || Result.Payload.Edges.size() != 15 ||

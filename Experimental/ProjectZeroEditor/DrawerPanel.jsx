@@ -19,7 +19,7 @@ export default function DrawerPanel({
     [Offset, Shift] = useState(0);
   const Gesture = useRef(null),
     Root = useRef(null),
-    Handle = useRef(null),
+    Tag = useRef(null),
     Opener = useRef(null),
     SuppressClick = useRef(false);
   const Direction = Edge === "top" ? 1 : -1;
@@ -46,7 +46,7 @@ export default function DrawerPanel({
     }
     if (Open) {
       Opener.current = document.activeElement;
-      Handle.current?.focus({ preventScroll: true });
+      Tag.current?.focus({ preventScroll: true });
     } else if (Opener.current?.isConnected)
       Opener.current.focus({ preventScroll: true });
   }, [Open]);
@@ -55,14 +55,14 @@ export default function DrawerPanel({
     Slide(null);
     Toggle(Next > 0);
   };
-  const Begin = (Event, FromHandle = false) => {
+  const Begin = (Event, FromIdentifier = false) => {
     if (
       Event.button !== 0 ||
       Gesture.current ||
-      (!FromHandle &&
+      (!FromIdentifier &&
         (!Open ||
           (Event.target.closest(
-            "button,input,select,textarea,a,[contenteditable=true],[data-drawer-scroll]",
+            "button,input,select,textarea,a,[contenteditable=true],[record-drawer-scroll]",
           ) &&
             !Event.target.closest(".drawer-page-grip"))))
     )
@@ -75,12 +75,12 @@ export default function DrawerPanel({
       Start: Rest,
       Offset,
       Axis: null,
-      FromHandle,
+      FromIdentifier,
       At: performance.now(),
       Samples: [[performance.now(), Event.clientY]],
       Current: Rest,
     };
-    if (FromHandle) Root.current.setPointerCapture(Event.pointerId);
+    if (FromIdentifier) Root.current.setPointerCapture(Event.pointerId);
   };
   const Move = (Event) => {
     const Drag = Gesture.current;
@@ -91,7 +91,7 @@ export default function DrawerPanel({
       Drag.Axis = Math.abs(DY) > Math.abs(DX) ? "Y" : "X";
       if (Drag.Axis === "Y") Root.current.setPointerCapture(Event.pointerId);
     }
-    if (Drag.Axis === "X" && Drag.FromHandle)
+    if (Drag.Axis === "X" && Drag.FromIdentifier)
       Shift(
         Math.max(
           -(innerWidth - 220) / 2,
@@ -137,7 +137,7 @@ export default function DrawerPanel({
                 0,
                 Math.min(1, Drag.Start + (Velocity > 0 ? 0.5 : -0.5)),
               );
-    } else if (!Cancelled && !Drag.Axis && Drag.FromHandle) Next = Open ? 0 : 1;
+    } else if (!Cancelled && !Drag.Axis && Drag.FromIdentifier) Next = Open ? 0 : 1;
     SuppressClick.current = !!Drag.Axis;
     Snap(Next);
     Slide(null);
@@ -182,8 +182,8 @@ export default function DrawerPanel({
     <section
       ref={Root}
       className={`drawer-shell ${Edge} ${ClassName} ${Open || Progress > 0 ? "open" : ""} ${Travel !== null ? "dragging" : ""}`}
-      data-drawer={Edge}
-      data-stage={Progress === 0 ? "closed" : Progress === 1 ? "full" : "half"}
+      record-drawer={Edge}
+      record-stage={Progress === 0 ? "closed" : Progress === 1 ? "full" : "half"}
       style={{
         "--drawer-visible": `${Math.max(0, Extent * Progress)}px`,
         transform: `translateY(${(Edge === "top" ? -1 : 1) * Extent * (1 - Progress)}px)`,
@@ -215,11 +215,11 @@ export default function DrawerPanel({
           }}
         >
           <i />
-          <span>Drag the page or handle to close</span>
+          <span>Drag the page or identifier to close</span>
         </button>
       </div>
       <button
-        ref={Handle}
+        ref={Tag}
         className={
           "drawer-handle " +
           (Edge === "top" ? "notch-handle" : "asset-notch-handle")

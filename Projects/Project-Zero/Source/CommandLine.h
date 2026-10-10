@@ -41,7 +41,7 @@ namespace Frontier
         // ── the family tools (plan §5) ──────────────────────────────────────────────────────────────────────────────
         bool          Pack = false;        // -Pack
         bool          Explode = false;     // -Explode
-        bool          BakeSky = false;     // -Bake=Sky
+        bool          PrecomputeSky = false;     // -Bake=Sky
         std::string   Export;              // -Export[=All|<Level>]  (empty = not requested; "*" = All)
         std::vector<std::string> Embed;    // -Embed=Fonts,Assets,Engine (repeatable)
 

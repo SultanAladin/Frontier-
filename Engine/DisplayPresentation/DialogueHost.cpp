@@ -11,12 +11,12 @@ namespace {
 
 constexpr DialoguePresetStructure Presets[static_cast<size_t>(DialoguePresetCategory::Count)] =
 {
-    { DialogueToneCategory::Info,    ControlCentreIconCategory::CircleInfo,    "",                  "",                                  "",                                                                          nullptr,  nullptr,   "OK"           },
+    { DialogueToneCategory::Facts,    ControlCentreIconCategory::CircleDetails,    "",                  "",                                  "",                                                                          nullptr,  nullptr,   "OK"           },
     { DialogueToneCategory::Danger,  ControlCentreIconCategory::OctagonAlert,  "Discard changes?",  "This cannot be undone",             "Your unsaved edits on this page will be thrown away and the applied values restored.", "Cancel", nullptr, "Discard"      },
     { DialogueToneCategory::Success, ControlCentreIconCategory::CircleCheck,   "Apply changes?",    "Settings take effect immediately",  "The pending values will be committed and pushed to the renderer.",          "Cancel", nullptr,   "Apply"        },
     { DialogueToneCategory::Warning, ControlCentreIconCategory::TriangleAlert, "Unsaved changes",   "You are leaving this page",         "Apply your edits, keep editing, or discard them.",                          "Keep editing", "Discard", "Apply"  },
     { DialogueToneCategory::Warning, ControlCentreIconCategory::TriangleAlert, "Reset to defaults?", "All fields on this page",          "Every value will return to its factory default. You can still discard before applying.", "Cancel", nullptr, "Reset" },
-    { DialogueToneCategory::Info,    ControlCentreIconCategory::CircleInfo,    "Information",       "",                                  "",                                                                          nullptr,  nullptr,   "OK"           },
+    { DialogueToneCategory::Facts,    ControlCentreIconCategory::CircleDetails,    "Information",       "",                                  "",                                                                          nullptr,  nullptr,   "OK"           },
     { DialogueToneCategory::Success, ControlCentreIconCategory::CircleCheck,   "Success",           "",                                  "",                                                                          nullptr,  nullptr,   "OK"           },
     { DialogueToneCategory::Warning, ControlCentreIconCategory::TriangleAlert, "Warning",           "",                                  "",                                                                          nullptr,  nullptr,   "OK"           },
     { DialogueToneCategory::Caution, ControlCentreIconCategory::OctagonAlert,  "Caution",           "",                                  "",                                                                          nullptr,  nullptr,   "OK"           },
@@ -51,7 +51,7 @@ ColorQuad DialogueHost::QueryToneColour(DialogueToneCategory Tone) noexcept
     {
         case DialogueToneCategory::Danger:  return ControlKit::Palette().Danger;
         case DialogueToneCategory::Success: return ControlKit::Palette().Ok;
-        case DialogueToneCategory::Info:    return ControlKit::Palette().Info;
+        case DialogueToneCategory::Facts:    return ControlKit::Palette().Facts;
         case DialogueToneCategory::Warning: return ControlKit::Palette().Warning;
         case DialogueToneCategory::Caution: return ControlKit::Palette().Caution;
     }
@@ -102,7 +102,7 @@ void DialogueHost::ConstructDialogueLayout(PixelSpace& Surface, const PlaneExten
     const float Enter = static_cast<float>(std::clamp(Motion.Spring(EnterChannel).Current, 0.0, 1.0));
     if (!IsOpen() && Enter <= 0.001f) return;
 
-    const DialoguePresetStructure& P = QueryPreset(Active == DialoguePresetCategory::None ? DialoguePresetCategory::Info : Active);
+    const DialoguePresetStructure& P = QueryPreset(Active == DialoguePresetCategory::None ? DialoguePresetCategory::Facts : Active);
     const ColorQuad Tone = QueryToneColour(P.Tone);
     const ControlPointer Live = IsOpen() && Enter > 0.95f ? Pointer : ControlPointer{ Pointer.X, Pointer.Y, false, false, false, false };
 

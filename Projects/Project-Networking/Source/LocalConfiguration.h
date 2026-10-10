@@ -64,18 +64,18 @@ inline bool ParsePortableSettings(std::string_view Text, PortableSettings& Outpu
 inline std::filesystem::path ExecutableDirectory()
 {
 #if defined(_WIN32)
-    wchar_t Buffer[32768]{};
-    const DWORD Count = GetModuleFileNameW(nullptr, Buffer, 32768);
-    if (Count > 0 && Count < 32768) return std::filesystem::path(Buffer).parent_path();
+    wchar_t Block[32768]{};
+    const DWORD Count = GetModuleFileNameW(nullptr, Block, 32768);
+    if (Count > 0 && Count < 32768) return std::filesystem::path(Block).parent_path();
 #endif
     return std::filesystem::current_path();
 }
 inline std::filesystem::path UserCacheRoot()
 {
 #if defined(_WIN32)
-    wchar_t Buffer[32768]{};
-    const DWORD Count = GetEnvironmentVariableW(L"LOCALAPPDATA", Buffer, 32768);
-    if (Count > 0 && Count < 32768) return std::filesystem::path(Buffer) / "FrontierCharge" / "dev-v1";
+    wchar_t Block[32768]{};
+    const DWORD Count = GetEnvironmentVariableW(L"LOCALAPPPAYLOAD", Block, 32768);
+    if (Count > 0 && Count < 32768) return std::filesystem::path(Block) / "FrontierCharge" / "dev-v1";
 #else
     if (const char* Home = std::getenv("HOME")) return std::filesystem::path(Home) / ".local/share/FrontierCharge/dev-v1";
 #endif

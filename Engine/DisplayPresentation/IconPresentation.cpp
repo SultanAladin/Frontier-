@@ -29,7 +29,7 @@ struct Presentation {
         ImGui::UnregisterUserTexture(&Item->Texture);
         auto& Textures = ImGui::GetPlatformIO().Textures;
         for (int I = Textures.Size - 1; I >= 0; --I)
-            if (Textures[I] == &Item->Texture) Textures.erase(Textures.Data + I);
+            if (Textures[I] == &Item->Texture) Textures.erase(Textures.Packet + I);
         Item.reset();
     }
     void Frame() {

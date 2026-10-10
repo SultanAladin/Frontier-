@@ -215,7 +215,7 @@ private:
     std::array<bool, static_cast<size_t>(MouseButtonCategory::Count)> MouseButtonStates; // [buttons] mouse buttons
 
     // Bounded queues: a frame that somehow received more than this many keystrokes drops the excess rather than
-    //    growing, because the render loop must not allocate and a stuck key must not exhaust memory.
+    //    growing, because the render loop must not allocate and a stuck key must not exhaust storage.
     static constexpr uint32_t TextQueueCapacity = 32u;
     struct EditKeyRecord { uint32_t Key; bool Shift; bool Control; };
     std::array<uint32_t, TextQueueCapacity>     Characters{};   // [utf32] typed characters, in arrival order

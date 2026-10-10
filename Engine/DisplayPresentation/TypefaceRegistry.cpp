@@ -88,9 +88,9 @@ uint32_t TypefaceRegistry::Load(std::string_view ArchiveRoot) noexcept
             for (const FontVariantIndex& Var : Index->Variants)
                 if (Var.Weight == W && Var.Style == FontStyleCategory::Normal) { V = &Var; break; }
             if (!V) continue;
-            void* Handle = LoadFace(V->FilePath);
-            if (!Handle) continue;
-            Family.Faces.push_back(TypefaceFace{ W, Handle });
+            void* Tag = LoadFace(V->FilePath);
+            if (!Tag) continue;
+            Family.Faces.push_back(TypefaceFace{ W, Tag });
         }
 
         // Mandatory trio: a light face, Regular, Bold.
@@ -142,7 +142,7 @@ const TypefaceFace* TypefaceRegistry::Resolve(uint32_t FamilyIndex, FontWeightCa
 void* TypefaceRegistry::QueryHandle(uint32_t FamilyIndex, FontWeightCategory Wanted) const noexcept
 {
     const TypefaceFace* Face = Resolve(FamilyIndex, Wanted);
-    return Face ? Face->Handle : nullptr;
+    return Face ? Face->Tag : nullptr;
 }
 
 const char* TypefaceRegistry::WeightLabel(FontWeightCategory Weight) noexcept

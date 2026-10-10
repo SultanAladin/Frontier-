@@ -4,7 +4,7 @@ export function WindFlow({speed,bearing,gusts,active=true,onChange}) {
  const id=useId().replace(/:/g,'');
  const angle=bearing-90,dragging=useRef(false);
  const radius=speed/30*106,rad=bearing*Math.PI/180;
- const handleX=320+Math.sin(rad)*radius,handleY=150-Math.cos(rad)*radius;
+ const identifierX=320+Math.sin(rad)*radius,identifierY=150-Math.cos(rad)*radius;
  const updatePointer=e=>{
   if(!active||!onChange)return;
   const box=e.currentTarget.getBoundingClientRect();
@@ -32,13 +32,13 @@ export function WindFlow({speed,bearing,gusts,active=true,onChange}) {
  {Array.from({length:23},(_,i)=>{let y=-270+i*38;const points=Array.from({length:45},(_,j)=>`${j?'L':'M'}${-300+j*30} ${y+Math.sin(j*.35+i*.7)*gusts*.28+Math.cos(j*.66+i)*gusts*.09}`).join(' ');return <g key={i}><path d={points} fill="none" stroke="#b2cbd1" strokeOpacity=".065" strokeWidth=".7"/><path className="flow-streak" d={points} fill="none" stroke="#b2cbd1" strokeOpacity={speed===0?.08:.22+i%4*.11} strokeWidth={.7+i%3*.4} strokeDasharray={`${12+speed*1.5} ${145+i%5*23}`} style={{'--travel':-(12+speed*1.5+145+i%5*23),animationDelay:`-${i*.39}s`,animationDuration:`${Math.max(.35,9/(1+speed*.65))*(1+(i%4)*gusts/250)}s`}}/></g>})}
  </g><circle cx="320" cy="150" r="106" stroke="#c5dde51c" strokeDasharray="2 6" fill="none"/>
  <circle cx="320" cy="150" r="53" stroke="#c5dde511" strokeDasharray="2 6" fill="none"/>
- <line x1="320" y1="150" x2={handleX} y2={handleY} stroke="#c4dfe6" strokeWidth="1.4"/>
+ <line x1="320" y1="150" x2={identifierX} y2={identifierY} stroke="#c4dfe6" strokeWidth="1.4"/>
  <circle cx="320" cy="150" r="3" fill="#b6c9cd"/>
- <circle className="wind-handle-hit" cx={handleX} cy={handleY} r="18" fill="#bcd1d713"/>
- <circle className="wind-vector-handle" cx={handleX} cy={handleY} r="8" fill="#202d31" stroke="#d7edf2" strokeWidth="1.5"/>
- <g transform={`translate(${handleX} ${handleY}) rotate(${bearing})`}><path d="M0 -4 L3 3 L0 1 L-3 3Z" fill="#d7edf2"/></g>
+ <circle className="wind-handle-hit" cx={identifierX} cy={identifierY} r="18" fill="#bcd1d713"/>
+ <circle className="wind-vector-handle" cx={identifierX} cy={identifierY} r="8" fill="#202d31" stroke="#d7edf2" strokeWidth="1.5"/>
+ <g transform={`translate(${identifierX} ${identifierY}) rotate(${bearing})`}><path d="M0 -4 L3 3 L0 1 L-3 3Z" fill="#d7edf2"/></g>
  <g fill="#8b989b" fontSize="10" textAnchor="middle"><text x="320" y="20">N</text><text x="320" y="287">S</text><text x="18" y="155">W</text><text x="622" y="155">E</text></g></g></svg>
- <div className="weather-graphic-footer"><span><i/>{!active?'Wind disabled':speed===0?'Still air':'Live flow field'}</span><span>Drag the handle · outward = stronger</span></div>
+ <div className="weather-graphic-footer"><span><i/>{!active?'Wind disabled':speed===0?'Still air':'Live flow field'}</span><span>Drag the identifier · outward = stronger</span></div>
  </div>;
 }
 

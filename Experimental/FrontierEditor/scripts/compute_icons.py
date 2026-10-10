@@ -36,7 +36,7 @@ def register_compute_icons(icon):
     body+='''<path d="M34 66h8v122h-8Zm-9 0h18v7H25Z" fill="url(#gpu3-metal)"/><path d="M36 91v22m0 8v22" stroke="#2b4356" stroke-width="2"/><path d="M48 80h161" stroke="#eff7f6" stroke-opacity=".5" stroke-width=".7"/><path d="M220 147v13" stroke="#6be2d0" stroke-width="2"/></g>'''
     icon('graphics-card-3d','Graphics card · 3D','Objects','Reworked GPU with bevelled blue-metal shroud, recessed swept-blade fans, exposed heatsink fins, layered PCB and keyed gold contacts.',defs,body)
 
-    # Solid memory board, three chips and grouped contacts; no pin/trace clutter.
+    # Solid storage board, three chips and grouped contacts; no pin/trace clutter.
     body='''<path d="M34 91h188v23h-6v14h6v37H34v-37h6v-14h-6Z" fill="#548f77"/><path d="M46 165h88v16H46Zm99 0h65v16h-65Z" fill="#d8b76c"/>'''
     for x in [57,105,153]:
         body+=f'<rect x="{x}" y="107" width="36" height="42" rx="4" fill="#263d40"/>'

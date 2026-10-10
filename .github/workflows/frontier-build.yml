@@ -48,8 +48,8 @@ jobs:
       - name: Folder collection inspector
         run: python3 Tools/Build/RunAnnounced.py "folder inspector" -- python3 Exhibits/Workbench/Folder/RunNativePanelProof.py
 
-      - name: Base meshes
-        run: python3 Tools/Build/RunAnnounced.py "base meshes" -- python3 Exhibits/Workbench/BaseMesh/RunNativeBaseMesh.py
+      - name: Base geometries
+        run: python3 Tools/Build/RunAnnounced.py "base geometries" -- python3 Exhibits/Workbench/BaseGeometry/RunNativeBaseGeometry.py
 
       - name: Fracture editor page
         run: python3 Tools/Build/RunAnnounced.py "fracture editor" -- python3 Exhibits/Workbench/FractureEditor/RunNativeFractureEditor.py
@@ -114,7 +114,7 @@ jobs:
       - name: Gas routing — the shipped InspectorPanel selecting a gas entity, clicked for real
         run: python3 Tools/Build/RunAnnounced.py "gas routing" -- python3 Exhibits/Workbench/GasFluid/RunNativeGasInspectorRoute.py
 
-      - name: Gas flipbook — the bottom rung's sheet, baked from the shipped solver
+      - name: Gas flipbook — the bottom rung's sheet, precomputed from the shipped solver
         run: python3 Tools/Build/RunAnnounced.py "gas flipbook" -- python3 Exhibits/Workbench/GasFluid/RunNativeGasFlipbook.py
 
       - name: Gas obstruction — the three collision levels against the engine's own distance field

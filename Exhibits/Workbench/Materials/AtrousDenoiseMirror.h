@@ -1,7 +1,7 @@
 //============================================================================================================================================
 //                                                   ATROUSDENOISEMIRROR.H
 //============================================================================================================================================
-// 🧩 The M9 gate's handle on the real à-trous filter: Engine/Shaders/AtrousDenoise.slang compiled 1:1 as C++ (see
+// 🧩 The M9 gate's identifier on the real à-trous filter: Engine/Shaders/AtrousDenoise.slang compiled 1:1 as C++ (see
 //    DenoiseCpuShim.h for the port's three mechanical substitutions), driven through a plain-float API so the proof
 //    never touches the shim's types.
 //

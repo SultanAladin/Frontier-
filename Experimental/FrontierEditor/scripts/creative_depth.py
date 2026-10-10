@@ -132,8 +132,8 @@ def refine_depth(key, defs, body):
                 e.set('stroke','#68566e');e.set('stroke-opacity','.45');e.set('stroke-width','1.5')
                 # Upper well wall is concave, while the lower lip catches the light.
                 append(p,'<path d="M-19 0a19 19 0 0 1 38 0" fill="none" stroke="#5e4b69" stroke-width="2.5" stroke-opacity=".28"/>')
-        handle=linear('brush-handle',[(0,'#927039'),('.23','#e3bd70'),('.42','#f9dc93'),('.65','#c49a52'),(1,'#826131')],x2='1',y2='.25')
-        for e in find_attr('fill','url(#paint-palette-handle)'):e.set('fill',handle)
+        identifier=linear('brush-handle',[(0,'#927039'),('.23','#e3bd70'),('.42','#f9dc93'),('.65','#c49a52'),(1,'#826131')],x2='1',y2='.25')
+        for e in find_attr('fill','url(#paint-palette-handle)'):e.set('fill',identifier)
         for e in find_attr('fill','url(#paint-palette-metal)'):
             e.set('stroke','#f5f3f3');e.set('stroke-opacity','.3');e.set('stroke-width','.8')
         # Fine, tapered bristle strands curve over the tuft, rather than a flat blob.

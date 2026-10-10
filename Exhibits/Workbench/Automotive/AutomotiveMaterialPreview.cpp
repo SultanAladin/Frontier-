@@ -390,9 +390,9 @@ void RenderFilm(const Camera& C, int Width, int Height, int Spp, std::vector<flo
     Threads = std::min(Threads, 8u);
     for (int Frame = 0; Frame < Spp; ++Frame)
     {
-        std::vector<std::thread> Pool;
+        std::vector<std::thread> Bank;
         for (unsigned Th = 0u; Th < Threads; ++Th)
-            Pool.emplace_back([&, Th]()
+            Bank.emplace_back([&, Th]()
             {
                 for (int Y = static_cast<int>(Th); Y < Height; Y += static_cast<int>(Threads))
                     for (int X = 0; X < Width; ++X)
@@ -409,7 +409,7 @@ void RenderFilm(const Camera& C, int Width, int Height, int Spp, std::vector<flo
                         P[0] += L.x; P[1] += L.y; P[2] += L.z;
                     }
             });
-        for (auto& T : Pool) T.join();
+        for (auto& T : Bank) T.join();
     }
     float Inv = 1.0f / static_cast<float>(Spp);
     for (float& V : Film) V *= Inv;
@@ -500,7 +500,7 @@ int main(int Argc, char** Argv)
     if (Argc > 4) OutDir = Argv[4];
     if (!ValidateOptics()) return 8;
 
-    Frontier::ShadingTableSet Tables = Frontier::ShadingTableCodec::Bake(1024u);
+    Frontier::ShadingTableSet Tables = Frontier::ShadingTableCodec::Precompute(1024u);
     g_Tables = &Tables;
 
     BuildSuiteScene();

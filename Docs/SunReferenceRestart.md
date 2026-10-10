@@ -41,9 +41,9 @@ Largest measured release drawing frames: Orbit 880 B, Day 1,344 B, Illuminance 1
 ## What remains before calling Sun a 1:1 port
 
 - Exact five-card arrangement, responsive rules and typography from the HTML, including direction/illuminance/temperature/daylight/disc.
-- Temperature strip, CSS solar-disc treatment, exact heading icons, feature tiles, child links and bake tile composition.
+- Temperature strip, CSS solar-disc treatment, exact heading icons, feature tiles, child links and precompute tile composition.
 - Native SliderPill substitution within that reference layout; no new slider design.
-- Real binding of supported fields; unbound states for unavailable lux, temperature, manual direction and independent feature/bake controls.
+- Real binding of supported fields; unbound states for unavailable lux, temperature, manual direction and independent feature/precompute controls.
 - Native-only properties in a separate supplementary section, without repurposing the reference cards.
 - Whole-panel browser/native captures and visual comparison at agreed sizes.
 

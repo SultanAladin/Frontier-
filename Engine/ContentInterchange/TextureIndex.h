@@ -2,10 +2,10 @@
 //                                                        TEXTUREINDEX.H
 //============================================================================================================================================
 // 🧩 Resident texture table addressed by slot (CLAUDE.md role 15): the CPU side of the bindless `sampler2D Textures[]`
-//    binding. Codecs register images by path (deduplicated) or from memory (GLB buffer views); `Decode()` reads them
+//    binding. Codecs register images by path (deduplicated) or from storage (GLB store views); `Decode()` reads them
 //    with stb_image, converts to RGBA8 (or RGBA16F for HDR), builds a box-filtered mip chain and records the colour
 //    encoding so the exchange can pick VK_FORMAT_R8G8B8A8_SRGB vs _UNORM. Missing files decode to a 1×1 placeholder
-//    (white for colour, flat normal 128,128,255 for data) and one log line.
+//    (white for colour, flat normal 128,128,255 for record) and one log line.
 //
 // Budget: `[render] texture_limit` (slot count) and `MaximumEdge` (largest edge kept; larger images are down-sampled
 //    on the CPU before upload so a GTX 1060 never faults on Sponza-class content).
@@ -28,7 +28,7 @@ struct TextureDescriptor
     uint32_t         Width     = 0u, Height = 0u;
     uint32_t         LevelCount = 0u;
     bool             Placeholder = false;   // decode failed / no file → 1×1
-    bool             Linear    = false;     // requested as data (normals, roughness…)
+    bool             Linear    = false;     // requested as record (normals, roughness…)
     // Mip chain, level 0 first. Bytes per texel: 4 (Srgb8/Linear8) or 8 (LinearHalf).
     std::vector<uint8_t> Texels;
     std::vector<uint32_t> LevelOffsets;   // byte offset of each level in Texels
@@ -53,11 +53,11 @@ public:
 
     // Register by file path. The same (path, Linear) pair returns the same slot. Decoding is deferred to Decode().
     uint32_t RegisterPath(const std::string& Path, bool Linear) noexcept;
-    // Register an in-memory encoded image (PNG/JPEG bytes — GLB buffer view). Copied.
+    // Register an in-storage encoded image (PNG/JPEG bytes — GLB store view). Copied.
     uint32_t RegisterEncoded(const std::string& Name, const uint8_t* Bytes, size_t ByteCount, bool Linear) noexcept;
-    // Register raw RGBA16F texels, already linear (the baked sky dome; any host-computed sheet). Copied; the mip
+    // Register raw RGBA16F texels, already linear (the precomputed sky dome; any host-computed sheet). Copied; the mip
     //    chain is built immediately, so no Decode is owed. The same Name replaces the slot IN PLACE — the texels
-    //    move, the slot stays, exactly what a re-bake wants (descriptors name slots, never heaps).
+    //    move, the slot stays, exactly what a re-precompute wants (descriptors name slots, never heaps).
     uint32_t RegisterHalves(const std::string& Name, const uint16_t* Halves, uint32_t Width, uint32_t Height) noexcept;
 
     // Decode everything registered and not yet decoded. Returns the number of failures (placeholders created).

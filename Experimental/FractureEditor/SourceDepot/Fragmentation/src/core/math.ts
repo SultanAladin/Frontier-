@@ -4,7 +4,7 @@ import { Vector3 } from 'three';
 export type V3 = Vector3;
 export const v3 = (x = 0, y = 0, z = 0) => new Vector3(x, y, z);
 
-/** Deterministic PRNG (mulberry32) — fracture must be reproducible for baking. */
+/** Deterministic PRNG (mulberry32) — fracture must be reproducible for precomputing. */
 export function rng(seed: number) {
   let a = seed >>> 0;
   return () => {

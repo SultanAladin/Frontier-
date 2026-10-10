@@ -412,7 +412,7 @@ void ShowcaseStructure::Construct() noexcept
     //    physical one is: a small, BRIGHT emissive quad recessed inside an open hood. The hood's plates shadow the
     //    emission into a cone — no kernel change, and the ReSTIR path treats it like any other luminaire: the alias
     //    table weights it by power, shadow rays give the cone its edge, and the denoiser sees a normal light. The
-    //    150-nit disc is small (0.13 m²), so its POWER stays modest next to the 9 m² panels — high contrast pool,
+    //    150-nit disc is small (0.13 m²), so its POWER stays modest next to the 9 m² panels — high contrast slots,
     //    low sampling weight.
     const uint32_t SpotMaterial = static_cast<uint32_t>(Materials.size());
     {
@@ -456,9 +456,9 @@ void ShowcaseStructure::Construct() noexcept
     //    and subsurface all land as one highlight on one gradient. The ball has a flat plate, a convex dome, a
     //    concave sweep, a thin lip and a self-occluding cushion, which is what separates a coat from a polish.
     //    At 67 832 triangles a world-space soup of 400 of them would be 27 M triangles; as placements over one
-    //    registered topology the mesh is resident once. If the asset is missing the grid falls back to spheres,
+    //    registered topology the topology is resident once. If the asset is missing the grid falls back to spheres,
     //    so a checkout without it still renders — QueryGridMeshError() reports why.
-    const bool Instanced = BringGridMesh();
+    const bool Instanced = BringGridGeometry();
     for (uint32_t Index = 0u; Index < kGridMaterialCount; ++Index)
     {
         const uint32_t Material = Index + 1u;                       // 0 is the ground
@@ -491,7 +491,7 @@ void ShowcaseStructure::Construct() noexcept
                     Placement.World[C * 4u + R] = (C == R) ? 1.0f : 0.0f;
             Placement.World[12] = Centre.x;
             Placement.World[13] = Centre.y;
-            Placement.World[14] = 0.0f;                             // the mesh already rests on z = 0
+            Placement.World[14] = 0.0f;                             // the topology already rests on z = 0
             GridPlacements.push_back(std::move(Placement));
             continue;
         }
@@ -573,7 +573,7 @@ void ShowcaseStructure::Construct() noexcept
     //    ⚠️ AppendBox and AppendCylinder build CLOSED solids — a closed hood would trap the light entirely — so the
     //    shroud is four side plates and a top cap from AppendQuad, open at the bottom. The emissive disc sits
     //    recessed 0.05 m inside the opening; the walls (0.35 m deep on a 0.44 m mouth) shadow it into a ~32°
-    //    half-angle cone, so each spot throws a crisp ~2.3 m pool on the ground in the default shot. The housings
+    //    half-angle cone, so each spot throws a crisp ~2.3 m slots on the ground in the default shot. The housings
     //    are ordinary geometry; the DISCS join the span list at the very end (luminaires-last convention).
     constexpr float kSpotX[2]   = { -7.0f, 7.0f };
     constexpr float kSpotY      = -4.5f;
@@ -748,13 +748,13 @@ void ShowcaseStructure::AppendCone(const Vector3& Base, float Radius, float Heig
 //------------------------------------------------------------------------------------------------------------------------
 
 // The marker the revision check looks for. It rides the scene name, which SceneCodec::Encode writes into the glTF as
-//    the node/mesh/scene name — no new format field, and any codec that round-trips names carries it for free.
+//    the node/topology/scene name — no new format field, and any codec that round-trips names carries it for free.
 namespace {
 std::string ShowcaseRevisionName()
 {
-    char Buffer[32];
-    std::snprintf(Buffer, sizeof(Buffer), "Showcase_r%u", kShowcaseRevision);
-    return Buffer;
+    char Block[32];
+    std::snprintf(Block, sizeof(Block), "Showcase_r%u", kShowcaseRevision);
+    return Block;
 }
 } // namespace
 
@@ -764,34 +764,34 @@ bool ShowcaseIsCurrent(const std::string& Path) noexcept
     if (!File) return false;
 
     // The name appears in the JSON chunk, which glTF puts first. Reading a bounded prefix keeps this O(1) rather than
-    //    pulling a multi-megabyte embedded buffer into memory just to answer a yes/no question.
+    //    pulling a multi-megabyte embedded store into storage just to answer a yes/no question.
     std::string Head(262144u, '\0');
     File.read(Head.data(), static_cast<std::streamsize>(Head.size()));
     Head.resize(static_cast<size_t>(File.gcount()));
     return Head.find(ShowcaseRevisionName()) != std::string::npos;
 }
 
-bool ShowcaseStructure::BringGridMesh() noexcept
+bool ShowcaseStructure::BringGridGeometry() noexcept
 {
     GridGeometry.clear();
     GridPlacements.clear();
-    GridMeshError.clear();
+    GridGeometryError.clear();
     GridVertices.clear();
     GridIndices.clear();
 
     std::string Resolved;
-    if (!ShaderBallGeometry::LoadResolved(kShaderBallAssetPath, GridMesh, &Resolved, &GridMeshError))
+    if (!ShaderBallGeometry::LoadResolved(kShaderBallAssetPath, GridTopology, &Resolved, &GridGeometryError))
         return false;
-    if (GridMesh.QueryVertices().empty() || GridMesh.QueryIndices().size() < 3u)
+    if (GridTopology.QueryVertices().empty() || GridTopology.QueryIndices().size() < 3u)
     {
-        GridMeshError = "shader ball loaded empty";
+        GridGeometryError = "shader ball loaded empty";
         return false;
     }
 
     // The encode records hold pointers, so the vectors they point at have to outlive the encode. Copying into
-    //    members rather than handing out GridMesh's internals keeps that guarantee local and obvious.
-    GridVertices = GridMesh.QueryVertices();
-    GridIndices  = GridMesh.QueryIndices();
+    //    members rather than handing out GridTopology's internals keeps that guarantee local and obvious.
+    GridVertices = GridTopology.QueryVertices();
+    GridIndices  = GridTopology.QueryIndices();
 
     InstancedGeometryRecord Record{};
     Record.Vertices = &GridVertices;

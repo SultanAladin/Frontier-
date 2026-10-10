@@ -106,7 +106,7 @@ Claim('the conversion left no unbraced if behind',
 
 // ── the layout ───────────────────────────────────────────────────────────────────────────────────
 
-const { structure, handles } = constructHudLayout();
+const { structure, identifiers } = constructHudLayout();
 const { placements } = resolve(structure);
 
 Claim('every figure in the HUD resolves', placements.every((One) => One !== null));
@@ -115,11 +115,11 @@ Claim('the tablet is larger than the trial panel it grows out of',
 Near('the face is 0.46 m across', PanelHalfWidth * 2, 0.46, 1e-9);
 
 {
-  const housing = structure.query(handles.housing);
+  const housing = structure.query(identifiers.housing);
   Claim('the bezel is albedo, not a glowing decal', housing.emissiveWeight === 0);
   Near('the bezel stands upright', housing.rotationX, Math.PI / 2, 1e-6);
 
-  const streaks = structure.query(handles.streaks);
+  const streaks = structure.query(identifiers.streaks);
   Claim('the backdrop is the streak field', streaks.category === Category.StreakField);
   Claim('the backdrop is an Illuminant, so it lights the room it sits in', streaks.overlay === false);
   Claim('...at full emissive weight', streaks.emissiveWeight === 1);
@@ -128,19 +128,19 @@ Near('the face is 0.46 m across', PanelHalfWidth * 2, 0.46, 1e-9);
     .filter((One) => One !== streaks && One.category !== Category.Surface)
     .every((One) => One.orderingRank > streaks.orderingRank));
 
-  const needle = structure.query(handles.needle);
+  const needle = structure.query(identifiers.needle);
   Claim('the needle is an Overlay: bright to read, lighting nothing', needle.overlay === true);
   Claim('the gauge fill is an Illuminant, because a lit arc really does glow',
-        structure.query(handles.gaugeFill).overlay === false);
+        structure.query(identifiers.gaugeFill).overlay === false);
 }
 
 // 🔴 THE SORT FINDING, PINNED.
 //    Under the engine's key the transparent backdrop submits after every opaque figure, which with
-//    no depth buffer would paint it over its own instrument. The browser submits by ordering rank
+//    no depth store would paint it over its own instrument. The browser submits by ordering rank
 //    instead. If someone "fixes" the browser to use the engine's key, this fails and says why.
 {
-  const streaks = structure.query(handles.streaks);
-  const needle = structure.query(handles.needle);
+  const streaks = structure.query(identifiers.streaks);
+  const needle = structure.query(identifiers.needle);
   Claim('the backdrop is transparent', streaks.opacity < OpaqueThreshold);
   Claim('the needle is opaque', needle.opacity >= OpaqueThreshold);
   const backdropKey = composeSortKey(true, streaks.orderingRank, 1.0);
@@ -150,10 +150,10 @@ Near('the face is 0.46 m across', PanelHalfWidth * 2, 0.46, 1e-9);
 
   const eye = [0, -0.8, 0];
   const packed = pack(structure, placements, eye);
-  const backdropAt = packed.order.indexOf(handles.streaks);
-  const needleAt = packed.order.indexOf(handles.needle);
+  const backdropAt = packed.order.indexOf(identifiers.streaks);
+  const needleAt = packed.order.indexOf(identifiers.needle);
   Claim('submitting by rank puts the backdrop before the needle', backdropAt < needleAt);
-  Claim('...and before the digits', backdropAt < packed.order.indexOf(handles.digits[0]));
+  Claim('...and before the digits', backdropAt < packed.order.indexOf(identifiers.digits[0]));
   Claim('...and after the face it sits on', backdropAt > 0);
 }
 
@@ -161,7 +161,7 @@ Near('the face is 0.46 m across', PanelHalfWidth * 2, 0.46, 1e-9);
 // Projected onto the panel's own axes, exactly as InterfacePanelSample does it on the GPU.
 
 {
-  const h = placements[handles.housing];
+  const h = placements[identifiers.housing];
   const right = [h[0][0], h[1][0], h[2][0]];
   const up = [h[0][1], h[1][1], h[2][1]];
   const centre = [h[0][3], h[1][3], h[2][3]];
@@ -214,63 +214,63 @@ Near('the face is 0.46 m across', PanelHalfWidth * 2, 0.46, 1e-9);
 
 // ── the values ───────────────────────────────────────────────────────────────────────────────────
 
-function digits(handle) { return handle.map((One) => structure.query(One).scalarAlpha); }
+function digits(identifier) { return identifier.map((One) => structure.query(One).scalarAlpha); }
 
 {
   // 🔴 A blank leading digit, not a zero: "007 KM/H" is a clock, not a speedometer. The engine gives
   //    blank its own code (10) rather than leaving it to be faked with an unlit colour.
-  assignValues(structure, handles, { speed: 7 });
-  Claim('7 km/h reads as two blanks and a seven', String(digits(handles.digits)) === String([10, 10, 7]));
-  assignValues(structure, handles, { speed: 42 });
-  Claim('42 km/h reads as a blank, a four and a two', String(digits(handles.digits)) === String([10, 4, 2]));
-  assignValues(structure, handles, { speed: 180 });
-  Claim('180 km/h fills all three cells', String(digits(handles.digits)) === String([1, 8, 0]));
-  assignValues(structure, handles, { speed: 4000 });
+  assignValues(structure, identifiers, { speed: 7 });
+  Claim('7 km/h reads as two blanks and a seven', String(digits(identifiers.digits)) === String([10, 10, 7]));
+  assignValues(structure, identifiers, { speed: 42 });
+  Claim('42 km/h reads as a blank, a four and a two', String(digits(identifiers.digits)) === String([10, 4, 2]));
+  assignValues(structure, identifiers, { speed: 180 });
+  Claim('180 km/h fills all three cells', String(digits(identifiers.digits)) === String([1, 8, 0]));
+  assignValues(structure, identifiers, { speed: 4000 });
   Claim('a speed beyond the readout clamps instead of wrapping',
-        String(digits(handles.digits)) === String([9, 9, 9]));
-  assignValues(structure, handles, { speed: -20 });
-  Claim('a negative speed clamps to blank blank zero', String(digits(handles.digits)) === String([10, 10, 0]));
+        String(digits(identifiers.digits)) === String([9, 9, 9]));
+  assignValues(structure, identifiers, { speed: -20 });
+  Claim('a negative speed clamps to blank blank zero', String(digits(identifiers.digits)) === String([10, 10, 0]));
 }
 
 {
-  const span = handles.troughHalfWidth;
+  const span = identifiers.troughHalfWidth;
   for (const [regen, wanted] of [[0, -span], [0.5, 0], [1, span]]) {
-    assignValues(structure, handles, { regen });
-    Near(`the slider knob at ${regen}`, structure.query(handles.sliderKnob).origin[0], wanted, 1e-9);
-    const fill = structure.query(handles.sliderFill);
+    assignValues(structure, identifiers, { regen });
+    Near(`the slider knob at ${regen}`, structure.query(identifiers.sliderKnob).origin[0], wanted, 1e-9);
+    const fill = structure.query(identifiers.sliderFill);
     // The fill is drawn from its own middle, so its right edge is centre + half width. That edge is
     // the only thing that has to agree with the knob, and getting it wrong is the classic bar bug.
     Near(`the fill's right edge meets the knob at ${regen}`,
          fill.origin[0] + fill.halfWidth, Math.max(wanted, -span + 0.001), 1e-9);
   }
-  assignValues(structure, handles, { regen: 0.37 });
+  assignValues(structure, identifiers, { regen: 0.37 });
   Claim('the percentage readout rounds to two cells',
-        String(digits(handles.rangeDigits)) === String([3, 7]));
-  assignValues(structure, handles, { regen: 0.02 });
+        String(digits(identifiers.rangeDigits)) === String([3, 7]));
+  assignValues(structure, identifiers, { regen: 0.02 });
   Claim('a small percentage blanks its leading cell',
-        String(digits(handles.rangeDigits)) === String([10, 2]));
+        String(digits(identifiers.rangeDigits)) === String([10, 2]));
 }
 
 {
-  assignValues(structure, handles, { sport: 0 });
-  Near('the toggle knob rests left', structure.query(handles.toggleKnob).origin[0], -0.0145, 1e-9);
-  Near('the toggle bed is dark', structure.query(handles.toggleGlow).opacity, 0, 1e-9);
-  assignValues(structure, handles, { sport: 1 });
-  Near('the toggle knob travels right', structure.query(handles.toggleKnob).origin[0], 0.0145, 1e-9);
-  Near('the toggle bed lights', structure.query(handles.toggleGlow).opacity, 1, 1e-9);
-  assignValues(structure, handles, { sport: 0.5 });
+  assignValues(structure, identifiers, { sport: 0 });
+  Near('the toggle knob rests left', structure.query(identifiers.toggleKnob).origin[0], -0.0145, 1e-9);
+  Near('the toggle bed is dark', structure.query(identifiers.toggleGlow).opacity, 0, 1e-9);
+  assignValues(structure, identifiers, { sport: 1 });
+  Near('the toggle knob travels right', structure.query(identifiers.toggleKnob).origin[0], 0.0145, 1e-9);
+  Near('the toggle bed lights', structure.query(identifiers.toggleGlow).opacity, 1, 1e-9);
+  assignValues(structure, identifiers, { sport: 0.5 });
   Near('a half-sprung toggle sits in the middle',
-       structure.query(handles.toggleKnob).origin[0], 0, 1e-9);
+       structure.query(identifiers.toggleKnob).origin[0], 0, 1e-9);
 }
 
 {
   // The gauge and the needle must read the SAME value. Two figures showing one quantity is how a
   // cluster ends up lying to the driver.
-  assignValues(structure, handles, { boost: 0.63 });
-  Near('the arc and the needle agree', structure.query(handles.gaugeFill).scalarAlpha,
-       structure.query(handles.needle).scalarAlpha, 0);
-  assignValues(structure, handles, { boost: 3 });
-  Near('an over-range boost clamps the needle to full', structure.query(handles.needle).scalarAlpha, 1);
+  assignValues(structure, identifiers, { boost: 0.63 });
+  Near('the arc and the needle agree', structure.query(identifiers.gaugeFill).scalarAlpha,
+       structure.query(identifiers.needle).scalarAlpha, 0);
+  assignValues(structure, identifiers, { boost: 3 });
+  Near('an over-range boost clamps the needle to full', structure.query(identifiers.needle).scalarAlpha, 1);
 }
 
 // ── packing ──────────────────────────────────────────────────────────────────────────────────────
@@ -278,28 +278,28 @@ function digits(handle) { return handle.map((One) => structure.query(One).scalar
 {
   const packed = pack(structure, placements, [0, -0.8, 0]);
   Claim('every figure is packed', packed.count === structure.count);
-  Claim('the buffer is the right size', packed.data.length === packed.count * FloatsPerFigure);
+  Claim('the buffer is the right size', packed.record.length === packed.count * FloatsPerFigure);
   Claim('forty floats a figure', FloatsPerFigure === 40);
 
   const first = packed.order[0];
-  Claim('the housing submits first', first === handles.housing);
+  Claim('the housing submits first', first === identifiers.housing);
 
   // A figure with no tint of its own takes the palette slot's colour, which is what makes the
   // palette configuration rather than decoration.
-  const slot = packed.order.indexOf(handles.gaugeFill) * FloatsPerFigure;
-  // Compared with a tolerance, not for equality: the buffer is Float32 and the palette is Float64,
+  const slot = packed.order.indexOf(identifiers.gaugeFill) * FloatsPerFigure;
+  // Compared with a tolerance, not for equality: the store is Float32 and the palette is Float64,
   // so 0.08 does not survive the trip as 0.08. A check that demanded it would be testing IEEE 754.
-  const tint = Array.from(packed.data.slice(slot + 24, slot + 28));
+  const tint = Array.from(packed.record.slice(slot + 24, slot + 28));
   Claim('an untinted figure resolves to its palette slot',
         tint.every((One, at) => Math.abs(One - structure.palette[Slot.Accent][at]) < 1e-7));
 
-  const streakSlot = packed.order.indexOf(handles.streaks) * FloatsPerFigure;
-  const wanted = structure.query(handles.streaks).streak;
+  const streakSlot = packed.order.indexOf(identifiers.streaks) * FloatsPerFigure;
+  const wanted = structure.query(identifiers.streaks).streak;
   Claim('all eight streak parameters reach the buffer, in order',
-        Array.from(packed.data.slice(streakSlot + 32, streakSlot + 40))
+        Array.from(packed.record.slice(streakSlot + 32, streakSlot + 40))
           .every((One, at) => Math.abs(One - wanted[at]) < 1e-7));
   Near('the category rides in the scalar vector',
-       packed.data[streakSlot + 20], Category.StreakField);
+       packed.record[streakSlot + 20], Category.StreakField);
 }
 
 // ── the live rung: the fibre volume ────────────────────────────────────────────────────────────
@@ -552,7 +552,7 @@ function digits(handle) { return handle.map((One) => structure.query(One).scalar
   Claim('the panel fills the display exactly', corners);
 
   // A point BEHIND the glass must land where its sightline crosses the glass — this is the one
-  // that fails if anyone replaces the frustum with an orthographic bake.
+  // that fails if anyone replaces the frustum with an orthographic precompute.
   let depth = true;
   for (const [px, py, pz] of [[0.05, 0.02, -0.08], [-0.12, 0.06, -0.14], [0.18, -0.09, -0.03]]) {
     const t = eyePanel[2] / (eyePanel[2] - pz);
@@ -566,7 +566,7 @@ function digits(handle) { return handle.map((One) => structure.query(One).scalar
         through(world(0.05, 0.02, -0.08))[3] > 0 && through(world(0, 0, 0))[3] > 0);
 
   // Move the eye and the image of a point BEHIND the glass must move with it. This is the
-  // parallax, and it is the single thing an orthographic bake would quietly destroy: a flattened
+  // parallax, and it is the single thing an orthographic precompute would quietly destroy: a flattened
   // display would put that point at the same place from every angle.
   const moved = DisplayClip(rows, [-0.31, -0.62, 0.17], hw, hh);
   const far = world(0.05, 0.02, -0.12);
@@ -622,19 +622,19 @@ function digits(handle) { return handle.map((One) => structure.query(One).scalar
 
 // ── FRONTIER OS, the home screen ─────────────────────────────────────────────────────────────────
 {
-  const { structure, handles } = constructShellLayout();
+  const { structure, identifiers } = constructShellLayout();
   Claim('the shell builds inside the engine figure limit', structure.count > 120 && structure.count < 1024);
   Claim('the shell exposes the two handles every host needs',
-        handles.housing !== undefined && handles.streaks !== undefined);
-  Claim('every app on the wall got a tile', handles.tiles.length === ShellApps.length);
+        identifiers.housing !== undefined && identifiers.streaks !== undefined);
+  Claim('every app on the wall got a tile', identifiers.tiles.length === ShellApps.length);
 
   // 🔴 A PIXEL ON A SCREEN IS EMITTED. The first cut built the chrome at emissiveWeight 0 and the
   //    dock, the search pill and the link strip all rendered at one part in 255 — the still showed
   //    four icons floating on nothing. InterfaceRaster.frag does mix(Received, Emitted, weight),
   //    so a plate inside a display with weight 0 shows only the room bouncing off it.
   Claim('the dock is an emitter, not a card lit by the room',
-        structure.query(handles.dock).emissiveWeight === 1);
-  Claim('so is the screen it sits on', structure.query(handles.face).emissiveWeight === 1);
+        structure.query(identifiers.dock).emissiveWeight === 1);
+  Claim('so is the screen it sits on', structure.query(identifiers.face).emissiveWeight === 1);
 
   // 🔴 AND THE PALETTE IS IN DISPLAY VALUES. The swap chain is bgra8unorm, not -srgb, so a figure's
   //    tint reaches the screen unconverted. Converting the reference's #202020 to linear put the
@@ -652,19 +652,19 @@ function digits(handle) { return handle.map((One) => structure.query(One).scalar
   //    the minutes one glyph early and blanked the last digit. keepSpaces gives the run one figure
   //    per character so the rewrite is positional. This is the check for that.
   const read = (run) => run.map((at) => String.fromCharCode(structure.query(at).scalarAlpha)).join('');
-  assignShellValues(structure, handles, { clock: new Date(2026, 9, 9, 9, 41), time: 0.1 });
-  Claim('the clock reads the hour it was given', read(handles.clock) === '09:41');
-  assignShellValues(structure, handles, { clock: new Date(2026, 9, 9, 9, 41), time: 0.7 });
-  Claim('the blink drops the colon and MOVES NOTHING', read(handles.clock) === '09 41');
-  Claim('the status bar keeps its colon regardless', read(handles.statusClock) === '09:41');
+  assignShellValues(structure, identifiers, { clock: new Date(2026, 9, 9, 9, 41), time: 0.1 });
+  Claim('the clock reads the hour it was given', read(identifiers.clock) === '09:41');
+  assignShellValues(structure, identifiers, { clock: new Date(2026, 9, 9, 9, 41), time: 0.7 });
+  Claim('the blink drops the colon and MOVES NOTHING', read(identifiers.clock) === '09 41');
+  Claim('the status bar keeps its colon regardless', read(identifiers.statusClock) === '09:41');
 
   // The longest date there is has to fit the run that was built for it, and the shortest must not
   // leave the previous month's tail behind.
-  assignShellValues(structure, handles, { clock: new Date(2026, 8, 9, 9, 41), time: 0 });
-  Claim('the widest date fits', read(handles.date) === 'WEDNESDAY 09 SEPTEMBER');
-  assignShellValues(structure, handles, { clock: new Date(2026, 4, 1, 0, 0), time: 0 });
+  assignShellValues(structure, identifiers, { clock: new Date(2026, 8, 9, 9, 41), time: 0 });
+  Claim('the widest date fits', read(identifiers.date) === 'WEDNESDAY 09 SEPTEMBER');
+  assignShellValues(structure, identifiers, { clock: new Date(2026, 4, 1, 0, 0), time: 0 });
   Claim('a shorter date blanks the tail instead of keeping it',
-        read(handles.date) === 'FRIDAY 01 MAY'.padEnd(22, ' '));
+        read(identifiers.date) === 'FRIDAY 01 MAY'.padEnd(22, ' '));
 
   // Every label on this screen has to be spellable by the engine's stroke font, which has no
   // lowercase at all — a name that needs one would silently draw a blank tile.
@@ -695,10 +695,10 @@ function digits(handle) { return handle.map((One) => structure.query(One).scalar
   ];
 
   for (const [name, make] of [['home', constructShellLayout], ['dashboard', constructHudLayout]]) {
-    const { structure, handles } = make();
-    structure.query(handles.housing).rotationX = Math.PI / 2 - Chassis.lean;
+    const { structure, identifiers } = make();
+    structure.query(identifiers.housing).rotationX = Math.PI / 2 - Chassis.lean;
     const { placements } = resolve(structure);
-    const rows = placements[handles.housing];
+    const rows = placements[identifiers.housing];
 
     let worst = Infinity, clipped = 0, behind = 0;
     for (const view of Angles) {

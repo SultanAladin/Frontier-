@@ -53,7 +53,7 @@ inline void Draw(const ImDrawList* List, unsigned char* Rgb, int Width, int Heig
         for (unsigned I = 0; I < Cmd.ElemCount; I += 3) {
             ImDrawVert V[3];
             for (int J = 0; J < 3; ++J) {
-                V[J] = List->VtxBuffer[List->IdxBuffer[Cmd.IdxOffset+I+J]+Cmd.VtxOffset];
+                V[J] = List->VtxStore[List->IdxStore[Cmd.IdxOffset+I+J]+Cmd.VtxOffset];
                 V[J].pos = ImVec2((V[J].pos.x-Origin.x)*Scale.x, (V[J].pos.y-Origin.y)*Scale.y);
             }
             double Area = Edge(V[0].pos,V[1].pos,V[2].pos);

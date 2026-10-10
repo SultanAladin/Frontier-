@@ -63,7 +63,7 @@ EnergyCellResult EnergyCell(float Mu, float Alpha, uint32_t Samples) noexcept
 }
 
 // Gauss–Legendre nodes/weights on [-1, 1] (Numerical Recipes gauleg — deterministic, no tables). Newton converges in
-// a handful of iterations; called once per bake (nodes are α/μ-independent, hoisted into the caller's row loop).
+// a handful of iterations; called once per precompute (nodes are α/μ-independent, hoisted into the caller's row loop).
 void GaussLegendre(int N, double* X, double* W) noexcept
 {
     constexpr double kEps = 3.0e-14, kPiD = 3.14159265358979;
@@ -94,7 +94,7 @@ float CharlieCell(float Mu, float Alpha, const double* MuX, const double* MuW, i
 {
     constexpr double kPiD = 3.14159265358979;
     const double MuO = Mu, SinO = std::sqrt(std::max(0.0, 1.0 - MuO * MuO));
-    const double A = std::max<double>(Alpha, 1.0e-4);   // Sultan's DistributionParameterFloor (bake rows never reach it)
+    const double A = std::max<double>(Alpha, 1.0e-4);   // Sultan's DistributionParameterFloor (precompute rows never reach it)
     const double Kappa = 1.0 / A, Norm = (2.0 + Kappa) / (2.0 * kPiD), Expo = Kappa * 0.5;
     double Sum = 0.0;
     for (int J = 0; J < PhiN; ++J)
@@ -118,7 +118,7 @@ float CharlieCell(float Mu, float Alpha, const double* MuX, const double* MuW, i
 
 } // namespace
 
-ShadingTableSet ShadingTableCodec::Bake(uint32_t SamplesPerCell) noexcept
+ShadingTableSet ShadingTableCodec::Precompute(uint32_t SamplesPerCell) noexcept
 {
     ShadingTableSet Set;
     const uint32_t N = ShadingTableSet::kResolution;
@@ -139,7 +139,7 @@ ShadingTableSet ShadingTableCodec::Bake(uint32_t SamplesPerCell) noexcept
         for (uint32_t Column = 0; Column < N; ++Column)
             Set.Energy[(Row * N + Column) * 4u + 2u] = static_cast<float>(std::min(Average, 1.0));
     }
-    double MuX[64], MuW[64], PhiX[32], PhiW[32];   // M3: GL nodes once per bake (α/μ-independent)
+    double MuX[64], MuW[64], PhiX[32], PhiW[32];   // M3: GL nodes once per precompute (α/μ-independent)
     GaussLegendre(64, MuX, MuW); GaussLegendre(32, PhiX, PhiW);
     for (uint32_t Row = 0; Row < N; ++Row)
     {

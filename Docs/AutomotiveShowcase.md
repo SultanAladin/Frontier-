@@ -29,16 +29,16 @@ All recipes start with clearcoat weight 1 and IOR 1.5. The outer coating is a di
 ## Actual C++ / shader integration
 
 - `Engine/ContentInterchange/AutomotiveShowcasePresets.h`: the five native authoring recipes and family labels.
-- `ShowcaseStructure.cpp/.h`: actual 20 × 20 mesh/material creation, descriptive names for new families, revision invalidation, scatter placement.
+- `ShowcaseStructure.cpp/.h`: actual 20 × 20 topology/material creation, descriptive names for new families, revision invalidation, scatter placement.
 - `MaterialDescriptor.h`: profile ID and sweep outside the existing 58-float prefix.
 - `MaterialCodec.cpp`: `slate_automotive_profile` and `slate_automotive_sweep` in the existing glTF extras encode/decode table.
 - `MaterialIndex.cpp/.h`: these fields occupy the two previously reserved floats (`Slate2.zw`); the resident GPU slab remains **304 bytes**. Invalid/fractional IDs fall back to the standard material path. Sweep is sanitized. Discrete IDs follow the dominant slab when flattened, rather than being numerically interpolated.
 - `Engine/Shaders/AutomotiveShowcase.slang`: finite-flake colour/density model plus a neutral clearcoat with absorption. Implements a matched sampling/PDF proposal: half cosine hemisphere, half coat GGX VNDF. The proposal has full upper-hemisphere support, but is **not a specialised glint importance sampler**.
 - `MaterialEvaluation.slang`: opt-in dispatch through the existing evaluation, sampling and PDF entry points. Existing families retain the standard BSDF.
-- `ReSTIRViewport.slang`: resolves persisted profile data, interpolated material UVs and ray-cone footprint. New families bypass the legacy perturbation of the shared normal, so flakes do not distort the coat.
+- `ReSTIRViewport.slang`: resolves persisted profile record, interpolated material UVs and ray-cone footprint. New families bypass the legacy perturbation of the shared normal, so flakes do not distort the coat.
 - `Projects/Project-Zero/Host/MaterialLevelViewport.cpp`: matching native binding at primary and bounce surfaces, including the previously missing legacy density/scale vector initialization. Native BSDF inputs use const references to avoid large record copies.
 
-The showcase UV-to-metres mapping is for the generated 1.10 m diameter spheres (circumference 3.45575 m). Reusing a recipe on a different mesh requires an appropriate material-UV metric; arbitrary mesh scale invariance is not certified.
+The showcase UV-to-metres mapping is for the generated 1.10 m diameter spheres (circumference 3.45575 m). Reusing a recipe on a different topology requires an appropriate material-UV metric; arbitrary topology scale invariance is not certified.
 
 The native RGB sample uses the shared weighted RGB palette. This adds native **presets**, not an eight-row palette editor to the C++ inspector. Other palette families remain available through the shared shader API. Coat anisotropy and independent coat-normal maps are not consumed by this preset evaluator; these samples use isotropic coats and the smooth material frame.
 
@@ -50,7 +50,7 @@ The native RGB sample uses the shared weighted RGB palette. This adds native **p
 - Existing default-scene gate: all tests pass (emissive geometry, original lobe census, span coverage and scene bounds).
 - Native `MaterialLevelViewport.cpp`: C++20 syntax check passes.
 - Complete modified `ReSTIRViewport.slang`: compiled to SPIR-V for Vulkan 1.2 with glslang 16.6.0, source pin `e1b562a8bed273a02f30b59b66a5d499793cede5`.
-- Five PNGs are actual C++ renders, using real authored/resident material data. The narrow coat is integrated with VNDF samples to avoid a discrete-softbox-dot artefact. They are reference swatches, **not screenshots of the full application**.
+- Five PNGs are actual C++ renders, using real authored/resident material record. The narrow coat is integrated with VNDF samples to avoid a discrete-softbox-dot artefact. They are reference swatches, **not screenshots of the full application**.
 
 ## Not claimed
 
@@ -71,14 +71,14 @@ Review `Exhibits/Gallery/AutomotiveShowcase/index.html`, `Grid.json` and `Native
 
 ## Executed ReSTIR viewport captures (follow-up)
 
-The earlier delivery contained only isolated studio renders. This follow-up builds and **executes** `Projects/Project-Zero/Host/MaterialLevelViewport.cpp` with `--restir` against the actual default scene. It does not substitute the standalone `NativeShowcaseProof` studio. The native host uses ReSTIR DI temporal/spatial reuse and its GI vertex pool, real BVH traversal, actual baked shading tables, the scene's sky/sun, emissive geometry and interface proxy.
+The earlier delivery contained only isolated studio renders. This follow-up builds and **executes** `Projects/Project-Zero/Host/MaterialLevelViewport.cpp` with `--restir` against the actual default scene. It does not substitute the standalone `NativeShowcaseProof` studio. The native host uses ReSTIR DI temporal/spatial reuse and its GI vertex slots, real BVH traversal, actual precomputed shading tables, the scene's sky/sun, emissive geometry and interface proxy.
 
 - `ReSTIR/grid400.png`: 512×512, 32 accumulation frames. The default scene includes all 400 spheres. Physical light-panel backs obscure some spheres from the review camera; they have not been hidden for the capture.
 - Five `ReSTIR/paint-*.png` family close-ups plus `paint-glitter-macro.png`: 384×384, 16 frames, first variation of each family. All 400 spheres remain in the scene.
 - Every capture retains `*-raw.png` before the native three-level à-trous filter. The PNGs use the engine's ACES/manual-exposure output, with no external retouching or upscaling.
-- A missing automotive UV/footprint binding at the GI pool's vertex was corrected, in addition to the existing primary and path-trace surface bindings.
+- A missing automotive UV/footprint binding at the GI slots's vertex was corrected, in addition to the existing primary and path-trace surface bindings.
 - `RenderProof.json` records the actual compile command, execution arguments, source/binary hashes, durations and output hashes. Per-view logs distinguish this estimator from brute-force path tracing and report invalid sample counts.
-- The 768×768 attempt was killed by the sandbox's roughly 3.72 GiB memory limit. The overview was reduced to 512×512. These are finite-sample diagnostic renders, not convergence/performance certification.
+- The 768×768 attempt was killed by the sandbox's roughly 3.72 GiB storage limit. The overview was reduced to 512×512. These are finite-sample diagnostic renders, not convergence/performance certification.
 
 **CPU ReSTIR execution is now verified; hardware Vulkan execution and the Windows editor application remain unverified.** `NativeProof.json` at the gallery root is the earlier studio/unit-test report from commit `0a4bc23`, not the execution record for this follow-up. Use `ReSTIR/RenderProof.json` for the new captures.
 

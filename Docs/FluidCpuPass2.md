@@ -1,4 +1,4 @@
-# Flux CPU optimization pass 2 — parallel stages and measured pipeline
+# Flux CPU optimization pass 2 — parallel stages and measured chain
 
 2026-09-25. **Foam and splash are queued after optimization, not implemented here.** This is a validated CPU optimization milestone, not completion of the GPU extraction plan. GPU-resident extraction/timestamps, live main-engine fluid updates and native Windows/Vulkan runtime validation remain outstanding.
 
@@ -6,11 +6,11 @@
 
 - Dense contiguous cell indexing for compact simulations, with a sparse hash fallback to avoid allocating huge empty grids. Queries retain sorted IDs and exact support filtering.
 - Cached immutable boundary index with owned positions. Copies cannot retain references into another solver's vectors. Reset replaces the cache; toggling the obstacle invalidates/rebuilds it. This also fixes the inherited mismatch where collision toggles left old boundary samples active.
-- Reused surface-tension, viscosity PCG and mesh-assembly scratch buffers.
-- Optional OpenMP for particle/boundary queries, density evaluation, pressure corrections, PCA, field construction and independent mesh bricks. Pairwise force/viscosity accumulation and convergence reductions remain ordered/serial to avoid races and changed convergence decisions.
-- A single owning brick writes each shared field sample. No concurrent writes to brick boundary planes. Completed field construction precedes mesh generation via the OpenMP region barrier.
-- Inlined small vector operations; stable radix sorting for mesh topology checks. Topology checks, pressure iterations, particle count, smoothing and physical timestep were **not removed or reduced**.
-- Solver-stage timings plus an actual simulation→PCA→mesh pipeline benchmark (five warm-up steps, twenty timed steps).
+- Reused surface-tension, viscosity PCG and topology-assembly scratch stores.
+- Optional OpenMP for particle/boundary queries, density evaluation, pressure corrections, PCA, field construction and independent topology bricks. Pairwise force/viscosity accumulation and convergence reductions remain ordered/serial to avoid races and changed convergence decisions.
+- A single owning brick writes each shared field sample. No concurrent writes to brick boundary planes. Completed field construction precedes topology generation via the OpenMP region barrier.
+- Inlined small vector operations; stable radix sorting for topology topology checks. Topology checks, pressure iterations, particle count, smoothing and physical timestep were **not removed or reduced**.
+- Solver-stage timings plus an actual simulation→PCA→topology chain benchmark (five warm-up steps, twenty timed steps).
 - `fluid-parallel` configure/build/test presets. Serial remains available; no mandatory OpenMP dependency was added to the existing serial preset.
 - Optional direct Windows `-FluidOpenMP` flag, using `/openmp` and a separate `Release-FluidOpenMP`/`Debug-FluidOpenMP` object directory. Windows execution is unverified. Full-app CMake also applies OpenMP to Project-Zero when explicitly enabled.
 
@@ -24,11 +24,11 @@ Same sandbox Xeon, GCC 12.2 Release, **1,440 particles**, extraction **65×48×4
 | PCA, average of 10 repeats | 4.87 ms | 4.37 ms | **2.21 ms** |
 | Changed extraction, one sampled update | 18.05 ms | 13.09 ms | **10.34 ms** |
 | Sum of those stage medians | 39.97 ms | 30.75 ms | **21.11 ms** |
-| Actual pipeline, mean of 20 timed updates | Not measured | 27.67 ms | **18.67 ms** |
+| Actual chain, mean of 20 timed updates | Not measured | 27.67 ms | **18.67 ms** |
 
-The actual pipeline covers earlier simulation states (steps 6–25), whereas the separate extraction timing samples a later state. **18.67 ms and 21.11 ms describe different measurement windows; do not treat their difference as a mysterious parallel overlap.** The pipeline stages run sequentially, with internal parallelism. These are CPU-only measurements, not application FPS or GPU speedups.
+The actual chain covers earlier simulation states (steps 6–25), whereas the separate extraction timing samples a later state. **18.67 ms and 21.11 ms describe different measurement windows; do not treat their difference as a mysterious parallel overlap.** The chain stages run sequentially, with internal parallelism. These are CPU-only measurements, not application FPS or GPU speedups.
 
-New changed-mesh stage medians at two threads:
+New changed-topology stage medians at two threads:
 - Candidate preparation: 1.02 ms.
 - Field evaluation: 2.06 ms.
 - Triangle generation: 1.05 ms.
@@ -44,9 +44,9 @@ Solver timing fields prefixed `last_step_` report the last measured physics step
 - OpenMP, two threads: **6/6 CTests pass**.
 - OpenMP Debug + UndefinedBehaviorSanitizer, two threads: **6/6 CTests pass** (58.83 seconds).
 - OpenMP optimization equivalence test also passes with four threads.
-- Added empty/sparse index, cached obstacle-toggle, solver copy/reset and milk/honey/chocolate comparisons against exhaustive searches, alongside existing water/PCA/full/incremental/removal mesh comparisons.
-- Separately exported the optimized serial mesh and compared it with the original pre-optimization baseline OBJ: identical face indices, maximum printed position/normal vector difference approximately **1.005e-5**.
-- Build-source list parity remains green. No Windows run, hardware GPU benchmark or ThreadSanitizer run is claimed; UBSan does not establish absence of data races.
+- Added empty/sparse index, cached obstacle-toggle, solver copy/reset and milk/honey/chocolate comparisons against exhaustive searches, alongside existing water/PCA/full/incremental/removal topology comparisons.
+- Separately exported the optimized serial topology and compared it with the original pre-optimization baseline OBJ: identical face indices, maximum printed position/normal vector difference approximately **1.005e-5**.
+- Build-source list parity remains green. No Windows run, hardware GPU benchmark or ThreadSanitizer run is claimed; UBSan does not establish absence of record races.
 
 ## Run
 

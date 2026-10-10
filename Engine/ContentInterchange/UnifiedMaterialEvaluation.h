@@ -51,13 +51,13 @@ inline const Frontier::ShadingTableSet* g_Tables = nullptr;
 inline void BindTables(const Frontier::ShadingTableSet& Tables) noexcept { g_Tables = &Tables; }
 [[nodiscard]] inline bool TablesBound() noexcept { return g_Tables != nullptr; }
 
-// Bake-on-first-use, so a host that never heard of the LUTs still shades correctly instead of silently taking a
+// Precompute-on-first-use, so a host that never heard of the LUTs still shades correctly instead of silently taking a
 //    fallback path. A host that owns its own tables (MaterialLevelViewport does) calls BindTables first and this
-//    never bakes. 1024 samples/cell matches what that host asks for. Function-local static init is thread-safe.
+//    never precomputes. 1024 samples/cell matches what that host asks for. Function-local static init is thread-safe.
 inline const Frontier::ShadingTableSet& EnsureTables() noexcept
 {
-    static const Frontier::ShadingTableSet Baked = Frontier::ShadingTableCodec::Bake(1024u);
-    if (g_Tables == nullptr) g_Tables = &Baked;
+    static const Frontier::ShadingTableSet Precomputed = Frontier::ShadingTableCodec::Precompute(1024u);
+    if (g_Tables == nullptr) g_Tables = &Precomputed;
     return *g_Tables;
 }
 
@@ -109,7 +109,7 @@ namespace Frontier::UnifiedMaterial {
 [[nodiscard]] inline ShadingRecord Transcribe(const Frontier::MaterialSlabRecord& S, uint32_t Selection) noexcept
 {
     ShadingRecord m;
-    m.AutomotiveData     = vec4(S.Reserved0, S.Reserved1, 0.0f, 0.0f);
+    m.AutomotivePayload     = vec4(S.Reserved0, S.Reserved1, 0.0f, 0.0f);
     m.AutomotiveDensity  = S.SlateGlintDensity;
     m.BaseColor          = vec3(S.BaseWeight * S.BaseColorR, S.BaseWeight * S.BaseColorG, S.BaseWeight * S.BaseColorB);
     m.Metalness          = S.BaseMetalness;
@@ -151,9 +151,9 @@ namespace Frontier::UnifiedMaterial {
     return m;
 }
 
-// The automotive flake lobe is the one part of the lobe set that needs PER-HIT data: the glint cell lookup is
+// The automotive flake lobe is the one part of the lobe set that needs PER-HIT record: the glint cell lookup is
 //    driven by a scaled UV and by the ray footprint on the surface. A ShadingRecord that has been transcribed but
-//    not bound carries AutomotiveData.zw = 0 and AutomotiveFootprint = 0, and the flake evaluation then collapses
+//    not bound carries AutomotivePayload.zw = 0 and AutomotiveFootprint = 0, and the flake evaluation then collapses
 //    -- which renders a metallic-flake car essentially black rather than merely flake-less. Any path that shades an
 //    automotive slab MUST call this; it early-returns for every other material, exactly as the host's copy does.
 //
@@ -165,9 +165,9 @@ inline void BindAutomotiveHit(ShadingRecord& m,
                               const vec3& direction, const vec3& normal,
                               float raySpread = 0.001f) noexcept
 {
-    if (m.AutomotiveData.x < 1.0f || m.AutomotiveData.x > 5.0f) return;
-    m.AutomotiveData.z = (U0 * (1.0f - u - v) + U1 * u + U2 * v) * 3.4557519f;
-    m.AutomotiveData.w = (V0 * (1.0f - u - v) + V1 * u + V2 * v) * 1.7278760f;
+    if (m.AutomotivePayload.x < 1.0f || m.AutomotivePayload.x > 5.0f) return;
+    m.AutomotivePayload.z = (U0 * (1.0f - u - v) + U1 * u + U2 * v) * 3.4557519f;
+    m.AutomotivePayload.w = (V0 * (1.0f - u - v) + V1 * u + V2 * v) * 1.7278760f;
     const float worldArea = length(cross(P1 - P0, P2 - P0));
     const float uvArea = std::abs((U1 - U0) * (V2 - V0) - (V1 - V0) * (U2 - U0));
     m.AutomotiveFootprint = 3.4557519f * std::sqrt(uvArea / std::max(worldArea, 1e-12f))
@@ -237,7 +237,7 @@ namespace Frontier::UnifiedMaterial {
 [[nodiscard]] inline ShadingRecord MakeShadingRecord(const MaterialSlabRecord& S, uint32_t Selection) noexcept
 {
     ShadingRecord m;
-    m.AutomotiveData=vec4(S.Reserved0,S.Reserved1,0.0f,0.0f);m.AutomotiveDensity=S.SlateGlintDensity;
+    m.AutomotivePayload=vec4(S.Reserved0,S.Reserved1,0.0f,0.0f);m.AutomotiveDensity=S.SlateGlintDensity;
     m.BaseColor          = vec3(S.BaseWeight * S.BaseColorR, S.BaseWeight * S.BaseColorG, S.BaseWeight * S.BaseColorB);
     m.Metalness          = S.BaseMetalness;
     m.DiffuseRoughness   = S.BaseDiffuseRoughness;

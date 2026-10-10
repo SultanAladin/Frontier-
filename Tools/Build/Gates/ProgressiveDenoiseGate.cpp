@@ -35,8 +35,8 @@ int main()
                 ReSTIRIntegratorConfiguration Configuration{};
                 Configuration.RenderPath = Path;
                 Configuration.GlobalIllumination = Gi;
-                ReSTIRIntegrator Pipeline(Configuration);
-                const auto Dispatch = Pipeline.BuildDispatch(Camera, 1280u, 720u, 0u, 0u);
+                ReSTIRIntegrator Sequence(Configuration);
+                const auto Dispatch = Sequence.BuildDispatch(Camera, 1280u, 720u, 0u, 0u);
                 if (Path != 0u) assert((Dispatch.FeatureFlags & RayFeatures) == 0u);
                 else assert((Dispatch.FeatureFlags & (RayFeatures & ~DispatchFeatureGiReuse))
                          == (RayFeatures & ~DispatchFeatureGiReuse));
@@ -68,7 +68,7 @@ int main()
         for(unsigned i=0;i<Pixels;++i){
             error+=std::abs(current[i*4]-source[i*4]);
             assert(std::isfinite(current[i*4+3])&&current[i*4+3]>=0);
-            assert(current[i*4]>=.3f-1e-6f); // input composite retained
+            assert(current[i*4]>=.3f-1e-6f); // input combined retained
         }
         error/=Pixels;
         assert(error<=previous+1e-8);previous=error;

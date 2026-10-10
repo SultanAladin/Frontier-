@@ -512,7 +512,7 @@ struct GasSceneRun
 ///    camera came back a flat orange wall at a hundred per cent coverage. The browser is not doing anything
 ///    cleverer — it multiplies the outer band by a smoothstep every frame, and smoke that reaches the
 ///    boundary leaves. `enclosedBox` is an authored setting precisely because both behaviours are wanted.
-/// note  the floor does not vent. Gas pools on the ground in the authoring tool too, and that is the look.
+/// note  the floor does not vent. Gas slots on the ground in the authoring tool too, and that is the look.
 /// cost  🚩  one pass over 32768 voxels
 /// tag   api, nonallocating, nonthrowing
 inline void VentOpenBoundary(CoarseGasField& Field) noexcept

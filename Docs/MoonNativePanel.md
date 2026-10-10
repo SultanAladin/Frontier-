@@ -14,7 +14,7 @@ The user rejected the illustrative crater moons. They have been removed. `MoonAt
 
 The six-body catalogue uses full-phase textured spheres in one horizontal row, never a popup or grid. Clicking a sphere or its caption changes the selected instance's body. At narrow widths, the arrows scroll the strip without changing selection; at wide widths all six bodies fit and browsing arrows disable at the boundaries. The four independently configurable renderer slots are preserved. Internal `M1…M4` property keys remain compatible but are not public selector labels. Current instance names can repeat if multiple instances use the same body.
 
-`Tools/Build/Patches/MoonCatalogue.patch` adds a generic borrowed atlas view to the editor sheet. Project-Zero lends its already-registered level-zero RGBA8 data; the editor does not load project files or invent an alternative moon. A process-unique revision invalidates previews on atlas reassignment. Missing/unassigned/1×1 placeholder views are unavailable, not white substitute spheres. Pixel ownership remains with `TextureIndex` and must stay valid through the editor frame; no asynchronous read/decode safety is claimed.
+`Tools/Build/Patches/MoonCatalogue.patch` adds a generic borrowed atlas view to the editor sheet. Project-Zero lends its already-registered level-zero RGBA8 record; the editor does not load project files or invent an alternative moon. A process-unique revision invalidates previews on atlas reassignment. Missing/unassigned/1×1 placeholder views are unavailable, not white substitute spheres. Pixel ownership remains with `TextureIndex` and must stay valid through the editor frame; no asynchronous read/decode safety is claimed.
 
 The editor owns one 256² RGBA pose image and six 96² RGBA catalogue images (about 472 KiB), managed per ImGui context and released at shutdown. Previews use a fixed display radius and Reinhard + sRGB tone mapping to stay readable. They are **real textured CPU-rendered body previews, not full scene-camera captures**; scene atmosphere, occlusion and halo composition are not reproduced. The size comparison remains deliberately compressed.
 
@@ -75,7 +75,7 @@ Selected release / debug frames: slot builder **416 / 2,592 bytes**, Moon sheet 
 
 ### Catalogue correction
 
-The latest proof also exercises direct horizontal catalogue selection, single-row layout at wide and narrow sizes, and previous/next scrolling without changing the selected body, checks all six real texture decodes and byte identities, checks distinct rendered images, and verifies missing data produces transparent pixels rather than fabricated moons. Texture file hashes from the pinned target are included in each Moon manifest. The table above and current logs include these additional checks. The atlas-preview function uses 240 / 288 bytes in release / debug.
+The latest proof also exercises direct horizontal catalogue selection, single-row layout at wide and narrow sizes, and previous/next scrolling without changing the selected body, checks all six real texture decodes and byte identities, checks distinct rendered images, and verifies missing record produces transparent pixels rather than fabricated moons. Texture file hashes from the pinned target are included in each Moon manifest. The table above and current logs include these additional checks. The atlas-preview function uses 240 / 288 bytes in release / debug.
 
 ### Horizontal catalogue layout correction
 

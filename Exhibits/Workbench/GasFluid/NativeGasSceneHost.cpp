@@ -68,13 +68,13 @@ bool Near(float Reading, float Expected, float Tolerance)
 
 std::string ReadWhole(const std::string& Path)
 {
-    std::FILE* Handle = std::fopen(Path.c_str(), "rb");
-    if (Handle == nullptr) throw std::runtime_error("cannot open " + Path);
+    std::FILE* Tag = std::fopen(Path.c_str(), "rb");
+    if (Tag == nullptr) throw std::runtime_error("cannot open " + Path);
     std::string Text;
     char Chunk[4096];
     std::size_t Taken = 0u;
-    while ((Taken = std::fread(Chunk, 1u, sizeof(Chunk), Handle)) > 0u) Text.append(Chunk, Taken);
-    std::fclose(Handle);
+    while ((Taken = std::fread(Chunk, 1u, sizeof(Chunk), Tag)) > 0u) Text.append(Chunk, Taken);
+    std::fclose(Tag);
     return Text;
 }
 

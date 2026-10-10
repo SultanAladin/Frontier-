@@ -97,12 +97,12 @@ namespace
     // Silhouette and boundary edges of a grip, as anti-aliased line segments. The raster fills triangles without edge
     //    anti-aliasing, so a lone cone or arc shows stair-steps; an AA outline along exactly the edges that bound the
     //    shape (one adjacent triangle, or one facing the eye and one facing away) closes the stair-steps without drawing
-    //    the interior mesh.
+    //    the interior topology.
     SegmentStream OutlineOf(const SurfaceStream& S, const CameraProjection& Camera)
     {
         using Key = std::tuple<long long, long long, long long>;
-        struct Info { int Count = 0; int Front = 0; int Back = 0; Vec3 A, B; };
-        std::map<std::pair<Key, Key>, Info> Edges;
+        struct Facts { int Count = 0; int Front = 0; int Back = 0; Vec3 A, B; };
+        std::map<std::pair<Key, Key>, Facts> Edges;
         auto At = [&](uint32_t I) { return Vec3(S.Positions[3u * I], S.Positions[3u * I + 1u], S.Positions[3u * I + 2u]); };
         auto Quantise = [](Vec3 P) { return Key(std::llround(P.X * 1e5), std::llround(P.Y * 1e5), std::llround(P.Z * 1e5)); };
         const Vec3 Eye = Camera.Eye();
@@ -117,14 +117,14 @@ namespace
                 const Vec3 A = P[E], B = P[(E + 1) % 3];
                 Key KA = Quantise(A), KB = Quantise(B);
                 if (KB < KA) { std::swap(KA, KB); }
-                Info& I = Edges[{ KA, KB }];
+                Facts& I = Edges[{ KA, KB }];
                 I.A = A; I.B = B; ++I.Count; (Faces ? I.Front : I.Back) += 1;
             }
         }
         SegmentStream Stream;
         for (const auto& Entry : Edges)
         {
-            const Info& I = Entry.second;
+            const Facts& I = Entry.second;
             if (I.Count == 1 || (I.Front > 0 && I.Back > 0))
                 Stream.Append(I.A, I.B);
         }
@@ -498,7 +498,7 @@ void TransformGizmo::Draw(RasterExchange& Raster, const CameraProjection& Camera
         double C = (Tip - PlaneHalf) * L, Hh = PlaneHalf * L;
         Vec3 Centre = O + (B.U + B.V) * C;
         GripBuild Build;
-        // The plane handle takes the colour of its normal axis (the XY square is blue), the usual CAD reading; the
+        // The plane identifier takes the colour of its normal axis (the XY square is blue), the usual CAD reading; the
         //    old cyan / magenta / yellow set read as stray purple and yellow squares floating off the axes.
         Build.Quad(Centre - B.U * Hh - B.V * Hh, Centre + B.U * Hh - B.V * Hh, Centre + B.U * Hh + B.V * Hh, Centre - B.U * Hh + B.V * Hh, Facing(B.Dir));
         DrawRecord Fill = Record(AxisColour[Axis], H == Lit ? 0.60f : 0.30f, H);

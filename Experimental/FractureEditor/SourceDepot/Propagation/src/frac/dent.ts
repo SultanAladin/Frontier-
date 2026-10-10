@@ -1,8 +1,8 @@
 /**
- * Sheet-metal denting: an offline elasto-PLASTIC shell solve, baked into a
+ * Sheet-metal denting: an offline elasto-PLASTIC shell solve, precomputed into a
  * vertex-animation texture (VAT).
  *
- * Why bake at all
+ * Why precompute at all
  * ---------------
  * A car panel does not fracture, it yields. Getting that right needs a real
  * shell solve with plastic flow and elastic springback, at a cost (tens of
@@ -11,7 +11,7 @@
  * is *deterministic*: the same corner hit at the same angle always deforms the
  * same way, only the depth changes. So the expensive part is precomputable.
  *
- * What is baked
+ * What is precomputed
  * -------------
  * For each impact site on the body we run a quasi-static crush: press a rigid
  * impactor in by 1/F of the maximum depth, relax, let the plastic strains
@@ -92,7 +92,7 @@ export interface DentSite {
    * rewrite to see it. Pressing a ball into a plate that is clamped all round
    * is a *stretching* problem - the metal has to get longer to go deeper - and
    * the correct answer really is a smooth dish. That is what a hailstone or a
-   * trolley does to a door, and it is what this bake produced.
+   * trolley does to a door, and it is what this precompute produced.
    *
    * A crash is the opposite: the structure carrying the panel is collapsing,
    * so the panel's own edges move TOWARDS each other and the sheet suddenly
@@ -179,11 +179,11 @@ export interface DentOptions {
   chassis?: number;
 }
 
-export interface BakedDent {
+export interface PrecomputedDent {
   /**
-   * SPARSE bake. A dent only moves the vertices inside its patch (typically a
+   * SPARSE precompute. A dent only moves the vertices inside its patch (typically a
    * few percent of the body), so the VAT only stores those. `verts[s]` is the
-   * mesh vertex id of slot `s`; the shader looks a vertex up through a slot
+   * topology vertex id of slot `s`; the shader looks a vertex up through a slot
    * table and skips it entirely if it is not in this patch. That is the
    * difference between a 3 MB texture and a 60 MB one.
    */
@@ -199,9 +199,9 @@ export interface BakedDent {
 }
 
 /**
- * Quasi-static crush bake for one site. Deterministic: same input, same bytes.
+ * Quasi-static crush precompute for one site. Deterministic: same input, same bytes.
  */
-export function bakeDent(topo: ShellTopo, site: DentSite, o: DentOptions = {}): BakedDent {
+export function precomputeDent(topo: ShellTopo, site: DentSite, o: DentOptions = {}): PrecomputedDent {
   const t0 = (typeof performance !== 'undefined' ? performance.now() : Date.now());
   const F = o.frames ?? 14;
   const iters = o.iters ?? 24;
@@ -592,11 +592,11 @@ export function bakeDent(topo: ShellTopo, site: DentSite, o: DentOptions = {}): 
 /**
  * Deformation cage (free-form lattice) wrapped around the body.
  *
- * The per-vertex VAT is exact but is bound to one specific mesh. Production
- * pipelines bake the same solve into a lattice instead: the cage is authored
+ * The per-vertex VAT is exact but is bound to one specific topology. Production
+ * chains precompute the same solve into a lattice instead: the cage is authored
  * once around the body, and *every* part bound to it (panel, lights, badges,
  * glass, decals, the LODs) is deformed by trilinear lookup of the cage. One
- * bake, any mesh, any LOD, and the texture is ~10x smaller. The price is that
+ * precompute, any topology, any LOD, and the texture is ~10x smaller. The price is that
  * a trilinear cage rounds off the sharpest creases, which is why this demo
  * lets you A/B the two at runtime.
  */

@@ -71,7 +71,7 @@ public:
 
     DistanceFieldIntegrator(uint32_t InViewportWidth, uint32_t InViewportHeight) noexcept;
 
-    // Resizes viewport buffers and reservoir history
+    // Resizes viewport stores and reservoir history
     void Resize(uint32_t InViewportWidth, uint32_t InViewportHeight) noexcept;
 
     // Evaluates distance field GI for the current frame
@@ -99,10 +99,10 @@ public:
 private:
     uint32_t                ViewportWidth  = 320u;              // [px] presentation width
     uint32_t                ViewportHeight = 240u;              // [px] presentation height
-    std::vector<DistanceFieldReservoir> TemporalReservoirBuffer; // [-] historical reservoirs per pixel
-    std::vector<DistanceFieldReservoir> CurrentReservoirBuffer;  // [-] frame initial reservoirs per pixel
-    std::vector<float>      DepthBuffer;                        // [m] primary ray hit distances
-    std::vector<Vector3>    NormalBuffer;                       // [-] primary ray hit normals
+    std::vector<DistanceFieldReservoir> TemporalReservoirStore; // [-] historical reservoirs per pixel
+    std::vector<DistanceFieldReservoir> CurrentReservoirStore;  // [-] frame initial reservoirs per pixel
+    std::vector<float>      DepthStore;                        // [m] primary ray hit distances
+    std::vector<Vector3>    NormalStore;                       // [-] primary ray hit normals
 };
 
 } // namespace Frontier

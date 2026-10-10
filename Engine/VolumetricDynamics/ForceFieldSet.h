@@ -370,7 +370,7 @@ inline void AdvanceByForces(const ForceCrossing& Acting, float Coupling, float S
 //------------------------------------------------------------------------------------------------------------------------
 
 // 📦 Can this field be summed into the shared flow lattice, or must it be evaluated per receiver?
-//    💡 A flow field that names channels cannot be baked either: one shared texture cannot both include
+//    💡 A flow field that names channels cannot be precomputed either: one shared texture cannot both include
 //       and exclude the same receiver. That is the real cost of selectivity, and it is worth knowing
 //       before somebody adds an Acts list to the prevailing wind and wonders why the frame time moved.
 inline bool ForceBakeable(const ForceField& Field) noexcept

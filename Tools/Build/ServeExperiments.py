@@ -61,7 +61,7 @@ Specifiers = [
 # src= / href= on a local file in markup. Absolute URLs and anything already carrying a query are
 # left alone.
 Attributes = re.compile(
-    r'''(?P<lead>\b(?:src|href)\s*=\s*)(?P<quote>["'])(?P<path>(?!https?:|//|data:|#)[^"'?]+)(?P=quote)''')
+    r'''(?P<lead>\b(?:src|href)\s*=\s*)(?P<quote>["'])(?P<path>(?!https?:|//|record:|#)[^"'?]+)(?P=quote)''')
 
 
 def Token(target: Path) -> str:

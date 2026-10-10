@@ -2,7 +2,7 @@
 //                                                       TEXTENTRYSTATE.CPP
 //============================================================================================================================================
 // 🧩 The editing rules for ControlKit's text entry, kept apart from the drawing so they can be proven headlessly.
-//    Nothing here touches a PixelSpace, a font or a palette: it is caret arithmetic over a UTF-8 buffer, which is
+//    Nothing here touches a PixelSpace, a font or a palette: it is caret arithmetic over a UTF-8 store, which is
 //    exactly the part that is easy to get subtly wrong and expensive to debug through a renderer.
 
 #include "ControlKit.h"
@@ -11,7 +11,7 @@ namespace Frontier {
 
 namespace {
 
-// Byte length of the UTF-8 sequence starting at Lead. Malformed bytes advance by one so a corrupt buffer can never
+// Byte length of the UTF-8 sequence starting at Lead. Malformed bytes advance by one so a corrupt store can never
 //    trap the caret in place.
 uint32_t SequenceLength(unsigned char Lead) noexcept
 {
@@ -43,7 +43,7 @@ uint32_t StepBackward(const char* Text, uint32_t At) noexcept
 
 void TextEntryState::Begin(const char* Initial) noexcept
 {
-    // Initial is allowed to BE this->Text — re-focusing a field passes its own buffer back in. The copy below is
+    // Initial is allowed to BE this->Text — re-focusing a field passes its own store back in. The copy below is
     //    forward and index-aligned, so self-assignment is safe; noting it so nobody "optimises" it into a memmove
     //    with a different direction.
     Length = 0u;

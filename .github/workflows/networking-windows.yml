@@ -165,13 +165,13 @@ jobs:
         run: |
           Add-Type -AssemblyName System.Drawing
           $Image = [System.Drawing.Image]::FromFile((Resolve-Path 'Projects/Project-Networking/Build/Output/LobbyProof.bmp'))
-          $Stream = [System.IO.MemoryStream]::new()
+          $Stream = [System.IO.StorageStream]::new()
           $Image.Save($Stream, [System.Drawing.Imaging.ImageFormat]::Png)
-          $Data = [Convert]::ToBase64String($Stream.ToArray())
+          $Packet = [Convert]::ToBase64String($Stream.ToArray())
           $Image.Dispose(); $Stream.Dispose()
-          $Parts = [Math]::Ceiling($Data.Length / 32000)
+          $Parts = [Math]::Ceiling($Packet.Length / 32000)
           for ($I = 0; $I -lt $Parts; $I++) {
-            $Chunk = $Data.Substring($I * 32000, [Math]::Min(32000, $Data.Length - $I * 32000))
+            $Chunk = $Packet.Substring($I * 32000, [Math]::Min(32000, $Packet.Length - $I * 32000))
             Write-Host "::notice title=LobbyPreviewPNG-$I-of-$Parts::$Chunk"
           }
       - name: Package binaries with EOS runtime, without credentials
@@ -198,7 +198,7 @@ jobs:
           # Never install/start the service or simulate an account login on CI.
           Copy-Item "$env:RUNNER_TEMP/EOS/Bin/xaudio2_9redist.dll" "$Package/App/xaudio2_9redist.dll"
           Copy-Item "$env:RUNNER_TEMP/XAudioNotices" "$Package/XAudioNotices" -Recurse
-          # The portable credential/data-key file is private and must never enter public artifacts.
+          # The portable credential/record-key file is private and must never enter public artifacts.
           if (Get-ChildItem $Package -Recurse -File | Where-Object { $_.Name -match '\.local\.|\.pending$' }) { throw 'Private/local file found in release staging' }
           Copy-Item '_AgentScratch/Gui/glfw/LICENSE.md' "$Package/GLFW-LICENSE.md"
           Copy-Item '_AgentScratch/Gui/imgui/LICENSE.txt' "$Package/IMGUI-LICENSE.txt"

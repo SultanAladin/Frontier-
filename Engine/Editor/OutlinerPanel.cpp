@@ -58,7 +58,7 @@ constexpr ImU32 kInkOnOk = IM_COL32(0x0B, 0x1A, 0x12, 255); // .nstat.ok color
 constexpr ImU32 kWarnBg  = IM_COL32(255, 180, 84, 41);     // rgba(255,180,84,.16)
 constexpr ImU32 kErrBg   = IM_COL32(255, 80, 80, 41);      // rgba(255,80,80,.16)
 constexpr ImU32 kErrTile = IM_COL32(255, 80, 80, 38);      // .ss.warn .ss-ico .15
-constexpr ImU32 kInfoBg  = IM_COL32(255, 255, 255, 20);    // rgba(255,255,255,.08)
+constexpr ImU32 kDetailsBg  = IM_COL32(255, 255, 255, 20);    // rgba(255,255,255,.08)
 constexpr ImU32 kWhite   = IM_COL32(255, 255, 255, 255);
 
 // Pill tints: the page's FILTERS colours, and the folder / auto glyph accents.
@@ -241,7 +241,7 @@ void DrawClipped(ImDrawList* Draw, ImFont* Font, float Size, float X, float Cent
 //    same triangles. The flattener returns its contours in a vector; that is the codec's own scratch, built
 //    once per glyph draw, and the panel keeps none of it.
 
-// Flattened once, kept for good: each glyph child's polylines in viewBox units, in fixed buffers. The
+// Flattened once, kept for good: each glyph child's polylines in viewBox units, in fixed stores. The
 //    flattener allocates while it works; that happens the first time a glyph is asked for, never per tick.
 struct FlatContour
 {
@@ -683,9 +683,9 @@ void DrawRowStatus(ImDrawList* Draw, RowStatus Status, const ImVec2& C, float Fa
 
 IconSymbol ArtworkFor(const EditorInstance& Row) noexcept
 {
-    // A base mesh names itself through its artwork — editor-cube, editor-sphere and the rest — exactly as
+    // A base topology names itself through its artwork — editor-cube, editor-sphere and the rest — exactly as
     //    Editor.jsx seats them. Everything downstream (the fracture card's primitive, the viewport marker)
-    //    reads it back off this, so the row must carry it rather than fall through to the generic mesh.
+    //    reads it back off this, so the row must carry it rather than fall through to the generic topology.
     if (Row.Artwork != IconSymbol::Count) return Row.Artwork;
     switch (Row.Glyph)
     {
@@ -706,7 +706,7 @@ IconSymbol ArtworkFor(const EditorInstance& Row) noexcept
     case EditorGlyph::Rain: return IconSymbol::OutlinerPrecipitation;
     case EditorGlyph::Rainbow: return IconSymbol::Rainbow;
     case EditorGlyph::Flare: return IconSymbol::LensFlare;
-    case EditorGlyph::Plane: return IconSymbol::EditorMesh;
+    case EditorGlyph::Plane: return IconSymbol::EditorGeometry;
     case EditorGlyph::Bulb: return IconSymbol::EditorPointLight;
     default: break;
     }
@@ -716,7 +716,7 @@ IconSymbol ArtworkFor(const EditorInstance& Row) noexcept
     case EditorInstanceCategory::Camera: return IconSymbol::Camera;
     case EditorInstanceCategory::Folder: return IconSymbol::FolderGeneric;
     case EditorInstanceCategory::Light: return IconSymbol::EditorPointLight;
-    case EditorInstanceCategory::Geometry: return IconSymbol::EditorMesh;
+    case EditorInstanceCategory::Geometry: return IconSymbol::EditorGeometry;
     default: return IconSymbol::Count;
     }
 }
@@ -1097,7 +1097,7 @@ void OutlinerPanel::RemovePick(uint32_t Index) noexcept
     }
 }
 
-void OutlinerPanel::HandleRowClick(uint32_t Index, uint32_t InstanceCount) noexcept
+void OutlinerPanel::IdentifierRowClick(uint32_t Index, uint32_t InstanceCount) noexcept
 {
     const bool Ctrl  = ImGui::GetIO().KeyCtrl;
     const bool Shift = ImGui::GetIO().KeyShift;
@@ -2108,7 +2108,7 @@ void OutlinerPanel::RecordRow(EditorInstance* Instances, uint32_t InstanceCount,
         OutlinerIconCategory Mark = OutlinerIconCategory::Check;
         switch (Standing)
         {
-        case EditorStanding::Quiet: Fill = kInfoBg; StatInk = kT3;     Mark = OutlinerIconCategory::Dot;  break;
+        case EditorStanding::Quiet: Fill = kDetailsBg; StatInk = kT3;     Mark = OutlinerIconCategory::Dot;  break;
         case EditorStanding::Warn: Fill = kWarnBg; StatInk = kOrange; Mark = OutlinerIconCategory::Warn; break;
         case EditorStanding::Err:  Fill = kErrBg;  StatInk = kRed;    Mark = OutlinerIconCategory::Warn; break;
         default: break;
@@ -2196,7 +2196,7 @@ void OutlinerPanel::RecordRow(EditorInstance* Instances, uint32_t InstanceCount,
     // The first InvisibleButton (the row) owns the plain click; it was read at the top through Hot.
     if (Hot && ImGui::IsMouseReleased(0) && DragLifted_ == kNoEditorInstance && !ImGui::IsMouseDragPastThreshold(0, 4.0f))
     {
-        HandleRowClick(Index, InstanceCount);
+        IdentifierRowClick(Index, InstanceCount);
         // The page opens every ancestor of a pick.
         uint32_t Owner = OwnerOf(Instances, Index);
         while (Owner != kNoEditorInstance)

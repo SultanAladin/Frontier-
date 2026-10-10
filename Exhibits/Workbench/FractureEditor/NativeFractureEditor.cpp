@@ -9,7 +9,7 @@
 //    Four things are proved that a screenshot cannot. The three-column grid resolves to the stylesheet's
 //    own widths at every breakpoint. The material table carries the real Gc and density figures, grouped
 //    the way toLocaleString groups them. Every derived string — the execution eyebrow, the viewport
-//    caption, the mode description, the bake status, detail and button labels — is assembled exactly as
+//    caption, the mode description, the precompute status, detail and button labels — is assembled exactly as
 //    Refresh() assembles it, for each of the states that change it. And the quality illustration is a
 //    genuine Voronoi diagram whose cells tile their 228 x 72 frame to within 1e-6 of its area.
 
@@ -136,9 +136,9 @@ int main()
 
         ExecutionLabel(Specimen, Text, sizeof(Text));
         Check(std::strcmp(Text, "DYNAMIC / GEOMETRY") == 0, "the eyebrow names the execution mode");
-        Specimen.Settings.Run = Mode::Baked;
+        Specimen.Settings.Run = Mode::Precomputed;
         ExecutionLabel(Specimen, Text, sizeof(Text));
-        Check(std::strcmp(Text, "BAKED / GEOMETRY") == 0, "uppercased, as Refresh uppercases it");
+        Check(std::strcmp(Text, "PRECOMPUTED / GEOMETRY") == 0, "uppercased, as Refresh uppercases it");
         Specimen.Settings.Enabled = false;
         ExecutionLabel(Specimen, Text, sizeof(Text));
         Check(std::strcmp(Text, "DISABLED / GEOMETRY") == 0, "and says DISABLED when the card's switch is off");
@@ -159,7 +159,7 @@ int main()
         Check(std::strcmp(ModeDescription(Specimen),
               "Generate geometry on demand from this object\xe2\x80\x99s recipe.") == 0,
               "dynamic generates on demand, with the bundle's own right single quote");
-        Specimen.Settings.Run = Mode::Baked;
+        Specimen.Settings.Run = Mode::Precomputed;
         Check(std::strcmp(ModeDescription(Specimen),
               "Use the stored fragment geometry\xe2\x80\x94no fracture generation during replay.") == 0,
               "baked replays, with an em dash and no spaces round it");
@@ -171,12 +171,12 @@ int main()
 
         Check(std::strcmp(StoredStatus(Specimen), "Not baked") == 0, "no stored geometry reads Not baked");
         Check(StoredDot(Specimen) == DotIdle, "with a grey dot");
-        Check(std::strcmp(StoredAction(Specimen), "Bake object") == 0, "and the button offers a first bake");
+        Check(std::strcmp(StoredAction(Specimen), "Precompute object") == 0, "and the button offers a first bake");
         StoredDetail(Specimen, Text, sizeof(Text));
         Check(std::strcmp(Text, "No stored fragment geometry") == 0, "the detail says so plainly");
 
         Specimen.Stored = Freshness::Stale; Specimen.StoredParts = 41; Specimen.StoredKiB = 128.75f;
-        Check(std::strcmp(StoredStatus(Specimen), "Bake is stale") == 0, "a signature mismatch is stale");
+        Check(std::strcmp(StoredStatus(Specimen), "Precompute is stale") == 0, "a signature mismatch is stale");
         Check(StoredDot(Specimen) == DotStale, "with an amber dot");
         Check(std::strcmp(StoredAction(Specimen), "Rebake object") == 0, "and the button offers a rebake");
         StoredDetail(Specimen, Text, sizeof(Text));
@@ -184,7 +184,7 @@ int main()
               "the detail rounds the size to one decimal and says why it is stale");
 
         Specimen.Stored = Freshness::Ready;
-        Check(std::strcmp(StoredStatus(Specimen), "Baked \xc2\xb7 ready") == 0, "a matching signature is ready");
+        Check(std::strcmp(StoredStatus(Specimen), "Precomputed \xc2\xb7 ready") == 0, "a matching signature is ready");
         Check(StoredDot(Specimen) == DotReady, "with a green dot");
         StoredDetail(Specimen, Text, sizeof(Text));
         Check(std::strcmp(Text, "41 closed pieces \xc2\xb7 128.8 KiB \xc2\xb7 per object") == 0,
@@ -192,7 +192,7 @@ int main()
         Specimen.Settings.PieceSdf = true;
         Check(std::strcmp(StoredStatus(Specimen), "Geometry ready \xc2\xb7 SDF pending") == 0,
               "asking for a per-piece SDF leaves the SDF itself pending");
-        Check(std::strcmp(StoredAction(Specimen), "Bake geometry") == 0, "and renames the bake button again");
+        Check(std::strcmp(StoredAction(Specimen), "Precompute geometry") == 0, "and renames the bake button again");
 
         Subject Cone;
         Cone.Shape = Primitive::Cone;
@@ -238,13 +238,13 @@ int main()
     // The viewport stand-in borrows CheckerViewport's marker, and the two rosters are in different orders.
     //-----------------------------------------------------------------------------------------------------
     {
-        Check(MarkerPrimitive(Primitive::Cube) == BaseMesh::Solid::Cube, "cube to cube");
-        Check(MarkerPrimitive(Primitive::Sphere) == BaseMesh::Solid::Sphere, "sphere to sphere");
-        Check(MarkerPrimitive(Primitive::Cylinder) == BaseMesh::Solid::Cylinder, "cylinder to cylinder");
-        Check(MarkerPrimitive(Primitive::Cone) == BaseMesh::Solid::Cone,
+        Check(MarkerPrimitive(Primitive::Cube) == BaseGeometry::Solid::Cube, "cube to cube");
+        Check(MarkerPrimitive(Primitive::Sphere) == BaseGeometry::Solid::Sphere, "sphere to sphere");
+        Check(MarkerPrimitive(Primitive::Cylinder) == BaseGeometry::Solid::Cylinder, "cylinder to cylinder");
+        Check(MarkerPrimitive(Primitive::Cone) == BaseGeometry::Solid::Cone,
               "cone to cone, which a cast would not give: the editor lists it fourth and the roster fifth");
-        Check(MarkerPrimitive(Primitive::Torus) == BaseMesh::Solid::Torus, "and torus to torus for the same reason");
-        Check(int(Primitive::Cone) != int(BaseMesh::Solid::Cone), "the two orders really do disagree");
+        Check(MarkerPrimitive(Primitive::Torus) == BaseGeometry::Solid::Torus, "and torus to torus for the same reason");
+        Check(int(Primitive::Cone) != int(BaseGeometry::Solid::Cone), "the two orders really do disagree");
     }
 
     //-----------------------------------------------------------------------------------------------------
@@ -300,14 +300,14 @@ int main()
 
     Capture("Dynamic");
 
-    Subject.Settings.Run = Mode::Baked;
+    Subject.Settings.Run = Mode::Precomputed;
     Subject.Settings.PieceSdf = true;
     Subject.Settings.SdfResolution = 128;
     Subject.Stored = Freshness::Ready;
     Subject.StoredParts = 41;
     Subject.StoredKiB = 128.75f;
-    Subject.Status = "Baked 41 closed pieces.";
-    Capture("BakedWithSdf");
+    Subject.Status = "Precomputed 41 closed pieces.";
+    Capture("PrecomputedWithSdf");
 
     Subject.Settings.Run = Mode::Dynamic;
     Subject.Settings.PieceSdf = false;
@@ -349,7 +349,7 @@ int main()
     // One tall frame so the whole inspector column is on the page at once rather than under its scroll.
     Width = 1280; Height = 2080;
     Subject.Settings.Stock = Material::Glass;
-    Subject.Settings.Run = Mode::Baked;
+    Subject.Settings.Run = Mode::Precomputed;
     Subject.Settings.PieceSdf = true;
     Subject.Stored = Freshness::Stale;
     Subject.StoredParts = 41;
@@ -357,7 +357,7 @@ int main()
     Subject.Shape = Primitive::Torus;
     Subject.OwnerName = "Torus";
     Subject.OwnerId = "torus";
-    Subject.Status = "Bake is stale.";
+    Subject.Status = "Precompute is stale.";
     Capture("InspectorColumn");
 
     std::printf("PASS %u checks: fracture editor page, breakpoints, material table, derived text, "

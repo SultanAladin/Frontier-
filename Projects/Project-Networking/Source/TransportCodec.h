@@ -51,7 +51,7 @@ struct PacketCodec
         return true;
     }
 
-    // Decodes in place: Kind + Payload/Lenght point into the caller's buffer.
+    // Decodes in place: Kind + Payload/Lenght point into the caller's store.
     // Returns false on bad magic, version, kind, or length mismatch.
     static bool Decode(const std::uint8_t* Bytes, std::size_t Length, ReplicationKind& Kind,
         const std::uint8_t*& Payload, std::size_t& PayloadLength) noexcept

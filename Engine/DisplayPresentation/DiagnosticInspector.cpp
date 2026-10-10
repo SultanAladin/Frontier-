@@ -45,7 +45,7 @@ bool DiagnosticInspector::AdvanceInteraction(const InputExchange& Input) noexcep
     // The patch preview's screen-error tolerance. Changing it changes which alternative every opaque patch
     //    selects THIS frame, so it is reported as a change like every other key here: the caller persists it and
     //    restarts the accumulation (a debug view does not accumulate, but returning to shaded rendering must not
-    //    inherit a history shaded through a different mesh).
+    //    inherit a history shaded through a different topology).
     if (F6 && !F6Held_)
     {
         PatchErrorPixels_ = PatchErrorPixels_ >= 8.0f ? 1.0f : PatchErrorPixels_ * 2.0f;

@@ -280,7 +280,7 @@ function SourceEditor({ Field, Channel, Change }) {
         Change({
           Texture: {
             Name: File.name,
-            Data: Canvas.toDataURL("image/png"),
+            Packet: Canvas.toDataURL("image/png"),
             Width: Image.width,
             Height: Image.height,
           },
@@ -357,7 +357,7 @@ function SourceEditor({ Field, Channel, Change }) {
         <div className="texture-editor">
           <div className="texture-drop">
             {Channel.Texture ? (
-              <img src={Channel.Texture.Data} alt={Channel.Texture.Name} />
+              <img src={Channel.Texture.Packet} alt={Channel.Texture.Name} />
             ) : (
               <span className="texture-empty">
                 ▧<small>No texture assigned</small>
@@ -545,7 +545,7 @@ export default function MaterialPanel({
       className={
         "material-panel " + (Compact ? "material-compact" : "material-expanded")
       }
-      data-material-owner={Subject.Id}
+      record-material-owner={Subject.Id}
     >
       <header className="material-heading">
         <div>
@@ -633,12 +633,12 @@ export default function MaterialPanel({
                 .toLowerCase()
                 .includes(Query.toLowerCase()),
             ).map((Item) => {
-              const Data = Material.Channels[Item.Id];
+              const Packet = Material.Channels[Item.Id];
               return (
                 <button
                   className={Selected === Item.Id ? "active" : ""}
                   key={Item.Id}
-                  data-material-channel={Item.Id}
+                  record-material-channel={Item.Id}
                   aria-pressed={Selected === Item.Id}
                   onClick={() => Select(Item.Id)}
                 >
@@ -646,14 +646,14 @@ export default function MaterialPanel({
                     className="channel-swatch"
                     style={{
                       background:
-                        Data.Source === "Gradient"
-                          ? GradientCss(Data, Item)
+                        Packet.Source === "Gradient"
+                          ? GradientCss(Packet, Item)
                           : Item.Kind === "Colour"
-                            ? Data.Fill
+                            ? Packet.Fill
                             : undefined,
                     }}
                   >
-                    {Item.Kind !== "Colour" && Data.Source !== "Gradient"
+                    {Item.Kind !== "Colour" && Packet.Source !== "Gradient"
                       ? "◈"
                       : ""}
                   </span>
@@ -662,22 +662,22 @@ export default function MaterialPanel({
                     <small>{Item.Group}</small>
                   </span>
                   <span className="channel-value">
-                    {Data.Source === "Fill"
+                    {Packet.Source === "Fill"
                       ? Item.Kind === "Colour"
-                        ? Data.Fill
-                        : (+Data.Fill).toFixed(2)
-                      : SourceNames[Data.Source]}
+                        ? Packet.Fill
+                        : (+Packet.Fill).toFixed(2)
+                      : SourceNames[Packet.Source]}
                     <small
-                      className={Data.Source === "Code" ? "unresolved" : ""}
+                      className={Packet.Source === "Code" ? "unresolved" : ""}
                     >
-                      {Data.Source === "Code"
+                      {Packet.Source === "Code"
                         ? "unresolved"
-                        : Data.Source === "Texture"
-                          ? Data.Texture
+                        : Packet.Source === "Texture"
+                          ? Packet.Texture
                             ? "embedded"
                             : "unassigned"
-                          : Data.Source === "Gradient"
-                            ? Data.Stops.length + " stops"
+                          : Packet.Source === "Gradient"
+                            ? Packet.Stops.length + " stops"
                             : "constant"}
                     </small>
                   </span>

@@ -39,7 +39,7 @@ The measurements are the stylesheet's, not new ones
   PASS  and its hierarchy card grows by the row
 
 A 3D entity: a transform, children, and what is deliberately not a child
-  PASS  ① bounds are three metres on the transform, where a mesh has Scale
+  PASS  ① bounds are three metres on the transform, where a topology has Scale
   PASS  X and Z stay equal: the solver uses one width for both horizontal axes
   PASS  ⚠️ the card itself admits that rotation never reaches the axis-aligned lattice
   PASS  ③ and that a collider is not a child, so deleting the domain cannot delete the crate

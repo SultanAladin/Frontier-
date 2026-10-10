@@ -40,7 +40,7 @@ What was wrong, in the order it should have been caught:
    analytic subset — never two independent implementations that drift).*
 6. **No scale budget.** λ0.75 chop on 3 m cells; λ62 primary viewed from
    inside one face; particle sizes vs viewing distance eyeballed.
-   *Rule: wavelength / camera-distance / mesh-density / sprite-size are
+   *Rule: wavelength / camera-distance / topology-density / sprite-size are
    budgeted together, on paper, before coding.*
 7. **Validated via thumbnails, misread them.** The `hide=water` "failure" was
    a misread thumbnail; pixels later proved the mechanism worked. *Rule:
@@ -52,7 +52,7 @@ What was wrong, in the order it should have been caught:
 
 "Simulating Ocean Water" (Tessendorf 2001/2004) is what films
 (*Titanic*, *Pirates of the Caribbean*, *Moana*, *Life of Pi*) and games
-(*AC IV: Black Flag*, *Sea of Thieves*, *ATLAS*) build on. Pipeline:
+(*AC IV: Black Flag*, *Sea of Thieves*, *ATLAS*) build on. Sequence:
 
 1. **Spectrum.** Phillips (or JONSWAP) directional spectrum from
    wind speed/direction + fetch:
@@ -105,16 +105,16 @@ visible foam):
 
 Deep-water FFT does not break. The shore layer is separate and analytic:
 
-- Depth texture baked from the beach profile (CPU, once).
+- Depth texture precomputed from the beach profile (CPU, once).
 - Shoaling: wavelength shortens, height grows, celerity drops with depth;
   choppiness rises toward the bar.
 - Breaker criterion: `H/h ≳ 0.78` (Miche) or Jacobian < threshold at the
   bar → particle lip emission + whitewater mat source; swash = particles
   advected over the beach profile to/from the waterline.
 
-### 2.5 Mesh, light, camera guidance (from prior art + our scars)
+### 2.5 Hull, light, camera guidance (from prior art + our scars)
 
-- Mesh: static grid (256–512² over the surf reach) + FFT vertex texture
+- Hull: static grid (256–512² over the surf reach) + FFT vertex texture
   fetch + 2 fragment normal cascades. Projected grid (Bruneton/jbouny)
   is a later optimization, not v3.
 - Light: mid sun (30–50°) models wave form; default sky stays
@@ -131,7 +131,7 @@ Deep-water FFT does not break. The shore layer is separate and analytic:
    one cascade + one detail cascade; fields: height, displacement,
    slopes, Jacobian emission. CPU mirror reads the same spectra
    (shared code path, §1.5).
-3. **Shore module** — baked depth texture; shoal transform; Miche/Jacobian
+3. **Shore module** — precomputed depth texture; shoal transform; Miche/Jacobian
    breaker criterion driving emission only.
 4. **Water shader: absorption + fresnel + spec + SSS. Zero foam terms.**
    Gate: `grep -ci "foam\|band\|crest" water-shader <assembled>` == 0.
@@ -186,10 +186,10 @@ Default: **spilling beach break**. Three reasons, all load-bearing:
    on a gentle slope is exactly the kind of wrong that reads as fake.
 2. **It matches the particle architecture.** Spilling = foam cascading
    down the face + whitewater mat behind + swash — precisely what
-   emission-gated sprites render well. No mesh surgery required.
+   emission-gated sprites render well. No topology surgery required.
 3. **Honest about heightfields.** FFT surfaces cannot overturn into
    hollow barrels, full stop. A "plunging" default would promise
-   geometry the mesh cannot produce. Spilling is what looks most
+   geometry the topology cannot produce. Spilling is what looks most
    realistic *within a heightfield*, which is the only honest target.
 
 A steep-face parameter may suggest pitching on the biggest sets (face

@@ -11,7 +11,7 @@
 //   - DUAL REGION (pure functions, same contract as SkySpecification.slang):
 //     deterministic RNG, candidate draws, DI/GI reservoirs, RIS update/combine.
 //     Compiled as C++17 by the Host convergence harness AND as Slang.
-//   - SLANG-ONLY SHELL (#ifndef SLANG_COMPAT_CXX): uniform buffers, G-buffer
+//   - SLANG-ONLY SHELL (#ifndef SLANG_COMPAT_CXX): uniform stores, G-store
 //     and reservoir descriptors, TLAS ray queries, the 9 compute entries.
 //
 // Authoritative algorithm references: the panel (for every Le term) and the
@@ -255,7 +255,7 @@ IndirectReservoirStructure IndirectReservoirMake()
 }
 
 // DI target: luminance of (emission * albedo * cos / pi). Visibility is
-// applied at shade time, never baked into the target.
+// applied at shade time, never precomputed into the target.
 float DirectTargetCompute(float3 le, float cosT, float3 albedo)
 {
     return LuminanceDWCompute(le * albedo * (cosT / SkyPi));
@@ -394,7 +394,7 @@ cbuffer SkySequenceConfiguration : register(b1)
     uint LaunchPad;
 };
 
-// World-frame camera basis for the SkyViewport entry (the G-buffer pass owns
+// World-frame camera basis for the SkyViewport entry (the G-store pass owns
 // the camera for every other entry).
 cbuffer SkyViewExchange : register(b2)
 {

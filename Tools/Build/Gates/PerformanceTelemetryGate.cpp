@@ -97,7 +97,7 @@ PerformanceWorkload SyntheticWorkload()
     W.DenoiseLevels   = 5u;
     W.PresentMode     = "MAILBOX";
     W.CpuCelestialTickMs=.4;W.CpuSunMoonSolveMs=.1;W.CpuSkyPackUploadMs=.2;W.CpuWeatherPostPackUploadMs=.3;
-    W.CelestialBufferPayloadBytes=1024;W.CelestialBufferAllocationBytes=4096;
+    W.CelestialStorePayloadBytes=1024;W.CelestialStoreAllocationBytes=4096;
     W.SkySunUniformBytes=144;W.CloudFogUniformBytes=336;W.PostUniformBytes=544;
     return W;
 }
@@ -183,8 +183,8 @@ int main()
         { "CpuSunMoonSolveMeanMs", "ms", .1 },
         { "CpuSkyPackUploadMeanMs", "ms", .2 },
         { "CpuWeatherPostPackUploadMeanMs", "ms", .3 },
-        { "CelestialBufferPayloadBytes", "bytes", 1024 },
-        { "CelestialBufferAllocationBytes", "bytes", 4096 },
+        { "CelestialStorePayloadBytes", "bytes", 1024 },
+        { "CelestialStoreAllocationBytes", "bytes", 4096 },
         { "GpuSeparateSkySunCloudTimersAvailable", "bool", 0 },
         { "SkySunUniformPayloadBytes", "bytes", 144 },
         { "CloudFogUniformPayloadBytes", "bytes", 336 },
@@ -194,8 +194,8 @@ int main()
         { "FrameTimePeakMs",   "ms",      16.0   },
         { "FramesPerSecond",   "fps",     62.5   },
         { "FrameSampleCount",  "count",    0.0   },   // value varies with the window; presence and unit are the point
-        { "ResidentMemory",    "MiB",    512.0   },
-        // GPU — the device timestamp pool
+        { "ResidentStorage",    "MiB",    512.0   },
+        // GPU — the device timestamp slots
         { "GpuFrameTotalMs",   "ms",      19.5  },   // directly measured 0..11 span; stage intervals are not summed
         { "GpuCullMs",         "ms",       0.42  },
         { "GpuRasterMs",       "ms",       1.80  },
@@ -252,8 +252,8 @@ int main()
     //    Prose is not a row. The report must contain BOTH, and the rows are what was missing.
     {
         std::ifstream In(Path);
-        std::ostringstream Buffer; Buffer << In.rdbuf();
-        const std::string Text = Buffer.str();
+        std::ostringstream Block; Block << In.rdbuf();
+        const std::string Text = Block.str();
         Check(Rows.at("GpuSeparateSkySunCloudTimersAvailable").first==0,
               "unavailable inline GPU timing is explicitly flagged, not sold as zero cost");
         Check(Text.find("N/A, not zero cost")!=std::string::npos,

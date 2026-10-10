@@ -21,11 +21,11 @@ for path in out.glob('Stars-*.png'):
  while i<len(blob):
   size=struct.unpack('>I',blob[i:i+4])[0];parts.append((blob[i+4:i+8],blob[i+8:i+8+size]));i+=size+12
  raw=zlib.decompress(b''.join(p for tag,p in parts if tag==b'IDAT'));packed=zlib.compress(raw,9);new=bytearray(blob[:8]);done=False
- for tag,data in parts:
+ for tag,record in parts:
   if tag==b'IDAT':
    if done:continue
-   data=packed;done=True
-  new+=struct.pack('>I',len(data))+tag+data+struct.pack('>I',zlib.crc32(tag+data)&0xffffffff)
+   record=packed;done=True
+  new+=struct.pack('>I',len(record))+tag+record+struct.pack('>I',zlib.crc32(tag+record)&0xffffffff)
  path.write_bytes(new)
 report=[]
 for file in ['StarsInspectorPanel.su','CelestialSequence.su','StarsProof.su','StarCatalogueIndex.su']:

@@ -6,7 +6,7 @@
 //    own descriptor set uses.
 //
 //    These were private to ReSTIRViewport.slang, which is why a second pass that wanted to shade a ray hit had no
-//    vocabulary to do it with and invented one. Include this, bind the buffers, then include SceneMaterialResolve.slang.
+//    vocabulary to do it with and invented one. Include this, bind the stores, then include SceneMaterialResolve.slang.
 //
 // 📝 Field maps live in Shaders/SceneRecords.slang (the raster set's view of the same bytes) and in
 //    ContentInterchange/MaterialIndex.h. Nothing here may be reordered without changing both.

@@ -17,7 +17,7 @@ There is no build step, editor workspace or WebGL fallback. Use a WebGPU-capable
 
 For performance, reduce render scale, increase probe spacing, reduce angular width or use smaller shadow maps.
 The internal resolution is bounded to 960 by 720. The software-adapter warning is intentional; software timings
-are not representative of a gaming GPU. GPU data is an allocation estimate, not a driver memory query.
+are not representative of a gaming GPU. GPU record is an allocation estimate, not a driver storage query.
 
 ## Documentation and checks
 
@@ -46,5 +46,5 @@ appropriate hardware launch configuration instead; the default verifier is not a
 
 `?manual=1&width=640` disables the animation loop and fixes the requested internal width for controlled captures.
 `window.TransportApp.Step(time)` renders a specified finite time and waits for GPU completion. `Readback()` reads
-linear HDR history, while `ReadCascade(level)` reads the merged directional buffer. This is a verification API,
+linear HDR history, while `ReadCascade(level)` reads the merged directional store. This is a verification API,
 not a scene-file format. The normal hosted URL does not need these parameters.

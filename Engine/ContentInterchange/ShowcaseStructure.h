@@ -68,15 +68,15 @@ public:
     [[nodiscard]] const std::vector<TriangleSpanRecord>& QuerySpans()         const noexcept { return Spans; }
 
     // ── The instanced half of the level ─────────────────────────────────────────────────────────────────────
-    // The 400 grid balls are not in QueryTriangles(). They are ONE object-space mesh and 400 placements, so a
+    // The 400 grid balls are not in QueryTriangles(). They are ONE object-space topology and 400 placements, so a
     //    67 832-triangle shader ball costs 1.9 MB however many of them the grid shows — as a world-space soup
     //    the same grid would be 27 M triangles. Consumers must build both halves: the soup for the ground,
     //    plinths, scatter field and panel, and these placements for the grid itself.
-    //    Empty when the mesh asset could not be loaded; QueryGridMeshError() then says why, and Construct()
+    //    Empty when the topology asset could not be loaded; QueryGridMeshError() then says why, and Construct()
     //    falls back to spheres so the level is never empty.
     [[nodiscard]] const std::vector<InstancedGeometryRecord>&  QueryGridGeometry()   const noexcept { return GridGeometry; }
     [[nodiscard]] const std::vector<InstancedPlacementRecord>& QueryGridPlacements() const noexcept { return GridPlacements; }
-    [[nodiscard]] const std::string&                           QueryGridMeshError()  const noexcept { return GridMeshError; }
+    [[nodiscard]] const std::string&                           QueryGridMeshError()  const noexcept { return GridGeometryError; }
 
     struct SpanScope
     {
@@ -88,9 +88,9 @@ public:
     [[nodiscard]] SpanScope OpenSpan(const char* Name, bool Dynamic = false) noexcept;
 
 private:
-    // Loads the shader ball and fills GridGeometry. Answers false (with GridMeshError set) when the asset is
+    // Loads the shader ball and fills GridGeometry. Answers false (with GridGeometryError set) when the asset is
     //    missing, which is the only case in which the grid falls back to spheres.
-    [[nodiscard]] bool BringGridMesh() noexcept;
+    [[nodiscard]] bool BringGridGeometry() noexcept;
 
     void AppendSphere(const Vector3& Centre, float Radius, uint32_t Material, uint32_t Rings, uint32_t Segments) noexcept;
     void AppendQuad(const Vector3& A, const Vector3& B, const Vector3& C, const Vector3& D, uint32_t Material, float UvScale) noexcept;
@@ -104,12 +104,12 @@ private:
     std::vector<MaterialDescriptor> Materials;
     std::vector<TriangleSpanRecord> Spans;
 
-    // The shared grid topology and its placements. GridMesh owns the vertex data the records point into, so it
+    // The shared grid topology and its placements. GridTopology owns the vertex record the records point into, so it
     //    must outlive any encode that reads them — it is a member for exactly that reason.
-    GeometryStructure                      GridMesh;
+    GeometryStructure                      GridTopology;
     std::vector<InstancedGeometryRecord>   GridGeometry;
     std::vector<InstancedPlacementRecord>  GridPlacements;
-    std::string                            GridMeshError;
+    std::string                            GridGeometryError;
     std::vector<VertexRecord>              GridVertices;   // flat copies the records reference
     std::vector<uint32_t>                  GridIndices;
 };

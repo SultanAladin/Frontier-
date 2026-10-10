@@ -34,7 +34,7 @@ surfel:    $(BIN)/SurfelReference
 $(BIN)/DriveTelemetry: Source/DriveTelemetry.cpp Source/DriveCourse.h $(VEHICLE_SRCS) | $(BIN)
 	$(CXX) $(CXXFLAGS) -I$(VEHICLE) -ISource Source/DriveTelemetry.cpp $(VEHICLE_SRCS) -o $@
 
-$(BIN)/SurfelReference: Source/SurfelReference.cpp Source/DriveCourse.h Source/ControlVehicleMesh.inl | $(BIN)
+$(BIN)/SurfelReference: Source/SurfelReference.cpp Source/DriveCourse.h Source/ControlVehicleGeometry.inl | $(BIN)
 	$(CXX) $(CXXFLAGS) -pthread -ISource Source/SurfelReference.cpp -o $@
 
 $(BIN) $(DIAG):

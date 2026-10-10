@@ -7,7 +7,7 @@
 
 namespace Frontier {
 // Restore indexed adjacency in triangle-soup imports. Exact complete attributes only:
-// never weld across UV, normal, tangent/sign seams or across mesh registrations.
+// never weld across UV, normal, tangent/sign seams or across topology registrations.
 // Padding is deliberately excluded. Existing vertex storage and triangle order stay intact.
 inline std::vector<uint32_t> CanonicalVertexIndices(const std::vector<VertexRecord>& Vertices)
 {

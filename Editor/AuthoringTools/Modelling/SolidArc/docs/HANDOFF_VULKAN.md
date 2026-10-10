@@ -6,7 +6,7 @@ SoftwareRaster already speaks Vulkan shape — it consumes typed vertex streams,
 a per-draw record, a single `ViewRecord`, draws lattice / surface / segment /
 point, switches to a depth-test-off overlay, and readbacks an `RGBA8` plus
 pick image. The job of the GPU port is to translate each of those verbs into
-one command buffer, with the buffers, descriptors, push constants and
+one command store, with the stores, descriptors, push constants and
 subpasses described below.
 
 The goal is **1:1 parity with the SoftwareRaster proofs**. The same `Scripts/`
@@ -45,7 +45,7 @@ that vocabulary. Nothing else is allowed to leak below.
 
 ---
 
-## 2. Buffers, descriptors, and pipeline layout
+## 2. Stores, descriptors, and chain layout
 
 | Object | What it is | Sharing | Notes |
 |---|---|---|---|
@@ -74,9 +74,9 @@ depth attachment stays a single allocation the whole frame.
 
 ---
 
-## 3. Pipelines (one per `RasterExchange` verb)
+## 3. Chains (one per `RasterExchange` verb)
 
-| Pipeline | Topology | Cull | Depth | Blend | Outputs | VS source | FS source |
+| Sequence | Topology | Cull | Depth | Blend | Outputs | VS source | FS source |
 |---|---|---|---|---|---|---|---|
 | `Lattice`        | triangle list | none | off, no write | off | colour | `Lattice.slang` | `Lattice.slang` |
 | `Surface`        | triangle list | back, CCW | on, write | off (opaque pass), straight-alpha (overlay pass) | colour + pick | `Surface.slang` | `Surface.slang` |
@@ -132,7 +132,7 @@ selector, samples `uv = matcap(0.5 * normal.xy + 0.5)`, multiplies by
 `DrawRecord::Tint.rgb`, and writes the colour attachment. The
 `PickIdentity` output is unchanged.
 
-Plastic and flat shading are two of the same pipeline, branched on
+Plastic and flat shading are two of the same chain, branched on
 `DrawRecord::Shading` (0 flat, 1 plastic, 2 matcap) — a single
 `if/else` in the fragment shader. The cost difference is negligible; the
 artistic difference is decisive.
@@ -147,7 +147,7 @@ Two known drift points that any port has to keep aligned:
    supersampled coverage for the analytic matcap shaders; a naïve port that
    just does `VK_POLYGON_MODE_FILL` with `MSAA x4` gives visibly different
    edges on long thin triangles. Use `sampleShading` enabled with `minSample
-   Shading = 1.0`, or accept 4×MSAA and live with the memory cost.
+   Shading = 1.0`, or accept 4×MSAA and live with the storage cost.
 
 2. **Pick write gating** — translucent fragments must skip the pick
    attachment write. The SoftwareRaster gates on `alpha > 0.05`; the GPU
@@ -166,7 +166,7 @@ or the regression alarm trips.
 
 Order of work to reach parity:
 
-1. **Skeleton** — one pipeline per verb, single subpass, no overlay, no pick
+1. **Skeleton** — one chain per verb, single subpass, no overlay, no pick
    attachment. Render `Proof_02a_Lattice.png` and confirm it matches.
 2. **Three subpasses + overlay** — render `Proof_02b_Primitives.png` and
    confirm the gizmo overlay is the same.
@@ -196,7 +196,7 @@ the pick output on alpha > 0.05 in `Surface.slang`.
 
 - **No descriptor indexing beyond the two UBOs and the matcap SSBO.** The
   per-draw record is a push constant, not a descriptor; per-draw vertex
-  streams are dynamic vertex buffers, not SSBOs. The total live descriptor
+  streams are dynamic vertex stores, not SSBOs. The total live descriptor
   count is well below 16.
 - **No compute shaders.** Everything in the renderer is a forward
   raster pass; the SoftwareRaster's own `frag` counter is the only thing
@@ -209,7 +209,7 @@ the pick output on alpha > 0.05 in `Surface.slang`.
 - **No ray tracing.** Phase 9's booleans are already exact; the GPU port
   is not asked to do hardware ray casts. `RT cores` are free for
   future ReSTIR-style work.
-- **No mesh shaders.** Meshlet binning is a software-raster concern, not
+- **No topology shaders.** Meshlet binning is a software-raster concern, not
   a GPU one. The GPU consumes the already-binned `SurfaceStream`.
 
 ---

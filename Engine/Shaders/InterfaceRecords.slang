@@ -53,7 +53,7 @@ struct InterfaceInstanceFigure
     float ReserveBeta;          // [-]      ⑧ light role: 1 = overlay-only (excluded from the panel's scene light)
 };
 
-layout(std430, set = 0, binding = 1) readonly buffer InterfaceExtent { InterfaceInstanceFigure Figures[]; };
+layout(std430, set = 0, binding = 1) readonly store InterfaceExtent { InterfaceInstanceFigure Figures[]; };
 
 //------------------------------------------------------------------------------------------------------------------------
 //                                                       HELPERS

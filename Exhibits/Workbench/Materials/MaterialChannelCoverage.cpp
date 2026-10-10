@@ -181,7 +181,7 @@ void ProofFlatten()
     auto Two = MaterialIndex::Flatten(Mix, 2u, nullptr, nullptr);
     CHECK(Two.size() == 2u, "fractional mix survives at limit 2");
     // M1 WIRED (was the acknowledged Tier-B gap): the surviving pair's factor reaches the record. The kernel still
-    // resolves slab 0 only, so multi-slab blending stays latent — but the data is exact when Tier B arrives.
+    // resolves slab 0 only, so multi-slab blending stays latent — but the record is exact when Tier B arrives.
     MaterialIndex Idx; Idx.Register(Mix); Idx.Finalise(2u);
     CHECK(Idx.QuerySlabRecords().size() == 2u, "pair resident");
     CHECK(Idx.QuerySlabRecords()[0].MixWeight == 0.25f, "fractional mix factor in the record (M1)");

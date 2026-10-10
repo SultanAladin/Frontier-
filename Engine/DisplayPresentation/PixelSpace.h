@@ -105,9 +105,9 @@ public:
     void EndGroup(uint32_t Mark, float OffsetX, float OffsetY, float GroupScale, float PivotX, float PivotY, float Alpha) noexcept;
 
     // ── Typeface ─────────────────────────────────────────────────────────────────────────────────────────────────────
-    // Text / MeasureText use the face on top of this stack (nullptr → the backend default font). Handles come from
+    // Text / MeasureText use the face on top of this stack (nullptr → the backend default font). Identifiers come from
     //    TypefaceRegistry::QueryHandle. The stack is per-surface and reset by Begin().
-    void PushTypeface(void* FaceHandle) noexcept;
+    void PushTypeface(void* FaceIdentifier) noexcept;
     void PopTypeface() noexcept;
     [[nodiscard]] void* QueryTypeface() const noexcept { return TypefaceDepth > 0u ? TypefaceStack[TypefaceDepth - 1u] : nullptr; }
 

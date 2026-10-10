@@ -1,9 +1,9 @@
 //============================================================================================================================================
 //                                                      VISIBILITYRASTER.H
 //============================================================================================================================================
-// 🧩 The no-ray render path: a CPU visibility buffer under a microrasterizer, the GI-off look. Pass one walks
+// 🧩 The no-ray render path: a CPU visibility store under a microrasterizer, the GI-off look. Pass one walks
 //    every triangle over the pixels it covers and keeps, per pixel, the nearest triangle id with its barycentrics
-//    (the visibility buffer). Pass two shades each covered pixel with THE ENGINE'S MATERIAL MODEL — the full
+//    (the visibility store). Pass two shades each covered pixel with THE ENGINE'S MATERIAL MODEL — the full
 //    OpenPBR lobe set from Shaders/MaterialEvaluation.slang, via ContentInterchange/UnifiedMaterialEvaluation.h,
 //    the same text the ReSTIR kernel evaluates — under the luminaires, visibility from rasterized shadow maps,
 //    an ambient fill through the same lobes, no bounces. Emissive triangles emit, misses take the sky.
@@ -211,7 +211,7 @@ private:
     CelestialSettings     Celestial_{};   // the sky behind the geometry (disabled = flat fallback colour)
     ColourTransfer        Colour_{};      // linear radiance -> display pixel, shared with the GPU paths
     std::vector<float>    Depth_;    // [m] primary linear depth, Width×Height
-    std::vector<uint32_t> TriId_;    // [idx] the visibility buffer: winning triangle or kMiss
+    std::vector<uint32_t> TriId_;    // [idx] the visibility store: winning triangle or kMiss
     std::vector<float>    Bary_;     // [-] winning (w0, w1) per pixel; w2 = 1 − w0 − w1
     std::vector<float>    TriN_;     // [-] unit face normal per flat triangle, pass one's side table
     std::vector<float>    Shadow_;   // [m] one shadow map's linear depth, Shadows_.MapSide², per tap in turn

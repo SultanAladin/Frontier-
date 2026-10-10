@@ -1,6 +1,6 @@
 import React from 'react';
 import {Box,Move3D,Palette,ChevronRight} from 'lucide-react';
-export const meshDefaults={meshWidth:2,meshHeight:2,meshDepth:2,meshRadius:1,positionX:0,positionY:0,positionZ:0,objectMaterial:'material',meshSegments:32};
+export const geometryDefaults={geometryWidth:2,geometryHeight:2,geometryDepth:2,geometryRadius:1,positionX:0,positionY:0,positionZ:0,objectMaterial:'material',geometrySegments:32};
 export function PrimitiveDiagram({shape,v}){
  const w=45+v('meshWidth')*8,h=35+v('meshHeight')*9,r=30+v('meshRadius')*12;
  return <svg className="primitive-diagram" viewBox="0 0 360 215" role="img" aria-label={`${shape} geometry schematic`}><path d="M35 173 H325 M180 20 V192" stroke="#ffffff0b" strokeDasharray="3 5"/>
@@ -11,7 +11,7 @@ export default function ObjectInspector({shape,card,v,set,slider,materials,onSel
  const material=materials.find(m=>m.id===v('objectMaterial'));
  const controls=shape==='sphere'?[['meshRadius','Radius']]:shape==='cylinder'?[['meshRadius','Radius'],['meshHeight','Height']]:shape==='plane'?[['meshWidth','Width'],['meshDepth','Depth']]:[['meshWidth','Width'],['meshHeight','Height'],['meshDepth','Depth']];
  return <>
- {card('Geometry',Box,<><div className="scattering-top"><div className="metric">{shape[0].toUpperCase()+shape.slice(1)}</div><span className="small-pill">Primitive mesh</span></div><PrimitiveDiagram shape={shape} v={v}/><div className="geometry-controls">{controls.map(([key,label])=><label key={key}><span>{label}<strong>{v(key)} m</strong></span>{slider(key,.1,5,.1)}</label>)}</div></>,'wide-card')}
+ {card('Geometry',Box,<><div className="scattering-top"><div className="metric">{shape[0].toUpperCase()+shape.slice(1)}</div><span className="small-pill">Primitive topology</span></div><PrimitiveDiagram shape={shape} v={v}/><div className="geometry-controls">{controls.map(([key,label])=><label key={key}><span>{label}<strong>{v(key)} m</strong></span>{slider(key,.1,5,.1)}</label>)}</div></>,'wide-card')}
  {card('Position',Move3D,<><p className="muted">Local translation relative to scene origin</p><div className="position-inputs">{['X','Y','Z'].map((axis,i)=><label key={axis}><span style={{color:['#d69692','#9bc18c','#8eaedd'][i]}}>{axis}</span><input type="number" step=".1" aria-label={`Position ${axis}`} value={v('position'+axis)} onChange={e=>set('position'+axis,Number(e.target.value))}/><small>m</small></label>)}</div><button className="channel-reset" onClick={()=>['X','Y','Z'].forEach(a=>set('position'+a,0))}>Reset position</button></>)}
  {card('Material assignment',Palette,<><div className="assigned-material"><i style={{background:material?(values[material.id]?.['mat:baseColor']||'#a7b6c8'):'#444'}}/><span>{material?.name||'No material'}<small>Shared PBR material asset</small></span></div><label className="material-assignment-label">Material<select aria-label="Assigned material" value={v('objectMaterial')} onChange={e=>set('objectMaterial',e.target.value)}><option value="">None</option>{materials.map(m=><option key={m.id} value={m.id}>{m.name}</option>)}</select></label>{material&&<button className="open-material" onClick={()=>onSelect(material.id)}>Edit material<ChevronRight size={14}/></button>}</>)}
  </>;

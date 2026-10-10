@@ -53,12 +53,12 @@ class LiveServerCase(unittest.TestCase):
     # -- helpers ---------------------------------------------------
 
     def _request(self, method, path, obj=None, headers=None):
-        data = None
+        record = None
         if obj is not None:
-            data = json.dumps(obj).encode("utf-8")
+            record = json.dumps(obj).encode("utf-8")
         req = urllib.request.Request(
             "http://127.0.0.1:%d%s" % (self.port, path),
-            data=data, method=method,
+            record=record, method=method,
             headers={"Content-Type": "application/json",
                      **(headers or {})})
         try:
@@ -80,7 +80,7 @@ class LiveServerCase(unittest.TestCase):
                 raw + secret.encode()).hexdigest()
         req = urllib.request.Request(
             "http://127.0.0.1:%d/webhooks/xsolla" % self.port,
-            data=raw, method="POST",
+            record=raw, method="POST",
             headers={"Content-Type": "application/json", **headers})
         try:
             with urllib.request.urlopen(req) as resp:

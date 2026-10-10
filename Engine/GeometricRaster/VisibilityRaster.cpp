@@ -1,8 +1,8 @@
 //============================================================================================================================================
 //                                                      VISIBILITYRASTER.CPP
 //============================================================================================================================================
-// 📦 The visibility buffer, rasterized on the CPU. Pass one keeps the nearest triangle per pixel; the shadow
-//    pass keeps the nearest depth per texel from each light tap; the shade pass spends the two buffers with no
+// 📦 The visibility store, rasterized on the CPU. Pass one keeps the nearest triangle per pixel; the shadow
+//    pass keeps the nearest depth per texel from each light tap; the shade pass spends the two stores with no
 //    ray query anywhere. Taps are fixed and stratified (deterministic across runs).
 //
 //    Which filter runs over the map is the quality tier's call, carried in by AssignShadowCriteria: a single hard
@@ -104,7 +104,7 @@ bool VisibilityRaster::RenderOrthographic(const SceneStructure& Level,
     Acc_.assign(Cells * 3u, 0.0f);
 
     RasterizePrimaryOrthographic(Level, Eye, Forward, Right, Up, HalfHeightWorld, Width, Height);
-    // The shade pass ignores the projection arguments (it rebuilds hit points off the visibility buffer),
+    // The shade pass ignores the projection arguments (it rebuilds hit points off the visibility store),
     //    so the perspective field of view below is a formality, never consulted.
     Shade(Level, Eye, Forward, Right, Up, 1.0471976f, Width, Height, Rgba, MeanLum);
     return true;
@@ -115,7 +115,7 @@ void VisibilityRaster::CollectLumi(const SceneStructure& Level) noexcept
     const auto& Flat    = Level.QueryFlatTriangles();
     const auto& Records = Level.QueryMaterials().QueryRecords();
     const auto& Slabs   = Level.QueryMaterials().QuerySlabRecords();
-    Frontier::UnifiedMaterial::EnsureTables();   // the lobe set indexes these; bake once if no host bound them
+    Frontier::UnifiedMaterial::EnsureTables();   // the lobe set indexes these; precompute once if no host bound them
     Lumi_.clear();
 
     for (size_t T = 0u; T < Flat.size(); ++T)
@@ -575,7 +575,7 @@ void VisibilityRaster::Shade(const SceneStructure& Level, const float Eye[3], co
     const auto& Flat    = Level.QueryFlatTriangles();
     const auto& Records = Level.QueryMaterials().QueryRecords();
     const auto& Slabs   = Level.QueryMaterials().QuerySlabRecords();
-    Frontier::UnifiedMaterial::EnsureTables();   // the lobe set indexes these; bake once if no host bound them
+    Frontier::UnifiedMaterial::EnsureTables();   // the lobe set indexes these; precompute once if no host bound them
     const size_t Cells = static_cast<size_t>(Width) * static_cast<size_t>(Height);
 
     float MinB[3] = { 1e30f, 1e30f, 1e30f }, MaxB[3] = { -1e30f, -1e30f, -1e30f };
@@ -599,7 +599,7 @@ void VisibilityRaster::Shade(const SceneStructure& Level, const float Eye[3], co
                                     * 180.0f / kPi;
     // The clouds' sunlight, shared by the pixels and the ambient probe below: full sun above the horizon, none
     //    below -12 deg, a twilight ramp between. The march knows no planet shadow (see the note at the pixel
-    //    composite), so both call sites take this rather than restating the ramp.
+    //    combined), so both call sites take this rather than restating the ramp.
     const float CloudDayFactor = Smooth01(-12.0f, 0.0f, SunElevationDegrees);
     const float CloudSunRad[3] = { Celestial_.Light.Colour[0] * Celestial_.Light.Intensity * CloudDayFactor,
                                    Celestial_.Light.Colour[1] * Celestial_.Light.Intensity * CloudDayFactor,
@@ -853,7 +853,7 @@ void VisibilityRaster::Shade(const SceneStructure& Level, const float Eye[3], co
         //
         //    Marched through the weather first: one march per frame, so overcast darkens the world the clouds
         //    shade. The probe looks straight up and never meets the planet, and it is lit by the air it just
-        //    measured — the same composite the pixels run, at a single direction.
+        //    measured — the same combined the pixels run, at a single direction.
         float ProbeSky[3] = { Probe.Radiance[0], Probe.Radiance[1], Probe.Radiance[2] };
         if (Celestial_.CloudLayer.Enabled || Celestial_.LocalCloud.Enabled || Celestial_.LocalFog.Enabled)
         {
@@ -1099,7 +1099,7 @@ void VisibilityRaster::Shade(const SceneStructure& Level, const float Eye[3], co
                 if(Length>0){for(float& V:D)V/=Length;FogModel::Apply(Celestial_.Fog,Celestial_.Medium,Celestial_.Light,Eye[2],P[2],Length,D,SkyAmbient,Linear);}
             }
             unsigned char Encoded[3];
-            ColourPipeline::ApplyToByte(Colour_, Linear, Encoded);
+            ColourChain::ApplyToByte(Colour_, Linear, Encoded);
             Px[0] = Encoded[0]; Px[1] = Encoded[1]; Px[2] = Encoded[2];
             Px[3] = 255u;
             LumSum += 0.2126 * Px[0] + 0.7152 * Px[1] + 0.0722 * Px[2];

@@ -19,7 +19,7 @@ trap 'rm -rf "$Work"' EXIT
 mkdir -p "$Work/stub/vulkan"
 
 # The structure pulls SwapchainExchange.h for TriangleIndex/Vector3/TriangleSpanRecord, which transitively includes
-#    <vulkan/vulkan.h> for handle types it never uses here. These opaque declarations are enough to parse it.
+#    <vulkan/vulkan.h> for identifier types it never uses here. These opaque declarations are enough to parse it.
 cat > "$Work/stub/vulkan/vulkan.h" <<'STUB'
 #pragma once
 #include <cstdint>

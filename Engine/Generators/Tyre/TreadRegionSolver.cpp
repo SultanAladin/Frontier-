@@ -23,9 +23,9 @@ using Clipper2Lib::EndType;
 namespace {
 
 /// 📝 💡 1000 integer units per millimetre, so one unit is one micrometre — deliberately the same figure
-///    as TyreMeshStructure::WeldTolerance. Coincident boundaries can disagree by one unit, and tying the
+///    as TyreGeometryStructure::WeldTolerance. Coincident boundaries can disagree by one unit, and tying the
 ///    boolean resolution to the weld tolerance means any sliver that disagreement can produce is narrower
-///    than a weld and collapses to nothing when the mesh stage welds it. The two tolerances are one choice.
+///    than a weld and collapses to nothing when the topology stage welds it. The two tolerances are one choice.
 constexpr double ClipperScale = 1000.0;                // [-]  - integer units per millimetre, 1 µm
 constexpr float  π            = 3.14159265358979323846f;
 

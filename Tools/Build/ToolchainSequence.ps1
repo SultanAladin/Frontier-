@@ -201,7 +201,7 @@ function Get-IncludePaths([string] $VulkanRoot)
         "/I$(Join-Path $PackageRoot 'fast_obj')"
         # The engine's own shader sources are #included as C++ by the CPU-side TUs (MaterialEvaluation.slang), which is
         #    how the shipped lobe set is compiled 1:1 for the host. The other two carry headers the M7b preview TU and
-        #    the D9 build-pipeline TUs include across directories; CMake lists the same set per-file on those TUs.
+        #    the D9 build-chain TUs include across directories; CMake lists the same set per-file on those TUs.
         #    (No Exhibits\Workbench path here: the app is engine + project sources only. The preview TU that used to
         #    live there is Engine\ContentInterchange\ShaderballPreview.cpp now.)
         "/I$(Join-Path $EngineRoot 'Shaders')"
@@ -257,7 +257,7 @@ function Test-ObjectFresh([string] $ObjectPath, [string] $SourcePath, [string] $
     try
     {
         $Recorded = Get-Content $DependencyPath -Raw | ConvertFrom-Json
-        $Included = $Recorded.Data.Includes
+        $Included = $Recorded.Packet.Includes
     }
     catch { return $false }
 
@@ -589,7 +589,7 @@ $ImGuiSources = @(
 
 $EngineRelative = @(
     'Projects\Project-Fluid\Source\SurfaceReconstruction.cpp'
-    'Projects\Project-Fluid\Source\GpuSurfaceData.cpp'
+    'Projects\Project-Fluid\Source\GpuSurfacePayload.cpp'
     'Projects\Project-Fluid\Source\GpuSurfaceExtractor.cpp'
     'Projects\Project-Fluid\Source\FluidGpuTest.cpp'
     'Projects\Project-Fluid\Source\VulkanFluidMain.cpp'
@@ -674,7 +674,7 @@ $EngineRelative = @(
     'Engine\ContentInterchange\SceneCodec.cpp'
     'Engine\ContentInterchange\ShaderBallStructure.cpp'
     'Engine\ContentInterchange\ShowcaseStructure.cpp'
-    # ShowcaseStructure::BringGridMesh calls ShaderBallGeometry::LoadResolved — without this TU link.exe
+    # ShowcaseStructure::BringGridGeometry calls ShaderBallGeometry::LoadResolved — without this TU link.exe
     #    reports an unresolved external for Frontier.exe.
     'Engine\ContentInterchange\ShaderBallGeometry.cpp'
     'Engine\ContentInterchange\AssetResolution.cpp'
@@ -721,8 +721,8 @@ $EngineRelative = @(
     'Engine\GeometricRaster\InstanceAcceleration.cpp'           # D6/D7 BLAS + instance top level, and RelativeMatrix
     'Engine\GeometricRaster\BlasBuildMirror.cpp'                # its QuantiseNode dependency (D9's refit kernel source)
     'Engine\GeometricRaster\BlasDevicePayload.cpp'              # D9 device payload layout
-    'Engine\GeometricRaster\BlasBuildPipeline.cpp'              # D9 build/refit dispatch
-    'Engine\GeometricRaster\TriangleFieldVulkanExchange.cpp'            # mesh SDF Vulkan host (GPU import bake and dirty-cell composite)
+    'Engine\GeometricRaster\BlasBuildChain.cpp'              # D9 build/refit dispatch
+    'Engine\GeometricRaster\TriangleFieldVulkanExchange.cpp'            # topology SDF Vulkan host (GPU import precompute and dirty-cell combined)
     'Engine\ContentInterchange\SpaceCodec.cpp'                  # P1/P3 .space container
     'Engine\ContentInterchange\SpaceExport.cpp'                 # P2/P6 exporters
     'Engine\Host\CommandLine.cpp'             # P4 the launch line both hosts parse
@@ -788,7 +788,7 @@ if (Test-Path $GlfwDll)
     catch { if (-not (Test-Path (Join-Path $BinaryRoot 'glfw3.dll'))) { throw $_ } }
 }
 
-# Ship SVG sources and ThorVG vector variants, never the old offline raster bakes.
+# Ship SVG sources and ThorVG vector variants, never the old offline raster precomputes.
 $IconSource = Join-Path $EngineRoot '..\EngineContent\Icons'
 $IconTarget = Join-Path $BinaryRoot 'EngineContent\Icons'
 New-Item -ItemType Directory -Force -Path (Join-Path $IconTarget 'ThorVG') | Out-Null

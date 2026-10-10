@@ -6,10 +6,10 @@ The strict native SVG gate rejected **69 of the 151 registered icons**. The old 
 
 ## Current path
 
-- All 151 icons render through the pinned ThorVG 1.0.0 software renderer. **No runtime baked-icon fallback.** A valid legacy FIB1 bake is deliberately ignored by a regression test.
+- All 151 icons render through the pinned ThorVG 1.0.0 software renderer. **No runtime precomputed-icon fallback.** A valid legacy FIB1 precompute is deliberately ignored by a regression test.
 - The 82 admitted originals are used directly. The other 69 use editable SVG-only compatibility artwork in `EngineContent/Icons/ThorVG/`; original artwork is unchanged.
 - Variants carry an FNV-1a-64 fingerprint of their original source. Missing/stale variants, missing originals, unsupported variant elements and malformed SVGs fail visibly rather than falsely reporting success. This checks freshness of trusted local assets, not security/authenticity. Assets remain cached until `IconArt::Clear()` or process restart.
-- The native ImGui texture atlas is still necessary for drawing. Its pixels are generated **at runtime by ThorVG**, not read from pre-baked icon images.
+- The native ImGui texture atlas is still necessary for drawing. Its pixels are generated **at runtime by ThorVG**, not read from pre-precomputed icon images.
 - Default asset lookup checks the working directory, then the executable directory and its ancestors on Windows/Linux. Explicit custom roots are not silently replaced. The Windows toolchain and Project-Zero CMake target stage originals and vector variants beside the executable. Failure diagnostics include missing paths and are printed when an atlas contains substitutes.
 
 ## Compatibility differences — not browser-pixel equivalence
@@ -19,11 +19,11 @@ The pinned loader cannot render the entire browser SVG feature set. These varian
 - Drop shadows: cloned vector silhouettes, alpha-preserving gradient copies and supported Gaussian blur; filter bounds/compositing may differ.
 - Labels: outlined paths using bundled OFL **Archivo**, rather than a runtime Arial/system-font dependency. Label text stays unchanged; metrics and glyph shapes can differ.
 - Fabric: repeating weave expanded into clipped vector strokes.
-- Procedural turbulence, displacement, color-matrix and composite filter primitives: omitted. Some surfaces/edges therefore lose procedural texture/detail. Existing gradients, silhouettes and supported blur remain.
+- Procedural turbulence, displacement, color-matrix and combined filter primitives: omitted. Some surfaces/edges therefore lose procedural texture/detail. Existing gradients, silhouettes and supported blur remain.
 - SVG2 `rgba()` paints: converted into RGB plus explicit opacity. Without this conversion the pinned loader rendered the Spotlight beam black.
 - Smoke: its gradient-filled mask rendered blank in this pin. The same fade is approximated with 64 fine vector-opacity strips, not a raster texture.
 
-Per-file changes and source fingerprints are recorded in [`manifest.json`](../EngineContent/Icons/ThorVG/manifest.json). Legacy browser bake utilities/assets remain for historical exhibits, but `IconArt` no longer includes or calls their loader. [The old celestial bake report](CelestialOutlinerIcons.md) is marked superseded.
+Per-file changes and source fingerprints are recorded in [`manifest.json`](../EngineContent/Icons/ThorVG/manifest.json). Legacy browser precompute utilities/assets remain for historical exhibits, but `IconArt` no longer includes or calls their loader. [The old celestial precompute report](CelestialOutlinerIcons.md) is marked superseded.
 
 ## Verification
 
@@ -52,7 +52,7 @@ From the repository root:
 .\Build\Project-Zero.exe
 ```
 
-Use `-FluidOpenMP` too if that is part of your usual fluid build. Keep `EngineContent/Icons/` beside the executable when distributing it, including its `ThorVG/` subdirectory. Do not substitute `Baked/` files.
+Use `-FluidOpenMP` too if that is part of your usual fluid build. Keep `EngineContent/Icons/` beside the executable when distributing it, including its `ThorVG/` subdirectory. Do not substitute `Precomputed/` files.
 
 ## Reproduce the focused proofs
 

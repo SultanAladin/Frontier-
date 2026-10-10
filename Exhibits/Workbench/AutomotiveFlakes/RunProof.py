@@ -49,11 +49,11 @@ for path in O.glob('*.png'):
  while i<len(blob):
   n=struct.unpack('>I',blob[i:i+4])[0];chunks.append((blob[i+4:i+8],blob[i+8:i+8+n]));i+=n+12
  packed=zlib.compress(zlib.decompress(b''.join(d for tag,d in chunks if tag==b'IDAT')),9);out=bytearray(blob[:8]);done=False
- for tag,data in chunks:
+ for tag,record in chunks:
   if tag==b'IDAT':
    if done:continue
-   data=packed;done=True
-  out+=struct.pack('>I',len(data))+tag+data+struct.pack('>I',zlib.crc32(tag+data)&0xffffffff)
+   record=packed;done=True
+  out+=struct.pack('>I',len(record))+tag+record+struct.pack('>I',zlib.crc32(tag+record)&0xffffffff)
  path.write_bytes(out)
 inputs=[R/'Engine/Shaders/AutomotiveFlakePaint.slang',T/'Engine/Shaders/MaterialEvaluation.slang',T/'Engine/Shaders/AutomotiveMaterialProfiles.slang',T/'Engine/Shaders/SlangCpuShim.h',T/'Engine/ContentInterchange/PngWriteCounterpart.h',*list((R/'Exhibits/Workbench/AutomotiveFlakes').glob('*.*')),*[p for p in O.glob('*.png') if not p.name.startswith('PaintLab')],O/'shared.glsl']
 (O/'Provenance.json').write_text(json.dumps({'target':'f6c99702c769ef9fd44c39ac8819e0ebeae35b9b','mode':'Native C++ reference; separate GLSL WebGL exhibit; not Project-Zero GPU deployment','sha256':{str(p.relative_to(R)):hashlib.sha256(p.read_bytes()).hexdigest() for p in inputs if p.is_file()}},indent=2)+'\n')

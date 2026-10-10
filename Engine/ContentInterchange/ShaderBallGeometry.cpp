@@ -1,7 +1,7 @@
 //============================================================================================================================================
 //                                                    SHADERBALLGEOMETRY.CPP
 //============================================================================================================================================
-// 📦 Reads the SBM1 mesh container the ShaderBall converter writes.
+// 📦 Reads the SBM1 topology container the ShaderBall converter writes.
 
 #include "ShaderBallGeometry.h"
 
@@ -21,8 +21,8 @@ constexpr size_t kAssetVertexFloats = 8u;
 
 struct FileCloser
 {
-    std::FILE* Handle = nullptr;
-    ~FileCloser() noexcept { if (Handle) std::fclose(Handle); }
+    std::FILE* Tag = nullptr;
+    ~FileCloser() noexcept { if (Tag) std::fclose(Tag); }
 };
 
 bool Fail(std::string* Error, const std::string& Reason) noexcept
@@ -33,35 +33,35 @@ bool Fail(std::string* Error, const std::string& Reason) noexcept
 
 } // namespace
 
-bool ShaderBallGeometry::Load(const std::string& Path, GeometryStructure& Mesh, std::string* Error) noexcept
+bool ShaderBallGeometry::Load(const std::string& Path, GeometryStructure& Hull, std::string* Error) noexcept
 {
     FileCloser File;
 #if defined(_MSC_VER)
-    if (fopen_s(&File.Handle, Path.c_str(), "rb") != 0) File.Handle = nullptr;
+    if (fopen_s(&File.Tag, Path.c_str(), "rb") != 0) File.Tag = nullptr;
 #else
-    File.Handle = std::fopen(Path.c_str(), "rb");
+    File.Tag = std::fopen(Path.c_str(), "rb");
 #endif
-    if (!File.Handle) return Fail(Error, "cannot open '" + Path + "'");
+    if (!File.Tag) return Fail(Error, "cannot open '" + Path + "'");
 
     uint32_t Header[3]{};
     float    Height = 0.0f;
-    if (std::fread(Header, sizeof(uint32_t), 3u, File.Handle) != 3u
-     || std::fread(&Height, sizeof(float), 1u, File.Handle) != 1u)
+    if (std::fread(Header, sizeof(uint32_t), 3u, File.Tag) != 3u
+     || std::fread(&Height, sizeof(float), 1u, File.Tag) != 1u)
         return Fail(Error, "'" + Path + "' is truncated in its header");
     if (Header[0] != kShaderBallMagic)
-        return Fail(Error, "'" + Path + "' is not an SBM1 mesh (bad magic)");
+        return Fail(Error, "'" + Path + "' is not an SBM1 topology (bad magic)");
 
     const uint32_t VertexCount = Header[1];
     const uint32_t IndexCount  = Header[2];
     if (VertexCount == 0u || IndexCount == 0u || IndexCount % 3u != 0u)
-        return Fail(Error, "'" + Path + "' declares an empty or non-triangular mesh");
+        return Fail(Error, "'" + Path + "' declares an empty or non-triangular topology");
 
     std::vector<float> Raw(static_cast<size_t>(VertexCount) * kAssetVertexFloats);
-    if (std::fread(Raw.data(), sizeof(float), Raw.size(), File.Handle) != Raw.size())
+    if (std::fread(Raw.data(), sizeof(float), Raw.size(), File.Tag) != Raw.size())
         return Fail(Error, "'" + Path + "' is truncated in its vertex block");
 
     std::vector<uint32_t> Indices(IndexCount);
-    if (std::fread(Indices.data(), sizeof(uint32_t), Indices.size(), File.Handle) != Indices.size())
+    if (std::fread(Indices.data(), sizeof(uint32_t), Indices.size(), File.Tag) != Indices.size())
         return Fail(Error, "'" + Path + "' is truncated in its index block");
 
     // Every index must land inside the vertex block. A file that passes the magic but indexes past the end would
@@ -84,12 +84,12 @@ bool ShaderBallGeometry::Load(const std::string& Path, GeometryStructure& Mesh, 
         Target.TangentDirection    = Vector4{ 1.0f, 0.0f, 0.0f, 1.0f };
     }
 
-    Mesh.AppendVertices(Vertices.data(), Vertices.size());
-    Mesh.AppendIndices(Indices.data(), Indices.size());
+    Hull.AppendVertices(Vertices.data(), Vertices.size());
+    Hull.AppendIndices(Indices.data(), Indices.size());
     return true;
 }
 
-bool ShaderBallGeometry::LoadResolved(const std::string& Path, GeometryStructure& Mesh,
+bool ShaderBallGeometry::LoadResolved(const std::string& Path, GeometryStructure& Hull,
                                       std::string* Resolved, std::string* Error) noexcept
 {
     // A harness may run from the repository root, from a build directory, or from a seated engine checkout.
@@ -100,7 +100,7 @@ bool ShaderBallGeometry::LoadResolved(const std::string& Path, GeometryStructure
     {
         const std::string Candidate = std::string(Root) + Path;
         std::string Reason;
-        if (Load(Candidate, Mesh, &Reason))
+        if (Load(Candidate, Hull, &Reason))
         {
             if (Resolved) *Resolved = Candidate;
             return true;

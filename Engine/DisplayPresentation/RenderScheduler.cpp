@@ -88,7 +88,7 @@ void RenderScheduler::Present(
 #ifdef FRONTIER_DEVELOPMENT
     Editor_.AssignCameraSteering(Steering);
     // The rail's status and its convergence hairline. 256 is the count the "initial accumulation ready"
-    //    notification uses (GameExecution's BakeFrameCount); past it the hairline turns blue and the frame is
+    //    notification uses (GameExecution's PrecomputeFrameCount); past it the hairline turns blue and the frame is
     //    refining rather than filling. The restart reason rides along so a frame that never converges can say
     //    why without the reader opening the F3 popup.
     Editor_.AssignRenderStatus(Integrator.QueryAccumulationIndex(), 256u, Integrator.QueryRestartReason(),
@@ -357,7 +357,7 @@ void RenderScheduler::SectionReSTIR(
 
     bool Temporal = Config.TemporalReuse;   // R6: off-switches for the A/B proofs (converged image must match)
     bool Spatial  = Config.SpatialReuse;
-    bool GiReuse  = Config.GlobalIlluminationReuse;   // the indirect pool's off-switch (kFeatureGiReuse, ON by default)
+    bool GiReuse  = Config.GlobalIlluminationReuse;   // the indirect slots's off-switch (kFeatureGiReuse, ON by default)
     bool Alias    = Config.AliasPick;       // R6 row 3: off = uniform pick (R0 identity); F5 in the F3 popup flips the same flag
     if (ImGui::Checkbox("Temporal reuse", &Temporal))
         Integrator.AssignTemporalReuse(Temporal);

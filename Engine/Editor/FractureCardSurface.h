@@ -5,7 +5,7 @@
 //    solid it draws from FractureProjection.js. Nothing in Engine/ carried either before this.
 //
 //    The card is a disclosure in three stages. Closed it is a title and one switch; enabled it grows the
-//    shaded diagram, the BAKE mode pair and a status line; in Baked mode it grows an SDF block whose own
+//    shaded diagram, the PRECOMPUTE mode pair and a status line; in Precomputed mode it grows an SDF block whose own
 //    switch grows a resolution field. Every stage is measured from Editor.css rather than guessed.
 //
 //    The diagram is a real Voronoi diagram: nine sites clipped against a 36-gon by half-planes, each cell
@@ -63,10 +63,10 @@ constexpr float KnobBox     = 20.0f;   // [px] .toggle i
 constexpr float DiagramTall =134.0f;   // [px] .fracture-diagram svg height
 constexpr float DiagramBleed=  8.0f;   // [px] .fracture-diagram margin: 0 -8px
 constexpr float DiagramDrop =  8.0f;   // [px] and its margin-bottom
-constexpr float BakeSize    = 10.0f;   // [px] .fracture-card h4
-constexpr float BakeTrack   =  1.3f;   // [px] its letter-spacing
-constexpr float BakeLift    = 18.0f;   // [px] h4 margin-top
-constexpr float BakeDrop    = 10.0f;   // [px] h4 margin-bottom
+constexpr float PrecomputeSize    = 10.0f;   // [px] .fracture-card h4
+constexpr float PrecomputeTrack   =  1.3f;   // [px] its letter-spacing
+constexpr float PrecomputeLift    = 18.0f;   // [px] h4 margin-top
+constexpr float PrecomputeDrop    = 10.0f;   // [px] h4 margin-bottom
 constexpr float ModePad     =  4.0f;   // [px] .fracture-mode padding and gap
 constexpr float ButtonTall  = 28.0f;   // [px] button min-height
 constexpr float ModeRound   =  8.0f;   // [px] .fracture-mode border-radius
@@ -94,7 +94,7 @@ constexpr float SelectPad   = 13.0f;   // [px] select padding-left
 // FractureSpecification.js owns these. Normalise() reproduces its clamps exactly, including the two keys
 //    that are rounded to whole numbers and the enumerations that fall back rather than clamp.
 
-enum class Mode { Dynamic, Baked };
+enum class Mode { Dynamic, Precomputed };
 
 struct Settings
 {
@@ -107,7 +107,7 @@ struct Settings
     int   Ceiling       = 48;
     float MinimumSize   = 0.045f;
     float X = 0.0f, Y = 0.0f, Z = 0.0f;
-    bool  Baked         = false;   // a stored bake exists
+    bool  Precomputed         = false;   // a stored precompute exists
     bool  Ready         = false;   // ... and its signature still matches the owner
 };
 
@@ -304,7 +304,7 @@ inline float Baseline(float BoxTop, float BoxTall, float Size)
 }
 
 // A block formatting context just rich enough for this card: adjacent siblings collapse their touching
-//    margins to the larger of the two, which is why BAKE sits 18 px under the diagram and not 26.
+//    margins to the larger of the two, which is why PRECOMPUTE sits 18 px under the diagram and not 26.
 struct Flow
 {
     float Y = 0.0f;
@@ -381,13 +381,13 @@ struct Owner
     const char* Primitive = "cube";
 };
 
-// The status paragraph the component assembles from the mode and the bake state.
+// The status paragraph the component assembles from the mode and the precompute state.
 inline void StatusLine(const Settings& S, char* Out, size_t Room)
 {
     const char* Lead = S.Run == Mode::Dynamic ? "Generate fragments on demand."
                                               : "Reuse stored geometry for this object.";
     const char* Tail = "";
-    if (S.Run == Mode::Baked)
+    if (S.Run == Mode::Precomputed)
         Tail = !S.Ready ? "Open the editor to bake or refresh geometry."
              : S.PieceSdf ? "Browser geometry ready. SDF pending." : "Browser bake ready.";
     std::snprintf(Out, Room, "%s %s", Lead, Tail);
@@ -410,7 +410,7 @@ struct Plan
     float Inner = 0.0f;
     float HeadTop = 0.0f, HeadTall = 0.0f, TitleTop = 0.0f, EyebrowTop = 0.0f, ExpandTop = 0.0f;
     float EnableTop = 0.0f;
-    float DiagramTop = 0.0f, BakeTop = 0.0f, ModeTop = 0.0f, StatusTop = 0.0f;
+    float DiagramTop = 0.0f, PrecomputeTop = 0.0f, ModeTop = 0.0f, StatusTop = 0.0f;
     float SdfTop = 0.0f, SdfSwitchTop = 0.0f, FieldTop = 0.0f, SelectTop = 0.0f, SdfNoteTop = 0.0f;
     float OpenTop = 0.0f, PendingTop = 0.0f;
     float Tall = 0.0f;
@@ -438,14 +438,14 @@ inline Plan Measure(ImFont* Light, ImFont* Regular, float Wide, const Settings& 
     if (S.Enabled)
     {
         P.DiagramTop = F.Place(0.0f, DiagramTall, DiagramDrop);
-        P.BakeTop    = F.Place(BakeLift, Kit::Grind(BakeSize), BakeDrop);
+        P.PrecomputeTop    = F.Place(PrecomputeLift, Kit::Grind(PrecomputeSize), PrecomputeDrop);
         P.ModeTop    = F.Place(0.0f, ModePad * 2.0f + ButtonTall + 2.0f, 0.0f);
 
         char Status[256];
         StatusLine(S, Status, sizeof(Status));
         P.StatusTop = F.Place(NoteGap, NoteHeight(Light, P.Inner, Status), NoteGap);
 
-        if (S.Run == Mode::Baked)
+        if (S.Run == Mode::Precomputed)
         {
             P.HasSdf = true;
             F.Y += std::max(F.Pending, SdfLift);
@@ -518,8 +518,8 @@ inline void PaintCard(ImDrawList* Draw, ImFont* Light, ImFont* Regular, ImVec2 S
     // The diagram bleeds 8 px into the card's padding on both sides.
     PaintGlyph(Draw, { Left - DiagramBleed, Spot.y + P.DiagramTop }, P.Inner + DiagramBleed * 2.0f);
 
-    Kit::Tracked(Draw, Light, Left, Spot.y + P.BakeTop + Kit::AscentShare * BakeSize, BakeSize, HeadInk,
-                 "BAKE", BakeTrack);
+    Kit::Tracked(Draw, Light, Left, Spot.y + P.PrecomputeTop + Kit::AscentShare * PrecomputeSize, PrecomputeSize, HeadInk,
+                 "PRECOMPUTE", PrecomputeTrack);
 
     // The mode pair: one inset track, two buttons sharing the width, the pressed one filled.
     {
@@ -527,7 +527,7 @@ inline void PaintCard(ImDrawList* Draw, ImFont* Light, ImFont* Regular, ImVec2 S
         Draw->AddRectFilled({ Left, Top }, { Left + P.Inner, Top + Tall }, TrackFill, ModeRound);
         Draw->AddRect({ Left, Top }, { Left + P.Inner, Top + Tall }, TrackEdge, ModeRound);
         const float Each = (P.Inner - 2.0f - ModePad * 3.0f) * 0.5f;
-        const char* Names[2] = { "Dynamic", "Baked" };
+        const char* Names[2] = { "Dynamic", "Precomputed" };
         for (int I = 0; I < 2; ++I)
         {
             const float X = Left + 1.0f + ModePad + I * (Each + ModePad);
@@ -548,7 +548,7 @@ inline void PaintCard(ImDrawList* Draw, ImFont* Light, ImFont* Regular, ImVec2 S
     if (P.HasSdf)
     {
         Draw->AddLine({ Left, Spot.y + P.SdfTop }, { Left + P.Inner, Spot.y + P.SdfTop }, Rule, 1.0f);
-        PaintSwitchRow(Draw, Light, { Left, Spot.y + P.SdfSwitchTop }, P.Inner, "Bake SDF per piece", S.PieceSdf);
+        PaintSwitchRow(Draw, Light, { Left, Spot.y + P.SdfSwitchTop }, P.Inner, "Precompute SDF per piece", S.PieceSdf);
         if (P.HasField)
         {
             Kit::Inked(Draw, Light, Left, Spot.y + P.FieldTop + Kit::AscentShare * FieldLabel, FieldLabel,

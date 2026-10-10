@@ -151,9 +151,9 @@ uint32_t InterfaceLightProjection::ComposeProxy(SceneStructure& Scene, const Pan
     const uint32_t Material = Scene.RegisterMaterial(Descriptor);
 
     // ── The quad ─────────────────────────────────────────────────────────────────────────────────────────────────
-    // Two triangles, in WORLD space, with an identity instance transform. The panel's placement is already baked
+    // Two triangles, in WORLD space, with an identity instance transform. The panel's placement is already precomputed
     //    into the half-axes the caller passed, so carrying it again in the instance matrix would apply it twice.
-    GeometryStructure Mesh;
+    GeometryStructure Hull;
 
     const Vector3 Centre{ Request.CentreX, Request.CentreY, Request.CentreZ };
     const auto Corner = [&](float U, float V)
@@ -172,8 +172,8 @@ uint32_t InterfaceLightProjection::ComposeProxy(SceneStructure& Scene, const Pan
     const VertexRecord Vertices[4] = { Corner(-1.0f, -1.0f), Corner(1.0f, -1.0f),
                                        Corner( 1.0f,  1.0f), Corner(-1.0f, 1.0f) };
     const uint32_t Indices[6] = { 0u, 1u, 2u, 0u, 2u, 3u };
-    Mesh.AppendVertices(Vertices, 4u);
-    Mesh.AppendIndices(Indices, 6u);
+    Hull.AppendVertices(Vertices, 4u);
+    Hull.AppendIndices(Indices, 6u);
 
     PolyhedralCluster Cluster{};
     Cluster.BoundingCenter = Centre;
@@ -185,14 +185,14 @@ uint32_t InterfaceLightProjection::ComposeProxy(SceneStructure& Scene, const Pan
     Cluster.VertexOffset   = 0u;
     Cluster.TriangleOffset = 0u;
     Cluster.TriangleCount  = 2u;
-    (void)Mesh.RegisterCluster(Cluster);
+    (void)Hull.RegisterCluster(Cluster);
 
     Matrix4x4 Identity;
     for (int Column = 0; Column < 4; ++Column)
         for (int Row = 0; Row < 4; ++Row)
             Identity.Columns[Column][Row] = (Column == Row) ? 1.0f : 0.0f;
 
-    return Scene.RegisterInstance(Mesh, Identity, Material, 0u);
+    return Scene.RegisterInstance(Hull, Identity, Material, 0u);
 }
 
 } // namespace Frontier

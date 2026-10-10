@@ -96,9 +96,9 @@ Engine\Generators\Tyre\TreadPatternRaster.cpp|authoring-only: linked by RunTyreG
 Engine\Generators\Tyre\TyreAppearanceSpecification.cpp|authoring-only: linked by RunTyreGeneratorMirror.py, not yet hosted by Frontier.exe
 Engine\Generators\Tyre\TyreGeneratorWindow.cpp|authoring-only: linked by RunTyreGeneratorMirror.py, not yet hosted by Frontier.exe
 Engine\Generators\Tyre\TyrePresetLibrary.cpp|authoring-only: linked by RunTyreGeneratorMirror.py, not yet hosted by Frontier.exe
-Engine\Generators\Tyre\TreadMeshSolver.cpp|geometry authoring: exercised by Exhibits/Workbench/Tyre/TreadMeshProof.cpp, not a runtime host consumer
-Engine\Generators\Tyre\TreadRegionSolver.cpp|geometry authoring: exercised by Exhibits/Workbench/Tyre/TreadMeshProof.cpp, not a runtime host consumer
-Engine\Generators\Tyre\TyreMeshStructure.cpp|geometry authoring: exercised by Exhibits/Workbench/Tyre/TreadMeshProof.cpp, not a runtime host consumer
+Engine\Generators\Tyre\TreadGeometrySolver.cpp|geometry authoring: exercised by Exhibits/Workbench/Tyre/TreadGeometryProof.cpp, not a runtime host consumer
+Engine\Generators\Tyre\TreadRegionSolver.cpp|geometry authoring: exercised by Exhibits/Workbench/Tyre/TreadGeometryProof.cpp, not a runtime host consumer
+Engine\Generators\Tyre\TyreGeometryStructure.cpp|geometry authoring: exercised by Exhibits/Workbench/Tyre/TreadGeometryProof.cpp, not a runtime host consumer
 Engine\Editor\ConstructWorld.cpp|CPU authoring bridge linked by Projects/Project-Zero/Host/Makefile; not live GPU spawning
 Engine\GeometricRaster\VisibilityRaster.cpp|the CPU visibility mirror the shadow proofs read; no exe consumer yet
 Projects\Project-Zero\Source\RendererHost.cpp|linked into the separate Project-Zero-CpuReference target, not the showroom
@@ -115,7 +115,7 @@ Engine\PhysicalDynamics\Vehicle\VehicleGeometry.cpp|Project-Drive vehicle stack:
 Engine\PhysicalDynamics\Vehicle\VehicleSolver.cpp|Project-Drive vehicle stack: no image links it yet
 Engine\PhysicalDynamics\Vehicle\XPBDSoftTyre.cpp|Project-Drive vehicle stack: no image links it yet
 Engine\DisplayPresentation\DistanceFieldIntegrator.cpp|CPU offline reference integrator for distance field GI
-Engine\GeometricRaster\DistanceFieldBakeSolver.cpp|CPU offline distance field baker
+Engine\GeometricRaster\DistanceFieldPrecomputeSolver.cpp|CPU offline distance field baker
 Engine\GeometricRaster\DistanceFieldSpace.cpp|CPU local distance field volume representation
 Engine\GeometricRaster\GlobalDistanceFieldSpace.cpp|CPU global distance field clipmaps representation
 Engine\GeometricRaster\SurfaceCacheStructure.cpp|CPU surface cache atlas and lighting card representation

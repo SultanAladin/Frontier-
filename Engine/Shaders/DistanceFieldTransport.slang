@@ -8,11 +8,11 @@
 struct DistanceFacet { vec4 Alpha; vec4 Beta; vec4 Gamma; vec4 Normal; vec4 Albedo; vec4 Emission; };
 struct DistanceBranch { vec4 Minimum; vec4 Maximum; uvec4 Range; };
 struct DistanceVoxel { vec4 PositionDistance; vec4 Normal; vec4 Albedo; vec4 Emission; };
-layout(std430, binding=3) buffer FieldExtent { DistanceVoxel Field[]; };
+layout(std430, binding=3) store FieldExtent { DistanceVoxel Field[]; };
 layout(rgba32f, binding=4) uniform readonly image2D PreviousRadiance;
-layout(std430, binding=5) readonly buffer DistanceConstants { vec4 ClipOrigins[3]; uvec4 GeometryCounts; };
-layout(std430, binding=6) readonly buffer DistanceBranches { DistanceBranch Branches[]; };
-layout(std430, binding=7) readonly buffer DistanceFacets { DistanceFacet Facets[]; };
+layout(std430, binding=5) readonly store DistanceConstants { vec4 ClipOrigins[3]; uvec4 GeometryCounts; };
+layout(std430, binding=6) readonly store DistanceBranches { DistanceBranch Branches[]; };
+layout(std430, binding=7) readonly store DistanceFacets { DistanceFacet Facets[]; };
 layout(rgba32f, binding=10) uniform image2D NextRadiance;
 layout(rgba32f, binding=8) uniform image2D SurfaceDiffuse;
 layout(rgba32f, binding=9) uniform image2D SurfaceNormal;
@@ -137,7 +137,7 @@ vec3 ClosestOnTriangle(vec3 Position, DistanceFacet Facet)
     return Alpha+(EdgeAlpha*AreaBeta+EdgeBeta*AreaGamma)/(AreaAlpha+AreaBeta+AreaGamma);
 }
 struct DistanceRayHit { float Travel; uint Facet; };
-DistanceRayHit TraceDistanceMesh(vec3 Origin, vec3 Direction, float Maximum)
+DistanceRayHit TraceDistanceGeometry(vec3 Origin, vec3 Direction, float Maximum)
 {
     DistanceRayHit Hit; Hit.Travel=Maximum; Hit.Facet=0xFFFFFFFFu;
     vec3 Reciprocal=1.0/(sign(Direction)*max(abs(Direction),vec3(1e-20))+vec3(equal(Direction,vec3(0.0)))*1e-20);
@@ -201,7 +201,7 @@ float DistanceShadow(vec3 Position, vec3 Normal)
     vec3 Direction=normalize(PC.SunDirectionRadiance.xyz);
     vec3 Origin=Position+Normal*0.002;
     // Exact umbra confirmation also covers thin casters, clipmap exits and march-budget exhaustion.
-    if (TraceDistanceMesh(Origin,Direction,1e20).Facet!=0xFFFFFFFFu) return 0.0;
+    if (TraceDistanceGeometry(Origin,Direction,1e20).Facet!=0xFFFFFFFFu) return 0.0;
     float Visibility=1.0, Travel=0.004;
     float Maximum=length(Origin-Branches[0].Minimum.xyz)+length(Branches[0].Maximum.xyz-Branches[0].Minimum.xyz);
     for (uint Step=0u; Step<64u && Travel<Maximum; ++Step)
@@ -325,7 +325,7 @@ vec3 GatherDistanceRadiance(vec3 Position, vec3 Normal, bool Current)
             float Distance=SampleSceneDistance(Point,Cell);
             if (Distance>1e19)
             {
-                DistanceRayHit Hit=TraceDistanceMesh(Origin,Direction,1e20);
+                DistanceRayHit Hit=TraceDistanceGeometry(Origin,Direction,1e20);
                 if (Hit.Facet!=0xFFFFFFFFu) Incoming=SampleCachedRadiance(Hit.Facet,Origin+Direction*Hit.Travel,Current);
                 GatherHit=Hit;
                 Resolved=true;
@@ -334,7 +334,7 @@ vec3 GatherDistanceRadiance(vec3 Position, vec3 Normal, bool Current)
             if (Distance<Cell*0.7)
             {
                 // 📝 Exact triangle refinement avoids shading a voxel boundary as a surface.
-                DistanceRayHit Hit=TraceDistanceMesh(Origin,Direction,Travel+Cell*2.0);
+                DistanceRayHit Hit=TraceDistanceGeometry(Origin,Direction,Travel+Cell*2.0);
                 if (Hit.Facet!=0xFFFFFFFFu)
                 {
                     Incoming=SampleCachedRadiance(Hit.Facet,Origin+Direction*Hit.Travel,Current);
@@ -348,7 +348,7 @@ vec3 GatherDistanceRadiance(vec3 Position, vec3 Normal, bool Current)
         // The coarse field is an accelerator, never the visibility authority on budget exhaustion.
         if (!Resolved)
         {
-            DistanceRayHit FinalHit=TraceDistanceMesh(Origin,Direction,1e20);
+            DistanceRayHit FinalHit=TraceDistanceGeometry(Origin,Direction,1e20);
             GatherHit=FinalHit;
             Incoming=FinalHit.Facet==0xFFFFFFFFu ? PC.SkyAmbient.xyz :
                 SampleCachedRadiance(FinalHit.Facet,Origin+Direction*FinalHit.Travel,Current);
@@ -372,7 +372,7 @@ vec3 GatherDistanceRadiance(vec3 Position, vec3 Normal, bool Current)
         Direction=Delta/TravelToCard;
         CosineDensity=max(dot(Normal,Direction),0.0)/3.14159265359;
         if (CosineDensity<=0.0) continue;
-        DistanceRayHit CardHit=TraceDistanceMesh(Origin,Direction,TravelToCard+0.002);
+        DistanceRayHit CardHit=TraceDistanceGeometry(Origin,Direction,TravelToCard+0.002);
         if (CardHit.Facet!=Facet) continue;
         AreaDensity=RadianceDirectionDensity(Facet,Origin,Point,Probability);
         Result+=SampleCachedRadiance(Facet,Point,Current)*

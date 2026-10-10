@@ -19,11 +19,11 @@ export default function FracturePanel({ Subject, Values, Change, Expand }) {
     Supported = ["cube", "sphere", "cylinder", "cone"].includes(
       Owner.Primitive,
     ),
-    Ready = Settings.Baked?.Signature === Signature(Owner, Settings);
+    Ready = Settings.Precomputed?.Signature === Signature(Owner, Settings);
   const Assign = (Key, Value) =>
     Change("Fracture", { ...Settings, [Key]: Value });
   return (
-    <section className="generic-card fracture-card" data-card="Fracture">
+    <section className="generic-card fracture-card" record-card="Fracture">
       <header>
         <div>
           <h3>Fracture</h3>
@@ -57,7 +57,7 @@ export default function FracturePanel({ Subject, Values, Change, Expand }) {
             className="fracture-diagram"
             dangerouslySetInnerHTML={{ __html: FractureArtwork }}
           />
-          <h4>BAKE</h4>
+          <h4>PRECOMPUTE</h4>
           <div
             className="fracture-mode"
             role="group"
@@ -69,7 +69,7 @@ export default function FracturePanel({ Subject, Values, Change, Expand }) {
                 aria-pressed={Settings.Mode === Mode}
                 onClick={() => Assign("Mode", Mode)}
               >
-                {Mode === "dynamic" ? "Dynamic" : "Baked"}
+                {Mode === "dynamic" ? "Dynamic" : "Precomputed"}
               </button>
             ))}
           </div>
@@ -88,11 +88,11 @@ export default function FracturePanel({ Subject, Values, Change, Expand }) {
           {Settings.Mode === "baked" && (
             <div className="fracture-sdf">
               <label className="switch-row">
-                <span>Bake SDF per piece</span>
+                <span>Precompute SDF per piece</span>
                 <button
                   className={"toggle " + (Settings.PieceSdf ? "on" : "")}
                   role="switch"
-                  aria-label="Bake SDF per piece"
+                  aria-label="Precompute SDF per piece"
                   aria-checked={Settings.PieceSdf}
                   onClick={() => Assign("PieceSdf", !Settings.PieceSdf)}
                 >

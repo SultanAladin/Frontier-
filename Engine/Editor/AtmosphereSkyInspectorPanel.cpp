@@ -2,7 +2,7 @@
 #include "ControlPanel.h"
 #include "CurvePanel.h"
 #include "EnvironmentProjection.h"
-#include "SkyBakePreview.h"
+#include "SkyPrecomputePreview.h"
 #include "SunColourTemperature.h"
 #include "SunReferenceDraw.h"
 #include <imgui_internal.h>
@@ -14,7 +14,7 @@ namespace {
 using namespace SunReference;
 constexpr ImU32 Ink=IM_COL32(233,233,233,255),Muted=IM_COL32(145,145,145,255),Accent=IM_COL32(153,170,250,255);
 EditorProperty* Find(EditorSheet& S,const char* Name){for(auto& G:S.Groups)for(unsigned I=0;I<G.PropertyCount;++I)if(std::strcmp(G.Properties[I].Label,Name)==0)return &G.Properties[I];return nullptr;}
-enum class Mark {Sun,Orbit,Sparkles,Bake,Upload,Reset,Arrow};
+enum class Mark {Sun,Orbit,Sparkles,Precompute,Upload,Reset,Arrow};
 void Icon(ImDrawList* D,ImVec2 At,Mark M,ImU32 Tint,float Size=16) {
     Canvas C{D,At,Size/24};
     auto Line=[&](float X,float Y,float XX,float YY){C.Line({X,Y},{XX,YY},Tint,1.5f);};
@@ -30,7 +30,7 @@ void Icon(ImDrawList* D,ImVec2 At,Mark M,ImU32 Tint,float Size=16) {
         const ImVec2 P[]={{12,2},{14.1f,8.5f},{15.5f,9.9f},{22,12},{15.5f,14.1f},{14.1f,15.5f},{12,22},{9.9f,15.5f},{8.5f,14.1f},{2,12},{8.5f,9.9f},{9.9f,8.5f},{12,2}};
         for(unsigned I=1;I<13;++I)C.Line(P[I-1],P[I],Tint,1.5f);
         Line(20,3,20,7);Line(18,5,22,5);Line(4,17,4,19);Line(3,18,5,18);
-    } else if(M==Mark::Bake) {
+    } else if(M==Mark::Precompute) {
         Line(12,5,19,5);Line(19,5,21,7);Line(21,7,21,19);Line(21,19,19,21);Line(19,21,7,21);Line(7,21,5,19);Line(5,19,5,13);
         Line(2,9,13,9);Line(9,5,13,9);Line(13,9,9,13);Line(3,2,3,5);Line(1.5f,3.5f,4.5f,3.5f);
         D->AddRect(C.P(14,14),C.P(17,17),Tint,0,0,1.5f*C.Scale);
@@ -44,10 +44,10 @@ struct Panel {
     void Text(float X,float Y,const char* T,float Size=12,ImU32 C=Ink){D->AddText(Font,Size,At(X,Y),C,T);}
     void Wrap(float X,float Y,float W,const char* T){D->AddText(Font,11,At(X,Y),Muted,T,nullptr,W);}
     void Card(float X,float Y,float W,float H,const char* Title){
-        int Start=D->VtxBuffer.Size;D->AddRectFilled(At(X,Y),At(X+W,Y+H),IM_COL32_WHITE,22);
-        ImGui::ShadeVertsLinearColorGradientKeepAlpha(D,Start,D->VtxBuffer.Size,At(X,Y),At(X+W,Y+H),IM_COL32(37,37,37,255),IM_COL32(32,32,32,255));
+        int Start=D->VtxStore.Size;D->AddRectFilled(At(X,Y),At(X+W,Y+H),IM_COL32_WHITE,22);
+        ImGui::ShadeVertsLinearColorGradientKeepAlpha(D,Start,D->VtxStore.Size,At(X,Y),At(X+W,Y+H),IM_COL32(37,37,37,255),IM_COL32(32,32,32,255));
         D->AddRect(At(X,Y),At(X+W,Y+H),IM_COL32(52,52,52,255),22);
-        Mark M=std::strcmp(Title,"Flare composite")==0?Mark::Sun:std::strcmp(Title,"Flare layers")==0?Mark::Sparkles:std::strcmp(Title,"Atmosphere bake")==0?Mark::Bake:Mark::Orbit;
+        Mark M=std::strcmp(Title,"Flare composite")==0?Mark::Sun:std::strcmp(Title,"Flare layers")==0?Mark::Sparkles:std::strcmp(Title,"Atmosphere bake")==0?Mark::Precompute:Mark::Orbit;
         if(Title[0])Icon(D,At(X+23,Y+21),M,Accent,17);
         Text(X+48,Y+23,Title);
     }
@@ -83,7 +83,7 @@ void Update(SkyCache& C,const EditorSkyImage& Image){
     if(C.Source==Image.Pixels&&C.Revision==Image.Revision)return;
     for(int Layer=0;Layer<4;++Layer){auto& Texture=Layer==0?C.Radiance:Layer==1?C.Transmission:Layer==2?C.FullSphere:C.Profile;
         for(int Y=0;Y<Texture.Height;++Y)for(int X=0;X<640;++X){
-            auto Direction=Layer==3?SkyAtmosphereProfileDirection((Y+.5f)/160,Image.BakedSunDirection):SkyPanoramaDirection((X+.5f)/640,(Y+.5f)/320);
+            auto Direction=Layer==3?SkyAtmosphereProfileDirection((Y+.5f)/160,Image.PrecomputedSunDirection):SkyPanoramaDirection((X+.5f)/640,(Y+.5f)/320);
             auto RGB=SkyPreviewSample(Image.Pixels,Image.Width,Direction.data(),Layer==1);auto* Out=Texture.Pixels+(Y*640+X)*4;
             for(int I=0;I<3;++I){float V=std::max(RGB[I],0.f);if(Layer!=1)V=V/(1+V);Out[I]=static_cast<unsigned char>(255*SunColourTemperature::DisplayChannel(V)+.5f);}Out[3]=255;
         }
@@ -94,22 +94,22 @@ void Update(SkyCache& C,const EditorSkyImage& Image){
 
 }
 void RecordAtmosphereSkyInspector(ControlPanel& Controls,EditorInstance&,EditorSheet& Sheet) noexcept {
-    if(!Find(Sheet,"Rayleigh")||!Find(Sheet,"Fetch Baked Dome")){ImGui::TextUnformatted("Atmosphere / Sky properties unavailable");return;}
+    if(!Find(Sheet,"Rayleigh")||!Find(Sheet,"Fetch Precomputed Dome")){ImGui::TextUnformatted("Atmosphere / Sky properties unavailable");return;}
     auto& Cached=Cache();Update(Cached,Sheet.SkyImage);ImFont* Font=ImGui::GetFont();for(auto* F:ImGui::GetIO().Fonts->Fonts)if(std::strcmp(F->GetDebugName(),"Sun reference / regular")==0)Font=F;
     ImGui::PushFont(Font,14);float W=std::max(240.f,ImGui::GetContentRegionAvail().x-40);auto Origin=ImGui::GetCursorScreenPos();Origin.x+=20;Origin.y+=20;Panel U{Controls,Sheet,ImGui::GetWindowDrawList(),Origin,Font};bool Wide=W>=700;float Col=Wide?(W-16)/2:W;
     U.Text(0,0,"Inspector / Environment",10,Muted);U.Text(0,40,"Atmosphere",W<360?24:32);
-    auto RecordBaking=[&](float PositionY) {
+    auto RecordPrecomputing=[&](float PositionY) {
         const ImVec2 Saved=U.O;U.O.y+=PositionY-97;
-U.Text(0,97,"BAKING",10,Muted);
-    U.Card(0,120,W,225,"Atmosphere bake");auto* Fetch=Find(Sheet,"Fetch Baked Dome");float TileW=W<360?96:119,BakeX=TileW+36;
+U.Text(0,97,"PRECOMPUTING",10,Muted);
+    U.Card(0,120,W,225,"Atmosphere bake");auto* Fetch=Find(Sheet,"Fetch Precomputed Dome");float TileW=W<360?96:119,PrecomputeX=TileW+36;
     ImGui::SetCursorScreenPos(U.At(24,179));if(ImGui::InvisibleButton("##sky-fetch",{TileW,106}))Fetch->On=!Fetch->On;
     ImU32 Key=Fetch->On?IM_COL32(105,200,132,255):IM_COL32(204,118,115,255);
     U.D->AddRectFilled(U.At(24,179),U.At(24+TileW,285),IM_COL32(32,32,32,255),16);U.D->AddRect(U.At(24,179),U.At(24+TileW,285),Fetch->On?IM_COL32(50,50,50,255):IM_COL32(73,50,50,255),16);
-    U.D->AddCircleFilled(U.At(24+TileW/2,208),15.5f,Key,32);Icon(U.D,U.At(24+TileW/2-9,199),Mark::Bake,Fetch->On?IM_COL32(22,50,30,255):IM_COL32(55,29,28,255),18);
+    U.D->AddCircleFilled(U.At(24+TileW/2,208),15.5f,Key,32);Icon(U.D,U.At(24+TileW/2-9,199),Mark::Precompute,Fetch->On?IM_COL32(22,50,30,255):IM_COL32(55,29,28,255),18);
     const char* ToggleText="Use baked image";U.Text(24+(TileW-Font->CalcTextSizeA(10,10000,0,ToggleText).x)/2,236,ToggleText,10);U.Text(24+TileW/2-8,259,Fetch->On?"ON":"OFF",8,Key);
-    if(U.Button(BakeX,179,std::min(158.f,W-BakeX-24),"##sky-bake",Sheet.SkyImage.Pending?"Queued":"Bake atmosphere",false,Sheet.SkyImage.Pending))Sheet.SkyImage.RequestBake=true;
-    const char* State=Sheet.SkyImage.Pending?"Bake requested · waiting for renderer":!Sheet.SkyImage.Pixels?"No baked image · analytic sky":Sheet.SkyImage.Stale?"STALE BAKE · renderer uses analytic sky":!Sheet.SkyImage.Resident?"Current CPU bake · not uploaded":Fetch->On?"Current resident bake · fetch enabled":"Current bake · analytic mode selected";
-    U.Wrap(BakeX,230,W-BakeX-24,State);U.Text(24,315,"RGBA16F · 256 × 512 · radiance + transmittance",10,Muted);
+    if(U.Button(PrecomputeX,179,std::min(158.f,W-BakeX-24),"##sky-bake",Sheet.SkyImage.Pending?"Queued":"Precompute atmosphere",false,Sheet.SkyImage.Pending))Sheet.SkyImage.RequestPrecompute=true;
+    const char* State=Sheet.SkyImage.Pending?"Precompute requested · waiting for renderer":!Sheet.SkyImage.Pixels?"No baked image · analytic sky":Sheet.SkyImage.Stale?"STALE PRECOMPUTE · renderer uses analytic sky":!Sheet.SkyImage.Resident?"Current CPU bake · not uploaded":Fetch->On?"Current resident bake · fetch enabled":"Current bake · analytic mode selected";
+    U.Wrap(PrecomputeX,230,W-BakeX-24,State);U.Text(24,315,"RGBA16F · 256 × 512 · radiance + transmittance",10,Muted);
     float Y=361,BW=(W-72)/4;const char* Labels[]={W<360?"Air":"Atmosphere",W<360?"Sky":"Panorama",W<360?"Transmit":"Transmittance",W<360?"Sphere":"Full sphere"};
     // Controls first so the chosen image and aspect update together on the same frame.
     for(int I=0;I<4;++I){
@@ -118,11 +118,11 @@ U.Text(0,97,"BAKING",10,Muted);
     float ImageH=(W-48)/(Cached.View==3?2:4),Height=ImageH+153;
     // Background is drawn on the parent list before the image; keep selector above its surface.
     // Re-draw the selector after the card, preserving the first pass's input hit regions.
-    U.Card(0,Y,W,Height,"Baked atmosphere");
+    U.Card(0,Y,W,Height,"Precomputed atmosphere");
     for(int I=0;I<4;++I){float X=24+I*(BW+8);U.D->AddRectFilled(U.At(X,Y+58),U.At(X+BW,Y+90),Cached.View==I?IM_COL32(49,45,37,255):IM_COL32(40,40,40,255),12);U.D->AddRect(U.At(X,Y+58),U.At(X+BW,Y+90),Cached.View==I?Accent:IM_COL32(62,62,62,255),12);const char* Label=Labels[I];U.Text(X+(BW-Font->CalcTextSizeA(11,10000,0,Label).x)/2,Y+68,Label,11);}
     U.D->AddRectFilled(U.At(24,Y+108),U.At(W-24,Y+108+ImageH),IM_COL32(16,19,23,255),14);
     if(Sheet.SkyImage.Pixels)U.D->AddImageRounded((Cached.View==3?Cached.FullSphere:Cached.View==2?Cached.Transmission:Cached.View==1?Cached.Radiance:Cached.Profile).GetTexRef(),U.At(24,Y+108),U.At(W-24,Y+108+ImageH),{0,0},{1,1},IM_COL32_WHITE,14);
-    else U.Wrap(44,Y+108+ImageH/2,W-88,"Bake the atmosphere to see the actual HDR image here. No substitute illustration.");
+    else U.Wrap(44,Y+108+ImageH/2,W-88,"Precompute the atmosphere to see the actual HDR image here. No substitute illustration.");
     U.Wrap(24,Y+116+ImageH,W-48,Cached.View==0?"Altitude profile · sampled opposite the baked Sun · zenith above, horizon below":Cached.View==3?"Full sphere · zenith / horizon / nadir; black below ground is expected":"360° sky panorama · zenith at top, horizon below · decoded from the bake");Y+=Height+16;
     U.Wrap(8,Y,W-16,"Atmospheric scattering only: the bright area is scattered sunlight, not the Sun disc. Moon, stars, clouds and fog remain separate.");Y+=52;
         U.O=Saved;return Y-97;
@@ -205,7 +205,7 @@ U.Text(0,97,"BAKING",10,Muted);
         ImGui::Dummy({0,12});ImGui::PopID();
     }
     ImGui::EndChild();float EH=ImGui::GetItemRectSize().y;ImGui::PopStyleVar();U.Card(0,Y,W,EH,"");
-    Y+=EH+20;Y+=RecordBaking(Y);
+    Y+=EH+20;Y+=RecordPrecomputing(Y);
     ImGui::SetCursorScreenPos(U.At(0,Y+20));ImGui::TextDisabled("Drag probes · arrows / Home / End. Studies are not LUTs; the panorama displays actual baked pixels.");ImGui::Dummy({0,20});ImGui::PopFont();
 }
 }

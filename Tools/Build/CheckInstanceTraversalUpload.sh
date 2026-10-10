@@ -4,7 +4,7 @@
 # The GPU shader has no dedicated BLAS descriptor bindings. When TlasInstanceCount > 0, the TLAS path reads
 # BlasPlacements[].NodeOffset/LeafOffset and then indexes CwbvhNodes/CwbvhTris, which are bindings 8/9. Therefore
 # UploadInstanceTraversal must replace bindings 8/9 with InstanceAcceleration's concatenated BLAS blobs before it binds
-# TLAS buffers 27-30. This gate catches the exact omission that made multi-object GPU shadow rays miss all blockers.
+# TLAS stores 27-30. This gate catches the exact omission that made multi-object GPU shadow rays miss all blockers.
 set -euo pipefail
 cd "$(dirname "${BASH_SOURCE[0]}")/../.." || exit 1
 
@@ -42,8 +42,8 @@ checks = [
     ('InstanceAcceleration exposes QueryLeafBlob', 'QueryLeafBlob()' in inst_h),
     ('UploadInstanceTraversal reads BLAS node blob', 'Instances.QueryNodeBlob()' in upload_instance),
     ('UploadInstanceTraversal reads BLAS leaf blob', 'Instances.QueryLeafBlob()' in upload_instance),
-    ('UploadInstanceTraversal uploads BLAS nodes into binding-8 buffer', 'Vulkan->TraversalNodeBuffer' in upload_instance and 'BlasNodes.data()' in upload_instance),
-    ('UploadInstanceTraversal uploads BLAS leaves into binding-9 buffer', 'Vulkan->TraversalLeafBuffer' in upload_instance and 'BlasLeaves.data()' in upload_instance),
+    ('UploadInstanceTraversal uploads BLAS nodes into binding-8 store', 'Vulkan->TraversalNodeStore' in upload_instance and 'BlasNodes.data()' in upload_instance),
+    ('UploadInstanceTraversal uploads BLAS leaves into binding-9 store', 'Vulkan->TraversalLeafStore' in upload_instance and 'BlasLeaves.data()' in upload_instance),
     ('UploadInstanceTraversal records binding-8 capacity from BLAS nodes', 'TraversalNodeCapacity = static_cast<VkDeviceSize>(BlasNodes.size()) * sizeof(float)' in upload_instance),
     ('UploadInstanceTraversal records binding-9 capacity from BLAS leaves', 'TraversalLeafCapacity = static_cast<VkDeviceSize>(BlasLeaves.size()) * sizeof(float)' in upload_instance),
     ('UploadInstanceTraversal marks the active traversal resident', 'TraversalResident = true' in upload_instance),

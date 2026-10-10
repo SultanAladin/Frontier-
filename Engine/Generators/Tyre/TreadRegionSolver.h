@@ -74,9 +74,9 @@ struct TreadRegionResult
 /// note  📐 Nested regions Rᵢ hold everything cut to at least depth dᵢ, so R₁ ⊇ R₂ ⊇ … The floor at each
 ///       depth is the shell between consecutive regions, Sᵢ = Rᵢ − Rᵢ₊₁, and the uncut crown is the
 ///       domain minus R₁. Those shells are disjoint and their union is the whole domain, which is the
-///       invariant the mesh stage depends on and the one the gate measures.
+///       invariant the topology stage depends on and the one the gate measures.
 /// note  ⚠️ Boolean work happens in 64-bit integers at hundredths of a millimetre. Two pieces sharing a
-///       boundary therefore carry bit-identical coordinates along it, which is what lets the mesh stage
+///       boundary therefore carry bit-identical coordinates along it, which is what lets the topology stage
 ///       weld them into one edge instead of two that merely look alike.
 /// tag   api, allocating, nonthrowing
 [[nodiscard]] TreadRegionResult SolveTreadRegions(const TreadPatternSpecification& Pattern,

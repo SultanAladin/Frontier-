@@ -1,0 +1,2 @@
+PASS 66 checks: base topology roster, icon-derived primitive, marker geometry.
+Exit: 0

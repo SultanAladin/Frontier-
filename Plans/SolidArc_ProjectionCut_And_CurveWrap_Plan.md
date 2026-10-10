@@ -69,7 +69,7 @@ frame law, section correspondence, self-intersection behavior, and end constrain
      section-based sweep or refuse rather than deforming topology approximately.
    - Detect collisions, inverted sections, zero scale, curvature-frame singularities, and non-manifold results.
 4. **History and editing**
-   - Store the source sketch/object, guide, frame law, scale/twist laws, and mapping mode as editable feature data.
+   - Store the source sketch/object, guide, frame law, scale/twist laws, and mapping mode as editable feature record.
    - Keep the source immutable and make updates transactional.
 
 #### Planned verification
@@ -90,6 +90,6 @@ projected split or arbitrary 3D flow should be claimed complete until its inters
 
 ## Safety policy
 
-Every stage must remain transactional: validate the source, classify the support, construct on private data, validate all
+Every stage must remain transactional: validate the source, classify the support, construct on private record, validate all
 outputs, and publish only a complete result. Ambiguous projection depth, tangent/coincident contacts, frame singularities,
 self-intersections, non-manifold trims, or unsupported mixed geometry must refuse with the source unchanged.

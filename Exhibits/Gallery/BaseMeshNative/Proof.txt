@@ -1,2 +1,0 @@
-PASS 66 checks: base mesh roster, icon-derived primitive, marker geometry.
-Exit: 0

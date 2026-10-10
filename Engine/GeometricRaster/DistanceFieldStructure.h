@@ -1,7 +1,7 @@
 //============================================================================================================================================
 //                                                      DISTANCEFIELDSTRUCTURE.H
 //============================================================================================================================================
-// 📦 World-space triangle BVH shared by distance-volume construction and exact secondary mesh rays.
+// 📦 World-space triangle BVH shared by distance-volume construction and exact secondary topology rays.
 
 #pragma once
 #include "GeometryStructure.h"

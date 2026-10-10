@@ -13,7 +13,7 @@ namespace {
 using namespace SunReference;
 constexpr ImU32 Ink=IM_COL32(233,233,233,255),Muted=IM_COL32(145,145,145,255),Accent=IM_COL32(181,196,223,255);
 EditorProperty* Find(EditorSheet& S,const char* Name){for(auto& G:S.Groups)for(unsigned I=0;I<G.PropertyCount;++I)if(std::strcmp(G.Properties[I].Label,Name)==0)return &G.Properties[I];return nullptr;}
-enum class Mark {Moon,Sun,Orbit,Sparkles,Bake,Upload,Reset,Arrow};
+enum class Mark {Moon,Sun,Orbit,Sparkles,Precompute,Upload,Reset,Arrow};
 void Icon(ImDrawList* D,ImVec2 At,Mark M,ImU32 Tint,float Size=16) {
     Canvas C{D,At,Size/24};
     auto Line=[&](float X,float Y,float XX,float YY){C.Line({X,Y},{XX,YY},Tint,1.5f);};
@@ -30,7 +30,7 @@ void Icon(ImDrawList* D,ImVec2 At,Mark M,ImU32 Tint,float Size=16) {
         const ImVec2 P[]={{12,2},{14.1f,8.5f},{15.5f,9.9f},{22,12},{15.5f,14.1f},{14.1f,15.5f},{12,22},{9.9f,15.5f},{8.5f,14.1f},{2,12},{8.5f,9.9f},{9.9f,8.5f},{12,2}};
         for(unsigned I=1;I<13;++I)C.Line(P[I-1],P[I],Tint,1.5f);
         Line(20,3,20,7);Line(18,5,22,5);Line(4,17,4,19);Line(3,18,5,18);
-    } else if(M==Mark::Bake) {
+    } else if(M==Mark::Precompute) {
         Line(12,5,19,5);Line(19,5,21,7);Line(21,7,21,19);Line(21,19,19,21);Line(19,21,7,21);Line(7,21,5,19);Line(5,19,5,13);
         Line(2,9,13,9);Line(9,5,13,9);Line(13,9,9,13);Line(3,2,3,5);Line(1.5f,3.5f,4.5f,3.5f);
         D->AddRect(C.P(14,14),C.P(17,17),Tint,0,0,1.5f*C.Scale);
@@ -44,8 +44,8 @@ struct Panel {
     void Text(float X,float Y,const char* T,float Size=12,ImU32 C=Ink){D->AddText(Font,Size,At(X,Y),C,T);}
     void Wrap(float X,float Y,float W,const char* T){D->AddText(Font,11,At(X,Y),Muted,T,nullptr,W);}
     void Card(float X,float Y,float W,float H,const char* Title){
-        int Start=D->VtxBuffer.Size;D->AddRectFilled(At(X,Y),At(X+W,Y+H),IM_COL32_WHITE,22);
-        ImGui::ShadeVertsLinearColorGradientKeepAlpha(D,Start,D->VtxBuffer.Size,At(X,Y),At(X+W,Y+H),IM_COL32(37,37,37,255),IM_COL32(32,32,32,255));
+        int Start=D->VtxStore.Size;D->AddRectFilled(At(X,Y),At(X+W,Y+H),IM_COL32_WHITE,22);
+        ImGui::ShadeVertsLinearColorGradientKeepAlpha(D,Start,D->VtxStore.Size,At(X,Y),At(X+W,Y+H),IM_COL32(37,37,37,255),IM_COL32(32,32,32,255));
         D->AddRect(At(X,Y),At(X+W,Y+H),IM_COL32(52,52,52,255),22);
         Mark M=std::strcmp(Title,"Moon rotation")==0?Mark::Orbit:std::strcmp(Title,"Lunar position")==0?Mark::Arrow:Mark::Moon;
         if(Title[0]){if(M==Mark::Moon){if(GlyphReady)D->AddImage(Glyph,At(X+21,Y+19),At(X+41,Y+39));}else Icon(D,At(X+23,Y+21),M,Accent,17);}

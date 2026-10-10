@@ -8,9 +8,9 @@ A wide Star field card is followed by Twinkle and Celestial rotation cards (stac
 
 The field chart uses **8,920 real catalogue records**, not the reference's illustrative 90-point sequence. These are retained unbinned by `StarCatalogueIndex`, and borrowed read-only through `EditorStarPreview` for the editor frame. The catalogue owner must outlive the frame; rebuilding the sheet clears old borrowed metadata. No Project-Zero header is included by the editor panel. Retaining the source records adds 285,440 heap bytes, not a large stack allocation.
 
-The rectangular preview is an equatorial chart, not a scene-camera render: declination vertically, right ascension horizontally, with authored rotation applied as the inverse of the renderer's ray-to-equatorial transform. Dot radius and opacity are editorial display mappings. No bloom/glow is applied to the field. The pole constellation is explicitly schematic. Missing catalogue data produces an unavailable message and zero stars, never synthetic replacements.
+The rectangular preview is an equatorial chart, not a scene-camera render: declination vertically, right ascension horizontally, with authored rotation applied as the inverse of the renderer's ray-to-equatorial transform. Dot radius and opacity are editorial display mappings. No bloom/glow is applied to the field. The pole constellation is explicitly schematic. Missing catalogue record produces an unavailable message and zero stars, never synthetic replacements.
 
-Star field and Twinkle are real green/red quick toggles. **Bake / Use baked are disabled**: the engine has no baked-star playback path. Their presence does not claim a bake, upload, persistence or replay implementation.
+Star field and Twinkle are real green/red quick toggles. **Precompute / Use precomputed are disabled**: the engine has no precomputed-star playback path. Their presence does not claim a precompute, upload, persistence or replay implementation.
 
 ## Real bindings
 

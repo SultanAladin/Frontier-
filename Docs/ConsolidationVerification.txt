@@ -2,8 +2,8 @@ Consolidated checkout — local verification
 
 === configure.log ===
 -- The CXX compiler identification is GNU 12.2.0
--- Detecting CXX compiler ABI info
--- Detecting CXX compiler ABI info - done
+-- Detecting CXX compiler ABI facts
+-- Detecting CXX compiler ABI facts - done
 -- Check for working CXX compiler: /usr/bin/c++ - skipped
 -- Detecting CXX compile features
 -- Detecting CXX compile features - done
@@ -62,32 +62,32 @@ Frontier ready. No other Frontier repository or engine patch assembly is require
 [31/89] Building CXX object CMakeFiles/thorvg_static.dir/ExternalPackages/thorvg/src/loaders/svg/tvgSvgUtil.cpp.o
 [32/89] Building CXX object CMakeFiles/thorvg_static.dir/ExternalPackages/thorvg/src/loaders/svg/tvgSvgSceneBuilder.cpp.o
 [33/89] Building CXX object CMakeFiles/thorvg_static.dir/ExternalPackages/thorvg/src/loaders/svg/tvgSvgLoader.cpp.o
-In function ‘void _recalcBox(const SvgLoaderData*, Box*, bool (&)[4])’,
-    inlined from ‘SvgNode* _createFilterNode(SvgLoaderData*, SvgNode*, const char*, unsigned int, parseAttributes)’ at <checkout>/ExternalPackages/thorvg/src/loaders/svg/tvgSvgLoader.cpp:1527:43:
+In function ‘void _recalcBox(const SvgLoaderPayload*, Box*, bool (&)[4])’,
+    inlined from ‘SvgNode* _createFilterNode(SvgLoaderPayload*, SvgNode*, const char*, unsigned int, parseAttributes)’ at <checkout>/ExternalPackages/thorvg/src/loaders/svg/tvgSvgLoader.cpp:1527:43:
 <checkout>/ExternalPackages/thorvg/src/loaders/svg/tvgSvgLoader.cpp:1311:51: warning: writing 4 bytes into a region of size 0 [-Wstringop-overflow=]
  1311 |         else *(float*)(array + boxTags[i].offset) *= loader->svgParse->global.h;
       |              ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 In file included from <checkout>/ExternalPackages/thorvg/src/loaders/svg/tvgXmlParser.h:26,
                  from <checkout>/ExternalPackages/thorvg/src/loaders/svg/tvgSvgLoader.cpp:28:
-<checkout>/ExternalPackages/thorvg/src/loaders/svg/tvgSvgLoaderCommon.h: In function ‘SvgNode* _createFilterNode(SvgLoaderData*, SvgNode*, const char*, unsigned int, parseAttributes)’:
+<checkout>/ExternalPackages/thorvg/src/loaders/svg/tvgSvgLoaderCommon.h: In function ‘SvgNode* _createFilterNode(SvgLoaderPayload*, SvgNode*, const char*, unsigned int, parseAttributes)’:
 <checkout>/ExternalPackages/thorvg/src/loaders/svg/tvgSvgLoaderCommon.h:37:11: note: at offset 4 into destination object ‘Box::x’ of size 4
    37 |     float x, y, w, h;
       |           ^
-In function ‘void _recalcBox(const SvgLoaderData*, Box*, bool (&)[4])’,
-    inlined from ‘SvgNode* _createFilterNode(SvgLoaderData*, SvgNode*, const char*, unsigned int, parseAttributes)’ at <checkout>/ExternalPackages/thorvg/src/loaders/svg/tvgSvgLoader.cpp:1527:43:
+In function ‘void _recalcBox(const SvgLoaderPayload*, Box*, bool (&)[4])’,
+    inlined from ‘SvgNode* _createFilterNode(SvgLoaderPayload*, SvgNode*, const char*, unsigned int, parseAttributes)’ at <checkout>/ExternalPackages/thorvg/src/loaders/svg/tvgSvgLoader.cpp:1527:43:
 <checkout>/ExternalPackages/thorvg/src/loaders/svg/tvgSvgLoader.cpp:1310:102: warning: writing 4 bytes into a region of size 0 [-Wstringop-overflow=]
  1310 |         if (boxTags[i].type == SvgParserLengthType::Horizontal) *(float*)(array + boxTags[i].offset) *= loader->svgParse->global.w;
       |                                                                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-<checkout>/ExternalPackages/thorvg/src/loaders/svg/tvgSvgLoaderCommon.h: In function ‘SvgNode* _createFilterNode(SvgLoaderData*, SvgNode*, const char*, unsigned int, parseAttributes)’:
+<checkout>/ExternalPackages/thorvg/src/loaders/svg/tvgSvgLoaderCommon.h: In function ‘SvgNode* _createFilterNode(SvgLoaderPayload*, SvgNode*, const char*, unsigned int, parseAttributes)’:
 <checkout>/ExternalPackages/thorvg/src/loaders/svg/tvgSvgLoaderCommon.h:37:11: note: at offset 8 into destination object ‘Box::x’ of size 4
    37 |     float x, y, w, h;
       |           ^
-In function ‘void _recalcBox(const SvgLoaderData*, Box*, bool (&)[4])’,
-    inlined from ‘SvgNode* _createFilterNode(SvgLoaderData*, SvgNode*, const char*, unsigned int, parseAttributes)’ at <checkout>/ExternalPackages/thorvg/src/loaders/svg/tvgSvgLoader.cpp:1527:43:
+In function ‘void _recalcBox(const SvgLoaderPayload*, Box*, bool (&)[4])’,
+    inlined from ‘SvgNode* _createFilterNode(SvgLoaderPayload*, SvgNode*, const char*, unsigned int, parseAttributes)’ at <checkout>/ExternalPackages/thorvg/src/loaders/svg/tvgSvgLoader.cpp:1527:43:
 <checkout>/ExternalPackages/thorvg/src/loaders/svg/tvgSvgLoader.cpp:1311:51: warning: writing 4 bytes into a region of size 0 [-Wstringop-overflow=]
  1311 |         else *(float*)(array + boxTags[i].offset) *= loader->svgParse->global.h;
       |              ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-<checkout>/ExternalPackages/thorvg/src/loaders/svg/tvgSvgLoaderCommon.h: In function ‘SvgNode* _createFilterNode(SvgLoaderData*, SvgNode*, const char*, unsigned int, parseAttributes)’:
+<checkout>/ExternalPackages/thorvg/src/loaders/svg/tvgSvgLoaderCommon.h: In function ‘SvgNode* _createFilterNode(SvgLoaderPayload*, SvgNode*, const char*, unsigned int, parseAttributes)’:
 <checkout>/ExternalPackages/thorvg/src/loaders/svg/tvgSvgLoaderCommon.h:37:11: note: at offset 12 into destination object ‘Box::x’ of size 4
    37 |     float x, y, w, h;
       |           ^
@@ -309,8 +309,8 @@ Download: vulkan-headers
 Installed: vulkan-headers
 Frontier ready. No other Frontier repository or engine patch assembly is required.
 -- The CXX compiler identification is GNU 12.2.0
--- Detecting CXX compiler ABI info
--- Detecting CXX compiler ABI info - done
+-- Detecting CXX compiler ABI facts
+-- Detecting CXX compiler ABI facts - done
 -- Check for working CXX compiler: /usr/bin/c++ - skipped
 -- Detecting CXX compile features
 -- Detecting CXX compile features - done
@@ -368,32 +368,32 @@ Frontier ready. No other Frontier repository or engine patch assembly is require
 [32/89] Building CXX object CMakeFiles/thorvg_static.dir/ExternalPackages/thorvg/src/loaders/svg/tvgSvgSceneBuilder.cpp.o
 [33/89] Building CXX object CMakeFiles/thorvg_static.dir/ExternalPackages/thorvg/src/loaders/svg/tvgXmlParser.cpp.o
 [34/89] Building CXX object CMakeFiles/thorvg_static.dir/ExternalPackages/thorvg/src/loaders/svg/tvgSvgLoader.cpp.o
-In function ‘void _recalcBox(const SvgLoaderData*, Box*, bool (&)[4])’,
-    inlined from ‘SvgNode* _createFilterNode(SvgLoaderData*, SvgNode*, const char*, unsigned int, parseAttributes)’ at <checkout>/.cache/consolidation/clean/ExternalPackages/thorvg/src/loaders/svg/tvgSvgLoader.cpp:1527:43:
+In function ‘void _recalcBox(const SvgLoaderPayload*, Box*, bool (&)[4])’,
+    inlined from ‘SvgNode* _createFilterNode(SvgLoaderPayload*, SvgNode*, const char*, unsigned int, parseAttributes)’ at <checkout>/.cache/consolidation/clean/ExternalPackages/thorvg/src/loaders/svg/tvgSvgLoader.cpp:1527:43:
 <checkout>/.cache/consolidation/clean/ExternalPackages/thorvg/src/loaders/svg/tvgSvgLoader.cpp:1311:51: warning: writing 4 bytes into a region of size 0 [-Wstringop-overflow=]
  1311 |         else *(float*)(array + boxTags[i].offset) *= loader->svgParse->global.h;
       |              ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 In file included from <checkout>/.cache/consolidation/clean/ExternalPackages/thorvg/src/loaders/svg/tvgXmlParser.h:26,
                  from <checkout>/.cache/consolidation/clean/ExternalPackages/thorvg/src/loaders/svg/tvgSvgLoader.cpp:28:
-<checkout>/.cache/consolidation/clean/ExternalPackages/thorvg/src/loaders/svg/tvgSvgLoaderCommon.h: In function ‘SvgNode* _createFilterNode(SvgLoaderData*, SvgNode*, const char*, unsigned int, parseAttributes)’:
+<checkout>/.cache/consolidation/clean/ExternalPackages/thorvg/src/loaders/svg/tvgSvgLoaderCommon.h: In function ‘SvgNode* _createFilterNode(SvgLoaderPayload*, SvgNode*, const char*, unsigned int, parseAttributes)’:
 <checkout>/.cache/consolidation/clean/ExternalPackages/thorvg/src/loaders/svg/tvgSvgLoaderCommon.h:37:11: note: at offset 4 into destination object ‘Box::x’ of size 4
    37 |     float x, y, w, h;
       |           ^
-In function ‘void _recalcBox(const SvgLoaderData*, Box*, bool (&)[4])’,
-    inlined from ‘SvgNode* _createFilterNode(SvgLoaderData*, SvgNode*, const char*, unsigned int, parseAttributes)’ at <checkout>/.cache/consolidation/clean/ExternalPackages/thorvg/src/loaders/svg/tvgSvgLoader.cpp:1527:43:
+In function ‘void _recalcBox(const SvgLoaderPayload*, Box*, bool (&)[4])’,
+    inlined from ‘SvgNode* _createFilterNode(SvgLoaderPayload*, SvgNode*, const char*, unsigned int, parseAttributes)’ at <checkout>/.cache/consolidation/clean/ExternalPackages/thorvg/src/loaders/svg/tvgSvgLoader.cpp:1527:43:
 <checkout>/.cache/consolidation/clean/ExternalPackages/thorvg/src/loaders/svg/tvgSvgLoader.cpp:1310:102: warning: writing 4 bytes into a region of size 0 [-Wstringop-overflow=]
  1310 |         if (boxTags[i].type == SvgParserLengthType::Horizontal) *(float*)(array + boxTags[i].offset) *= loader->svgParse->global.w;
       |                                                                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-<checkout>/.cache/consolidation/clean/ExternalPackages/thorvg/src/loaders/svg/tvgSvgLoaderCommon.h: In function ‘SvgNode* _createFilterNode(SvgLoaderData*, SvgNode*, const char*, unsigned int, parseAttributes)’:
+<checkout>/.cache/consolidation/clean/ExternalPackages/thorvg/src/loaders/svg/tvgSvgLoaderCommon.h: In function ‘SvgNode* _createFilterNode(SvgLoaderPayload*, SvgNode*, const char*, unsigned int, parseAttributes)’:
 <checkout>/.cache/consolidation/clean/ExternalPackages/thorvg/src/loaders/svg/tvgSvgLoaderCommon.h:37:11: note: at offset 8 into destination object ‘Box::x’ of size 4
    37 |     float x, y, w, h;
       |           ^
-In function ‘void _recalcBox(const SvgLoaderData*, Box*, bool (&)[4])’,
-    inlined from ‘SvgNode* _createFilterNode(SvgLoaderData*, SvgNode*, const char*, unsigned int, parseAttributes)’ at <checkout>/.cache/consolidation/clean/ExternalPackages/thorvg/src/loaders/svg/tvgSvgLoader.cpp:1527:43:
+In function ‘void _recalcBox(const SvgLoaderPayload*, Box*, bool (&)[4])’,
+    inlined from ‘SvgNode* _createFilterNode(SvgLoaderPayload*, SvgNode*, const char*, unsigned int, parseAttributes)’ at <checkout>/.cache/consolidation/clean/ExternalPackages/thorvg/src/loaders/svg/tvgSvgLoader.cpp:1527:43:
 <checkout>/.cache/consolidation/clean/ExternalPackages/thorvg/src/loaders/svg/tvgSvgLoader.cpp:1311:51: warning: writing 4 bytes into a region of size 0 [-Wstringop-overflow=]
  1311 |         else *(float*)(array + boxTags[i].offset) *= loader->svgParse->global.h;
       |              ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-<checkout>/.cache/consolidation/clean/ExternalPackages/thorvg/src/loaders/svg/tvgSvgLoaderCommon.h: In function ‘SvgNode* _createFilterNode(SvgLoaderData*, SvgNode*, const char*, unsigned int, parseAttributes)’:
+<checkout>/.cache/consolidation/clean/ExternalPackages/thorvg/src/loaders/svg/tvgSvgLoaderCommon.h: In function ‘SvgNode* _createFilterNode(SvgLoaderPayload*, SvgNode*, const char*, unsigned int, parseAttributes)’:
 <checkout>/.cache/consolidation/clean/ExternalPackages/thorvg/src/loaders/svg/tvgSvgLoaderCommon.h:37:11: note: at offset 12 into destination object ‘Box::x’ of size 4
    37 |     float x, y, w, h;
       |           ^

@@ -5,11 +5,11 @@
 //    compiles this file against the headers; it cannot run without a device, and it says so.
 //
 // Frame structure (one target per fit, same contract as SoftwareRaster):
-//    BeginTarget  → reset arenas, begin command buffer and render pass (clear colour / pick 0 / depth 1), set viewport + scissor
+//    BeginTarget  → reset arenas, begin command store and render pass (clear colour / pick 0 / depth 1), set viewport + scissor
 //    BindView     → stage a GpuViewRecord (written to the view UBO slot at submit)
-//    Draw*        → upload vertex data into the arena, stage a GpuDrawRecord, bind pipeline + descriptor set, record the draw
-//    BeginOverlay → switch to the depth-test-off pipeline variants for the rest of the target
-//    EndTarget    → end pass, copy colour / pick / depth to host buffers, submit, wait, read timestamps, cache readback
+//    Draw*        → upload vertex record into the arena, stage a GpuDrawRecord, bind chain + descriptor set, record the draw
+//    BeginOverlay → switch to the depth-test-off chain variants for the rest of the target
+//    EndTarget    → end pass, copy colour / pick / depth to host stores, submit, wait, read timestamps, cache readback
 //
 // Records are staged on the CPU and copied to their dynamic-offset slots only at EndTarget, so a slot is never overwritten while
 //    recorded commands still point at it. Arenas are reset only after the previous submission has completed (fence wait).
@@ -77,10 +77,10 @@ VkDeviceSize AlignUp(VkDeviceSize Value, VkDeviceSize Alignment)
     return Alignment ? (Value + Alignment - 1) / Alignment * Alignment : Value;
 }
 
-uint32_t FindMemoryType(const VkPhysicalDeviceMemoryProperties& Memory, uint32_t TypeBits, VkMemoryPropertyFlags Wanted)
+uint32_t FindMemoryType(const VkPhysicalDeviceMemoryProperties& Store, uint32_t TypeBits, VkMemoryPropertyFlags Wanted)
 {
-    for (uint32_t I = 0; I < Memory.memoryTypeCount; ++I)
-        if ((TypeBits & (1u << I)) && (Memory.memoryTypes[I].propertyFlags & Wanted) == Wanted) return I;
+    for (uint32_t I = 0; I < Store.memoryTypeCount; ++I)
+        if ((TypeBits & (1u << I)) && (Store.memoryTypes[I].propertyFlags & Wanted) == Wanted) return I;
     return UINT32_MAX;
 }
 
@@ -135,15 +135,15 @@ struct VulkanRaster::Detail
     VkQueue Queue = VK_NULL_HANDLE;
     uint32_t Family = 0;
     float TimestampNs = 1.0f;
-    VkPhysicalDeviceMemoryProperties Memory{};
+    VkPhysicalDeviceMemoryProperties Store{};
     VkDeviceSize MinUboAlign = 256;
-    VkCommandPool Pool = VK_NULL_HANDLE;
+    VkCommandPool Bank = VK_NULL_HANDLE;
     VkCommandBuffer Cmd = VK_NULL_HANDLE;
     VkFence Fence = VK_NULL_HANDLE;
     VkQueryPool Timing = VK_NULL_HANDLE;
     VkDescriptorSetLayout SetLayout = VK_NULL_HANDLE;
     VkPipelineLayout PipeLayout = VK_NULL_HANDLE;
-    VkDescriptorPool DescPool = VK_NULL_HANDLE;
+    VkDescriptorPool DescSlots = VK_NULL_HANDLE;
     VkDescriptorSet Set = VK_NULL_HANDLE;
     VkRenderPass Pass = VK_NULL_HANDLE;
     VkShaderModule Modules[8] = {};
@@ -177,7 +177,7 @@ struct VulkanRaster::Detail
 
 #define SA_VK(Expr, What) do { VkResult SaResult_ = (Expr); if (SaResult_ != VK_SUCCESS) return Fail(What, SaResult_); } while (0)
 
-    bool MakeBuffer(VkDeviceSize Size, VkBufferUsageFlags Usage, Buf& Out, const char* What)
+    bool MakeStore(VkDeviceSize Size, VkBufferUsageFlags Usage, Buf& Out, const char* What)
     {
         VkBufferCreateInfo CI{ VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO };
         CI.size = Size;
@@ -186,7 +186,7 @@ struct VulkanRaster::Detail
         SA_VK(vkCreateBuffer(Dev, &CI, nullptr, &Out.B), What);
         VkMemoryRequirements Req{};
         vkGetBufferMemoryRequirements(Dev, Out.B, &Req);
-        const uint32_t Type = FindMemoryType(Memory, Req.memoryTypeBits,
+        const uint32_t Type = FindMemoryType(Store, Req.memoryTypeBits,
                                              VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
         if (Type == UINT32_MAX) { Reason = std::string(What) + ": no host-visible coherent memory"; Log("%s", Reason.c_str()); return false; }
         VkMemoryAllocateInfo AI{ VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO };
@@ -216,7 +216,7 @@ struct VulkanRaster::Detail
         SA_VK(vkCreateImage(Dev, &CI, nullptr, &Out.I), What);
         VkMemoryRequirements Req{};
         vkGetImageMemoryRequirements(Dev, Out.I, &Req);
-        const uint32_t Type = FindMemoryType(Memory, Req.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+        const uint32_t Type = FindMemoryType(Store, Req.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
         if (Type == UINT32_MAX) { Reason = std::string(What) + ": no device-local memory"; Log("%s", Reason.c_str()); return false; }
         VkMemoryAllocateInfo AI{ VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO };
         AI.allocationSize = Req.size;
@@ -279,7 +279,7 @@ struct VulkanRaster::Detail
             Device = Props.deviceName;
             TimestampNs = Props.limits.timestampPeriod;
             MinUboAlign = std::max<VkDeviceSize>(1, Props.limits.minUniformBufferOffsetAlignment);
-            vkGetPhysicalDeviceMemoryProperties(P, &Memory);
+            vkGetPhysicalDeviceMemoryProperties(P, &Store);
             Log("device: %s · queue family %u · timestamp period %.3f ns", Device.c_str(), Family, double(TimestampNs));
             return true;
         }
@@ -304,9 +304,9 @@ struct VulkanRaster::Detail
         VkCommandPoolCreateInfo PCI{ VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO };
         PCI.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
         PCI.queueFamilyIndex = Family;
-        SA_VK(vkCreateCommandPool(Dev, &PCI, nullptr, &Pool), "vkCreateCommandPool");
+        SA_VK(vkCreateCommandPool(Dev, &PCI, nullptr, &Bank), "vkCreateCommandPool");
         VkCommandBufferAllocateInfo AI{ VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO };
-        AI.commandPool = Pool;
+        AI.commandPool = Bank;
         AI.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
         AI.commandBufferCount = 1;
         SA_VK(vkAllocateCommandBuffers(Dev, &AI, &Cmd), "vkAllocateCommandBuffers");
@@ -317,7 +317,7 @@ struct VulkanRaster::Detail
         QP.queryCount = 2;
         SA_VK(vkCreateQueryPool(Dev, &QP, nullptr, &Timing), "vkCreateQueryPool");
 
-        // One set layout for every pipeline: view UBO at binding 0, draw UBO at binding 1, both dynamic.
+        // One set layout for every chain: view UBO at binding 0, draw UBO at binding 1, both dynamic.
         VkDescriptorSetLayoutBinding Bindings[4] = {};
         const VkDescriptorType Types[4] = { VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC,
                                             VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, VK_DESCRIPTOR_TYPE_SAMPLER };
@@ -342,28 +342,28 @@ struct VulkanRaster::Detail
         DPI.maxSets = 1;
         DPI.poolSizeCount = 3;
         DPI.pPoolSizes = PoolSizes;
-        SA_VK(vkCreateDescriptorPool(Dev, &DPI, nullptr, &DescPool), "vkCreateDescriptorPool");
+        SA_VK(vkCreateDescriptorPool(Dev, &DPI, nullptr, &DescSlots), "vkCreateDescriptorPool");
         VkDescriptorSetAllocateInfo DSI{ VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO };
-        DSI.descriptorPool = DescPool;
+        DSI.descriptorPool = DescSlots;
         DSI.descriptorSetCount = 1;
         DSI.pSetLayouts = &SetLayout;
         SA_VK(vkAllocateDescriptorSets(Dev, &DSI, &Set), "vkAllocateDescriptorSets");
 
         ViewStride = AlignUp(sizeof(GpuViewRecord), MinUboAlign);
         DrawStride = AlignUp(sizeof(GpuDrawRecord), MinUboAlign);
-        if (!MakeBuffer(ViewStride * MaxViews, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, ViewUbo, "view UBO")) return false;
-        if (!MakeBuffer(DrawStride * MaxDraws, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, DrawUbo, "draw UBO")) return false;
-        if (!MakeBuffer(ArenaBytes, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT, Arena, "vertex arena")) return false;
+        if (!MakeStore(ViewStride * MaxViews, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, ViewUbo, "view UBO")) return false;
+        if (!MakeStore(DrawStride * MaxDraws, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, DrawUbo, "draw UBO")) return false;
+        if (!MakeStore(ArenaBytes, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT, Arena, "vertex arena")) return false;
 
         // Quad pattern used by the instanced line and point billboards: corners 0,1,3 and 0,3,2 (the CPU mirror's triangles).
         const uint32_t Quad[6] = { 0, 1, 3, 0, 3, 2 };
         std::memcpy(Arena.Map, Quad, sizeof Quad);
 
         if (!BuildMatcap()) return false;
-        VkDescriptorBufferInfo ViewInfo{ ViewUbo.B, 0, sizeof(GpuViewRecord) };
-        VkDescriptorBufferInfo DrawInfo{ DrawUbo.B, 0, sizeof(GpuDrawRecord) };
-        VkDescriptorImageInfo MatcapInfo{ VK_NULL_HANDLE, MatcapImg.V, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL };
-        VkDescriptorImageInfo SamplerInfo{ MatcapSampler, VK_NULL_HANDLE, VK_IMAGE_LAYOUT_UNDEFINED };
+        VkDescriptorBufferInfo ViewDetails{ ViewUbo.B, 0, sizeof(GpuViewRecord) };
+        VkDescriptorBufferInfo DrawDetails{ DrawUbo.B, 0, sizeof(GpuDrawRecord) };
+        VkDescriptorImageInfo MatcapDetails{ VK_NULL_HANDLE, MatcapImg.V, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL };
+        VkDescriptorImageInfo SamplerDetails{ MatcapSampler, VK_NULL_HANDLE, VK_IMAGE_LAYOUT_UNDEFINED };
         VkWriteDescriptorSet Writes[4] = {};
         for (int I = 0; I < 4; ++I)
         {
@@ -373,18 +373,18 @@ struct VulkanRaster::Detail
             Writes[I].descriptorCount = 1;
             Writes[I].descriptorType = Types[I];
         }
-        Writes[0].pBufferInfo = &ViewInfo;
-        Writes[1].pBufferInfo = &DrawInfo;
-        Writes[2].pImageInfo = &MatcapInfo;
-        Writes[3].pImageInfo = &SamplerInfo;
+        Writes[0].pBufferInfo = &ViewDetails;
+        Writes[1].pBufferInfo = &DrawDetails;
+        Writes[2].pImageInfo = &MatcapDetails;
+        Writes[3].pImageInfo = &SamplerDetails;
         vkUpdateDescriptorSets(Dev, 4, Writes, 0, nullptr);
         return true;
     }
 
-    // Uploads the baked studio sheet (SoftwareRaster's texels, one per studio layer) as a 2D array and creates the sampler.
+    // Uploads the precomputed studio sheet (SoftwareRaster's texels, one per studio layer) as a 2D array and creates the sampler.
     bool BuildMatcap()
     {
-        const std::vector<float>& Texels = BakedMatcapTexels();
+        const std::vector<float>& Texels = PrecomputedMatcapTexels();
         const uint32_t Layers = static_cast<uint32_t>(MatcapCount());
         const uint32_t Size = MatcapTexelSize;
         const size_t PerLayerRgb = size_t(Size) * Size * 3;
@@ -414,7 +414,7 @@ struct VulkanRaster::Detail
         SA_VK(vkCreateImage(Dev, &CI, nullptr, &MatcapImg.I), "matcap image");
         VkMemoryRequirements Req{};
         vkGetImageMemoryRequirements(Dev, MatcapImg.I, &Req);
-        const uint32_t Type = FindMemoryType(Memory, Req.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+        const uint32_t Type = FindMemoryType(Store, Req.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
         if (Type == UINT32_MAX) { Reason = "matcap image: no device-local memory"; Log("%s", Reason.c_str()); return false; }
         VkMemoryAllocateInfo AI{ VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO };
         AI.allocationSize = Req.size;
@@ -438,7 +438,7 @@ struct VulkanRaster::Detail
 
         // Staging copy, one region per layer, then one submission with a fence wait.
         Buf Staging;
-        if (!MakeBuffer(Rgba.size() * sizeof(float), VK_BUFFER_USAGE_TRANSFER_SRC_BIT, Staging, "matcap staging")) return false;
+        if (!MakeStore(Rgba.size() * sizeof(float), VK_BUFFER_USAGE_TRANSFER_SRC_BIT, Staging, "matcap staging")) return false;
         std::memcpy(Staging.Map, Rgba.data(), Rgba.size() * sizeof(float));
         VkCommandBufferBeginInfo BI{ VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO };
         BI.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
@@ -545,7 +545,7 @@ struct VulkanRaster::Detail
         return true;
     }
 
-    VkResult MakePipeline(Kind K, bool OverlayMode, bool PickMode, VkPipeline& Out)
+    VkResult MakeChain(Kind K, bool OverlayMode, bool PickMode, VkPipeline& Out)
     {
         const uint32_t VS = 2 * K, FS = VS + 1;
         VkPipelineShaderStageCreateInfo Stages[2] = {};
@@ -617,7 +617,7 @@ struct VulkanRaster::Detail
         Blend[0].dstAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
         Blend[0].alphaBlendOp = VK_BLEND_OP_ADD;
         Blend[0].colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
-        // Pick target: no blending; written only by pickable pipelines. The lattice shader never writes it.
+        // Pick target: no blending; written only by pickable chains. The lattice shader never writes it.
         Blend[1].blendEnable = VK_FALSE;
         Blend[1].colorWriteMask = (PickMode && K != KindLattice) ? VK_COLOR_COMPONENT_R_BIT : 0;
         VkPipelineColorBlendStateCreateInfo CB{ VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO };
@@ -650,7 +650,7 @@ struct VulkanRaster::Detail
         for (uint32_t K = 0; K < KindCount; ++K)
             for (uint32_t O = 0; O < 2; ++O)
                 for (uint32_t P = 0; P < 2; ++P)
-                    SA_VK(MakePipeline(static_cast<Kind>(K), O != 0, P != 0, Pipes[K][O][P]), "vkCreateGraphicsPipelines");
+                    SA_VK(MakeChain(static_cast<Kind>(K), O != 0, P != 0, Pipes[K][O][P]), "vkCreateGraphicsPipelines");
         return true;
     }
 
@@ -663,9 +663,9 @@ struct VulkanRaster::Detail
         if (!MakeImage(VK_FORMAT_D32_SFLOAT, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT,
                        VK_IMAGE_ASPECT_DEPTH_BIT, Depth, "depth image")) return false;
         const VkDeviceSize Bytes = VkDeviceSize(W) * H * 4;
-        if (!MakeBuffer(Bytes, VK_BUFFER_USAGE_TRANSFER_DST_BIT, ColourRead, "colour readback")) return false;
-        if (!MakeBuffer(Bytes, VK_BUFFER_USAGE_TRANSFER_DST_BIT, PickRead, "pick readback")) return false;
-        if (!MakeBuffer(Bytes, VK_BUFFER_USAGE_TRANSFER_DST_BIT, DepthRead, "depth readback")) return false;
+        if (!MakeStore(Bytes, VK_BUFFER_USAGE_TRANSFER_DST_BIT, ColourRead, "colour readback")) return false;
+        if (!MakeStore(Bytes, VK_BUFFER_USAGE_TRANSFER_DST_BIT, PickRead, "pick readback")) return false;
+        if (!MakeStore(Bytes, VK_BUFFER_USAGE_TRANSFER_DST_BIT, DepthRead, "depth readback")) return false;
         const VkImageView Views[3] = { Colour.V, Pick.V, Depth.V };
         VkFramebufferCreateInfo FI{ VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO };
         FI.renderPass = Pass;
@@ -731,17 +731,17 @@ struct VulkanRaster::Detail
         Destroy(Dev, ViewUbo);
         Destroy(Dev, DrawUbo);
         Destroy(Dev, Arena);
-        if (DescPool) vkDestroyDescriptorPool(Dev, DescPool, nullptr);
+        if (DescSlots) vkDestroyDescriptorPool(Dev, DescSlots, nullptr);
         if (PipeLayout) vkDestroyPipelineLayout(Dev, PipeLayout, nullptr);
         if (SetLayout) vkDestroyDescriptorSetLayout(Dev, SetLayout, nullptr);
         if (Timing) vkDestroyQueryPool(Dev, Timing, nullptr);
         if (Fence) vkDestroyFence(Dev, Fence, nullptr);
-        if (Pool) vkDestroyCommandPool(Dev, Pool, nullptr);
+        if (Bank) vkDestroyCommandPool(Dev, Bank, nullptr);
         vkDestroyDevice(Dev, nullptr);
         Dev = VK_NULL_HANDLE;
     }
 
-    // Copies vertex data into the arena. Returns NoOffset (and logs) when the arena is full.
+    // Copies vertex record into the arena. Returns NoOffset (and logs) when the arena is full.
     VkDeviceSize Upload(const void* Source, size_t Bytes)
     {
         const VkDeviceSize Offset = AlignUp(ArenaCursor, 16);
@@ -756,7 +756,7 @@ struct VulkanRaster::Detail
         return Offset;
     }
 
-    // Binds the pipeline and descriptor set for one draw and stages its record. False when the draw must be skipped.
+    // Binds the chain and descriptor set for one draw and stages its record. False when the draw must be skipped.
     bool Prepare(Kind K, const DrawRecord& Draw, bool PickMode)
     {
         if (!InTarget) { Log("draw outside BeginTarget/EndTarget; ignored"); return false; }
@@ -894,9 +894,9 @@ void VulkanRaster::DrawSurface(const SurfaceStream& Stream, const DrawRecord& Dr
     const VkDeviceSize OffI = D.Upload(Stream.Triangles.data(), Indices * 4);
     if (OffP == NoOffset || OffN == NoOffset || OffUV == NoOffset || OffI == NoOffset) return;
     if (!D.Prepare(KindSurface, Draw, Draw.PickIdentity != 0)) return;
-    const VkBuffer Buffers[3] = { D.Arena.B, D.Arena.B, D.Arena.B };
+    const VkBuffer Stores[3] = { D.Arena.B, D.Arena.B, D.Arena.B };
     const VkDeviceSize Offsets[3] = { OffP, OffN, OffUV };
-    vkCmdBindVertexBuffers(D.Cmd, 0, 3, Buffers, Offsets);
+    vkCmdBindVertexBuffers(D.Cmd, 0, 3, Stores, Offsets);
     vkCmdBindIndexBuffer(D.Cmd, D.Arena.B, OffI, VK_INDEX_TYPE_UINT32);
     vkCmdDrawIndexed(D.Cmd, static_cast<uint32_t>(Indices), 1, 0, 0, 0);
     D.Counts.Triangles += static_cast<uint32_t>(Indices / 3);

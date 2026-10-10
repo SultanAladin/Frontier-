@@ -26,7 +26,7 @@
 //
 // ⚠️ RELEASE IS REQUESTED HERE, NOT PERFORMED HERE. This header owns the decision and the arithmetic; the
 //    field itself is freed by whoever owns the allocation, on the tick after Retired() first answers true.
-//    A header that frees memory it did not allocate is a header that has to be trusted rather than read.
+//    A header that frees storage it did not allocate is a header that has to be trusted rather than read.
 //
 // Reference: the HTML design this is ported from — Experimental/ProjectZeroEditor/GasSpecification.js,
 //    GasRetires / GasResidency / GasFadeSeconds — and the card that shows it, GasPanel.jsx.

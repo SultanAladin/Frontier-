@@ -11,7 +11,7 @@
 //    ordinal and a local coordinate rather than an action.
 //
 //    Only figures with PointerTarget set are considered. That flag has been reserved in InterfaceFigure since P0
-//    for exactly this, so no layout changes and no GPU slot moves: interaction is a CPU-side query over data the
+//    for exactly this, so no layout changes and no GPU slot moves: interaction is a CPU-side query over record the
 //    renderer already composes.
 //
 //    Method: each figure is a flat rounded rectangle lying in its own local XY plane. Transform the ray into that

@@ -1,20 +1,20 @@
 /**
  * Test vehicle: a "box car" built as ONE welded, closed, quad-gridded shell.
  *
- * Deformation bakes need shared vertices — a triangle soup would tear apart at
+ * Deformation precomputes need shared vertices — a triangle soup would tear apart at
  * every seam the moment you dent it — so the body is generated as a subdivided
  * cube whose surface is pushed onto a rounded superquadric and then shaped by a
  * car profile (hood / cabin / boot heights, width taper, tumblehome). Because
  * the whole thing comes from one parametric grid, it is automatically welded:
  * one position per grid corner, no duplicates, no seams.
  *
- * Everything else on the car (lights, glass, trim) is a separate mesh that is
+ * Everything else on the car (lights, glass, trim) is a separate topology that is
  * bound to the same deformation cage, which is exactly how you would ship this:
- * one bake drives every part attached to the panel.
+ * one precompute drives every part attached to the panel.
  */
 
 import { V3, v3, norm, sub, cross, add, mul, clamp } from '../core/math';
-import { MeshData } from './convex';
+import { GeometryPayload } from './convex';
 
 export interface IndexedShell {
   /** unique welded positions, length n*3 */
@@ -118,7 +118,7 @@ export function buildCarShell(cell = CAR.cell): IndexedShell {
 
 /**
  * Plain welded box grid - the flat steel sheet used to show the portable dent
- * bake on something that is nothing but panel.
+ * precompute on something that is nothing but panel.
  */
 export function buildBoxShell(sx: number, sy: number, sz: number, cell: number): IndexedShell {
   const Nx = Math.max(1, Math.round(sx / cell));
@@ -183,7 +183,7 @@ export function shellNormals(pos: Float32Array, tris: Uint32Array, out?: Float32
  * vertex id in a 4th stream so the vertex shader can look the vertex up in the
  * vertex-animation texture.
  */
-export function shellToMesh(shell: IndexedShell): MeshData & { vid: Float32Array; idx: Uint32Array } {
+export function shellToGeometry(shell: IndexedShell): GeometryPayload & { vid: Float32Array; idx: Uint32Array } {
   const { pos, tris, n } = shell;
   const nrm = shellNormals(pos, tris);
   const attr = new Float32Array(n * 3);
@@ -195,7 +195,7 @@ export function shellToMesh(shell: IndexedShell): MeshData & { vid: Float32Array
 // --------------------------------------------------------------------- parts
 
 export interface CarPart {
-  mesh: MeshData & { vid?: Float32Array };
+  topology: GeometryPayload & { vid?: Float32Array };
   kind: 'paint' | 'glass' | 'lamp' | 'rubber' | 'trim';
   /** local centre, used for hit tests and for binding to the cage */
   centre: V3;
@@ -204,8 +204,8 @@ export interface CarPart {
   broken?: boolean;
 }
 
-/** Axis-aligned rounded slab as a soup mesh, optionally cage-bound. */
-export function slabMesh(c: V3, h: V3, bevel = 0.012): MeshData & { vid: Float32Array } {
+/** Axis-aligned rounded slab as a soup topology, optionally cage-bound. */
+export function slabGeometry(c: V3, h: V3, bevel = 0.012): GeometryPayload & { vid: Float32Array } {
   const pos: number[] = [], nrm: number[] = [], attr: number[] = [];
   const b = bevel;
   const corner = (sx: number, sy: number, sz: number): V3 => v3(
@@ -235,7 +235,7 @@ export function slabMesh(c: V3, h: V3, bevel = 0.012): MeshData & { vid: Float32
 }
 
 /** Wheel: a low-poly tyre + rim, not cage-bound (it is not sheet metal). */
-export function wheelMesh(r: number, w: number, seg = 18): MeshData {
+export function wheelGeometry(r: number, w: number, seg = 18): GeometryPayload {
   const pos: number[] = [], nrm: number[] = [], attr: number[] = [];
   const ring = (a: number, rr: number, z: number): V3 =>
     v3(Math.cos(a) * rr, Math.sin(a) * rr, z);
@@ -277,7 +277,7 @@ export function wheelMesh(r: number, w: number, seg = 18): MeshData {
  */
 export function conformPane(
   shell: IndexedShell, nrm: Float32Array, c: V3, u: V3, v: V3, res = 6, lift = 0.006,
-): MeshData & { vid: Float32Array } {
+): GeometryPayload & { vid: Float32Array } {
   const gp: V3[] = [], gn: V3[] = [];
   for (let j = 0; j <= res; j++) {
     for (let i = 0; i <= res; i++) {
@@ -314,7 +314,7 @@ export function conformPane(
 }
 
 /** Flat inset window pane (cage-bound, so it dents with the pillar it sits in). */
-export function paneMesh(c: V3, u: V3, v: V3, n: V3): MeshData & { vid: Float32Array } {
+export function paneGeometry(c: V3, u: V3, v: V3, n: V3): GeometryPayload & { vid: Float32Array } {
   const pos: number[] = [], nrm: number[] = [], attr: number[] = [];
   const P = [sub(sub(c, u), v), add(sub(c, v), u), add(add(c, u), v), sub(add(c, v), u)];
   for (const q of [P[0], P[1], P[2], P[0], P[2], P[3]]) {

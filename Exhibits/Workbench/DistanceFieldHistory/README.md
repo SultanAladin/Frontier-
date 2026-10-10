@@ -52,7 +52,7 @@ Reading the table:
 
 - `proof.cpp`: the harness (real predicate, exact old predicate).
 - `build_proofs.py`: builds the charts, GIF and table from the TSVs.
-- `history_summary.tsv`, `restarts_per_second.tsv`: data.
+- `history_summary.tsv`, `restarts_per_second.tsv`: record.
 - `chart_restarts_summary.png`, `chart_restarts_per_second.png`: charts.
 - `history_restarts.gif`: 60-second animation of cumulative restarts.
 - `history_table.md`: table above.

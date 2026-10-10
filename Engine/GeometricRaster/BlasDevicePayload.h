@@ -7,9 +7,9 @@
 //    vec4 is the kind of mistake that shows up as a wrong tree on a device and nowhere else.
 //
 // What the host still has to do with this (owed with the GPU run, see Docs/DynamicGeometry.md §5):
-//   · create the buffers and copy these payloads into them (the node/leaf blobs already exist: they are the same CWBVH
+//   · create the stores and copy these payloads into them (the node/leaf blobs already exist: they are the same CWBVH
 //     blobs the traversal reads);
-//   · create one descriptor set per kernel from the bindings listed in the shader headers, and one compute pipeline;
+//   · create one descriptor set per kernel from the bindings listed in the shader headers, and one compute chain;
 //   · dispatch in the order the stages require (build: prepass → for each level {partition, scan, emit} → runs; refit:
 //     leaves → one dispatch per level, deepest first), with a compute-write → compute-read barrier between stages and
 //     before the traversal that consumes the blobs.
@@ -53,7 +53,7 @@ namespace Frontier
 
     // ── BlasBuild.slang's scratch: a header, then one block per node slot ────────────────────────────────────────────
     //    These two numbers are the shader's `kBlasScratchHeader` / `kBlasScratchStride`; §⑩ pins the pair on both sides,
-    //    so a host that sizes the buffer with one and a kernel that indexes with the other cannot pass unnoticed.
+    //    so a host that sizes the store with one and a kernel that indexes with the other cannot pass unnoticed.
     inline constexpr uint32_t kBlasScratchHeader = 8u;    // [u32] the two level pairs, the triangle total, reserved
     inline constexpr uint32_t kBlasScratchStride = 24u;   // [u32] per node slot: child ranges, own range, counts, slot maps
     inline constexpr uint32_t kBlasBuildLocalSize = 128u; // [-] BlasBuild.slang's local_size_x — as forward-declared,
@@ -85,7 +85,7 @@ namespace Frontier
     //
     //    ⚠️ Three units, and the slip between them is a heap overflow rather than a wrong picture: the kernels index VEC4S
     //       (3 per triangle), a std430 vec4 is 16 B = 4 FLOATS, and a VkBuffer size is in bytes. §⑨h's first run wrote 12
-    //       floats per triangle into a buffer aliased as 3 — sized with the vec4 count and indexed with the float count.
+    //       floats per triangle into a store aliased as 3 — sized with the vec4 count and indexed with the float count.
     inline uint32_t BlasSoupVec4s(uint32_t TriangleCount) noexcept { return TriangleCount * 3u; }    // [vec4]
     inline uint32_t BlasSoupFloats(uint32_t TriangleCount) noexcept { return TriangleCount * 12u; }  // [flt]
 
@@ -99,7 +99,7 @@ namespace Frontier
                                       std::vector<uint32_t>& OutLevels, uint32_t& OutMaxLevel) noexcept;
 
     // ── everything one build of one BLAS needs, except the blobs themselves ─────────────────────────────────────────
-    //    Not a buffer: the sizes a caller must allocate and the values it must push. The node and leaf blobs stay the
+    //    Not a store: the sizes a caller must allocate and the values it must push. The node and leaf blobs stay the
     //    traversal's (bindings 8/9 on the two-level path), so this deliberately does not copy them.
     struct BlasBuildPayload
     {
@@ -126,12 +126,12 @@ namespace Frontier
     };
 
     // Fills every field of `Out` from the host's own records: the soup, the object AABB, and the derived sizes. Returns
-    //    false rather than handing a kernel an under-sized buffer.
+    //    false rather than handing a kernel an under-sized store.
     [[nodiscard]] bool BuildBlasBuildPayload(const std::vector<TriangleIndex>& Triangles, const float ObjectMin[3],
                                              const float ObjectMax[3], uint32_t NodeSlots,
                                              BlasBuildPayload& Out) noexcept;
 
-    // ── the DISPATCH PLAN: the host's loop, as data ─────────────────────────────────────────────────────────────────
+    // ── the DISPATCH PLAN: the host's loop, as record ─────────────────────────────────────────────────────────────────
     //    What is left of "host wiring" once the payload exists is the sequencing: which stage runs when, over how many
     //    groups, and where the barriers go. That is the part a device session would otherwise discover by trial, so it is
     //    written here as a list and checked by §⑨i against the numbers §⑨h/§⑨g measured. The plan holds no Vulkan types

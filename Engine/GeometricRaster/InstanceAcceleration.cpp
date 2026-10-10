@@ -282,7 +282,7 @@ namespace
 namespace
 {
     // The object-space AABB of a BLAS after a deformation: the union of its triangles' boxes. The instance rows
-    //    expand this by their own transform every frame, so it has to track the geometry rather than the mesh's
+    //    expand this by their own transform every frame, so it has to track the geometry rather than the topology's
     //    rest pose — a deformed character's AABB is not its bind-pose AABB, and a stale one would drop the instance
     //    out of the top level entirely.
     void TrianglesObjectAabb(const std::vector<TriangleIndex>& Triangles, float OutMin[3], float OutMax[3]) noexcept
@@ -305,7 +305,7 @@ namespace
 InstanceAcceleration::InstanceAcceleration() noexcept : Impl(std::make_unique<Implementation>()) {}
 InstanceAcceleration::~InstanceAcceleration() = default;
 
-bool InstanceAcceleration::Build(const std::vector<MeshPrototype>& Prototypes, const std::vector<InstanceRow>& Rows,
+bool InstanceAcceleration::Build(const std::vector<GeometryPrototype>& Prototypes, const std::vector<InstanceRow>& Rows,
                                  bool HighQuality) noexcept
 {
     Instances.clear(); BlasRecords.clear(); BlasPlacements.clear(); NodeBlob.clear(); LeafBlob.clear();
@@ -324,7 +324,7 @@ bool InstanceAcceleration::Build(const std::vector<MeshPrototype>& Prototypes, c
     Impl->PrototypeTris.reserve(Prototypes.size());
     BlasRecords.reserve(Prototypes.size());
 
-    for (const MeshPrototype& P : Prototypes)
+    for (const GeometryPrototype& P : Prototypes)
     {
         if (P.Triangles == nullptr || P.TriangleCount == 0u)
         {
@@ -358,7 +358,7 @@ bool InstanceAcceleration::Build(const std::vector<MeshPrototype>& Prototypes, c
             return false;
         }
 
-        // Append this BLAS' blobs to the shared buffers and record where they landed (vec4 blocks — the unit both the
+        // Append this BLAS' blobs to the shared stores and record where they landed (vec4 blocks — the unit both the
         //   5-vec4 node addressing and the 3-vec4 triangle addressing work in, on CPU and in the shader).
         const std::vector<float>& Nodes = Blas->QueryNodeBlob();
         const std::vector<float>& Leaves = Blas->QueryLeafBlob();
@@ -465,7 +465,7 @@ bool InstanceAcceleration::UpdateTopLevel(const std::vector<InstanceRow>& Rows) 
 
     // ── the kernel's copy of the top level ──────────────────────────────────────────────────────────────────────────
     // tinybvh's 32 B node, written out as 8 floats: [min.xyz, leftFirst bits, max.xyz, primitive-count bits]. The leaf
-    //    indirection through primIdx is baked into TlasPrimitives so the traversal never resolves it. Bit-casts keep
+    //    indirection through primIdx is precomputed into TlasPrimitives so the traversal never resolves it. Bit-casts keep
     //    the integer fields intact through a float array — the same trick the triangle blob already uses for its
     //    primitive index in v0.w.
     const uint32_t NodeCount = Impl->Tlas.usedNodes;
@@ -511,12 +511,12 @@ bool InstanceAcceleration::QueryBlasObjectAabb(uint32_t BlasIndex, float OutMin[
 
 // D8's refit, and the only shape a per-BLAS update can take in a two-level structure.
 //
-//    The layout gives every BLAS a fixed slice of the shared buffer, addressed by the offsets in BlasPlacements —
+//    The layout gives every BLAS a fixed slice of the shared store, addressed by the offsets in BlasPlacements —
 //    which is what lets ONE descriptor set and ONE dispatch cover the whole scene. So an update must keep this
 //    BLAS' block counts exactly, and the supported re-emit path does NOT: re-collapsing the MBVH8 after a refit
 //    re-runs the collapse's grouping, whose node count depends on the (new) bounds. Measured on the level's own
 //    soup: +125 node blocks at 4 608 triangles, +540 at 10 368, +230 at 4 000 clustered — never zero for a
-//    deformed mesh, so a collapse-based refit would push every following BLAS' slice along and invalidate the
+//    deformed topology, so a collapse-based refit would push every following BLAS' slice along and invalidate the
 //    placements and the TLAS payload that reference them.
 //
 //    Hence the sweep: rewrite this BLAS' leaf triangles, then re-quantise its nodes IN PLACE, descending, reusing
@@ -675,7 +675,7 @@ bool InstanceAcceleration::TraceClosest(const float Origin[3], const float Direc
     const float InvDL = 1.0f / DL;
     const tinybvh::bvhvec3 O(Origin[0], Origin[1], Origin[2]);
     const tinybvh::bvhvec3 D(Direction[0] * InvDL, Direction[1] * InvDL, Direction[2] * InvDL);
-    const tinybvh::bvhvec3 rD = tinybvh::tinybvh_rcp(D);   // ±inf on axis-aligned rays: the slab test handles it
+    const tinybvh::bvhvec3 rD = tinybvh::tinybvh_rcp(D);   // ±inf on axis-aligned rays: the slab test identifiers it
 
     // Slab test against a 32 B node AABB, in the ray's own parameterisation (t along D, not normalised).
     const auto NodeIntersect = [&](const tinybvh::bvhvec3& BMin, const tinybvh::bvhvec3& BMax, float TMax) -> bool
@@ -768,7 +768,7 @@ BlasUpdateDecision BlasUpdatePolicy::Decide(float Displacement, float PrimitiveS
                                             uint32_t FramesSinceRebuild, bool RebuildOutstanding) const noexcept
 {
     if (TopologyChanged) return BlasUpdateDecision::Rebuild;
-    // A degenerate mesh has no scale to compare against: rebuilding is the only safe answer.
+    // A degenerate topology has no scale to compare against: rebuilding is the only safe answer.
     if (!(PrimitiveSize > 0.0f)) return BlasUpdateDecision::Rebuild;
     if (!(Displacement > 0.0f)) return BlasUpdateDecision::None;
     if (Displacement < RefitDisplacementRatio * PrimitiveSize) return BlasUpdateDecision::Refit;

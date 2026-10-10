@@ -23,17 +23,17 @@ ShadingRecord NativeRecord(const MaterialSlabRecord& s){
  auto m=AutomotiveDefaults();m.BaseColor=vec3(s.BaseColorR,s.BaseColorG,s.BaseColorB);m.SpecularColor=vec3(s.SpecularColorR,s.SpecularColorG,s.SpecularColorB);
  m.CoatColor=vec3(s.CoatColorR,s.CoatColorG,s.CoatColorB);m.CoatWeight=s.CoatWeight;m.CoatRoughness=s.CoatRoughness;m.CoatIor=s.CoatIor;
  m.SpecularRoughness=s.SpecularRoughness;m.ThinFilmWeight=s.ThinFilmWeight;m.ThinFilmThickness=s.ThinFilmThickness;m.ThinFilmIor=s.ThinFilmIor;
- m.AutomotiveData=vec4(s.Reserved0,s.Reserved1,0,0);m.AutomotiveDensity=s.SlateGlintDensity;m.AutomotiveFootprint=.00004f;
+ m.AutomotivePayload=vec4(s.Reserved0,s.Reserved1,0,0);m.AutomotiveDensity=s.SlateGlintDensity;m.AutomotiveFootprint=.00004f;
  return m;
 }
 void TestPrepared(const ShadingRecord& m,vec3 wo,vec3 wi,vec3 c){
-   auto p=AutomotiveShowcasePaint(m);auto f=AutomotiveApplyFlakePalette(AutomotivePrepareFlakes(p,vec2(m.AutomotiveData.z,m.AutomotiveData.w),vec2(m.AutomotiveFootprint,0),vec2(0,m.AutomotiveFootprint)),AutomotiveShowcasePalette(m));
+   auto p=AutomotiveShowcasePaint(m);auto f=AutomotiveApplyFlakePalette(AutomotivePrepareFlakes(p,vec2(m.AutomotivePayload.z,m.AutomotivePayload.w),vec2(m.AutomotiveFootprint,0),vec2(0,m.AutomotiveFootprint)),AutomotiveShowcasePalette(m));
    Check(length(c-AutomotiveShowcaseEvaluatePrepared(m,p,f,wo,wi))<1e-6f,"prepared/native entry points match");
 }
 void TestMaterial(const MaterialSlabRecord& s){
  auto m=NativeRecord(s);ResolvedLayers layers{};vec3 wo=normalize(vec3(.2f,0,1));
  for(uint i=0;i<128;++i){
-  m.AutomotiveData.z=APRandom(i+734)*.14f;m.AutomotiveData.w=APRandom(i+9234)*.09f;
+  m.AutomotivePayload.z=APRandom(i+734)*.14f;m.AutomotivePayload.w=APRandom(i+9234)*.09f;
   auto sample=SampleBsdf(m,layers,wo,vec4(APRandom(i+91),APRandom(i+812),APRandom(i+9210),APRandom(i+346)));
   if(sample.w>0){vec3 wi(sample.x,sample.y,sample.z);Check(std::abs(sample.w-PdfBsdf(m,layers,wo,wi))<1e-5f,"sampler/pdf agree");
    auto c=EvaluateBsdf(m,layers,wo,wi);Check(Finite(c),"finite nonnegative native BRDF");
@@ -41,7 +41,7 @@ void TestMaterial(const MaterialSlabRecord& s){
   }
  }
  auto f=EvaluateBsdf(m,layers,wo,vec3(0,0,-1));Check(length(f)==0,"opaque paint has no transmission lobe");
- m.AutomotiveFootprint=.1f;auto a=EvaluateBsdf(m,layers,wo,wo);m.AutomotiveData.z+=.035f;Check(length(a-EvaluateBsdf(m,layers,wo,wo))<1e-6f,"distant palette response is stable");
+ m.AutomotiveFootprint=.1f;auto a=EvaluateBsdf(m,layers,wo,wo);m.AutomotivePayload.z+=.035f;Check(length(a-EvaluateBsdf(m,layers,wo,wo))<1e-6f,"distant palette response is stable");
 }
 void TestCoat(){
  MaterialSlabDescriptor s;AuthorAutomotiveShowcase(s,1,.5f);auto m=NativeRecord(MaterialIndex::ConstructSlabRecord(s));auto p=AutomotiveShowcasePaint(m);

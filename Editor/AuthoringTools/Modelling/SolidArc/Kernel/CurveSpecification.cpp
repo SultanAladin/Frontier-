@@ -46,7 +46,7 @@ Deliver<NurbsCurve> NurbsCurve::Build(int Degree, std::vector<Vec4> Poles, std::
 
 Deliver<NurbsCurve> NurbsCurve::Empty() noexcept
 {
-    // Phase 19: Empty figures are transform handles with no geometry. We return a degenerate
+    // Phase 19: Empty figures are transform identifiers with no geometry. We return a degenerate
     //    degree-1 NURBS with one pole (at the origin) and matching knot vector. Validate refuses
     //    curves with more-than-Degree poles, so we construct a degree-1 curve with 2 poles
     //    at the same point — this is a "zero-length line" that renders to nothing and bounds

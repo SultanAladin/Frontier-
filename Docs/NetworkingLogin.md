@@ -28,7 +28,7 @@ dashboard Epic provider `clientid=xyza7891AKjtZj8wTzcmI5F3oc1zLU4s`,
 
 Extract into a fresh folder and open **Charge.exe**. Put the **private**
 `Charge.local.ini` next to it for portable login and a stable cross-PC EOS cloud
-data key. That file is intentionally excluded from the public download.
+record key. That file is intentionally excluded from the public download.
 
 This build splits the match session from the lobby (members join it explicitly),
 closes the session before leaving the lobby, adds lobby + session browsers and
@@ -76,11 +76,11 @@ Country, matching Charge's configured required permissions. Setup's optional
 friends control now controls **loading friends after login**, not omission of a
 required consent scope. No email or friend-management scope is requested.
 
-After Auth AND Connect succeed, the app queries EOS UserInfo for the selected
+After Auth AND Connect succeed, the app queries EOS UserDetails for the selected
 account, using the local authenticated account as the query caller. The signed-in
 card displays Epic's display name, country and preferred language where available,
 and separate Auth/Connect verification. Missing fields say unavailable; nothing is
-inferred from location metadata or invented. Profile values remain in memory,
+inferred from location metadata or invented. Profile values remain in storage,
 are cleared on disconnect/session retirement, and are never written to the log or
 credential vault. Refreshing the profile does not launch Auth; a profile query
 failure does not log the user out.
@@ -160,7 +160,7 @@ no installer is silently run, embedded in Git, or executed by CI.
 The signed-out UI is a dark login card and colour-coded console. **Setup** hides
 technical settings. Account Portal is the default. Optional explicit opt-in stores
 only the application client ID/secret in Windows Credential Manager under
-`Frontier/Charge/Dev/EOSClient`; process buffers are wiped after submission. Use
+`Frontier/Charge/Dev/EOSClient`; process stores are wiped after submission. Use
 **Forget saved credential** or Windows Credential Manager to delete it. This
 protects storage at rest, not against processes running as the same Windows user.
 No account password or player token is persisted.
@@ -182,7 +182,7 @@ Dear ImGui + GLFW window, linked with the Windows GUI subsystem, so it does not 
 The EOS runtime is included beside it. No CMD or PowerShell launcher is needed.
 
 The panel accepts a masked client secret, developer credential name, login method, and optional Client ID override.
-It uses explicit in-memory configuration, not process environment variables. ImGui settings/log persistence is
+It uses explicit in-storage configuration, not process environment variables. ImGui settings/log persistence is
 disabled. The client secret is cleared after submission and on exit and is never emitted to diagnostics.
 Login/Cancel, SDK checks, activity details, and a native Save Log dialog are available.
 Developer Authentication Tool or Account Portal prerequisites below still apply; a GUI does not remove them.
@@ -373,7 +373,7 @@ It runs real SDK initialization/shutdown, missing-secret refusal, and the login-
 The current artifact contains the windowed EXE, project DLL, GUI library licenses, project specification, scene,
 evidence, and instructions. Older console releases remain historical.
 It is NOT a full Frontier engine build. SDK headers and import libraries are excluded from the downloadable package. At the user's request, the Windows
-x64 EOS runtime is now included beside the EXE; no manual copy is required. No credentials are baked in.
+x64 EOS runtime is now included beside the EXE; no manual copy is required. No credentials are precomputed in.
 Actions artifacts expire after 14 days; the workflow also publishes a prerelease with a persistent, signed-out
 download link. Each release targets the exact source commit on this session branch.
 
@@ -425,7 +425,7 @@ Only friends visible to this application's permissions/consent may be returned; 
 Epic launcher friends list. Display names may be unavailable. Friendship status is not online-presence status.
 
 **Epic login overlay (Account Portal)** uses EOS Auth, not an ImGui imitation. **Open Epic overlay** calls
-EOS_UI_ShowFriends; the Epic Social Overlay handles friend invitations. The default shortcut is Shift+F3.
+EOS_UI_ShowFriends; the Epic Social Overlay identifiers friend invitations. The default shortcut is Shift+F3.
 The app enables the Windows OpenGL overlay capability and respects overlay-exclusive input notifications.
 Overlay readiness errors now identify missing Bootstrapper launch, missing/stopped redistributable service,
 overlay installation, or trust/load failures. No friends or overlay call is allowed before successful login.

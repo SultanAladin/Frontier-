@@ -24,7 +24,7 @@
 
 // 144 bytes, std140. Sized against Vulkan's guaranteed 128-byte push limit deliberately NOT applying here: the
 //    push block is already at that limit with five uint reserves left, and the sky needs 108 bytes of medium and
-//    control. A uniform buffer is the only place it fits, which is what the binding reservation anticipated.
+//    control. A uniform store is the only place it fits, which is what the binding reservation anticipated.
 layout(std140, binding = 21) uniform SkyConstants
 {
     vec4 SkySunDirection;    // xyz = unit, toward the sun (CelestialSolver's convention); w = elevation [deg]
@@ -33,7 +33,7 @@ layout(std140, binding = 21) uniform SkyConstants
     vec4 SkyMie;             // x = beta_M x strength [1/m], y = Mie scale height [m], z = anisotropy g, w = shadow base [m]
     vec4 SkyOzone;           // xyz = beta_O x strength [1/m]; w = shadow thickness [m]
     vec4 SkyPlanet;          // x = planet radius [m], y = atmosphere height [m], z = camera height [m], w = shadow scale [-]
-    uvec4 SkyControl;        // x = view samples, y = light samples, z = twilight flags, w = baked dome slot + 1 (0 = march)
+    uvec4 SkyControl;        // x = view samples, y = light samples, z = twilight flags, w = precomputed dome slot + 1 (0 = march)
     vec4 SkyTwilight;        // x = glow intensity, y = line intensity, z = 1 when the line is civil-only, w = shadow enabled 0/1
     vec4 SkySunDirect;       // xyz = panel direct-sun factor 0.11·gain·colour·T (kernel: ÷Ω, ×Ω back); w = unused
 };
@@ -45,20 +45,20 @@ layout(std140, binding = 21) uniform SkyConstants
 const float kSunAngularRadius = 0.53 * (3.14159265358979323846 / 180.0) * 0.5;
 
 //------------------------------------------------------------------------------------------------------------------------
-//                                                  THE BAKED DOME
+//                                                  THE PRECOMPUTED DOME
 //------------------------------------------------------------------------------------------------------------------------
 // Roadmap #26 stage A. The smooth single-scatter dome — the integral below and NOTHING else — may arrive
 //    pre-integrated as one RGBA16F sheet of two stacked octahedral squares (radiance over transmittance),
-//    riding the bindless Textures[] table at the slot SkyControl.w-1 names (0 = no bake, always march).
+//    riding the bindless Textures[] table at the slot SkyControl.w-1 names (0 = no precompute, always march).
 //
-//    The rule that keeps the bake honest (measured in Exhibits/Workbench/Sky/SkyProbeProof.cpp — mean error
+//    The rule that keeps the precompute honest (measured in Exhibits/Workbench/Sky/SkyProbeProof.cpp — mean error
 //    0.014-0.123 %, panel RMSE ≤ 0.13 of 255, fetch 67-135x the march, six times of day):
 //      · the fetch answers ONLY for the smooth dome; the sun's disc/aureole, the stars, the moons, the
 //        twilight and the cloud layer all stay analytic on top, exactly as SkyAlong composes them;
 //      · inside the solar cone (4 deg) and the horizon band (±1.5 deg) the pixel MARCHES — the disc's
 //        gradient and the planet-edge discontinuity (1.2e-7 vs 3.4e-4 half a degree apart at night) are
 //        exactly what a texel sheet cannot hold;
-//      · the host bakes with the sun's cone inpainted from its boundary, so no disc energy ever smears
+//      · the host precomputes with the sun's cone inpainted from its boundary, so no disc energy ever smears
 //        into the bilinear neighbourhood.
 //
 //    These three constants are the kernel's copies of SkyDomeSheet.h's kSkyDomeSide / kSkyDomeHorizonSine /
@@ -77,7 +77,7 @@ vec2 SkyDomeOct(vec3 Direction)
     return P * 0.5 + vec2(0.5);
 }
 
-// True when the baked dome may answer for this direction: a bake is resident, the ray is off the sun and off
+// True when the precomputed dome may answer for this direction: a precompute is resident, the ray is off the sun and off
 //    the horizon band. The caller falls through to the march on false — the analytic path is never deleted.
 bool SkyDomeCovers(vec3 Direction)
 {
@@ -115,7 +115,7 @@ vec3 SkyRadiance(vec3 Direction, out vec3 OutTransmittance, out bool OutHitGroun
     OutHitGround = false;
     if (SkySunRadiance.w <= 0.0) return vec3(0.0);
 
-    // The baked dome (roadmap #26 stage A): one bilinear fetch of the pre-integrated sheet stands in for the
+    // The precomputed dome (roadmap #26 stage A): one bilinear fetch of the pre-integrated sheet stands in for the
     //    whole march when the rule above says it may. Radiance rides the top square, transmittance the bottom,
     //    and the texel coordinate clamps half a texel inside each square so the bilinear neighbourhood can
     //    never blend radiance into transmittance or wrap the REPEAT sampler across the atlas edge. Ground is

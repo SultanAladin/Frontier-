@@ -8,7 +8,7 @@
 //    (same tables, same rig, same ACES + γ2.2 encode).
 //
 //    Fidelity limits (documented, not bugs):
-//      · constants only — bound textures are ignored (the CPU tracer has no texture pipeline);
+//      · constants only — bound textures are ignored (the CPU tracer has no texture chain);
 //      · cutout is not previewed (the ShadingRecord carries no alpha; the ball renders opaque);
 //      · single slab — Slabs[0]; multi-slab stacks preview their top authoring slab;
 //      · fixed rig — the standard 3-softbox stage, exposure 1 (the tungsten backlight is SSS-sheet-only).
@@ -27,7 +27,7 @@ struct ShaderballPreviewRequest
     MaterialReflectance       Selection = MaterialReflectance::Standard;
     int                       Size      = 192;       // [px] square film
     int                       Spp       = 8;         // [spp]
-    const char*               MeshPath  = "Exhibits/Gallery/Materials/shaderball.obj";   // repo-root-relative
+    const char*               GeometryPath  = "Exhibits/Gallery/Materials/shaderball.obj";   // repo-root-relative
     const char*               OutPath   = nullptr;   // required (.png)
 };
 

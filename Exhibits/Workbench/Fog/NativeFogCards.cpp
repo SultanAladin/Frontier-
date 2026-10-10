@@ -35,9 +35,9 @@ void Check(bool Condition, const char* Claim)
 // The surrounding card is the one the native fog inspector already draws; only its contents are new.
 void CardChrome(ImDrawList* Draw, ImFont* Face, ImVec2 Spot, float Wide, float Tall, const char* Title)
 {
-    const int First = Draw->VtxBuffer.Size;
+    const int First = Draw->VtxStore.Size;
     Draw->AddRectFilled(Spot, { Spot.x + Wide, Spot.y + Tall }, IM_COL32_WHITE, 22.0f);
-    ImGui::ShadeVertsLinearColorGradientKeepAlpha(Draw, First, Draw->VtxBuffer.Size, Spot,
+    ImGui::ShadeVertsLinearColorGradientKeepAlpha(Draw, First, Draw->VtxStore.Size, Spot,
                                                   { Spot.x + Wide, Spot.y + Tall }, IM_COL32(37, 37, 37, 255),
                                                   IM_COL32(32, 32, 32, 255));
     Draw->AddRect(Spot, { Spot.x + Wide, Spot.y + Tall }, IM_COL32(52, 52, 52, 255), 22.0f);
@@ -205,7 +205,7 @@ int main()
     Capture("DensityProfile-Authored");
 
     //-----------------------------------------------------------------------------------------------------
-    // Volume shape — every form the select offers resolves to its own mesh and world bounds.
+    // Volume shape — every form the select offers resolves to its own topology and world bounds.
     //-----------------------------------------------------------------------------------------------------
     Shown = Subject::Volume;
     struct Entry { FogForm Form; const char* File; size_t Vertices; size_t Edges; size_t Faces; };
@@ -222,19 +222,19 @@ int main()
     {
         Shape = FogShape{};
         Shape.Form = Item.Form;
-        const ShapeMesh Mesh = ConstructMesh(Shape);
-        Check(Mesh.Vertices.size() == Item.Vertices, "the mesh carries the vertex count FogShape.js builds");
-        Check(Mesh.Edges.size() == Item.Edges, "the mesh carries the edge count FogShape.js builds");
-        Check(Mesh.Faces.size() == Item.Faces, "the mesh carries the face count FogShape.js builds");
+        const ShapeGeometry Hull = ConstructGeometry(Shape);
+        Check(Hull.Vertices.size() == Item.Vertices, "the topology carries the vertex count FogShape.js builds");
+        Check(Hull.Edges.size() == Item.Edges, "the topology carries the edge count FogShape.js builds");
+        Check(Hull.Faces.size() == Item.Faces, "the topology carries the face count FogShape.js builds");
         Capture(Item.File);
     }
 
     Shape = FogShape{};
     {
-        const ShapeMesh Mesh = ConstructMesh(Shape);
-        Check(std::fabs(Mesh.Low[0] + 100.0f) < 0.001f, "a 200 m box reaches -100 m on X");
-        Check(std::fabs(Mesh.High[2] - 100.0f) < 0.001f, "a 200 m box reaches +100 m on Z");
-        Check(std::fabs(Mesh.Size[1] - 200.0f) < 0.001f, "a 200 m box measures 200 m deep");
+        const ShapeGeometry Hull = ConstructGeometry(Shape);
+        Check(std::fabs(Hull.Low[0] + 100.0f) < 0.001f, "a 200 m box reaches -100 m on X");
+        Check(std::fabs(Hull.High[2] - 100.0f) < 0.001f, "a 200 m box reaches +100 m on Z");
+        Check(std::fabs(Hull.Size[1] - 200.0f) < 0.001f, "a 200 m box measures 200 m deep");
     }
     Check(ValidOutline(FogShape{}.Outline, 5), "the default custom outline is an ordered, non-crossing polygon");
     {

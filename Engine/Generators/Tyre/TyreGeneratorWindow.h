@@ -108,7 +108,7 @@ void ApplyTyrePreset(TyreGeneratorState& State, int Index);
 /// in    Open      [-]  cleared when the title bar's close is pressed; nullptr for a window that cannot close
 /// note  ⚠️ The three-dimensional viewport is deliberately empty. Every other view in this window is drawn
 ///       from the specification by arithmetic the host can run with no device at all, which is what lets the
-///       whole application be proved headless; a mesh preview cannot be, and a fake one would prove nothing.
+///       whole application be proved headless; a topology preview cannot be, and a fake one would prove nothing.
 /// cost  🚩 One pattern raster per edit, not per frame.
 /// tag   api, allocating, nonthrowing
 void RecordTyreGeneratorWindow(ControlPanel& Controls, TyreGeneratorState& State, bool* Open);

@@ -1,5 +1,5 @@
 //==============================================================================================================================================
-//                                                          OUTLINERMETADATA.H
+//                                                          OUTLINERMETAPAYLOAD.H
 //==============================================================================================================================================
 // 📦 The small live figure under every outliner row's name — Editor.jsx OutlinerMetadata(), transcribed
 //    branch for branch, together with the CompactNumber / CompactPosition formatting it reads through.
@@ -210,7 +210,7 @@ inline void CompactNumber(double Reading, int Digits, char* Out, size_t Room) no
     for (size_t Index = Whole; Index < std::strlen(Plain) && Fill + 1 < sizeof(Grouped); ++Index)
         Grouped[Fill++] = Plain[Index];
     Grouped[Fill] = '\0';
-    // A bounded copy rather than another snprintf: the working buffer is deliberately wider than any
+    // A bounded copy rather than another snprintf: the working store is deliberately wider than any
     //    caller's, and the compiler is right to say so.
     const size_t Carry = Fill < Room - 1 ? Fill : Room - 1;
     std::memcpy(Out, Grouped, Carry);

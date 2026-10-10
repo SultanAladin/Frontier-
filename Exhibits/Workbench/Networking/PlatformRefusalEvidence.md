@@ -8,7 +8,7 @@ A local Linux probe used the real EOS 1.19.2.1 SDK and the existing platform IDs
 No real secret was used and no Auth/Connect API was called.
 
 - A synthetic 41-character ASCII test credential created a platform successfully.
-- Replacing it with 80 ASCII A characters returned a null platform handle.
+- Replacing it with 80 ASCII A characters returned a null platform identifier.
 - EOS's callback reported: `ClientCredentials.ClientSecret must be an ANSI string
   between 1 and 64 in length`, followed by `Invalid input platform options.
   EOS_EResult: EOS_NotConfigured`.

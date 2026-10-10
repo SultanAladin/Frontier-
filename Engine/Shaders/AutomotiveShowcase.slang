@@ -10,16 +10,16 @@
 #include "AutomotiveFlakePaint.slang"
 AutomotivePaintParameters AutomotiveShowcasePaint(AP_INPUT(ShadingRecord) m) {
     AutomotivePaintParameters p=AutomotivePaintDefaults();
-    float t=APRange(m.AutomotiveData.y,0.0,1.0);
+    float t=APRange(m.AutomotivePayload.y,0.0,1.0);
     p.Pigment=m.BaseColor;p.FlakeReflectance=m.SpecularColor;
     p.Density=m.AutomotiveDensity;p.CoatRoughness=m.CoatRoughness;p.CoatWeight=m.CoatWeight;
     p.FlakeRoughness=m.SpecularRoughness;p.NormalSpread=0.18+0.12*t;
     p.PearlWeight=m.ThinFilmWeight;p.FilmThicknessNm=m.ThinFilmThickness*1000.0;p.FilmIor=m.ThinFilmIor;
-    p.DiameterMm=m.AutomotiveData.x==2.0?0.45+0.65*t:0.08+0.22*t;
+    p.DiameterMm=m.AutomotivePayload.x==2.0?0.45+0.65*t:0.08+0.22*t;
     return p;
 }
 AutomotiveFlakePalette AutomotiveShowcasePalette(AP_INPUT(ShadingRecord) m) {
-    if(m.AutomotiveData.x==2.0)return AutomotiveRgbPalette();
+    if(m.AutomotivePayload.x==2.0)return AutomotiveRgbPalette();
     return AutomotivePaletteDefaults(); // use the slab's F0 for silver / copper
 }
 vec3 AutomotiveShowcaseCoat(AP_INPUT(ShadingRecord) m,vec3 wo,vec3 wi) {
@@ -43,7 +43,7 @@ vec3 AutomotiveShowcaseEvaluate(AP_INPUT(ShadingRecord) m,vec3 wo,vec3 wi) {
     if(wo.z<=0.0001||wi.z<=0.0001)return vec3(0.0);
     AutomotivePaintParameters p=AutomotiveShowcasePaint(m);
     float footprint=max(0.0,m.AutomotiveFootprint);
-    AutomotiveFlakeSurface s=AutomotivePrepareFlakes(p,vec2(m.AutomotiveData.z,m.AutomotiveData.w),vec2(footprint,0.0),vec2(0.0,footprint));
+    AutomotiveFlakeSurface s=AutomotivePrepareFlakes(p,vec2(m.AutomotivePayload.z,m.AutomotivePayload.w),vec2(footprint,0.0),vec2(0.0,footprint));
     s=AutomotiveApplyFlakePalette(s,AutomotiveShowcasePalette(m));
     return AutomotiveShowcaseEvaluatePrepared(m,p,s,wo,wi);
 }

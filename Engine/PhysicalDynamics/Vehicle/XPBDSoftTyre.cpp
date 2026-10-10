@@ -268,7 +268,7 @@ void XPBDSoftTyre::Step(float dt, uint32_t substeps, const HubMotion& motion,
         // consumes is the ground reaction, and a sweep that has not converged under-reports it. On a 40 mm
         // settle the reaction read 8.3 kN at 4 substeps against 12.6 kN for the lattice's own elastic state,
         // and only crept to 11.7 kN at 64. The sweep count is therefore a parameter with a measured gate
-        // behind it rather than an assumption baked into the loop.
+        // behind it rather than an assumption precomputed into the loop.
         for (uint32_t iteration = 0u; iteration < iterations; ++iteration)
         {
             // ── project: spokes (node ↔ rim/bead anchor) ─────────────────────────────────────────────────────────────

@@ -282,20 +282,20 @@ float TextWidth(Layout& L, float Size, const char* Value) noexcept
 // Text trimmed with an ellipsis to fit MaxW.
 void FitText(Layout& L, float Size, const ImVec2& At, ImU32 Tint, const char* Value, float MaxW) noexcept
 {
-    char Buffer[96] = {};
-    std::snprintf(Buffer, sizeof(Buffer), "%s", Value);
-    size_t Length = std::strlen(Buffer);
-    while (Length > 3u && TextWidth(L, Size, Buffer) > MaxW)
+    char Block[96] = {};
+    std::snprintf(Block, sizeof(Block), "%s", Value);
+    size_t Length = std::strlen(Block);
+    while (Length > 3u && TextWidth(L, Size, Block) > MaxW)
     {
         Length -= 1u;
-        Buffer[Length] = '\0';
+        Block[Length] = '\0';
         if (Length >= 2u)
         {
-            Buffer[Length - 1u] = '.';
-            Buffer[Length - 2u] = '.';
+            Block[Length - 1u] = '.';
+            Block[Length - 2u] = '.';
         }
     }
-    Text(L, Size, At, Tint, Buffer);
+    Text(L, Size, At, Tint, Block);
 }
 
 // The UTF-8 sequence starting at P: its byte length.

@@ -55,7 +55,7 @@ struct ControlKitPalette
     ColorQuad Highlight    { 0x6C / 255.0f, 0x77 / 255.0f, 0xFF / 255.0f, 1.0f };   // --hi (legacy indigo; dashboard pill fill)
     ColorQuad Danger       { 0xEF / 255.0f, 0x44 / 255.0f, 0x44 / 255.0f, 1.0f };   // --danger
     ColorQuad Ok           { 0x22 / 255.0f, 0xC5 / 255.0f, 0x5E / 255.0f, 1.0f };   // --ok             ← Success swatch
-    ColorQuad Info         { 0x3B / 255.0f, 0x82 / 255.0f, 0xF6 / 255.0f, 1.0f };   // info             ← Info swatch
+    ColorQuad Facts         { 0x3B / 255.0f, 0x82 / 255.0f, 0xF6 / 255.0f, 1.0f };   // facts             ← Facts swatch
     ColorQuad Warning      { 0xF5 / 255.0f, 0x9E / 255.0f, 0x0B / 255.0f, 1.0f };   // amber-500        ← Warning swatch
     ColorQuad Caution      { 0xEA / 255.0f, 0xB3 / 255.0f, 0x08 / 255.0f, 1.0f };   // yellow-500       ← Caution swatch
     ColorQuad SliderTrack  { 0x2F / 255.0f, 0x2F / 255.0f, 0x33 / 255.0f, 1.0f };   // slider rail, around the groove
@@ -92,7 +92,7 @@ struct TextEntryState
 {
     static constexpr uint32_t Capacity = 128u;   // [ch] longest name we accept; refusal is better than truncation
 
-    char     Text[Capacity]   = {};   // [utf8] live buffer, always NUL terminated
+    char     Text[Capacity]   = {};   // [utf8] live store, always NUL terminated
     char     Restore[Capacity]= {};   // [utf8] value on Begin(), used by Escape
     uint32_t Length           = 0u;   // [ch] bytes in Text, excluding the NUL
     uint32_t Caret            = 0u;   // [ch] insertion point, 0 … Length
@@ -154,7 +154,7 @@ public:
     // The active palette every widget reads. AssignTheme derives it from the applied theme + semantic swatch colours;
     //    ResetPalette restores the UIComponents dark defaults.
     [[nodiscard]] static const ControlKitPalette& Palette() noexcept { return ActivePalette; }
-    static void AssignTheme(const ThemeStructure& Theme, ColorQuad WarningColour, ColorQuad SuccessColour, ColorQuad InfoColour, ColorQuad CautionColour) noexcept;
+    static void AssignTheme(const ThemeStructure& Theme, ColorQuad WarningColour, ColorQuad SuccessColour, ColorQuad DetailsColour, ColorQuad CautionColour) noexcept;
     static void AssignPalette(const ControlKitPalette& Explicit) noexcept { ActivePalette = Explicit; }
     // BlendPalette lerps every colour slot From → To (smoothstepped T) for live theme transitions.
     static void BlendPalette(const ControlKitPalette& From, const ControlKitPalette& To, float T) noexcept;

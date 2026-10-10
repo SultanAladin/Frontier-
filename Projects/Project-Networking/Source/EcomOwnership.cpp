@@ -2,7 +2,7 @@
 //                                                           ECOMOWNERSHIP.CPP
 //============================================================================================================================================
 // 📦 Dormant catalog-ownership token query. No catalog IDs means no SDK call (Dormant). With IDs,
-// EOS_Ecom_QueryOwnershipToken runs async; the signed JWT is copied into a bounded buffer while
+// EOS_Ecom_QueryOwnershipToken runs async; the signed JWT is copied into a bounded store while
 // the callback runs. The token is handed to Photon only and never reaches diagnostics.
 
 #include "EcomOwnership.h"
@@ -36,9 +36,9 @@ void Emit(const char* Text) noexcept
         Reception(Text);
 }
 
-void EOS_CALL ReceiveOwnershipToken(const EOS_Ecom_QueryOwnershipTokenCallbackInfo* Completion)
+void EOS_CALL ReceiveOwnershipToken(const EOS_Ecom_QueryOwnershipTokenCallbackDetails* Completion)
 {
-    if (!Completion || Completion->ClientData != reinterpret_cast<void*>(Generation))
+    if (!Completion || Completion->ClientPayload != reinterpret_cast<void*>(Generation))
         return; // Stale completion from a previous generation; ignore.
     if (Phase != OwnershipState::Querying)
         return;
@@ -81,8 +81,8 @@ bool StartOwnershipQuery(const char* const* ItemIds, unsigned Count, DiagnosticR
         Emit(Reading);
         return true;
     }
-    auto* Platform = static_cast<EOS_HPlatform>(InspectEpicPlatformHandle());
-    auto Account = static_cast<EOS_EpicAccountId>(InspectEpicAccountHandle());
+    auto* Platform = static_cast<EOS_HPlatform>(InspectEpicPlatformIdentifier());
+    auto Account = static_cast<EOS_EpicAccountId>(InspectEpicAccountIdentifier());
     if (!Platform || !Account)
     {
         Phase = OwnershipState::Failed;

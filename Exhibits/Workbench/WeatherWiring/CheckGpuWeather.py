@@ -29,5 +29,5 @@ assert 'offsetof(Frontier::PostConstantRecord, Weather)' in host
 assert 'FinalDispatch.AccumulationIndex = Integrator.QueryAccumulationIndex()' in host
 host=(R/'Engine/DeviceExchange/SwapchainExchange.cpp').read_text()
 assert 'kPostRecordBytes = 544u' in host and 'PostPending.data()+492u' in host
-assert 'vkCmdUpdateBuffer(Command,Vulkan->PostBuffer' in host and '!Vulkan->PostWeatherActive' in host
+assert 'vkCmdUpdateBuffer(Command,Vulkan->PostStore' in host and '!Vulkan->PostWeatherActive' in host
 print('PASS weather ABI / post-history composition / depth / GI-off routing / queued upload guards')

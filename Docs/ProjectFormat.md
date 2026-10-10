@@ -29,10 +29,10 @@ That is a good *interchange* discipline and a poor *project* format:
 | | today | consequence |
 |---|---|---|
 | container | glTF text + JSON | a full parse before the first pixel; ~4× the bytes of the records it means |
-| scene graph | nodes/meshes/primitives | the resident records (`InstanceRecord`, `VertexRecord`) are rebuilt every run |
-| duplicates | one node per copy | twelve copies of a sphere are twelve vertex buffers in the file |
+| scene graph | nodes/geometries/primitives | the resident records (`InstanceRecord`, `VertexRecord`) are rebuilt every run |
+| duplicates | one node per copy | twelve copies of a sphere are twelve vertex stores in the file |
 | materials | glTF PBR + `extras.slate_*` | 58 floats × N re-derived through a codec on every load |
-| UVs, paint, terrain | no carrier at all | they exist as code, not as data |
+| UVs, paint, terrain | no carrier at all | they exist as code, not as record |
 | session state | none | there is no editor context, no crash recovery, no save |
 | fonts/audio/engine content | paths resolved ad hoc | `FontCodec::ScanEngineAndGameContent` is the only place the content-root convention is real |
 | identity | file path | nothing in the file says "this is Project-Zero, revision 7, built by this exporter" |
@@ -54,21 +54,21 @@ what the file *is*. A `.geometry` is a container whose required table is `MESH`;
 | `.geometry` | **Geometry** | vertices, indices, normals, tangents, bounds, LOD/cluster ranges | modelling / import | yes |
 | `.uvspace` | **UV Space** | UV islands, seams, packing, texel density, the mapping a paint layer is authored against | UV editor | yes |
 | `.material` | **Material** | **one self-contained material**: its parameters (the `MaterialRecord` + 288 B slab graph) *and* its textures — either embedded blobs or references to `.pigment`/image files. An object uses it by copying it in or referencing it (§4.2) | material editor | yes |
-| `.pigment` | **Pigment** | a texture-paint document: layers, strokes, channels, resolution, brush refs; bakes into the `.material` that uses it | paint editor | yes |
+| `.pigment` | **Pigment** | a texture-paint document: layers, strokes, channels, resolution, brush refs; precomputes into the `.material` that uses it | paint editor | yes |
 | `.instance` | **Instance** | one placed object: transform + a `.geometry` + exactly one `.material`, copied or referenced (§4.2) | editor | yes |
-| `.environment` | **Environment** | world staging: sun hour, fog scenario, atmosphere/moon/star settings, terrain heightfield and its material refs, the baked sky probe | terrain / sky editor | yes |
+| `.environment` | **Environment** | world staging: sun hour, fog scenario, atmosphere/moon/star settings, terrain heightfield and its material refs, the precomputed sky probe | terrain / sky editor | yes |
 | `.script` | **Script** | code automation, one source or a small module | user | yes |
-| `.workflow` | **Workflow** | an automation graph: import → bake → validate → package, its steps referencing `.script`s | user / engine | yes |
+| `.workflow` | **Workflow** | an automation graph: import → precompute → validate → package, its steps referencing `.script`s | user / engine | yes |
 | `.archive` | **Archive** | a shipping pack: content-addressed blobs with the directory at the end (streamable) | packager | build artifact |
 | `.runtime` | **Runtime** | the *resolved* launch configuration: level, tier, feature flags, backend, resolved content roots | the host, at launch | generated |
-| `.state` | **State** | **one** file for the whole state family, told apart by a `domain` field inside `STAT`: `session` (where was I), `work` (unsaved buffers, crash recovery), `save` (a resumable world), `capture` (a read-only snapshot for comparison). **Deferred — see §11** | editor / game / harness | varies by domain |
+| `.state` | **State** | **one** file for the whole state family, told apart by a `domain` field inside `STAT`: `session` (where was I), `work` (unsaved stores, crash recovery), `save` (a resumable world), `capture` (a read-only snapshot for comparison). **Deferred — see §11** | editor / game / harness | varies by domain |
 
 Four notes on the naming, because three pairs were close enough to collide:
 
 - **`.environment` is the world, not the config** (settled). The list offered `.environment` for dev/runtime
   configuration *and* `.enviromnt` for the terrain editor — one word, two jobs. In an engine "environment" is the
   world (sky, atmosphere, moons, terrain), and runtime configuration already has `.runtime`; so `.environment` is the
-  terrain/sky file, which is also where the baked sky probe from the deferred environment-lighting plan lives. The
+  terrain/sky file, which is also where the precomputed sky probe from the deferred environment-lighting plan lives. The
   config sense is `.runtime`, and nothing else.
 - **The state family is one file type, `.state`.** It was four (`.context`, `.workstate`, `.state`, `.snapshot`) because
   four lifetimes were distinguishable — *where was I*, *unsaved work*, *resume the world*, *a read-only capture* —
@@ -115,7 +115,7 @@ Rules that fall out of the layout, and that the gate checks:
 - **The payloads are the resident records, not a description of them.** `VertexRecord` 64 B, `InstanceRecord` 160 B,
   `MaterialRecord` 64 B + `MaterialSlabRecord` 288 B, `TriangleIndex` 64 B, `CameraRecord`, `PlacementRecord`,
   `PunctualLuminaireRecord` (all sized and static-asserted in `SceneStructure.h` / `MaterialIndex.h` /
-  `SwapchainExchange.h`). Loading is a bounds check and a `memcpy` into the buffers `SceneStructure` already owns —
+  `SwapchainExchange.h`). Loading is a bounds check and a `memcpy` into the stores `SceneStructure` already owns —
   no JSON, no per-run rebuild, a bit-identical resident scene by construction.
 
 ### 3.1 Tables
@@ -124,16 +124,16 @@ Rules that fall out of the layout, and that the gate checks:
 |---|---|---|
 | `TYPE` | four-byte type tag + schema revision (what this file *is*) | every file |
 | `META` | name, exporter + revision, build config, source list, pack/embed policy | every file |
-| `MESH` | unique vertex/index buffers (`VertexRecord` + indices) | `.geometry` |
+| `MESH` | unique vertex/index stores (`VertexRecord` + indices) | `.geometry` |
 | `CLST` | cluster/LOD ranges (`ClusterRecord`) | `.geometry` |
 | `UVSP` | UV islands: per-island vertex ranges, seams, texel density | `.uvspace` |
 | `MATL` | `MaterialRecord` + 288 B slab graph — the material's parameters | `.material` |
 | `PIGM` | paint layers, strokes, channels, resolution | `.pigment` |
-| `INST` | `InstanceRecord` rows (transform + mesh/material slot) | `.instance`, `.projectspace` |
+| `INST` | `InstanceRecord` rows (transform + topology/material slot) | `.instance`, `.projectspace` |
 | `SCEN` | level table: names, instance ranges, node hierarchy (`PlacementRecord`), default camera | `.projectspace` |
 | `CAMA` | `CameraRecord` rows | `.projectspace` |
 | `LITE` | `PunctualLuminaireRecord` rows + the luminaire alias table | `.projectspace` |
-| `ENVR` | world staging + terrain + the baked sky probe reference | `.environment` |
+| `ENVR` | world staging + terrain + the precomputed sky probe reference | `.environment` |
 | `MSLT` | material slots: the `MaterialSlot` rows an `INST` table or a `.projectspace` names (§4.2) | `.instance`, `.projectspace` |
 | `FLOW` | workflow steps (step type, operands, refs) | `.workflow` |
 | `STAT` | the state family's one payload: `{domain, revision, payload}` with domain = session · work · save · capture | `.state` |
@@ -144,7 +144,7 @@ Rules that fall out of the layout, and that the gate checks:
 
 ### 3.2 One file per project, not per level
 
-`Project-Zero.projectspace` holds every Project-Zero level as a `SCEN` row over one shared asset pool — which is also
+`Project-Zero.projectspace` holds every Project-Zero level as a `SCEN` row over one shared asset slots — which is also
 where the dedup becomes visible: Showroom and Showcase draw the same chrome sphere, so there is one `MESH` payload,
 one chrome material payload (named by both rows, referenced or copied — same bytes either way), and one `INST` row
 per placed copy. Per-level files would duplicate exactly the content the owner asked to deduplicate; the directory
@@ -198,12 +198,12 @@ simpler than what this document had before (a base plus a per-object override li
     ├─ TYPE  material · META  name, revisions
     ├─ MATL  the parameters: MaterialRecord + 288 B slab graph — the 58 floats, the lobes, the IOR, the coat
     ├─ TEXR  the texture slots that point at its maps (base colour, roughness, normal, …)
-    ├─ BLOB[] the maps themselves — a `.pigment` bake, an imported image, an engine texture copied in
+    ├─ BLOB[] the maps themselves — a `.pigment` precompute, an imported image, an engine texture copied in
     └─ REFS  …or references instead of blobs: EngineContent/Textures/…, Assets/Checkers.pigment
 
 So a material file is self-contained exactly the way a font file is: parameters and pixels in one place, no sidecar
 required, and every part of it can be embedded or referenced independently (§5). A material with constants only (all
-of M10 today) is just `MATL` and no blobs; a painted one carries its baked maps.
+of M10 today) is just `MATL` and no blobs; a painted one carries its precomputed maps.
 
 **The object names one material, and the slot says how it got it:**
 
@@ -365,7 +365,7 @@ Shipped as: P1 `SpaceFormat.h`/`SpaceCodec.{h,cpp}` · P2 `SpaceExport.{h,cpp}` 
 1. **Layout revision.** The records are GPU-facing and have moved every milestone (R4a widened `MaterialRecord`).
    Store the revision in `TYPE`/`META` and refuse a mismatch, or write up-conversion steps? Plan assumes refuse, with
    the message naming both revisions.
-2. **Compression.** v1 stores payloads raw so a container can be memory-mapped. If size becomes a problem, a
+2. **Compression.** v1 stores payloads raw so a container can be storage-mapped. If size becomes a problem, a
    per-table flag (`ZSTD`) copies WOFF's per-table compression — the directory already carries the lengths it needs,
    so no format change.
 3. **One `.projectspace` per project, or one per level?** Plan assumes one per project (§3.2); a very large project
@@ -390,9 +390,9 @@ Shipped as: P1 `SpaceFormat.h`/`SpaceCodec.{h,cpp}` · P2 `SpaceExport.{h,cpp}` 
    when the engine does.
 6. **Terrain in `.environment` or its own file type?** Plan assumes `.environment` holds the heightfield reference
    plus the sky staging, with the heightfield itself a `MESH`-shaped blob — a separate `.terrain` file is easy later.
-7. **Paint bake timing.** `.pigment` is the editable source and the `.material` carries the baked maps; the question
-   is whether the bake runs on save (a material is always renderable) or at pack time (iterate fast, bake once).
-   Plan assumes save, with the bake's input hash recorded so a stale bake is detectable; either way the GPU never
+7. **Paint precompute timing.** `.pigment` is the editable source and the `.material` carries the precomputed maps; the question
+   is whether the precompute runs on save (a material is always renderable) or at pack time (iterate fast, precompute once).
+   Plan assumes save, with the precompute's input hash recorded so a stale precompute is detectable; either way the GPU never
    reads a stroke list.
 8. **Where does an *object's* material live when the object is a file?** Plan puts the `MaterialSlot` on the
    instance row (§4.1), so one `.geometry` can be instantiated twice with two different materials. A `.instance`
@@ -404,9 +404,9 @@ Shipped as: P1 `SpaceFormat.h`/`SpaceCodec.{h,cpp}` · P2 `SpaceExport.{h,cpp}` 
    owner's call. The container already carries it (`STAT`); what is deferred is the payload format for each domain,
    the autosave cadence, and which domains are ever embedded. Nothing else in the plan depends on it, which is why
    P5 ships `.runtime` alone.
-2. **Environment lighting — bake the sky, and let the sky be a light.** The measured answer to *"does the ray tracer
+2. **Environment lighting — precompute the sky, and let the sky be a light.** The measured answer to *"does the ray tracer
    / ReSTIR sample the sun, sky, moon?"* lives in `Exhibits/Workbench/Materials/MaterialProofsReport.md` §13.12
-   rather than here, together with the two-stage plan (bake a mipmapped probe per staging into the project's
+   rather than here, together with the two-stage plan (precompute a mipmapped probe per staging into the project's
    `.environment`; then add a sky candidate to the reservoir so sky direct lighting reuses). One number from it is
    worth repeating because it is what makes the deferral safe: an escaped ray currently costs **6.5–7.0 µs** on this
    CPU against ~12 µs for a whole path sample, so the cost is real but bounded — this is a performance and variance
@@ -440,7 +440,7 @@ Shipped as: P1 `SpaceFormat.h`/`SpaceCodec.{h,cpp}` · P2 `SpaceExport.{h,cpp}` 
 
 * claims 1–8 of §8 (12 verdicts in the proof, 6 PASS / 2 SKIP of them the two GPU halves);
 * the command line (P4): export the M10 level, `-Verify` every vertex/index/cluster and all 49 materials against the
-  level builder by `memcmp`, `-Info` the container, `-Pack` it and resolve every reference with the content directory
+  level builder by `memcmp`, `-Facts` the container, `-Pack` it and resolve every reference with the content directory
   deleted, `-Explode` it back;
 * the shell-level round trips: two exports byte-identical, `Pack(Explode(X)) == X` at 13 052 252 B, and the whole family
   present in one export (project, runtime, environment, uvspace, workflow, archive, geometry, materials);

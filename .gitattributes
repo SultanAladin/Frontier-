@@ -5,7 +5,7 @@ EngineContent/Icons/*.svg text eol=lf
 EngineContent/Icons/ThorVG/*.svg text eol=lf
 Experimental/FrontierEditor/custom-icons/*.svg text eol=lf
 Experimental/FrontierEditor/ui-icons/*.svg text eol=lf
-EngineContent/Icons/Baked/*.rgba binary
+EngineContent/Icons/Precomputed/*.rgba binary
 # Preserve the reviewed upstream snapshot byte-for-byte, including its whitespace.
 Experimental/FrontierEditor/vendor/slate-new-icons/App.tsx -whitespace
 

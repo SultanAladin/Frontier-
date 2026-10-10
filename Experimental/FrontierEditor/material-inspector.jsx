@@ -6,7 +6,7 @@ export function MaterialSphere({material}){
  const canvas=useRef(null);
  useEffect(()=>{
   const c=canvas.current,ctx=c.getContext('2d');if(!ctx)return;
-  const n=c.width,img=ctx.createImageData(n,n),data=img.data;
+  const n=c.width,img=ctx.createImageData(n,n),record=img.record;
   const p=(key,fallback)=>material[key]?.enabled?material[key].value:fallback;
   const base=rgb(p('baseColor','#b6b6b6')),metal=p('metallic',0),rough=p('roughness',.5),normal=p('normal',0),height=p('height',0),ao=p('ao',0),opacity=p('opacity',1),trans=p('transmission',0),ior=p('ior',1.5),spec=p('specular',.5),coat=p('coat',0),coatR=p('coatRoughness',.1),sheen=p('sheen',0),anis=p('anisotropy',0),angle=p('anisotropyRotation',0)*Math.PI/180,sss=p('subsurface',0),thick=p('thickness',.5),iri=p('iridescence',0),film=p('iridescenceThickness',400);
   const tint=rgb(p('specularTint','#ffffff')),sheenColor=rgb(p('sheenTint','#ffffff')),scatter=rgb(p('subsurfaceColor','#e9ac90')),emission=rgb(p('emission','#000000')),gain=p('emissionStrength',1);
@@ -33,7 +33,7 @@ export function MaterialSphere({material}){
      return bg[k]+(lit-bg[k])*opacity;
     });
    } else {const shadow=Math.exp(-((nx/.88)**2+( (ny+1.09)/.13)**2))* .05;color=bg.map(v=>v-shadow)}
-   color.forEach((v,k)=>data[i+k]=Math.round(Math.min(1,Math.max(0,v))*255));data[i+3]=255;
+   color.forEach((v,k)=>record[i+k]=Math.round(Math.min(1,Math.max(0,v))*255));record[i+3]=255;
   }
   ctx.putImageData(img,0,0);
  },[material]);

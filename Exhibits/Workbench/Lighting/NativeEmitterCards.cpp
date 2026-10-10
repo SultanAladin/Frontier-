@@ -26,7 +26,7 @@ namespace
 unsigned Checks = 0;
 
 // LightPanel.js prepends LightIcons[Style] into every card header. The editor rasterises that SVG through
-//    IconArt; the harness reads the same artwork pre-baked by BakeLightGlyphs.mjs.
+//    IconArt; the harness reads the same artwork pre-precomputed by PrecomputeLightGlyphs.mjs.
 constexpr int kGlyphEdge = 50;
 std::vector<unsigned char> gGlyph;
 unsigned char gGlyphToken = 0;
@@ -55,14 +55,14 @@ bool AdoptGlyph(IconSymbol Symbol)
         return false;
     }
     const std::string Path = std::string("Exhibits/Workbench/Lighting/Glyphs/") + Name + ".rgba";
-    std::FILE* Handle = std::fopen(Path.c_str(), "rb");
-    if (!Handle)
+    std::FILE* Tag = std::fopen(Path.c_str(), "rb");
+    if (!Tag)
     {
         return false;
     }
     gGlyph.assign(size_t(kGlyphEdge) * kGlyphEdge * 4, 0);
-    const size_t Read = std::fread(gGlyph.data(), 1, gGlyph.size(), Handle);
-    std::fclose(Handle);
+    const size_t Read = std::fread(gGlyph.data(), 1, gGlyph.size(), Tag);
+    std::fclose(Tag);
     return Read == gGlyph.size();
 }
 

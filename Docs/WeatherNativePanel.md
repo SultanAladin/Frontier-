@@ -21,7 +21,7 @@ The existing `WindField` is already consumed by volumetric advection and precipi
 
 ### Precipitation under Clouds
 
-The backend has five actual types: Rain, Drizzle, Hail, Snow and Sleet. Rain, Snow and Hail lead the native type tiles; Drizzle and Sleet remain accessible rather than being dropped from authored data.
+The backend has five actual types: Rain, Drizzle, Hail, Snow and Sleet. Rain, Snow and Hail lead the native type tiles; Drizzle and Sleet remain accessible rather than being dropped from authored record.
 
 - Enabled, Follow Wind, Spawn from Clouds and Ground Collision use independent native tiles.
 - Rate (mm/h), density, particle size, wind drift and accumulation bind to the existing simulation.
@@ -34,7 +34,7 @@ Audit limitation: the CPU simulation is exercised here, but a scene-viewport par
 
 ### Rainbow
 
-The target already has `AtmosphericOptics::Rainbow`, GPU `RainbowAlong`, and the `PostBow`/`PostBow2` constant-record bindings. There is **no Rainbow-specific bake or image-playback path**. Top Bake and Use baked image tiles are disabled and explained, not simulated.
+The target already has `AtmosphericOptics::Rainbow`, GPU `RainbowAlong`, and the `PostBow`/`PostBow2` constant-record bindings. There is **no Rainbow-specific precompute or image-playback path**. Top Precompute and Use precomputed image tiles are disabled and explained, not simulated.
 
 - Enabled, intensity, width, secondary strength, Alexander's Band and minimum rain path are bound to real settings. Minimum Path was previously authored but not exposed by the generic sheet.
 - Preview evaluates the actual 14-wavelength CPU optical kernel: sun 10° above the horizon behind the viewer, rain visibility 1, rain path 500 m. The fixed angular projection clips below-horizon rays, applies the kernel's Alexander background attenuation, then display-encodes the RGB values.
@@ -42,7 +42,7 @@ The target already has `AtmosphericOptics::Rainbow`, GPU `RainbowAlong`, and the
 - Rain feeds full visibility at 10 mm/h; drizzle reaches half visibility at 10 mm/h. Snow, hail and sleet feed zero: this kernel models liquid-water bows, not ice halos.
 - Intensity/width/secondary/path/switch changes invalidate a 768×448 RGBA texture. The cache is per ImGui context, heap allocated, registered with the existing native texture API and unregistered/deleted at shutdown. No 1.3 MiB pixel array sits on the stack, and unchanged inputs do not regenerate optical pixels.
 
-The main CPU scene raster does not gain a Rainbow post pass in this change. CPU optical preview and GPU constant-record staging are verified; shader compilation is not device execution. The diagnostic's explicit background attenuation is not a claim that every GPU background path reproduces that diagnostic composite.
+The main CPU scene raster does not gain a Rainbow post pass in this change. CPU optical preview and GPU constant-record staging are verified; shader compilation is not device execution. The diagnostic's explicit background attenuation is not a claim that every GPU background path reproduces that diagnostic combined.
 
 ## Integration and correctness fixes
 
@@ -83,7 +83,7 @@ python3 Exhibits/Workbench/Weather/ServeNativePanel.py
 | Shader regression | 18/18 compile to SPIR-V |
 | Source/capture manifests | 15 Moon/Stars/Clouds/Fog/Weather manifests match |
 
-Checks include real particle-pool state for all five types, finite falling trajectories, size scaling, drift, bounded pool, cloud rejection, orbit rejection, accumulation, global/visibility gates, wind model and CPU staging, spectral radiance and path gates, Rainbow ABI fields, hierarchy, scalar bounds/round trips, native pointer/keyboard controls, optical texture stability/invalidation, disabled bake, narrow scrolling, 2× capture and context teardown. The check count includes per-particle invariants; it is not 1,684 distinct test cases.
+Checks include real particle-slots state for all five types, finite falling trajectories, size scaling, drift, bounded slots, cloud rejection, orbit rejection, accumulation, global/visibility gates, wind model and CPU staging, spectral radiance and path gates, Rainbow ABI fields, hierarchy, scalar bounds/round trips, native pointer/keyboard controls, optical texture stability/invalidation, disabled precompute, narrow scrolling, 2× capture and context teardown. The check count includes per-particle invariants; it is not 1,684 distinct test cases.
 
 ### Measured stack
 

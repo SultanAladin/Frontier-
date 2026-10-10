@@ -16,12 +16,12 @@ static unsigned Checks=0;static void Check(bool V,const char* N){++Checks;if(!V)
 static EditorProperty& Find(EditorSheet& S,const char* N){for(auto& G:S.Groups)for(unsigned I=0;I<G.PropertyCount;++I)if(!std::strcmp(G.Properties[I].Label,N))return G.Properties[I];throw std::runtime_error(N);}
 static ImGuiWindow* Window(const char* N){for(auto* W:ImGui::GetCurrentContext()->Windows)if(W->Active&&std::strstr(W->Name,N))return W;throw std::runtime_error(N);}
 static void RasterPixels(){
- auto Level=std::make_unique<SceneStructure>();GeometryStructure Mesh;VertexRecord Vertices[4]{};
+ auto Level=std::make_unique<SceneStructure>();GeometryStructure Hull;VertexRecord Vertices[4]{};
  const float Positions[4][3]={{-200,100,-200},{200,100,-200},{200,100,200},{-200,100,200}};
  for(int I=0;I<4;++I){Vertices[I].SpatialLocation={Positions[I][0],Positions[I][1],Positions[I][2]};Vertices[I].NormalDirection={0,-1,0};}
- const uint32_t Indices[]={0,1,2,0,2,3};Mesh.AppendVertices(Vertices,4);Mesh.AppendIndices(Indices,6);
+ const uint32_t Indices[]={0,1,2,0,2,3};Hull.AppendVertices(Vertices,4);Hull.AppendIndices(Indices,6);
  MaterialDescriptor Material;Material.Slabs.emplace_back();Material.Slabs[0].EmissionLuminance=1;Material.Slabs[0].BaseWeight=0;Material.Slabs[0].SpecularWeight=0;
- Level->RegisterInstance(Mesh,Matrix4x4::Identity(),Level->RegisterMaterial(Material),0);Level->Finalise();
+ Level->RegisterInstance(Hull,Matrix4x4::Identity(),Level->RegisterMaterial(Material),0);Level->Finalise();
  auto Raster=std::make_unique<VisibilityRaster>();auto C=std::make_unique<VisibilityRaster::CelestialSettings>();C->Enabled=true;C->Light.Intensity=0;
  const float Eye[]={0,0,2},Forward[]={0,1,0},Right[]={1,0,0},Up[]={0,0,1};unsigned char Pixels[8*8*4];double Lum=0;
  auto Render=[&](){Raster->AssignCelestial(*C);Check(Raster->Render(*Level,Eye,Forward,Right,Up,1,8,8,Pixels,Lum),"real CPU raster fixture renders");return Lum;};

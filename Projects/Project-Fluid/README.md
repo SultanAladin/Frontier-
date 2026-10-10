@@ -1,6 +1,6 @@
-> **CPU pass 2:** [parallel optimization and measured pipeline](../../Docs/FluidCpuPass2.md). Two-thread pipeline median: 18.67 ms over the timed fixture; GPU extraction remains outstanding. Foam/splash are queued afterward.
+> **CPU pass 2:** [parallel optimization and measured chain](../../Docs/FluidCpuPass2.md). Two-thread chain median: 18.67 ms over the timed fixture; GPU extraction remains outstanding. Foam/splash are queued afterward.
 
-> **CPU performance update:** see [measured optimization results](../../Docs/FluidOptimization.md). The optimized CPU path and exhaustive reference tests are included; GPU mesh extraction is not yet implemented.
+> **CPU performance update:** see [measured optimization results](../../Docs/FluidOptimization.md). The optimized CPU path and exhaustive reference tests are included; GPU topology extraction is not yet implemented.
 
 > **Consolidated Frontier integration (2026-09-25):** see [Water integration and review](../../Docs/WaterIntegration.md) for current build commands, the Project-Zero snapshot bridge, measured performance and limitations. The original project documentation follows. Vulkan is now opt-in rather than auto-enabled.
 
@@ -26,15 +26,15 @@ It is an additional broad-water 2.5D solver and does not replace Flux.
 - shared CPU/Vulkan Yu–Turk weighted covariance/PCA kernels with smoothed
   centers and bounded, volume-normalized principal axes
 - authoritative CPU summed anisotropic field on dirty 8³-cell bricks
-- indexed, watertight Marching Cubes mesh with gradient normals, mild Taubin
+- indexed, watertight Marching Cubes topology with gradient normals, mild Taubin
   smoothing, exact global volume restoration, and OBJ export
 - Vulkan front-depth/thickness projection remains the interactive fallback until
-  the extracted mesh is connected to the planned Vulkan RT BLAS/TLAS path
+  the extracted topology is connected to the planned Vulkan RT BLAS/TLAS path
 - Frontier `.slang` shader sources lowered to Vulkan SPIR-V
 - source optical presets: base colour, absorption, opacity, roughness and IOR
 - continuous refraction, Beer–Lambert attenuation, Fresnel and rough highlights
 - native CPU mirror of the same depth/thickness reconstruction, scene and optics
-- particle points are simulation data only; they are not the default presentation
+- particle points are simulation record only; they are not the default presentation
 
 ### Ripple pond mode
 
@@ -43,7 +43,7 @@ It is an additional broad-water 2.5D solver and does not replace Flux.
 - CFL-limited velocity-Verlet integration and adaptive grid refinement
 - bounded floating-body substeps, slope drift, buoyancy and finite bow/stern wakes
 - five optical presets: clean, ocean, swamp, puddle and dirty
-- deterministic perspective CPU proof drawn from the actual adaptive height mesh
+- deterministic perspective CPU proof drawn from the actual adaptive height topology
 
 The pond and Flux solve different models. Ripple represents one-valued surface
 height and cannot overturn; Flux remains the mode for pouring, splashing and 3D
@@ -104,9 +104,9 @@ empty geometry, invalid indices, open/non-manifold edges, or a dirty-cache miss.
   a native execution frame with visible bounds and sphere interaction.
 - [`RESEARCH.md`](RESEARCH.md) records provenance, equations, sources, and adaptation limits.
 - [`PAPER_FIDELITY.md`](PAPER_FIDELITY.md) is the acceptance checklist for the
-  strict sampled-boundary, PCG, Yu–Turk mesh, dynamic-rigid, and Vulkan RT path;
+  strict sampled-boundary, PCG, Yu–Turk topology, dynamic-rigid, and Vulkan RT path;
   unchecked items are explicitly not claimed as implemented.
 
-## GPU fluid tests and startup memory logs
+## GPU fluid tests and startup storage logs
 
 Project-Zero now has `--fluid-preview`, `--fluid-gpu-test` and `--fluid-cpu-test` modes. The GPU extraction implementation has a tested CPU mirror; hardware execution remains unverified. [Build/run instructions, scope, logging and RAM investigation](../../Docs/FluidGpuTesting.md).

@@ -1,7 +1,7 @@
 //============================================================================================================================================
 //                                                       DEPLOYMENTPOINT.H
 //============================================================================================================================================
-// 📦 Project-owned deployment actors transfer player data and a requested pose to a successful spawn.
+// 📦 Project-owned deployment actors transfer player record and a requested pose to a successful spawn.
 
 #pragma once
 #include <array>
@@ -20,7 +20,7 @@ struct DeploymentPlayerRecord
     uint64_t                           Identifier = 1u;
     uint32_t                           Team = 0u;
     std::string                        DisplayName = "Player 1";
-    std::map<std::string, std::string>  Properties; // [-] project data, not authentication credentials
+    std::map<std::string, std::string>  Properties; // [-] project record, not authentication credentials
 };
 
 struct DeploymentPoint
@@ -42,7 +42,7 @@ struct DeploymentReading
 };
 
 /// 📦 Simulation-thread ownership of deployment actors, independent of vehicle/character construction.
-/// err   failed, disabled or reentrant spawns never consume the actor or its player data
+/// err   failed, disabled or reentrant spawns never consume the actor or its player record
 class DeploymentSequence
 {
 public:

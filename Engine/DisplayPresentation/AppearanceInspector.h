@@ -40,7 +40,7 @@ struct AppearanceSettings
     AccentCategory           Accent          = AccentCategory::Blue;
     uint32_t                 WarningSwatch   = 0u;       // index into the 4-swatch rows below
     uint32_t                 SuccessSwatch   = 1u;
-    uint32_t                 InfoSwatch      = 0u;
+    uint32_t                 DetailsSwatch      = 0u;
     uint32_t                 CautionSwatch   = 0u;
 
     // ── Fonts ─────────────────────────────────────────────────────────────────────────────────────────────────────
@@ -99,7 +99,7 @@ public:
     // Palette / preview helpers shared with the host (the draft theme previews live).
     [[nodiscard]] static const char* QueryThemeName(ThemeCategory Theme) noexcept;
     [[nodiscard]] static ColorQuad  QueryAccentColour(AccentCategory Accent) noexcept;
-    [[nodiscard]] static ColorQuad  QuerySemanticColour(uint32_t Row, uint32_t Swatch) noexcept;   // rows: 0 warning 1 success 2 info 3 caution
+    [[nodiscard]] static ColorQuad  QuerySemanticColour(uint32_t Row, uint32_t Swatch) noexcept;   // rows: 0 warning 1 success 2 facts 3 caution
 
     // Layout figures
     static constexpr float SectionGap    = 32.0f;   // space-y-8

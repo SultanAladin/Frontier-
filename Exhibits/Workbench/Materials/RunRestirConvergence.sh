@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # CPU ReSTIR — the FIX-EVIDENCE sheet: what the two reuse paths were doing before, and what they do now.
 #
-#    The standard sheet (RunRestirViewport.sh) shows the product pipeline. This one shows the two convergence
+#    The standard sheet (RunRestirViewport.sh) shows the product chain. This one shows the two convergence
 #    paths the sheet cannot: every panel is the SAME renderer at the SAME budget, one switch apart, and each cell
 #    carries its error against ①. Read it left to right, top to bottom:
 #
@@ -15,7 +15,7 @@
 #                                                PRE-merge count. Now more taps is strictly better.
 #      ⑥ ④ with --restir-no-history-split (the fix's own A/B: history := post-spatial, the old loop)
 #      ⑦ ④ with --restir-no-gi-reuse (the indirect half's single-sample arm)
-#      ⑧ ④                                  (the indirect half's pool: ReSTIR GI-style reuse of the first-bounce
+#      ⑧ ④                                  (the indirect half's slots: ReSTIR GI-style reuse of the first-bounce
 #                                            vertex's NEE stratum, temporally and over the same taps)
 #
 #    ⑨ THE FLOOR (roadmap #7). Every panel above is compared against ① on the SAME seed stream, which is deliberate —
@@ -79,14 +79,14 @@ Render taps4     "--spp $Spp --frames $Frames --restir --taps 4" \
 Render splitoff  "--spp $Spp --frames $Frames --restir --taps $Taps --restir-no-history-split" \
        "⑥ the history split OFF (spatial feeds temporal — the old loop)"
 Render gioff     "--spp $Spp --frames $Frames --restir --taps $Taps --restir-no-gi-reuse" \
-       "⑦ the indirect half's single-sample arm (no pool)"
+       "⑦ the indirect half's single-sample arm (no slots)"
 Render gion      "--spp $Spp --frames $Frames --restir --taps $Taps" \
-       "⑧ the indirect half's pool (ReSTIR GI-style reuse on)"
+       "⑧ the indirect half's slots (ReSTIR GI-style reuse on)"
 # ⑨ the floor: the two arms that carry the headline claim, re-rendered on a stream independent of ①'s.
 Render plainind  "--spp $Spp --frames $Frames --seed-stream 1" \
        "⑨② the plain arm on an INDEPENDENT stream — the floor, not the shared lower bound"
 Render taps2ind  "--spp $Spp --frames $Frames --restir --taps $Taps --seed-stream 1" \
-       "⑨④ the Standard arm on an INDEPENDENT stream — the same, for the product pipeline"
+       "⑨④ the Standard arm on an INDEPENDENT stream — the same, for the product chain"
 
 echo "[RestirConvergence] error against ① (display space, RMSE / normalised):"
 for panel in plain taps0 taps2 taps4 splitoff gioff gion; do
@@ -116,7 +116,7 @@ montage -label "① reference — brute force ${Reference} spp" "$Work/reference
         -label "⑤ ReSTIR — 4 taps" "$Work/taps4.png" \
         -label '⑥ history split OFF (the old loop)' "$Work/splitoff.png" \
         -label '⑦ indirect, single-sample arm' "$Work/gioff.png" \
-        -label '⑧ indirect pool on (GI reuse)' "$Work/gion.png" \
+        -label '⑧ indirect slots on (GI reuse)' "$Work/gion.png" \
         -tile 4x2 -geometry +6+6 -background '#141414' -fill '#e8e8e8' -font DejaVu-Sans -pointsize 15 \
         "$Sheet"
 echo "[RestirConvergence] wrote $Sheet"

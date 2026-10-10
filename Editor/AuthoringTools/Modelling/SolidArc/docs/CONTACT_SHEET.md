@@ -33,11 +33,11 @@ The `Phase10_ContactSheet.arc` script:
 1. Sets a 1280×1600 target on the `SoftwareRaster`.
 2. Resets the document, sets the view, renders one tile.
 3. `Resize` to the next tile, re-fit, render again.
-4. After all four, `WritePng` a hand-rolled 2×2 composite out of the four
-   readback buffers.
+4. After all four, `WritePng` a hand-rolled 2×2 combined out of the four
+   readback stores.
 
-The composite is hand-rolled (not a stb_image_copy) so the tool has no
-external dependency. The composite copy is in
+The combined is hand-rolled (not a stb_image_copy) so the tool has no
+external dependency. The combined copy is in
 `Console/ConsoleHost.cpp::Cmd_ContactSheet` and uses the existing PNG
 write path.
 

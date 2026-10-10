@@ -120,22 +120,22 @@ struct EditorInstance
 //------------------------------------------------------------------------------------------------------------------------
 //                                                   BASE MESH IDENTITY
 //------------------------------------------------------------------------------------------------------------------------
-// The shipped editor gives each base mesh its own artwork (Editor.jsx InitialRows) and then reads the
+// The shipped editor gives each base topology its own artwork (Editor.jsx InitialRows) and then reads the
 //    primitive back off it — FractureSpecification.js Describe() is literally
-//    `Subject.Icon.replace(/^editor-/, "")`. The engine seated every geometry row as EditorMesh, so the
+//    `Subject.Icon.replace(/^editor-/, "")`. The engine seated every geometry row as EditorGeometry, so the
 //    icon carried no identity and anything that needed one had to guess from the label. These two give a
 //    row the same round trip the browser has.
 
-// The five base meshes the reference opens with, in roster order.
-constexpr IconSymbol kBaseMeshArtwork[] =
+// The five base geometries the reference opens with, in roster order.
+constexpr IconSymbol kBaseGeometryArtwork[] =
 {
     IconSymbol::EditorCube, IconSymbol::EditorSphere, IconSymbol::EditorCylinder,
     IconSymbol::EditorTorus, IconSymbol::EditorCone,
 };
 
-// "editor-cube.svg" -> "cube". Returns nullptr for artwork that is not a base mesh, which is the browser's
+// "editor-cube.svg" -> "cube". Returns nullptr for artwork that is not a base topology, which is the browser's
 //    `undefined` and makes Supported() false exactly as it does there.
-[[nodiscard]] inline const char* BaseMeshPrimitive(IconSymbol Artwork) noexcept
+[[nodiscard]] inline const char* BaseGeometryPrimitive(IconSymbol Artwork) noexcept
 {
     switch (Artwork)
     {
@@ -148,12 +148,12 @@ constexpr IconSymbol kBaseMeshArtwork[] =
     }
 }
 
-[[nodiscard]] inline IconSymbol BaseMeshArtwork(const char* Primitive) noexcept
+[[nodiscard]] inline IconSymbol BaseGeometryArtwork(const char* Primitive) noexcept
 {
     if (Primitive == nullptr) return IconSymbol::Count;
-    for (IconSymbol One : kBaseMeshArtwork)
+    for (IconSymbol One : kBaseGeometryArtwork)
     {
-        const char* Name = BaseMeshPrimitive(One);
+        const char* Name = BaseGeometryPrimitive(One);
         const char* Scan = Primitive;
         while (*Name && *Scan && *Name == *Scan) { ++Name; ++Scan; }
         if (*Name == 0 && *Scan == 0) return One;
@@ -268,13 +268,13 @@ struct EditorPropertyGroup
 //    because the card leads with a transform and a hierarchy and the generic path has no idea about either.
 enum class EditorSheetAppearance : uint8_t { Generic, Sun, LensFlare, AtmosphereSky, Moon, Stars, GlobalCloud, LocalCloud, HeightFog, AerialFog, LocalFog, Wind, Precipitation, Rainbow, Camera, Light, PostProcess, Tyre, TyreTread, TyreLattice, SolidArc, Gas, GasEmitter, ForceFields };
 
-// Borrowed immutable image data; project retains ownership through the editor frame.
+// Borrowed immutable image record; project retains ownership through the editor frame.
 struct EditorSkyImage {
     const uint16_t* Pixels=nullptr;
     uint32_t Width=0, Height=0;
     uint64_t Revision=0;
-    float BakedSunDirection[3]={1,0,0};
-    bool Stale=false, Resident=false, Pending=false, RequestBake=false;
+    float PrecomputedSunDirection[3]={1,0,0};
+    bool Stale=false, Resident=false, Pending=false, RequestPrecompute=false;
 };
 struct EditorMoonBody {
  const uint8_t* Pixels=nullptr;uint32_t Width=0,Height=0;float Tint[3]={1,1,1};float Tilt=0,Haze=0,Gamma=1;

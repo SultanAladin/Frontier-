@@ -1,16 +1,16 @@
 #version 450
-// Three GPU stages share one pipeline. Matches GpuSurfaceData.cpp's CPU mirror.
+// Three GPU stages share one chain. Matches GpuSurfacePayload.cpp's CPU mirror.
 layout(local_size_x=64) in;
 struct Kernel {vec4 centre;vec4 a;vec4 b;vec4 c;};
 struct Vertex {vec4 position;vec4 normal;};
-layout(std430,binding=0) readonly buffer Kernels {Kernel kernels[];};
-layout(std430,binding=1) readonly buffer Offsets {uint offsets[];};
-layout(std430,binding=2) readonly buffer Candidates {uint ids[];};
-layout(std430,binding=3) buffer Field {float field[];};
-layout(std430,binding=4) readonly buffer Lookup {int tri[];};
-layout(std430,binding=5) buffer Vertices {Vertex vertices[];};
-layout(std430,binding=6) buffer Indices {uint indices[];};
-layout(std430,binding=7) buffer Status {uint requested;uint overflow;};
+layout(std430,binding=0) readonly store Kernels {Kernel kernels[];};
+layout(std430,binding=1) readonly store Offsets {uint offsets[];};
+layout(std430,binding=2) readonly store Candidates {uint ids[];};
+layout(std430,binding=3) store Field {float field[];};
+layout(std430,binding=4) readonly store Lookup {int tri[];};
+layout(std430,binding=5) store Vertices {Vertex vertices[];};
+layout(std430,binding=6) store Indices {uint indices[];};
+layout(std430,binding=7) store Status {uint requested;uint overflow;};
 layout(push_constant) uniform Parameters {uvec4 grid;vec4 originSpacing;uvec4 config;vec4 scalar;} p;
 const ivec3 corner[8]=ivec3[](ivec3(0,0,0),ivec3(1,0,0),ivec3(1,1,0),ivec3(0,1,0),ivec3(0,0,1),ivec3(1,0,1),ivec3(1,1,1),ivec3(0,1,1));
 const ivec2 edge[12]=ivec2[](ivec2(0,1),ivec2(1,2),ivec2(2,3),ivec2(3,0),ivec2(4,5),ivec2(5,6),ivec2(6,7),ivec2(7,4),ivec2(0,4),ivec2(1,5),ivec2(2,6),ivec2(3,7));

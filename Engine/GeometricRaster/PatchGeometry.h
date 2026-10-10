@@ -21,7 +21,7 @@ namespace Frontier::PatchGeometry {
 //    ~30x larger error and would keep the old several-hundred-metre switch distance alive, so the version word
 //    (and the directory) move together and every stale entry rebakes.
 constexpr uint32_t kPatchCacheVersion = 2u;
-struct Baked { std::vector<uint32_t> Indices; float Error=0; bool CacheHit=false; };
+struct Precomputed { std::vector<uint32_t> Indices; float Error=0; bool CacheHit=false; };
 inline float Length(Vector3 v){return std::sqrt(v.x*v.x+v.y*v.y+v.z*v.z);}
 inline float Dot(Vector3 a,Vector3 b){return a.x*b.x+a.y*b.y+a.z*b.z;}
 inline Vector3 Cross(Vector3 a,Vector3 b){return {a.y*b.z-a.z*b.y,a.z*b.x-a.x*b.z,a.x*b.y-a.y*b.x};}
@@ -104,8 +104,8 @@ inline float MeasureDeviation(const std::vector<VertexRecord>& v,const std::vect
  return std::isfinite(worst)&&worst>0.f?worst:0.f;
 }
 
-inline Baked Bake(const std::vector<VertexRecord>& v,const std::vector<uint32_t>& fine){
- Baked out{fine};if(fine.empty()||fine.size()>384||fine.size()%3)return out;
+inline Precomputed Precompute(const std::vector<VertexRecord>& v,const std::vector<uint32_t>& fine){
+ Precomputed out{fine};if(fine.empty()||fine.size()>384||fine.size()%3)return out;
  for(auto i:fine)if(i>=v.size())return out;
  using Edge=std::pair<uint32_t,uint32_t>;
  auto edge=[](uint32_t a,uint32_t b){return Edge{std::min(a,b),std::max(a,b)};};
@@ -156,8 +156,8 @@ inline Baked Bake(const std::vector<VertexRecord>& v,const std::vector<uint32_t>
 // Explicit little-endian words, magic/version/key/count/error/payload/checksum; no native structs on disk.
 inline void Word(std::ostream& s,uint32_t x){for(int i=0;i<4;++i)s.put(char((x>>(i*8))&255));}
 inline uint32_t Word(std::istream& s){uint32_t x=0;for(int i=0;i<4;++i){int c=s.get();if(c<0)throw std::runtime_error("truncated patch cache");x|=uint32_t(c)<<(8*i);}return x;}
-inline Baked LoadOrBake(const std::vector<VertexRecord>& v,const std::vector<uint32_t>& fine){
- Baked out;uint64_t key=Key(v,fine);const char* env=std::getenv("FRONTIER_PATCH_CACHE");
+inline Precomputed LoadOrPrecompute(const std::vector<VertexRecord>& v,const std::vector<uint32_t>& fine){
+ Precomputed out;uint64_t key=Key(v,fine);const char* env=std::getenv("FRONTIER_PATCH_CACHE");
  const auto root=std::filesystem::path(env?env:".frontier/cache/patch-geometry-v2");
  const auto path=root/(std::to_string(key)+".pgeom");
  try{std::ifstream f(path,std::ios::binary);if(f){
@@ -169,7 +169,7 @@ inline Baked LoadOrBake(const std::vector<VertexRecord>& v,const std::vector<uin
   if(Word(f)!=uint32_t(check)||Word(f)!=uint32_t(check>>32)||f.peek()!=EOF)throw std::runtime_error("patch cache checksum");
   out.CacheHit=true;return out;
  }}catch(...){out={};std::error_code ec;std::filesystem::remove(path,ec);}
- out=Bake(v,fine);
+ out=Precompute(v,fine);
  try{std::filesystem::create_directories(root);auto tmp=path;tmp+=std::string(".")+std::to_string(std::chrono::steady_clock::now().time_since_epoch().count())+".tmp";
   std::ofstream f(tmp,std::ios::binary|std::ios::trunc);auto bits=std::bit_cast<uint32_t>(out.Error);uint64_t check=Mix(key,bits);
   Word(f,0x31475046u);Word(f,kPatchCacheVersion);Word(f,uint32_t(key));Word(f,uint32_t(key>>32));Word(f,uint32_t(out.Indices.size()));Word(f,bits);

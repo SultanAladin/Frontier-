@@ -20,7 +20,7 @@ checks = {
     "Beer uses carried medium sigma": "curThroughput *= exp(-curMediumSigma * bounceHit.t);",
     "miss fallback uses carried medium": "curThroughput *= exp(-curMediumSigma * curMediumFallbackThickness);",
     "exit is identity matched": "bounceHit.instance == curMediumInstance",
-    "GI pool excludes interior paths": "&& !curInsideSolid",
+    "GI slots excludes interior paths": "&& !curInsideSolid",
     "solid interface toggles only on transmission": "bool crossesSolidInterface = !curFrame.ThinWalled",
 }
 missing = [name for name, text in checks.items() if text not in source]

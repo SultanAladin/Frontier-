@@ -42,7 +42,7 @@ struct ReSTIRIntegratorConfiguration
     bool        AmbientFloor       = false; // [-]   debug fill light (albedo × AmbientStrength); off by default since R0
     bool        TemporalReuse      = true;  // [-]   R6 row 2: temporal reservoir reuse (back-projection + validation)
     bool        SpatialReuse       = true;  // [-]   R6 row 3: spatial neighbour reuse (pairwise MIS)
-    bool        GlobalIlluminationReuse = true; // [-] the indirect half's pool (kFeatureGiReuse) — ReSTIR GI-style reuse
+    bool        GlobalIlluminationReuse = true; // [-] the indirect half's slots (kFeatureGiReuse) — ReSTIR GI-style reuse
                                            //       of the first-bounce vertex's NEE stratum, temporal + spatial. ON by
                                            //       default; off restores the single-sample vertex NEE (the A/B)
     bool        AliasPick          = true;  // [-]   R6 row 3: Walker-alias light pick (false = uniform, R0 identity; F5)
@@ -133,7 +133,7 @@ public:
     void AssignAntiAliasing      (bool     On)    noexcept { if (ActiveConfiguration.AntiAliasing        != On)    { ActiveConfiguration.AntiAliasing        = On;    ResetAccumulation("anti-aliasing"); } }
     void AssignTemporalReuse     (bool     On)    noexcept { if (ActiveConfiguration.TemporalReuse       != On)    { ActiveConfiguration.TemporalReuse       = On;    ResetAccumulation("temporal reuse"); } }
     void AssignSpatialReuse      (bool     On)    noexcept { if (ActiveConfiguration.SpatialReuse        != On)    { ActiveConfiguration.SpatialReuse        = On;    ResetAccumulation("spatial reuse"); } }
-    // The indirect pool changes what is SAMPLED at the first-bounce vertex (a reservoir instead of one light sample),
+    // The indirect slots changes what is SAMPLED at the first-bounce vertex (a reservoir instead of one light sample),
     //    so it resets accumulation like every other sampling switch — an A/B with a stale history would compare two
     //    different histories rather than two estimators.
     void AssignGlobalIlluminationReuse(bool On)    noexcept { if (ActiveConfiguration.GlobalIlluminationReuse != On) { ActiveConfiguration.GlobalIlluminationReuse = On; ResetAccumulation("GI pool"); } }

@@ -86,7 +86,7 @@ try {
           0,
           Canvas.width,
           Canvas.height,
-        ).data;
+        ).record;
         let Green = 0,
           Neutral = 0,
           Amber = 0;
@@ -150,7 +150,7 @@ try {
   );
   for (const Id of ["height-fog", "aerial-fog", "local-fog"]) {
     await Open(Id);
-    const Beam = Page.locator('[data-card="Medium"] .fog-shared-beam');
+    const Beam = Page.locator('[record-card="Medium"] .fog-shared-beam');
     assert.equal(await Beam.count(), 1);
     assert.equal(
       await Beam.evaluate((Card) => getComputedStyle(Card).backgroundColor),

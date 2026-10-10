@@ -16,27 +16,27 @@ namespace Frontier
 namespace
 {
     //--------------------------------------------------------------------------------------------------------------------
-    // Buffer allocation — mirrors SwapchainExchange::AllocateBuffer so the two agree on memory-type selection.
+    // Block allocation — mirrors SwapchainExchange::AllocateBuffer so the two agree on storage-type selection.
     //--------------------------------------------------------------------------------------------------------------------
     bool AllocateBuffer(VkDevice Device, const VkPhysicalDeviceMemoryProperties& Mem, VkDeviceSize Bytes,
-                        VkBufferUsageFlags Usage, uint32_t MemoryFlags, VkBuffer& OutBuffer, VkDeviceMemory& OutMemory) noexcept
+                        VkBufferUsageFlags Usage, uint32_t MemoryFlags, VkBuffer& OutStore, VkDeviceMemory& OutStorage) noexcept
     {
         VkBufferCreateInfo BufferInfo{ VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO };
         BufferInfo.size = Bytes; BufferInfo.usage = Usage; BufferInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
-        if (vkCreateBuffer(Device, &BufferInfo, nullptr, &OutBuffer) != VK_SUCCESS) return false;
+        if (vkCreateBuffer(Device, &BufferInfo, nullptr, &OutStore) != VK_SUCCESS) return false;
 
         VkMemoryRequirements Req{};
-        vkGetBufferMemoryRequirements(Device, OutBuffer, &Req);
+        vkGetBufferMemoryRequirements(Device, OutStore, &Req);
 
         uint32_t TypeIndex = UINT32_MAX;
         for (uint32_t i = 0u; i < Mem.memoryTypeCount; ++i)
             if ((Req.memoryTypeBits & (1u << i)) && (Mem.memoryTypes[i].propertyFlags & MemoryFlags) == MemoryFlags) { TypeIndex = i; break; }
         if (TypeIndex == UINT32_MAX) return false;
 
-        VkMemoryAllocateInfo AllocInfo{ VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO };
-        AllocInfo.allocationSize = Req.size; AllocInfo.memoryTypeIndex = TypeIndex;
-        if (vkAllocateMemory(Device, &AllocInfo, nullptr, &OutMemory) != VK_SUCCESS) return false;
-        return vkBindBufferMemory(Device, OutBuffer, OutMemory, 0) == VK_SUCCESS;
+        VkMemoryAllocateInfo AllocDetails{ VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO };
+        AllocDetails.allocationSize = Req.size; AllocDetails.memoryTypeIndex = TypeIndex;
+        if (vkAllocateMemory(Device, &AllocDetails, nullptr, &OutStorage) != VK_SUCCESS) return false;
+        return vkBindBufferMemory(Device, OutStore, OutStorage, 0) == VK_SUCCESS;
     }
 
     std::vector<uint32_t> LoadSpirv(const std::string& Path) noexcept
@@ -54,14 +54,14 @@ namespace
     {
         const std::vector<uint32_t> Spirv = LoadSpirv(Path);
         if (Spirv.empty()) return VK_NULL_HANDLE;
-        VkShaderModuleCreateInfo Info{ VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO };
-        Info.codeSize = Spirv.size() * 4u; Info.pCode = Spirv.data();
+        VkShaderModuleCreateInfo Facts{ VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO };
+        Facts.codeSize = Spirv.size() * 4u; Facts.pCode = Spirv.data();
         VkShaderModule Module = VK_NULL_HANDLE;
-        (void)vkCreateShaderModule(Device, &Info, nullptr, &Module);
+        (void)vkCreateShaderModule(Device, &Facts, nullptr, &Module);
         return Module;
     }
 
-    VkDescriptorSetLayoutBinding StorageBuffer(uint32_t b) noexcept
+    VkDescriptorSetLayoutBinding StorageStore(uint32_t b) noexcept
     { return { b, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1u, VK_SHADER_STAGE_COMPUTE_BIT, nullptr }; }
     VkDescriptorSetLayoutBinding StorageImage(uint32_t b) noexcept
     { return { b, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1u, VK_SHADER_STAGE_COMPUTE_BIT, nullptr }; }
@@ -83,10 +83,10 @@ namespace
 bool SurfelGIStage::Bring(const SurfelStageInit& Init) noexcept
 {
     I = Init;
-    if (I.Device == VK_NULL_HANDLE || I.CwbvhNodeBuffer == VK_NULL_HANDLE || I.CwbvhLeafBuffer == VK_NULL_HANDLE ||
+    if (I.Device == VK_NULL_HANDLE || I.CwbvhNodeStore == VK_NULL_HANDLE || I.CwbvhLeafStore == VK_NULL_HANDLE ||
         I.OutputImageView == VK_NULL_HANDLE || I.SurfaceImageView == VK_NULL_HANDLE || I.NormalImageView == VK_NULL_HANDLE ||
-        I.TriangleBuffer == VK_NULL_HANDLE || I.MaterialBuffer == VK_NULL_HANDLE || I.InstanceBuffer == VK_NULL_HANDLE ||
-        I.SlabBuffer == VK_NULL_HANDLE || I.VertexBuffer == VK_NULL_HANDLE || I.IndexBuffer == VK_NULL_HANDLE ||
+        I.TriangleStore == VK_NULL_HANDLE || I.MaterialStore == VK_NULL_HANDLE || I.InstanceStore == VK_NULL_HANDLE ||
+        I.SlabStore == VK_NULL_HANDLE || I.VertexStore == VK_NULL_HANDLE || I.IndexStore == VK_NULL_HANDLE ||
         I.EnergyLutView == VK_NULL_HANDLE || I.SheenLutView == VK_NULL_HANDLE || I.GridCellSize <= 0.0f)
     {
         std::cerr << "[SurfelGIStage] deferred: scene traversal, visibility targets, scene buffers or shading "
@@ -115,9 +115,9 @@ bool SurfelGIStage::CreateBuffers() noexcept
     const VkBufferUsageFlags Ssbo = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT;
     const VkBufferUsageFlags Src  = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
 
-    return AllocateBuffer(I.Device, I.MemoryProperties, SurfelBytes, Ssbo, DeviceLocal, SurfelBuffer, SurfelMem)
-        && AllocateBuffer(I.Device, I.MemoryProperties, HeadBytes,   Ssbo, DeviceLocal, HeadBuffer,   HeadMem)
-        && AllocateBuffer(I.Device, I.MemoryProperties, NextBytes,   Ssbo, DeviceLocal, NextBuffer,   NextMem)
+    return AllocateBuffer(I.Device, I.MemoryProperties, SurfelBytes, Ssbo, DeviceLocal, SurfelStore, SurfelMem)
+        && AllocateBuffer(I.Device, I.MemoryProperties, HeadBytes,   Ssbo, DeviceLocal, HeadStore,   HeadMem)
+        && AllocateBuffer(I.Device, I.MemoryProperties, NextBytes,   Ssbo, DeviceLocal, NextStore,   NextMem)
         && AllocateBuffer(I.Device, I.MemoryProperties, SurfelBytes, Src,  HostVisible, SurfelStage,  SurfelStageMem)
         && AllocateBuffer(I.Device, I.MemoryProperties, HeadBytes,   Src,  HostVisible, HeadStage,    HeadStageMem)
         && AllocateBuffer(I.Device, I.MemoryProperties, NextBytes,   Src,  HostVisible, NextStage,    NextStageMem);
@@ -136,7 +136,7 @@ bool SurfelGIStage::CreatePipelines() noexcept
         PI.setLayoutCount = 1u; PI.pSetLayouts = &SetLayout; PI.pushConstantRangeCount = 1u; PI.pPushConstantRanges = &Push;
         return vkCreatePipelineLayout(I.Device, &PI, nullptr, &PipeLayout) == VK_SUCCESS;
     };
-    auto BuildPipeline = [&](const std::string& Spv, VkPipelineLayout PipeLayout, VkPipeline& Out)
+    auto BuildChain = [&](const std::string& Spv, VkPipelineLayout PipeLayout, VkPipeline& Out)
     {
         VkShaderModule Module = MakeModule(I.Device, I.SpirvDirectory + "/" + Spv);
         if (Module == VK_NULL_HANDLE) return false;
@@ -149,7 +149,7 @@ bool SurfelGIStage::CreatePipelines() noexcept
         return R == VK_SUCCESS;
     };
 
-    // Both shading passes carry the full scene now, so the pool has to cover it: 6 scene SSBOs each, the two
+    // Both shading passes carry the full scene now, so the slots has to cover it: 6 scene SSBOs each, the two
     //    shading LUTs each, and one variable-count bindless table each. The table is the expensive entry — it is
     //    sized by the device's slot capacity exactly as the ReSTIR set is.
     const uint32_t Slots = I.TextureCapacity;                      // 0 ⇒ no descriptor indexing; the table is 1 slot
@@ -159,12 +159,12 @@ bool SurfelGIStage::CreatePipelines() noexcept
         { VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,          4u },                 // resolve: output, surface, normal (+slack)
         { VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 2u * TableSize + 8u },// two LUTs + the sky cube + two tables
     }};
-    VkDescriptorPoolCreateInfo PoolInfo{ VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO };
-    PoolInfo.maxSets       = 3u;
-    PoolInfo.flags         = Slots > 0u ? VkDescriptorPoolCreateFlags(VK_DESCRIPTOR_POOL_CREATE_UPDATE_AFTER_BIND_BIT) : 0u;
-    PoolInfo.poolSizeCount = static_cast<uint32_t>(PoolSizes.size());
-    PoolInfo.pPoolSizes    = PoolSizes.data();
-    if (vkCreateDescriptorPool(I.Device, &PoolInfo, nullptr, &DescriptorPool) != VK_SUCCESS) return false;
+    VkDescriptorPoolCreateInfo SlotsDetails{ VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO };
+    SlotsDetails.maxSets       = 3u;
+    SlotsDetails.flags         = Slots > 0u ? VkDescriptorPoolCreateFlags(VK_DESCRIPTOR_POOL_CREATE_UPDATE_AFTER_BIND_BIT) : 0u;
+    SlotsDetails.poolSizeCount = static_cast<uint32_t>(PoolSizes.size());
+    SlotsDetails.pPoolSizes    = PoolSizes.data();
+    if (vkCreateDescriptorPool(I.Device, &SlotsDetails, nullptr, &DescriptorPool) != VK_SUCCESS) return false;
 
     // The bindless table is the LAST binding in both shading sets (31), variable-count and partially bound, which
     //    is what VK_DESCRIPTOR_BINDING_VARIABLE_DESCRIPTOR_COUNT_BIT requires. Matching the kernel's set exactly
@@ -177,11 +177,11 @@ bool SurfelGIStage::CreatePipelines() noexcept
         if (Slots > 0u) Flags.back() = VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT
                                      | VK_DESCRIPTOR_BINDING_VARIABLE_DESCRIPTOR_COUNT_BIT
                                      | VK_DESCRIPTOR_BINDING_UPDATE_AFTER_BIND_BIT;
-        VkDescriptorSetLayoutBindingFlagsCreateInfo FlagsInfo{ VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_BINDING_FLAGS_CREATE_INFO };
-        FlagsInfo.bindingCount = static_cast<uint32_t>(Flags.size());
-        FlagsInfo.pBindingFlags = Flags.data();
+        VkDescriptorSetLayoutBindingFlagsCreateInfo FlagsDetails{ VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_BINDING_FLAGS_CREATE_INFO };
+        FlagsDetails.bindingCount = static_cast<uint32_t>(Flags.size());
+        FlagsDetails.pBindingFlags = Flags.data();
         VkDescriptorSetLayoutCreateInfo LI{ VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO };
-        LI.pNext = Slots > 0u ? &FlagsInfo : nullptr;
+        LI.pNext = Slots > 0u ? &FlagsDetails : nullptr;
         LI.flags = Slots > 0u ? VkDescriptorSetLayoutCreateFlags(VK_DESCRIPTOR_SET_LAYOUT_CREATE_UPDATE_AFTER_BIND_POOL_BIT) : 0u;
         LI.bindingCount = static_cast<uint32_t>(Bindings.size()); LI.pBindings = Bindings.data();
         if (vkCreateDescriptorSetLayout(I.Device, &LI, nullptr, &SetLayout) != VK_SUCCESS) return false;
@@ -193,27 +193,27 @@ bool SurfelGIStage::CreatePipelines() noexcept
 
     // push blocks: update/resolve = 6×vec4/uvec4 = 96 B; commit = one uvec4 = 16 B (see the shaders).
     // Update  — 0/1/2 surfel field · 3/4/5 tri/mat/inst · 8/9 CWBVH · 10/11/12 slab/vtx/idx · 13/14 LUTs · 31 table.
-    if (!BuildShadingLayout({ StorageBuffer(0), StorageBuffer(1), StorageBuffer(2),
-                              StorageBuffer(3), StorageBuffer(4), StorageBuffer(5),
-                              StorageBuffer(8), StorageBuffer(9),
-                              StorageBuffer(10), StorageBuffer(11), StorageBuffer(12),
+    if (!BuildShadingLayout({ StorageStore(0), StorageStore(1), StorageStore(2),
+                              StorageStore(3), StorageStore(4), StorageStore(5),
+                              StorageStore(8), StorageStore(9),
+                              StorageStore(10), StorageStore(11), StorageStore(12),
                               Sampled(13), Sampled(14) },
                             UpdateLayout, UpdatePipeLayout)) return false;
-    if (!BuildLayout({ StorageBuffer(0) }, 16u, CommitLayout, CommitPipeLayout)) return false;
+    if (!BuildLayout({ StorageStore(0) }, 16u, CommitLayout, CommitPipeLayout)) return false;
     // Resolve — 0/1/2 images · 8/9 CWBVH · 10/11/12 surfel field · 13/14 LUTs · 15–20 scene · 31 table.
     //    3 (albedo) and 4 (material aux) are GONE: the slab is decoded from SurfaceImage.w instead of being
     //    re-encoded into an rgba8 and an rgba16f on the way past.
     if (!BuildShadingLayout({ StorageImage(0), StorageImage(1), StorageImage(2),
-                              StorageBuffer(8), StorageBuffer(9),
-                              StorageBuffer(10), StorageBuffer(11), StorageBuffer(12),
+                              StorageStore(8), StorageStore(9),
+                              StorageStore(10), StorageStore(11), StorageStore(12),
                               Sampled(13), Sampled(14),
-                              StorageBuffer(15), StorageBuffer(16), StorageBuffer(17),
-                              StorageBuffer(18), StorageBuffer(19), StorageBuffer(20) },
+                              StorageStore(15), StorageStore(16), StorageStore(17),
+                              StorageStore(18), StorageStore(19), StorageStore(20) },
                             ResolveLayout, ResolvePipeLayout)) return false;
 
-    return BuildPipeline("SurfelIrradianceUpdate.spv", UpdatePipeLayout,  UpdatePipeline)
-        && BuildPipeline("SurfelCommit.spv",           CommitPipeLayout,  CommitPipeline)
-        && BuildPipeline("SurfelGIResolve.spv",        ResolvePipeLayout, ResolvePipeline);
+    return BuildChain("SurfelIrradianceUpdate.spv", UpdatePipeLayout,  UpdatePipeline)
+        && BuildChain("SurfelCommit.spv",           CommitPipeLayout,  CommitChain)
+        && BuildChain("SurfelGIResolve.spv",        ResolvePipeLayout, ResolveChain);
 }
 
 bool SurfelGIStage::WriteDescriptors() noexcept
@@ -223,24 +223,24 @@ bool SurfelGIStage::WriteDescriptors() noexcept
     // The two shading sets end in a variable-count bindless table, so their allocation has to say how many slots
     //    it actually wants. The commit set (index 1) has no table and must not carry the chain.
     const uint32_t VariableCount = I.TextureCapacity > 0u ? I.TextureCapacity : 1u;
-    VkDescriptorSetVariableDescriptorCountAllocateInfo VariableInfo{ VK_STRUCTURE_TYPE_DESCRIPTOR_SET_VARIABLE_DESCRIPTOR_COUNT_ALLOCATE_INFO };
-    VariableInfo.descriptorSetCount = 1u; VariableInfo.pDescriptorCounts = &VariableCount;
+    VkDescriptorSetVariableDescriptorCountAllocateInfo VariableDetails{ VK_STRUCTURE_TYPE_DESCRIPTOR_SET_VARIABLE_DESCRIPTOR_COUNT_ALLOCATE_INFO };
+    VariableDetails.descriptorSetCount = 1u; VariableDetails.pDescriptorCounts = &VariableCount;
     for (size_t i = 0; i < 3; ++i)
     {
         VkDescriptorSetAllocateInfo AI{ VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO };
-        AI.pNext = (i != 1u && I.TextureCapacity > 0u) ? &VariableInfo : nullptr;
+        AI.pNext = (i != 1u && I.TextureCapacity > 0u) ? &VariableDetails : nullptr;
         AI.descriptorPool = DescriptorPool; AI.descriptorSetCount = 1u; AI.pSetLayouts = &Layouts[i];
         if (vkAllocateDescriptorSets(I.Device, &AI, Sets[i]) != VK_SUCCESS) return false;
     }
 
     auto Buf = [](VkBuffer b){ return VkDescriptorBufferInfo{ b, 0u, VK_WHOLE_SIZE }; };
     auto Img = [](VkImageView v){ return VkDescriptorImageInfo{ VK_NULL_HANDLE, v, VK_IMAGE_LAYOUT_GENERAL }; };
-    const VkDescriptorBufferInfo Surfel = Buf(SurfelBuffer), Head = Buf(HeadBuffer), Next = Buf(NextBuffer);
-    const VkDescriptorBufferInfo Nodes  = Buf(I.CwbvhNodeBuffer), Tris = Buf(I.CwbvhLeafBuffer);
+    const VkDescriptorBufferInfo Surfel = Buf(SurfelStore), Head = Buf(HeadStore), Next = Buf(NextStore);
+    const VkDescriptorBufferInfo Nodes  = Buf(I.CwbvhNodeStore), Tris = Buf(I.CwbvhLeafStore);
     const VkDescriptorImageInfo  Out = Img(I.OutputImageView), Surf = Img(I.SurfaceImageView), Norm = Img(I.NormalImageView);
-    // The scene the two shading passes decode — the same handles the ReSTIR kernel binds, borrowed, not copied.
-    const VkDescriptorBufferInfo Tri   = Buf(I.TriangleBuffer), Mat = Buf(I.MaterialBuffer), Inst = Buf(I.InstanceBuffer);
-    const VkDescriptorBufferInfo Slab  = Buf(I.SlabBuffer), Vtx = Buf(I.VertexBuffer), Idx = Buf(I.IndexBuffer);
+    // The scene the two shading passes decode — the same identifiers the ReSTIR kernel binds, borrowed, not copied.
+    const VkDescriptorBufferInfo Tri   = Buf(I.TriangleStore), Mat = Buf(I.MaterialStore), Inst = Buf(I.InstanceStore);
+    const VkDescriptorBufferInfo Slab  = Buf(I.SlabStore), Vtx = Buf(I.VertexStore), Idx = Buf(I.IndexStore);
     auto Tex = [&](VkImageView v){ return VkDescriptorImageInfo{ I.TableSampler, v, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL }; };
     const VkDescriptorImageInfo  Energy = Tex(I.EnergyLutView), Sheen = Tex(I.SheenLutView);
     // The bindless table. Unused slots repeat slot 0 rather than staying null: PARTIALLY_BOUND permits null, but
@@ -305,7 +305,7 @@ void SurfelGIStage::UpdateField(const std::vector<SurfaceSample>& Samples, const
     // essential: uploading it again every frame would reset the GPU running mean to zero and defeat persistence.
 
     // 2) spawn: for each supplied surface sample, if no live surfel already covers it (within its radius on the
-    //    tangent plane) allocate one — reusing a dead slot when available, else growing the pool up to MaxSurfels.
+    //    tangent plane) allocate one — reusing a dead slot when available, else growing the slots up to MaxSurfels.
     uint32_t spawned = 0u, recycled = 0u;
     bool topologyChanged = false;
     auto radiusAt = [&](const float* /*p*/) { return cell; };   // one surfel per cell; caller scales cell to the scene
@@ -365,7 +365,7 @@ void SurfelGIStage::UpdateField(const std::vector<SurfaceSample>& Samples, const
     if (topologyChanged)
     {
         FieldUploadPending = true;
-        UploadBuffers();
+        UploadStores();
     }
 
     // 4) log (task requirement). Throttle to once a second at 60 fps so the console is readable.
@@ -380,7 +380,7 @@ void SurfelGIStage::UpdateField(const std::vector<SurfaceSample>& Samples, const
     }
 }
 
-void SurfelGIStage::UploadBuffers() noexcept
+void SurfelGIStage::UploadStores() noexcept
 {
     if (!FieldUploadPending) return;
     auto Copy = [&](VkDeviceMemory Mem, const void* Src, VkDeviceSize Bytes)
@@ -397,7 +397,7 @@ void SurfelGIStage::UploadBuffers() noexcept
     Copy(HeadStageMem,   HostGridHead.data(), VkDeviceSize(HostGridHead.size()) * sizeof(int32_t));
     Copy(NextStageMem,   HostGridNext.data(), VkDeviceSize(HostSurfels.size()) * sizeof(int32_t));
     // NOTE: the staging→device transfers are recorded at the top of RecordFrame() so they land inside the frame's
-    //       command buffer (one queue, correct ordering). See RecordFrame().
+    //       command store (one queue, correct ordering). See RecordFrame().
 }
 
 //========================================================================================================================
@@ -415,9 +415,9 @@ bool SurfelGIStage::RecordFrame(VkCommandBuffer Command, const SurfelFrameParams
     {
         auto CopyBuf = [&](VkBuffer Stage, VkBuffer Dst, VkDeviceSize Bytes)
         { VkBufferCopy R{ 0, 0, Bytes }; vkCmdCopyBuffer(Command, Stage, Dst, 1u, &R); };
-        CopyBuf(SurfelStage, SurfelBuffer, VkDeviceSize(HostSurfels.size()) * sizeof(GpuSurfel));
-        CopyBuf(HeadStage,   HeadBuffer,   VkDeviceSize(HostGridHead.size()) * sizeof(int32_t));
-        CopyBuf(NextStage,   NextBuffer,   VkDeviceSize(HostSurfels.size()) * sizeof(int32_t));
+        CopyBuf(SurfelStage, SurfelStore, VkDeviceSize(HostSurfels.size()) * sizeof(GpuSurfel));
+        CopyBuf(HeadStage,   HeadStore,   VkDeviceSize(HostGridHead.size()) * sizeof(int32_t));
+        CopyBuf(NextStage,   NextStore,   VkDeviceSize(HostSurfels.size()) * sizeof(int32_t));
 
         VkMemoryBarrier ToCompute{ VK_STRUCTURE_TYPE_MEMORY_BARRIER };
         ToCompute.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
@@ -461,13 +461,13 @@ bool SurfelGIStage::RecordFrame(VkCommandBuffer Command, const SurfelFrameParams
 
     // 1.5) SurfelCommit — Irradiance = IrradianceNew (deferred Jacobi swap).
     uint32_t commit[4]{ LiveCount, 0u, 0u, 0u };
-    vkCmdBindPipeline(Command, VK_PIPELINE_BIND_POINT_COMPUTE, CommitPipeline);
+    vkCmdBindPipeline(Command, VK_PIPELINE_BIND_POINT_COMPUTE, CommitChain);
     vkCmdBindDescriptorSets(Command, VK_PIPELINE_BIND_POINT_COMPUTE, CommitPipeLayout, 0u, 1u, &CommitSet, 0u, nullptr);
     vkCmdPushConstants(Command, CommitPipeLayout, VK_SHADER_STAGE_COMPUTE_BIT, 0u, sizeof(commit), commit);
     vkCmdDispatch(Command, Groups1D, 1u, 1u);
     ComputeBarrier();
 
-    // 2) SurfelGIResolve — per-pixel; reads the G-buffer + surfel field, writes the presentation image.
+    // 2) SurfelGIResolve — per-pixel; reads the G-store + surfel field, writes the presentation image.
     struct ResolvePush { float Sun[4], SunCol[4], Sky[4], Grid[4], Eye[4]; uint32_t Counts[4]; } rp{};
     std::memcpy(rp.Sun,  up.Sun,  sizeof(rp.Sun));
     std::memcpy(rp.SunCol, up.SunCol, sizeof(rp.SunCol));
@@ -477,7 +477,7 @@ bool SurfelGIStage::RecordFrame(VkCommandBuffer Command, const SurfelFrameParams
     rp.Counts[0]=LiveCount; rp.Counts[1]=I.GridHashSize; rp.Counts[2]=Params.FeatureFlags; rp.Counts[3]=Params.ReflectionMode;
     const uint32_t Gx = (Params.RenderWidth  + 15u) / 16u;
     const uint32_t Gy = (Params.RenderHeight + 15u) / 16u;
-    vkCmdBindPipeline(Command, VK_PIPELINE_BIND_POINT_COMPUTE, ResolvePipeline);
+    vkCmdBindPipeline(Command, VK_PIPELINE_BIND_POINT_COMPUTE, ResolveChain);
     vkCmdBindDescriptorSets(Command, VK_PIPELINE_BIND_POINT_COMPUTE, ResolvePipeLayout, 0u, 1u, &ResolveSet, 0u, nullptr);
     vkCmdPushConstants(Command, ResolvePipeLayout, VK_SHADER_STAGE_COMPUTE_BIT, 0u, sizeof(rp), &rp);
     vkCmdDispatch(Command, Gx, Gy, 1u);
@@ -491,13 +491,13 @@ void SurfelGIStage::Destroy() noexcept
 {
     if (I.Device == VK_NULL_HANDLE) return;
     auto DB = [&](VkBuffer& b, VkDeviceMemory& m){ if (b) vkDestroyBuffer(I.Device, b, nullptr); if (m) vkFreeMemory(I.Device, m, nullptr); b=VK_NULL_HANDLE; m=VK_NULL_HANDLE; };
-    DB(SurfelBuffer, SurfelMem); DB(HeadBuffer, HeadMem); DB(NextBuffer, NextMem);
+    DB(SurfelStore, SurfelMem); DB(HeadStore, HeadMem); DB(NextStore, NextMem);
     DB(SurfelStage, SurfelStageMem); DB(HeadStage, HeadStageMem); DB(NextStage, NextStageMem);
     auto DP = [&](VkPipeline& p){ if (p) vkDestroyPipeline(I.Device, p, nullptr); p=VK_NULL_HANDLE; };
-    DP(UpdatePipeline); DP(CommitPipeline); DP(ResolvePipeline);
+    DP(UpdatePipeline); DP(CommitChain); DP(ResolveChain);
     auto DPL = [&](VkPipelineLayout& l){ if (l) vkDestroyPipelineLayout(I.Device, l, nullptr); l=VK_NULL_HANDLE; };
     DPL(UpdatePipeLayout); DPL(CommitPipeLayout); DPL(ResolvePipeLayout);
-    // Descriptor sets die with their private pool; release it before their layouts to keep validation lifetime
+    // Descriptor sets die with their private slots; release it before their layouts to keep validation lifetime
     // ordering explicit on scene replacement and swapchain resize.
     if (DescriptorPool) vkDestroyDescriptorPool(I.Device, DescriptorPool, nullptr);
     DescriptorPool = VK_NULL_HANDLE;

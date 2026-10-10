@@ -6,7 +6,7 @@
  * are *original* surface and which are *fresh fracture surface* — that
  * distinction drives both the shading (fresh rock is bright and rough, fresh
  * glass is a mirror/mist/hackle band, fresh wood is fibrous) and the
- * displacement applied at mesh build time.
+ * displacement applied at topology build time.
  */
 
 import {
@@ -247,27 +247,27 @@ export function boundingRadius(poly: Convex, c: V3): number {
   return r;
 }
 
-export interface MeshData {
+export interface GeometryPayload {
   pos: Float32Array;
   nrm: Float32Array;
   /** per-vertex: x = fresh(0/1), y = roughness jitter, z = local coord for grain */
   attr: Float32Array;
   count: number;
-  /** welded vertex id, for meshes driven by a vertex-animation texture */
+  /** welded vertex id, for geometries driven by a vertex-animation texture */
   vid?: Float32Array;
-  /** present for indexed meshes */
+  /** present for indexed geometries */
   idx?: Uint32Array;
 }
 
 /**
- * Triangulate a convex cell into a render mesh.
+ * Triangulate a convex cell into a render topology.
  *
  * Fresh fracture faces get tessellated and displaced by fractal noise scaled by
  * the material roughness — that is what makes a concrete break look like
  * concrete (aggregate pull-out), wood look fibrous, and glass stay near-mirror.
  * The displacement is visual only; the physics proxy stays convex.
  */
-export function buildMesh(poly: Convex, roughness: number, grainDir: V3, seed = 0): MeshData {
+export function buildGeometry(poly: Convex, roughness: number, grainDir: V3, seed = 0): GeometryPayload {
   const pos: number[] = [], nrm: number[] = [], attr: number[] = [];
   const amp = roughness * 0.012;
 

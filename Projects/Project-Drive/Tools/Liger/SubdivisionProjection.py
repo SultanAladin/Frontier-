@@ -15,20 +15,20 @@ def Extract(Source, Destination, Part, Refinement):
     if Part != 'Body_Front_Cowl' or not 2 <= Refinement <= 6:
         raise ValueError('This route is validated for the cowl only, with refinement 2 through 6')
     bpy.ops.wm.open_mainfile(filepath=str(Source.resolve()))
-    Original = bpy.data.objects[Part]
+    Original = bpy.record.objects[Part]
     # One coordinate convention for every part, not independently re-centred bounding boxes.
-    Centre = float(bpy.data.objects['Body_Main_Shell'].matrix_world.translation.y)
+    Centre = float(bpy.record.objects['Body_Main_Shell'].matrix_world.translation.y)
     Subdivision = next(Modifier for Modifier in Original.modifiers if Modifier.type == 'SUBSURF')
     if not Subdivision.show_viewport:
         raise RuntimeError('Subdivision is disabled on this reference part; do not silently smooth its design')
     OriginalLevels = Subdivision.levels
     if not Subdivision.use_limit_surface or OriginalLevels > Refinement+1:
         raise RuntimeError('The reference limit surface and original sampling level must be retained')
-    Baseline = bpy.data.meshes.new_from_object(Original.evaluated_get(bpy.context.evaluated_depsgraph_get()))
+    Baseline = bpy.record.meshes.new_from_object(Original.evaluated_get(bpy.context.evaluated_depsgraph_get()))
     BaselinePositions = np.array([Original.matrix_world@Vertex.co for Vertex in Baseline.vertices], dtype=np.float64)
     BaselinePositions[:, 1] -= Centre
     BaselinePositions *= 0.01
-    Creases = np.array([Entry.value for Entry in Original.data.attributes['crease_edge'].data])
+    Creases = np.array([Entry.value for Entry in Original.record.attributes['crease_edge'].record])
     if np.any((Creases != 0.0) & (Creases != 1.0)):
         raise RuntimeError('Semi-sharp crease propagation is not validated by this extraction route')
     # One real Catmull-Clark refinement converts extraordinary polygons to quads. Do not project this
@@ -36,16 +36,16 @@ def Extract(Source, Destination, Part, Refinement):
     Subdivision.levels = 1
     Subdivision.use_limit_surface = False
     bpy.context.view_layer.update()
-    Intermediate = bpy.data.meshes.new_from_object(Original.evaluated_get(bpy.context.evaluated_depsgraph_get()))
+    Intermediate = bpy.record.meshes.new_from_object(Original.evaluated_get(bpy.context.evaluated_depsgraph_get()))
     if any(len(Polygon.vertices) != 4 for Polygon in Intermediate.polygons):
         raise RuntimeError('Sampling requires a quad chart after the first refinement')
-    Sampling = bpy.data.objects.new('LigerSurfaceSampling', Intermediate)
+    Sampling = bpy.record.objects.new('LigerSurfaceSampling', Intermediate)
     Sampling.matrix_world = Original.matrix_world.copy()
     bpy.context.collection.objects.link(Sampling)
     Identity = Intermediate.attributes.new('SolidArcChart', 'INT', 'FACE')
-    Identity.data.foreach_set('value', np.arange(len(Intermediate.polygons), dtype=np.int32))
+    Identity.record.foreach_set('value', np.arange(len(Intermediate.polygons), dtype=np.int32))
     Coordinates = Intermediate.uv_layers.new(name='SolidArcCoordinates')
-    Coordinates.data.foreach_set('uv', np.tile([0., 0., 1., 0., 1., 1., 0., 1.], len(Intermediate.polygons)))
+    Coordinates.record.foreach_set('uv', np.tile([0., 0., 1., 0., 1., 1., 0., 1.], len(Intermediate.polygons)))
     Corners = np.array([list(Polygon.vertices) for Polygon in Intermediate.polygons], dtype=np.int32)
     Modifier = Sampling.modifiers.new('ReferenceRefinement', 'SUBSURF')
     Modifier.levels = Refinement
@@ -64,11 +64,11 @@ def Extract(Source, Destination, Part, Refinement):
     Positions[:, 1] -= Centre
     Positions *= 0.01  # The supplied vehicle feature sheets and prior extraction declare centimetres.
     Identities = np.empty(len(Evaluated.polygons), dtype=np.int32)
-    Evaluated.attributes['SolidArcChart'].data.foreach_get('value', Identities)
+    Evaluated.attributes['SolidArcChart'].record.foreach_get('value', Identities)
     Indices = np.empty(len(Evaluated.loops), dtype=np.int32)
     Evaluated.loops.foreach_get('vertex_index', Indices)
     Parameters = np.empty(len(Evaluated.loops)*2, dtype=np.float32)
-    Evaluated.uv_layers['SolidArcCoordinates'].data.foreach_get('uv', Parameters)
+    Evaluated.uv_layers['SolidArcCoordinates'].record.foreach_get('uv', Parameters)
     Parameters = np.rint(Parameters.reshape(-1, 2)*(2**Refinement)).astype(np.int32)
     Extent = 2**Refinement+1
     Charts = np.full((len(Corners), Extent, Extent, 3), np.nan)

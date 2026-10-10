@@ -9,7 +9,7 @@
 //        • a RAMP (wedge) ahead of the spawn for jumps;
 //        • a row of rounded SPEED BUMPS to exercise the suspension + soft tyres;
 //        • a slalom line of CONES;
-//        • the real ControlVehicle BODY shell (ControlVehicleMesh.inl — the authored exterior, not a box) wearing the
+//        • the real ControlVehicle BODY shell (ControlVehicleGeometry.inl — the authored exterior, not a box) wearing the
 //          System-B automotive flake clearcoat, plus four PROCEDURAL wheels (the owner's instruction: never import wheels).
 //
 //    The chassis and the four wheels are appended each with their OWN material, so the codec gives each its OWN
@@ -17,7 +17,7 @@
 //    pose and spin/steer every wheel independently from the physics telemetry. They are marked Dynamic spans.
 //
 //    Axis convention is Frontier's and the vehicle's shared frame: +X forward, +Y left, +Z up, metres. No basis change is
-//    performed anywhere — ControlVehicleMesh.inl is authored in this frame and the GRIT hub table below is in it too, so
+//    performed anywhere — ControlVehicleGeometry.inl is authored in this frame and the GRIT hub table below is in it too, so
 //    render placement and RigidBodySolver placement agree on frame zero (the D4-style rest gate).
 
 #pragma once
@@ -105,7 +105,7 @@ private:
     void AppendCone(const Vector3& BaseCentre, float Radius, float Height, uint32_t Material, uint32_t Segments) noexcept;
     // Wheel: a tyre cylinder (spin axis +Y) with a hub disc, centred at Centre.
     void AppendWheel(const Vector3& Centre, float Radius, float HalfWidth, uint32_t TyreMaterial, uint32_t HubMaterial, uint32_t Segments) noexcept;
-    // The ControlVehicle shell from ControlVehicleMesh.inl, translated by Offset, smooth-shaded, one material.
+    // The ControlVehicle shell from ControlVehicleGeometry.inl, translated by Offset, smooth-shaded, one material.
     void AppendBodyShell(const Vector3& Offset, uint32_t Material) noexcept;
 
     std::vector<TriangleIndex>      Triangles;
@@ -113,7 +113,7 @@ private:
     std::vector<MaterialDescriptor> Materials;
     std::vector<TriangleSpanRecord> Spans;
 
-    Layout   LayoutData{};
+    Layout   LayoutPayload{};
     Vector3  ChassisSpawn{ 0.0f, 0.0f, 0.0f };
     uint32_t ChassisMaterial  = 0u;      // [idx] material/instance ordinal of the body shell
     uint32_t WheelMaterial[4] = { 0u, 0u, 0u, 0u };

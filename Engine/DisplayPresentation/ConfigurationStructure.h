@@ -15,7 +15,7 @@ namespace Frontier {
 // Engine-level (not per-page) settings read at device bring-up. Lives under [render] next to the dashboard record.
 
 // Mirrors RayTracingRequestCategory (DeviceExchange) without pulling Vulkan headers into the presentation layer.
-enum class RayTracingTierRequestCategory : uint32_t { Auto = 0, Software = 1, RayQuery = 2, Pipeline = 3, Count = 4 };
+enum class RayTracingTierRequestCategory : uint32_t { Auto = 0, Software = 1, RayQuery = 2, Sequence = 3, Count = 4 };
 
 // Mirrors DebugViewCategory (DeviceExchange/VisibilityExchange.h): the R2 debug popup (F3) cycles these.
 enum class DebugViewSelection : uint32_t { Off = 0, Depth = 1, Visibility = 2, Motion = 3, Cluster = 4, HiZ = 5, Albedo = 6, Normal = 7, Roughness = 8, Metalness = 9, ShadingNormal = 10, ReservoirM = 11, ReservoirW = 12, ReservoirAge = 13, PatchTiles = 14, PatchWire = 15, Count = 16 };
@@ -27,7 +27,7 @@ struct RenderBackendConfiguration
     bool                          OcclusionCulling = true;                                // [render] occlusion_culling (HiZ)
     bool                          AliasPick = true;                                       // [render] alias_pick (R6 row 3 Walker-alias light pick; false = uniform R0 identity, F5)
     float                         PatchErrorPixels = 1.0f;                                // [render] patch_error_pixels (patch-preview screen-error tolerance, F6: 1 | 2 | 4 | 8)
-    bool                          SkyDomeBaked = false;                                   // [render] sky_dome_baked (#26A: escaped rays fetch the baked dome sheet; false = analytic march — the editor's resting rule)
+    bool                          SkyDomePrecomputed = false;                                   // [render] sky_dome_baked (#26A: escaped rays fetch the precomputed dome sheet; false = analytic march — the editor's resting rule)
     uint32_t                      SlabLimit        = 1u;                                  // [render] slab_limit (R4a: Tier A 1, Tier B/C 4, ceiling 8)
     uint32_t                      TextureEdgeLimit = 2048u;                               // [render] texture_edge_limit (largest texture edge kept resident; 0 = unlimited)
     [[nodiscard]] bool operator==(const RenderBackendConfiguration&) const noexcept = default;
@@ -66,7 +66,7 @@ struct NotificationPreferences
     bool  ShowFrameRateOverlay = true;    // "Show FPS Overlay"  — same flag as the dashboard tile
     bool  ShowMemoryUsage      = true;    // "Show RAM Usage"
     bool  ShowSceneMetadata    = false;   // "Scene Metadata"
-    bool  BakingComplete       = true;    // Alerts › "Baking Complete"
+    bool  PrecomputingComplete       = true;    // Alerts › "Precomputing Complete"
     bool  RenderFinished       = true;    // Alerts › "Render Finished"  (render / appearance applied toasts)
     bool  AutosaveErrors       = true;    // Alerts › "Autosave Errors"  (preference save failures)
     bool  FrameRateDrops       = false;   // Alerts › "Frame-rate Drops" (engine addition)

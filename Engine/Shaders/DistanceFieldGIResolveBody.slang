@@ -1,7 +1,7 @@
 //============================================================================================================================================
 //                                                     DISTANCEFIELDGIRESOLVE.SLANG
 //============================================================================================================================================
-// 📦 Raster primary visibility, shared OpenPBR materials, distance-field diffuse transport and exact mesh reflections/refraction.
+// 📦 Raster primary visibility, shared OpenPBR materials, distance-field diffuse transport and exact topology reflections/refraction.
 
 #extension GL_GOOGLE_include_directive : require
 #ifndef FRONTIER_CONSTANT_MATERIALS
@@ -132,7 +132,7 @@ vec3 Reflection(vec3 Position, SurfaceFrame Surface, vec3 View, ShadingRecord Ma
         if (Mode==kReflectRaytraced)
         {
             vec3 Origin=Position+Surface.Geometric*0.002;
-            DistanceRayHit Hit=TraceDistanceMesh(Origin,Direction,1e20);
+            DistanceRayHit Hit=TraceDistanceGeometry(Origin,Direction,1e20);
             if (Hit.Facet!=0xFFFFFFFFu) Incident=ShadeHit(Origin+Direction*Hit.Travel,Hit.Facet,-Direction);
         }
         Result+=Incident*EvaluateBaseSpecular(Material,Layers,Outgoing,Incoming)*Incoming.z/max(Density,1e-8);
@@ -158,7 +158,7 @@ vec3 Transmission(vec3 Position, vec3 Normal, vec3 View, ShadingRecord Material,
     }
     for (uint Bounce=0u; Bounce<4u; ++Bounce)
     {
-        DistanceRayHit Hit=TraceDistanceMesh(Origin,Direction,1e20);
+        DistanceRayHit Hit=TraceDistanceGeometry(Origin,Direction,1e20);
         if (Hit.Facet==0xFFFFFFFFu) return Attenuation*SkyAlongApprox(Direction,Material.SpecularRoughness);
         if (Inside && Material.TransmissionDepth>0.0)
             Attenuation*=exp(log(max(Material.TransmissionColor,vec3(1e-5)))*Hit.Travel/Material.TransmissionDepth);

@@ -442,7 +442,7 @@ PixelSample SamplePixel(const Camera& Cam, int X, int Y, int Size, Pcg& Rng)
 }
 
 //============================================================================================================================
-//  THE SHIPPED PIPELINE — the accumulator (ResolveSurface) and the dispatcher's level chain
+//  THE SHIPPED CHAIN — the accumulator (ResolveSurface) and the dispatcher's level chain
 //============================================================================================================================
 
 struct Settings
@@ -547,7 +547,7 @@ std::vector<float> ErrorTile(const std::vector<float>& A, const std::vector<floa
     return Out;
 }
 
-// The same tile with a gain chosen from the data, so the map reads instead of being near-black: the gain puts the
+// The same tile with a gain chosen from the record, so the map reads instead of being near-black: the gain puts the
 //    99.5th percentile of |difference| at 0.6, and is reported in the caption so the tile is never a mystery.
 std::vector<float> ErrorTileAuto(const std::vector<float>& A, const std::vector<float>& B, float* OutGain)
 {
@@ -646,9 +646,9 @@ void AccumulateAndSnapshot(int Size, const Settings& S, const std::vector<int>& 
     {
         std::vector<PixelSample> Sampled(Pixels);
         unsigned Threads = std::max(1u, std::min(8u, std::thread::hardware_concurrency()));
-        std::vector<std::thread> Pool;
+        std::vector<std::thread> Bank;
         for (unsigned T = 0; T < Threads; ++T)
-            Pool.emplace_back([&, T]() {
+            Bank.emplace_back([&, T]() {
                 for (size_t P = T; P < Pixels; P += Threads)
                 {
                     const int X = static_cast<int>(P % Size), Y = static_cast<int>(P / Size);
@@ -656,7 +656,7 @@ void AccumulateAndSnapshot(int Size, const Settings& S, const std::vector<int>& 
                     Sampled[P] = SamplePixel(Cam, X, Y, Size, Rng);
                 }
             });
-        for (std::thread& Worker : Pool) Worker.join();
+        for (std::thread& Worker : Bank) Worker.join();
 
         for (size_t P = 0; P < Pixels; ++P)
         {
@@ -965,7 +965,7 @@ int RunIdentitySheet(const char* OutPath, int Size, const Settings& S, const std
 {
     // The visual counterpart of the gate's E4: the converged frame, with and without the filter, and the map of the
     //    pixels the shipped early-out took out of the filter's hands. Only the first two tiles use the filter; the
-    //    third is their difference at a gain chosen from the data, so "near-black" is a measurement, not an impression.
+    //    third is their difference at a gain chosen from the record, so "near-black" is a measurement, not an impression.
     const Snapshot& Snap = Snapshots.back();
     const int Tile = Size;
     const int SheetW = 3 * Tile + 4 * kMargin;
@@ -1139,9 +1139,9 @@ int RunReprojectionSheet(const char* OutPath, int Size, const Settings& S, int F
         for (int Spp = 0; Spp < SppPerFrame; ++Spp)
         {
             unsigned Threads = std::max(1u, std::min(8u, std::thread::hardware_concurrency()));
-            std::vector<std::thread> Pool;
+            std::vector<std::thread> Bank;
             for (unsigned T = 0; T < Threads; ++T)
-                Pool.emplace_back([&, T]() {
+                Bank.emplace_back([&, T]() {
                     for (size_t P = T; P < Pixels; P += Threads)
                     {
                         const int X = static_cast<int>(P % Size), Y = static_cast<int>(P / Size);
@@ -1150,7 +1150,7 @@ int RunReprojectionSheet(const char* OutPath, int Size, const Settings& S, int F
                         Sampled[P] = SamplePixel(Cam, X, Y, Size, Rng);
                     }
                 });
-            for (std::thread& Worker : Pool) Worker.join();
+            for (std::thread& Worker : Bank) Worker.join();
         }
         for (size_t P = 0; P < Pixels; ++P)
         {

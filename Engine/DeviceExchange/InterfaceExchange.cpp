@@ -42,10 +42,10 @@ static_assert(sizeof(InterfaceConstantRecord) == 112u, "InterfaceConstantRecord 
 
 namespace {
 
-struct InterfaceBuffer
+struct InterfaceStore
 {
-    VkBuffer       Buffer = VK_NULL_HANDLE;
-    VkDeviceMemory Memory = VK_NULL_HANDLE;
+    VkBuffer       Block = VK_NULL_HANDLE;
+    VkDeviceMemory Store = VK_NULL_HANDLE;
     VkDeviceSize   Bytes  = 0u;
     void*          Mapped = nullptr;
 };
@@ -81,12 +81,12 @@ VkShaderModule LoadInterfaceShader(VkDevice Device, const char* Relative)
     File.seekg(0);
     File.read(reinterpret_cast<char*>(Code.data()), Bytes);
 
-    VkShaderModuleCreateInfo Info{ VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO };
-    Info.codeSize = Code.size() * 4u;
-    Info.pCode    = Code.data();
+    VkShaderModuleCreateInfo Facts{ VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO };
+    Facts.codeSize = Code.size() * 4u;
+    Facts.pCode    = Code.data();
 
     VkShaderModule Module = VK_NULL_HANDLE;
-    if (vkCreateShaderModule(Device, &Info, nullptr, &Module) != VK_SUCCESS)
+    if (vkCreateShaderModule(Device, &Facts, nullptr, &Module) != VK_SUCCESS)
     {
         std::cerr << "[InterfaceExchange] vkCreateShaderModule failed: " << Relative << "\n";
         return VK_NULL_HANDLE;
@@ -102,44 +102,44 @@ uint32_t FindInterfaceMemoryType(const VkPhysicalDeviceMemoryProperties& Propert
     return 0u;
 }
 
-void DestroyInterfaceBuffer(VkDevice Device, InterfaceBuffer& Target)
+void DestroyInterfaceBuffer(VkDevice Device, InterfaceStore& Target)
 {
-    if (Target.Mapped) vkUnmapMemory(Device, Target.Memory);
-    if (Target.Buffer) vkDestroyBuffer(Device, Target.Buffer, nullptr);
-    if (Target.Memory) vkFreeMemory(Device, Target.Memory, nullptr);
+    if (Target.Mapped) vkUnmapMemory(Device, Target.Store);
+    if (Target.Block) vkDestroyBuffer(Device, Target.Block, nullptr);
+    if (Target.Store) vkFreeMemory(Device, Target.Store, nullptr);
     Target = {};
 }
 
 bool CreateInterfaceBuffer(VkDevice Device, const VkPhysicalDeviceMemoryProperties& Properties,
-                           InterfaceBuffer& Target, VkDeviceSize Bytes, VkBufferUsageFlags Usage, const char* Label)
+                           InterfaceStore& Target, VkDeviceSize Bytes, VkBufferUsageFlags Usage, const char* Label)
 {
     DestroyInterfaceBuffer(Device, Target);
     Target.Bytes = std::max<VkDeviceSize>(Bytes, 16u);
 
-    VkBufferCreateInfo Info{ VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO };
-    Info.size  = Target.Bytes;
-    Info.usage = Usage;
-    if (vkCreateBuffer(Device, &Info, nullptr, &Target.Buffer) != VK_SUCCESS)
+    VkBufferCreateInfo Facts{ VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO };
+    Facts.size  = Target.Bytes;
+    Facts.usage = Usage;
+    if (vkCreateBuffer(Device, &Facts, nullptr, &Target.Block) != VK_SUCCESS)
     {
         std::cerr << "[InterfaceExchange] vkCreateBuffer (" << Label << ") failed.\n";
         return false;
     }
 
     VkMemoryRequirements Requirements{};
-    vkGetBufferMemoryRequirements(Device, Target.Buffer, &Requirements);
+    vkGetBufferMemoryRequirements(Device, Target.Block, &Requirements);
 
     VkMemoryAllocateInfo Allocate{ VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO };
     Allocate.allocationSize  = Requirements.size;
     Allocate.memoryTypeIndex = FindInterfaceMemoryType(Properties, Requirements.memoryTypeBits,
                                                        VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
-    if (vkAllocateMemory(Device, &Allocate, nullptr, &Target.Memory) != VK_SUCCESS)
+    if (vkAllocateMemory(Device, &Allocate, nullptr, &Target.Store) != VK_SUCCESS)
     {
         std::cerr << "[InterfaceExchange] vkAllocateMemory (" << Label << ") failed.\n";
         return false;
     }
 
-    vkBindBufferMemory(Device, Target.Buffer, Target.Memory, 0u);
-    if (vkMapMemory(Device, Target.Memory, 0u, Target.Bytes, 0u, &Target.Mapped) != VK_SUCCESS) Target.Mapped = nullptr;
+    vkBindBufferMemory(Device, Target.Block, Target.Store, 0u);
+    if (vkMapMemory(Device, Target.Store, 0u, Target.Bytes, 0u, &Target.Mapped) != VK_SUCCESS) Target.Mapped = nullptr;
     return true;
 }
 
@@ -161,12 +161,12 @@ struct InterfaceExchange::VulkanRecord
 
     VkDescriptorSetLayout              SetLayout      = VK_NULL_HANDLE;
     VkPipelineLayout                   PipelineLayout = VK_NULL_HANDLE;
-    VkPipeline                         Pipeline       = VK_NULL_HANDLE;
+    VkPipeline                         Sequence       = VK_NULL_HANDLE;
     VkDescriptorPool                   DescriptorPool = VK_NULL_HANDLE;
 
     uint32_t                           CycleSlotCount = 0u;
-    std::array<InterfaceBuffer, kMaximumCycleSlots> Constants{};
-    std::array<InterfaceBuffer, kMaximumCycleSlots> Instances{};
+    std::array<InterfaceStore, kMaximumCycleSlots> Constants{};
+    std::array<InterfaceStore, kMaximumCycleSlots> Instances{};
     std::array<VkDescriptorSet, kMaximumCycleSlots> Sets{};
 };
 
@@ -215,7 +215,7 @@ bool InterfaceExchange::Bring(void* Device, void* PhysicalDevice, uint32_t Cycle
             return false;
     }
 
-    if (!BringPipeline())       return false;
+    if (!BringChain())       return false;
     if (!BringDescriptorSets()) return false;
 
     Ready = true;
@@ -232,7 +232,7 @@ void InterfaceExchange::Retire() noexcept
     vkDeviceWaitIdle(D);
 
     if (Vulkan->Framebuffer)    vkDestroyFramebuffer(D, Vulkan->Framebuffer, nullptr);
-    if (Vulkan->Pipeline)       vkDestroyPipeline(D, Vulkan->Pipeline, nullptr);
+    if (Vulkan->Sequence)       vkDestroyPipeline(D, Vulkan->Sequence, nullptr);
     if (Vulkan->PipelineLayout) vkDestroyPipelineLayout(D, Vulkan->PipelineLayout, nullptr);
     if (Vulkan->SetLayout)      vkDestroyDescriptorSetLayout(D, Vulkan->SetLayout, nullptr);
     if (Vulkan->DescriptorPool) vkDestroyDescriptorPool(D, Vulkan->DescriptorPool, nullptr);
@@ -244,7 +244,7 @@ void InterfaceExchange::Retire() noexcept
         DestroyInterfaceBuffer(D, Vulkan->Instances[Slot]);
     }
 
-    Vulkan->Framebuffer = VK_NULL_HANDLE; Vulkan->Pipeline = VK_NULL_HANDLE;
+    Vulkan->Framebuffer = VK_NULL_HANDLE; Vulkan->Sequence = VK_NULL_HANDLE;
     Vulkan->PipelineLayout = VK_NULL_HANDLE; Vulkan->SetLayout = VK_NULL_HANDLE;
     Vulkan->DescriptorPool = VK_NULL_HANDLE; Vulkan->RenderPass = VK_NULL_HANDLE;
     Vulkan->Device = VK_NULL_HANDLE;
@@ -253,10 +253,10 @@ void InterfaceExchange::Retire() noexcept
 }
 
 //------------------------------------------------------------------------------------------------------------------------
-//                                                      PIPELINE
+//                                                      CHAIN
 //------------------------------------------------------------------------------------------------------------------------
 
-bool InterfaceExchange::BringPipeline() noexcept
+bool InterfaceExchange::BringChain() noexcept
 {
     VkDevice D = Vulkan->Device;
 
@@ -267,7 +267,7 @@ bool InterfaceExchange::BringPipeline() noexcept
 
         Attachments[0].format         = Vulkan->ColourFormat;
         Attachments[0].samples        = VK_SAMPLE_COUNT_1_BIT;
-        Attachments[0].loadOp         = VK_ATTACHMENT_LOAD_OP_LOAD;      // composite over the lit image
+        Attachments[0].loadOp         = VK_ATTACHMENT_LOAD_OP_LOAD;      // combined over the lit image
         Attachments[0].storeOp        = VK_ATTACHMENT_STORE_OP_STORE;
         Attachments[0].stencilLoadOp  = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
         Attachments[0].stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
@@ -315,15 +315,15 @@ bool InterfaceExchange::BringPipeline() noexcept
                             VK_ACCESS_TRANSFER_READ_BIT | VK_ACCESS_SHADER_READ_BIT,
                             0u };
 
-        VkRenderPassCreateInfo Info{ VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO };
-        Info.attachmentCount = AttachmentCount;
-        Info.pAttachments    = Attachments.data();
-        Info.subpassCount    = 1u;
-        Info.pSubpasses      = &Subpass;
-        Info.dependencyCount = 2u;
-        Info.pDependencies   = Dependencies;
+        VkRenderPassCreateInfo Facts{ VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO };
+        Facts.attachmentCount = AttachmentCount;
+        Facts.pAttachments    = Attachments.data();
+        Facts.subpassCount    = 1u;
+        Facts.pSubpasses      = &Subpass;
+        Facts.dependencyCount = 2u;
+        Facts.pDependencies   = Dependencies;
 
-        if (vkCreateRenderPass(D, &Info, nullptr, &Vulkan->RenderPass) != VK_SUCCESS)
+        if (vkCreateRenderPass(D, &Facts, nullptr, &Vulkan->RenderPass) != VK_SUCCESS)
         {
             std::cerr << "[InterfaceExchange] vkCreateRenderPass failed.\n";
             return false;
@@ -336,15 +336,15 @@ bool InterfaceExchange::BringPipeline() noexcept
         Bindings[0] = { 0u, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1u, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, nullptr };
         Bindings[1] = { 1u, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1u, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, nullptr };
 
-        VkDescriptorSetLayoutCreateInfo Info{ VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO };
-        Info.bindingCount = static_cast<uint32_t>(Bindings.size());
-        Info.pBindings    = Bindings.data();
-        if (vkCreateDescriptorSetLayout(D, &Info, nullptr, &Vulkan->SetLayout) != VK_SUCCESS) return false;
+        VkDescriptorSetLayoutCreateInfo Facts{ VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO };
+        Facts.bindingCount = static_cast<uint32_t>(Bindings.size());
+        Facts.pBindings    = Bindings.data();
+        if (vkCreateDescriptorSetLayout(D, &Facts, nullptr, &Vulkan->SetLayout) != VK_SUCCESS) return false;
 
-        VkPipelineLayoutCreateInfo LayoutInfo{ VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO };
-        LayoutInfo.setLayoutCount = 1u;
-        LayoutInfo.pSetLayouts    = &Vulkan->SetLayout;
-        if (vkCreatePipelineLayout(D, &LayoutInfo, nullptr, &Vulkan->PipelineLayout) != VK_SUCCESS) return false;
+        VkPipelineLayoutCreateInfo LayoutDetails{ VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO };
+        LayoutDetails.setLayoutCount = 1u;
+        LayoutDetails.pSetLayouts    = &Vulkan->SetLayout;
+        if (vkCreatePipelineLayout(D, &LayoutDetails, nullptr, &Vulkan->PipelineLayout) != VK_SUCCESS) return false;
     }
 
     // ── Graphics state. No vertex input at all: the quad corner comes from gl_VertexIndex.
@@ -417,7 +417,7 @@ bool InterfaceExchange::BringPipeline() noexcept
     Graphics.layout              = Vulkan->PipelineLayout;
     Graphics.renderPass          = Vulkan->RenderPass;
 
-    const VkResult Result = vkCreateGraphicsPipelines(D, VK_NULL_HANDLE, 1u, &Graphics, nullptr, &Vulkan->Pipeline);
+    const VkResult Result = vkCreateGraphicsPipelines(D, VK_NULL_HANDLE, 1u, &Graphics, nullptr, &Vulkan->Sequence);
 
     vkDestroyShaderModule(D, Vertex, nullptr);
     vkDestroyShaderModule(D, Fragment, nullptr);
@@ -441,11 +441,11 @@ bool InterfaceExchange::BringDescriptorSets() noexcept
     std::array<VkDescriptorPoolSize, 2u> Sizes{ { { VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, kMaximumCycleSlots },
                                                   { VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, kMaximumCycleSlots } } };
 
-    VkDescriptorPoolCreateInfo Pool{ VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO };
-    Pool.maxSets       = kMaximumCycleSlots;
-    Pool.poolSizeCount = static_cast<uint32_t>(Sizes.size());
-    Pool.pPoolSizes    = Sizes.data();
-    if (vkCreateDescriptorPool(D, &Pool, nullptr, &Vulkan->DescriptorPool) != VK_SUCCESS) return false;
+    VkDescriptorPoolCreateInfo Bank{ VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO };
+    Bank.maxSets       = kMaximumCycleSlots;
+    Bank.poolSizeCount = static_cast<uint32_t>(Sizes.size());
+    Bank.pPoolSizes    = Sizes.data();
+    if (vkCreateDescriptorPool(D, &Bank, nullptr, &Vulkan->DescriptorPool) != VK_SUCCESS) return false;
 
     for (uint32_t Slot = 0u; Slot < Vulkan->CycleSlotCount; ++Slot)
     {
@@ -466,14 +466,14 @@ void InterfaceExchange::WriteDescriptorSets() noexcept
 
     for (uint32_t Slot = 0u; Slot < Vulkan->CycleSlotCount; ++Slot)
     {
-        VkDescriptorBufferInfo ConstantInfo{ Vulkan->Constants[Slot].Buffer, 0u, VK_WHOLE_SIZE };
-        VkDescriptorBufferInfo InstanceInfo{ Vulkan->Instances[Slot].Buffer, 0u, VK_WHOLE_SIZE };
+        VkDescriptorBufferInfo ConstantDetails{ Vulkan->Constants[Slot].Block, 0u, VK_WHOLE_SIZE };
+        VkDescriptorBufferInfo InstanceDetails{ Vulkan->Instances[Slot].Block, 0u, VK_WHOLE_SIZE };
 
         std::array<VkWriteDescriptorSet, 2u> Writes{};
         Writes[0] = { VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET, nullptr, Vulkan->Sets[Slot], 0u, 0u, 1u,
-                      VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, nullptr, &ConstantInfo, nullptr };
+                      VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, nullptr, &ConstantDetails, nullptr };
         Writes[1] = { VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET, nullptr, Vulkan->Sets[Slot], 1u, 0u, 1u,
-                      VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, nullptr, &InstanceInfo, nullptr };
+                      VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, nullptr, &InstanceDetails, nullptr };
 
         vkUpdateDescriptorSets(D, static_cast<uint32_t>(Writes.size()), Writes.data(), 0u, nullptr);
     }
@@ -500,15 +500,15 @@ bool InterfaceExchange::Resize(uint32_t NewWidth, uint32_t NewHeight, void* Colo
     std::array<VkImageView, 2u> Views{ Vulkan->ColourView, Vulkan->DepthView };
     const uint32_t ViewCount = (DepthTested && Vulkan->DepthView != VK_NULL_HANDLE) ? 2u : 1u;
 
-    VkFramebufferCreateInfo Info{ VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO };
-    Info.renderPass      = Vulkan->RenderPass;
-    Info.attachmentCount = ViewCount;
-    Info.pAttachments    = Views.data();
-    Info.width           = Width;
-    Info.height          = Height;
-    Info.layers          = 1u;
+    VkFramebufferCreateInfo Facts{ VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO };
+    Facts.renderPass      = Vulkan->RenderPass;
+    Facts.attachmentCount = ViewCount;
+    Facts.pAttachments    = Views.data();
+    Facts.width           = Width;
+    Facts.height          = Height;
+    Facts.layers          = 1u;
 
-    if (vkCreateFramebuffer(D, &Info, nullptr, &Vulkan->Framebuffer) != VK_SUCCESS)
+    if (vkCreateFramebuffer(D, &Facts, nullptr, &Vulkan->Framebuffer) != VK_SUCCESS)
     {
         std::cerr << "[InterfaceExchange] vkCreateFramebuffer failed.\n";
         return false;
@@ -528,7 +528,7 @@ void InterfaceExchange::UploadInstances(const InterfaceInstanceFigure* Instances
     const uint32_t Slot   = CycleSlot % Vulkan->CycleSlotCount;
     const uint32_t Actual = std::min(Count, Capacity);
 
-    InterfaceBuffer& Target = Vulkan->Instances[Slot];
+    InterfaceStore& Target = Vulkan->Instances[Slot];
     if (Target.Mapped == nullptr) return;
 
     const size_t Bytes = static_cast<size_t>(Actual) * sizeof(InterfaceInstanceFigure);
@@ -544,7 +544,7 @@ void InterfaceExchange::UploadInstances(const InterfaceInstanceFigure* Instances
 void InterfaceExchange::WriteViewConstants(uint32_t CycleSlot, const InterfaceViewClip& View) noexcept
 {
     const uint32_t Slot = CycleSlot % Vulkan->CycleSlotCount;
-    InterfaceBuffer& Target = Vulkan->Constants[Slot];
+    InterfaceStore& Target = Vulkan->Constants[Slot];
     if (Target.Mapped == nullptr) return;
 
     InterfaceConstantRecord Record{};
@@ -577,7 +577,7 @@ void InterfaceExchange::RecordInterface(void* Command, uint32_t CycleSlot, const
     if (Vulkan->Framebuffer == VK_NULL_HANDLE) return;
 
     const uint32_t     Slot   = CycleSlot % Vulkan->CycleSlotCount;
-    VkCommandBuffer    Buffer = static_cast<VkCommandBuffer>(Command);
+    VkCommandBuffer    Block = static_cast<VkCommandBuffer>(Command);
 
     WriteViewConstants(Slot, View);
 
@@ -586,20 +586,20 @@ void InterfaceExchange::RecordInterface(void* Command, uint32_t CycleSlot, const
     Begin.framebuffer       = Vulkan->Framebuffer;
     Begin.renderArea.extent = { Width, Height };
 
-    vkCmdBeginRenderPass(Buffer, &Begin, VK_SUBPASS_CONTENTS_INLINE);
+    vkCmdBeginRenderPass(Block, &Begin, VK_SUBPASS_CONTENTS_INLINE);
 
     const VkViewport Viewport{ 0.0f, 0.0f, static_cast<float>(View.RenderWidth), static_cast<float>(View.RenderHeight), 0.0f, 1.0f };
     const VkRect2D   Scissor { { 0, 0 }, { View.RenderWidth, View.RenderHeight } };
-    vkCmdSetViewport(Buffer, 0u, 1u, &Viewport);
-    vkCmdSetScissor (Buffer, 0u, 1u, &Scissor);
+    vkCmdSetViewport(Block, 0u, 1u, &Viewport);
+    vkCmdSetScissor (Block, 0u, 1u, &Scissor);
 
-    vkCmdBindPipeline(Buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, Vulkan->Pipeline);
-    vkCmdBindDescriptorSets(Buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, Vulkan->PipelineLayout, 0u, 1u, &Vulkan->Sets[Slot], 0u, nullptr);
+    vkCmdBindPipeline(Block, VK_PIPELINE_BIND_POINT_GRAPHICS, Vulkan->Sequence);
+    vkCmdBindDescriptorSets(Block, VK_PIPELINE_BIND_POINT_GRAPHICS, Vulkan->PipelineLayout, 0u, 1u, &Vulkan->Sets[Slot], 0u, nullptr);
 
     // The entire spatial interface, whatever it contains, in one call.
-    vkCmdDraw(Buffer, 4u, PendingCount, 0u, 0u);
+    vkCmdDraw(Block, 4u, PendingCount, 0u, 0u);
 
-    vkCmdEndRenderPass(Buffer);
+    vkCmdEndRenderPass(Block);
 
     Metrics.DrawCount = 1u;
     Metrics.Valid     = true;

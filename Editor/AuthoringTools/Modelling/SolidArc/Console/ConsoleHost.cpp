@@ -1325,7 +1325,7 @@ void ConsoleHost::Render() noexcept
     for (const SceneFigure& Figure : Scene.Figures())
     {
         if (Figure.Hidden || Figure.Classification != FigureClassification::Empty) continue;
-        // Phase 19: Empty is a transform handle. We draw a small triad at the Blueprint.A position
+        // Phase 19: Empty is a transform identifier. We draw a small triad at the Blueprint.A position
         //    so the user can see and select it. The triad is drawn in the main pass (not the overlay)
         //    so it occludes correctly with other geometry.
         ScenePresentation::DrawEmpty(*Surface, Figure.Blueprint.A, 0.15);
@@ -1854,7 +1854,7 @@ void ConsoleHost::RebuildFigureFromBlueprint(SceneFigure& F) noexcept
 //    by the matrix, Blueprint positions follow the same map and Blueprint directions (Axis, Normal) only its linear
 //    part, so a plane or axis that does not pass through the origin cannot smear a direction cell. Forms whose
 //    Blueprint cannot represent the moved figure — an axis-aligned Box or Rectangle under anything but an axis
-//    permutation — are baked to authored geometry rather than rebuilt into the wrong box; derived recipes are baked
+//    permutation — are precomputed to authored geometry rather than rebuilt into the wrong box; derived recipes are precomputed
 //    too, so a regenerate can never snap the copy back onto its untransformed sources.
 namespace
 {
@@ -3350,7 +3350,7 @@ void ConsoleHost::Register() noexcept
         if (ScaleEnd <= 0) return Refuse("array: --scale must be positive");
 
         int TotalCreated = 0;
-        // Resolve first; copy out the data we need so subsequent AddBody calls (which can reallocate Entries and
+        // Resolve first; copy out the record we need so subsequent AddBody calls (which can reallocate Entries and
         //    invalidate the SceneFigure* pointer) don't break the loop.
         struct Seed { FigureClassification Class; std::string Name; NurbsCurve Curve; NurbsSurface Surface; BrepBody Body; };
         std::vector<Seed> Seeds;
@@ -3785,7 +3785,7 @@ void ConsoleHost::Register() noexcept
         if (Sub == "on" || Sub == "off" || Sub == "show-all" || Sub == "hide-all")
         {
             // Phase 13: dims are hidden by default (renderer is being polished in Phase 14). `dim on`
-            //    makes them visible, `dim off` hides them again. The dim data is preserved either way.
+            //    makes them visible, `dim off` hides them again. The dim record is preserved either way.
             bool Want = (Sub == "on" || Sub == "show-all");
             ShowDimensions = Want;
             // Also flip the Hidden flag on every dim so DrawDimensions skips them, since the overlay
@@ -4549,7 +4549,7 @@ void ConsoleHost::Register() noexcept
                   "Frontier engine material (AutomotiveFlakePaint / Rubber_Tyre / Glass_Tinted / metals / emissive) and is "
                   "meant to be hand-edited. By default coincident vertices are KEPT DUPLICATED so low-poly edges stay crisp "
                   "(each face carries its own normals). Pass --weld to merge coincident vertices (position, averaged normals) within each "
-                  "body (welded seams, smaller mesh); --weld=eps sets the merge tolerance in metres (default 1e-5).",
+                  "body (welded seams, smaller topology); --weld=eps sets the merge tolerance in metres (default 1e-5).",
                   [=, this](const CommandLine& C)
     {
         if (!Need(C, 1, "export")) return false;
@@ -4567,7 +4567,7 @@ void ConsoleHost::Register() noexcept
 
         std::ofstream Obj(ObjPath);
         if (!Obj) return Refuse("export: cannot write %s", ObjPath.string().c_str());
-        Obj << "# SolidArc mesh export — units: metres, Y up matches source; per-face materials via usemtl.\n";
+        Obj << "# SolidArc topology export — units: metres, Y up matches source; per-face materials via usemtl.\n";
         Obj << "# vertices: " << (Weld ? "welded (coincident position+normal merged per body)" : "duplicated per face (sharp low-poly edges)") << "\n";
         Obj << "mtllib " << (Stem + ".mtl") << "\n";
 
@@ -4580,7 +4580,7 @@ void ConsoleHost::Register() noexcept
             const std::string Obj_o = SanitizeName(F.Name);
             const BrepBody& B = F.Body;
 
-            // Gather this body's triangles into one vertex pool. When welding, collapse vertices that share a
+            // Gather this body's triangles into one vertex slots. When welding, collapse vertices that share a
             // position (within WeldEps) into a single shared vertex whose normal is the AVERAGE of the incident
             // faces — turning the faceted, per-face-duplicated seams into smooth shared topology. Default (no weld)
             // keeps every face's own vertices/normals, preserving the crisp low-poly creases. Per-face material kept.
@@ -4672,7 +4672,7 @@ void ConsoleHost::Register() noexcept
         {
             Tm << "# SolidArc material manifest for " << (Stem + ".obj") << "\n";
             Tm << "# Edit freely: 'frontier' is the engine material each usemtl group binds to; paints use System B AutomotiveFlakePaint.\n";
-            Tm << "mesh = \"" << (Stem + ".obj") << "\"\n\n";
+            Tm << "topology = \"" << (Stem + ".obj") << "\"\n\n";
             for (int St : Used)
             {
                 const StudioMaterial& M = StudioMat(St);
@@ -4867,7 +4867,7 @@ void ConsoleHost::Register() noexcept
     {
         if (!Need(C, 1, "render")) return false;
         // Phase 10: contact-sheet sub-verb. `render sheet N` captures tile N (0..3) from the live raster, `render sheet
-        //    finalize <name>` writes a 2x2 composite. See docs/CONTACT_SHEET.md.
+        //    finalize <name>` writes a 2x2 combined. See docs/CONTACT_SHEET.md.
         if (C.Arguments[0] == "sheet")
         {
             if (C.Count() < 2) return Refuse("render sheet: tile index 0..3 or 'finalize <name>' required");

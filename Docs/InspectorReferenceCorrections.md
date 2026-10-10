@@ -18,7 +18,7 @@ The sensor/FOV card remains a sensor diagram; the iris is only in the aperture c
 
 ## Subject plane / focus
 
-`camera-graphics.jsx::DepthOfField` is transcribed in its 360×174 coordinates, fitted with the same centred aspect-preserving behaviour. It includes the dark rounded field, tinted sharp range, dashed near/far limits, 17 focus targets, logarithmic metre ticks, plane line and triangular indicator, and circular crosshair drag handle. Pointer coordinates now use that same fitted viewBox and the HTML's rounded logarithmic distance mapping.
+`camera-graphics.jsx::DepthOfField` is transcribed in its 360×174 coordinates, fitted with the same centred aspect-preserving behaviour. It includes the dark rounded field, tinted sharp range, dashed near/far limits, 17 focus targets, logarithmic metre ticks, plane line and triangular indicator, and circular crosshair drag identifier. Pointer coordinates now use that same fitted viewBox and the HTML's rounded logarithmic distance mapping.
 
 The CSS `blur(1.7px)` on out-of-focus targets is approximated by a native Gaussian sample kernel; native antialiasing and font rasterisation are not claimed to be browser-pixel-identical. No scene-camera blur is implied: aperture/focus remain optical diagnostics, as documented in the Camera delivery.
 

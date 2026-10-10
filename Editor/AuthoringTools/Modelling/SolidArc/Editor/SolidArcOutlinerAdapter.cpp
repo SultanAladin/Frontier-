@@ -456,27 +456,27 @@ void AddMatcap(EditorPropertyGroup& Group, uint8_t Matcap) noexcept
 
 void AddFigureCounts(EditorPropertyGroup& Group, const SceneFigure& Figure) noexcept
 {
-    char Buffer[48] = {};
+    char Block[48] = {};
     if (Figure.Classification == FigureClassification::Body)
     {
         const BodyReport Report = Figure.Body.Validate();
-        std::snprintf(Buffer, sizeof(Buffer), "%d", Report.Faces); AddReadout(Group, "Faces", Buffer);
-        std::snprintf(Buffer, sizeof(Buffer), "%d", Report.Edges); AddReadout(Group, "Edges", Buffer);
-        std::snprintf(Buffer, sizeof(Buffer), "%d", Report.Vertices); AddReadout(Group, "Vertices", Buffer);
-        std::snprintf(Buffer, sizeof(Buffer), "%.3f", Report.Volume); AddReadout(Group, "Volume", Buffer);
-        std::snprintf(Buffer, sizeof(Buffer), "%.3f", Report.Area); AddReadout(Group, "Area", Buffer);
+        std::snprintf(Block, sizeof(Block), "%d", Report.Faces); AddReadout(Group, "Faces", Block);
+        std::snprintf(Block, sizeof(Block), "%d", Report.Edges); AddReadout(Group, "Edges", Block);
+        std::snprintf(Block, sizeof(Block), "%d", Report.Vertices); AddReadout(Group, "Vertices", Block);
+        std::snprintf(Block, sizeof(Block), "%.3f", Report.Volume); AddReadout(Group, "Volume", Block);
+        std::snprintf(Block, sizeof(Block), "%.3f", Report.Area); AddReadout(Group, "Area", Block);
         AddReadout(Group, "B-rep", Report.Solid() ? "solid" : (Report.Manifold ? "sheet/wire" : "open"));
     }
     else if (Figure.Classification == FigureClassification::Surface)
     {
-        std::snprintf(Buffer, sizeof(Buffer), "%zu", Figure.Surface.Poles.size()); AddReadout(Group, "Control poles", Buffer);
-        std::snprintf(Buffer, sizeof(Buffer), "%zu", Figure.Surface.KnotsU.size()); AddReadout(Group, "Knots U", Buffer);
-        std::snprintf(Buffer, sizeof(Buffer), "%zu", Figure.Surface.KnotsV.size()); AddReadout(Group, "Knots V", Buffer);
+        std::snprintf(Block, sizeof(Block), "%zu", Figure.Surface.Poles.size()); AddReadout(Group, "Control poles", Block);
+        std::snprintf(Block, sizeof(Block), "%zu", Figure.Surface.KnotsU.size()); AddReadout(Group, "Knots U", Block);
+        std::snprintf(Block, sizeof(Block), "%zu", Figure.Surface.KnotsV.size()); AddReadout(Group, "Knots V", Block);
     }
     else if (Figure.Classification == FigureClassification::Curve)
     {
-        std::snprintf(Buffer, sizeof(Buffer), "%zu", Figure.Curve.Poles.size()); AddReadout(Group, "Control poles", Buffer);
-        std::snprintf(Buffer, sizeof(Buffer), "%zu", Figure.Curve.Knots.size()); AddReadout(Group, "Knots", Buffer);
+        std::snprintf(Block, sizeof(Block), "%zu", Figure.Curve.Poles.size()); AddReadout(Group, "Control poles", Block);
+        std::snprintf(Block, sizeof(Block), "%zu", Figure.Curve.Knots.size()); AddReadout(Group, "Knots", Block);
         AddReadout(Group, "Sketch", Figure.Construction ? "construction" : "profile");
     }
     else
@@ -488,17 +488,17 @@ void AddFigureCounts(EditorPropertyGroup& Group, const SceneFigure& Figure) noex
 void AddBlueprintParameters(EditorPropertyGroup& Group, const SceneFigure& Figure) noexcept
 {
     const SceneFigure::ParametricBlueprint& B = Figure.Blueprint;
-    char Buffer[48] = {};
+    char Block[48] = {};
     AddReadout(Group, "Form", BlueprintLabel(B.Form));
     if (B.Form == SceneFigure::ParametricForm::None)
     {
         AddReadout(Group, "Live edit", "read-only");
         return;
     }
-    std::snprintf(Buffer, sizeof(Buffer), "%.3f", B.R0); AddReadout(Group, "R0", Buffer);
-    std::snprintf(Buffer, sizeof(Buffer), "%.3f", B.R1); AddReadout(Group, "R1", Buffer);
-    std::snprintf(Buffer, sizeof(Buffer), "%.3f", B.R2); AddReadout(Group, "R2", Buffer);
-    std::snprintf(Buffer, sizeof(Buffer), "%d / %d", B.I0, B.I1); AddReadout(Group, "Integer slots", Buffer);
+    std::snprintf(Block, sizeof(Block), "%.3f", B.R0); AddReadout(Group, "R0", Block);
+    std::snprintf(Block, sizeof(Block), "%.3f", B.R1); AddReadout(Group, "R1", Block);
+    std::snprintf(Block, sizeof(Block), "%.3f", B.R2); AddReadout(Group, "R2", Block);
+    std::snprintf(Block, sizeof(Block), "%d / %d", B.I0, B.I1); AddReadout(Group, "Integer slots", Block);
     AddReadout(Group, "Closed", B.Closed ? "yes" : "no");
 }
 
@@ -530,9 +530,9 @@ void AddStat(EditorSheet& Sheet, const char* Label, const char* Text) noexcept
 
 void AddStatNumber(EditorSheet& Sheet, const char* Label, size_t Value) noexcept
 {
-    char Buffer[24] = {};
-    std::snprintf(Buffer, sizeof(Buffer), "%zu", Value);
-    AddStat(Sheet, Label, Buffer);
+    char Block[24] = {};
+    std::snprintf(Block, sizeof(Block), "%zu", Value);
+    AddStat(Sheet, Label, Block);
 }
 
 void OfferPresence(EditorSheet& Sheet, EditorSheetPresence Cell, bool On) noexcept
@@ -561,11 +561,11 @@ void BuildDocumentSheet(const ConsoleHost& Host, EditorSheet& Sheet) noexcept
         else if (Figure.Classification == FigureClassification::Curve)
             ++Sketches;
     }
-    char Buffer[48] = {};
-    std::snprintf(Buffer, sizeof(Buffer), "%zu figures", Host.AllFigures().size());
+    char Block[48] = {};
+    std::snprintf(Block, sizeof(Block), "%zu figures", Host.AllFigures().size());
     char Count[24] = {};
     std::snprintf(Count, sizeof(Count), "%u", Bodies);
-    SeatHero(Sheet, "DOCUMENT", 0u, Buffer, Count, "", Bodies == 1u ? "body" : "bodies", false);
+    SeatHero(Sheet, "DOCUMENT", 0u, Block, Count, "", Bodies == 1u ? "body" : "bodies", false);
     AddStat(Sheet, "Kernel", "NURBS");
     AddStat(Sheet, "Tolerance", "1e-6");
     AddStatNumber(Sheet, "Undo", Host.Timeline().UndoEntries().size());
@@ -573,12 +573,12 @@ void BuildDocumentSheet(const ConsoleHost& Host, EditorSheet& Sheet) noexcept
     EditorPropertyGroup* Summary = AddGroup(Sheet, "Contents", "What the document holds");
     if (Summary != nullptr)
     {
-        std::snprintf(Buffer, sizeof(Buffer), "%u", Bodies); AddReadout(*Summary, "Bodies", Buffer);
-        std::snprintf(Buffer, sizeof(Buffer), "%u", Sketches); AddReadout(*Summary, "Sketches", Buffer);
-        std::snprintf(Buffer, sizeof(Buffer), "%u", Surfaces); AddReadout(*Summary, "Surfaces", Buffer);
-        std::snprintf(Buffer, sizeof(Buffer), "%u", Construction); AddReadout(*Summary, "Construction", Buffer);
-        std::snprintf(Buffer, sizeof(Buffer), "%zu", Host.AllDimensions().size()); AddReadout(*Summary, "Dimensions", Buffer);
-        std::snprintf(Buffer, sizeof(Buffer), "%zu", Host.AllConstraints().size()); AddReadout(*Summary, "Constraints", Buffer);
+        std::snprintf(Block, sizeof(Block), "%u", Bodies); AddReadout(*Summary, "Bodies", Block);
+        std::snprintf(Block, sizeof(Block), "%u", Sketches); AddReadout(*Summary, "Sketches", Block);
+        std::snprintf(Block, sizeof(Block), "%u", Surfaces); AddReadout(*Summary, "Surfaces", Block);
+        std::snprintf(Block, sizeof(Block), "%u", Construction); AddReadout(*Summary, "Construction", Block);
+        std::snprintf(Block, sizeof(Block), "%zu", Host.AllDimensions().size()); AddReadout(*Summary, "Dimensions", Block);
+        std::snprintf(Block, sizeof(Block), "%zu", Host.AllConstraints().size()); AddReadout(*Summary, "Constraints", Block);
     }
 
     EditorPropertyGroup* Kernel = AddGroup(Sheet, "CAD kernel", "Geometry engine");
@@ -588,8 +588,8 @@ void BuildDocumentSheet(const ConsoleHost& Host, EditorSheet& Sheet) noexcept
         AddReadout(*Kernel, "Tolerance", "1e-6");
         AddReadout(*Kernel, "Axes", "Z-up lattice");
         AddReadout(*Kernel, "Selection", SelectModeName(Host.CurrentSelectMode()));
-        std::snprintf(Buffer, sizeof(Buffer), "%zu / %zu", Host.Timeline().UndoEntries().size(), Host.Timeline().RedoEntries().size());
-        AddReadout(*Kernel, "Undo / redo", Buffer);
+        std::snprintf(Block, sizeof(Block), "%zu / %zu", Host.Timeline().UndoEntries().size(), Host.Timeline().RedoEntries().size());
+        AddReadout(*Kernel, "Undo / redo", Block);
     }
 }
 
@@ -825,11 +825,11 @@ bool BuildSolidArcInspectorSheet(const ConsoleHost& Host,
         EditorPropertyGroup* Group = AddGroup(*Sheet, "Dimension", "Measured or driving");
         if (Group != nullptr)
         {
-            char Buffer[48] = {};
+            char Block[48] = {};
             AddReadout(*Group, "Anchor", Target);
             if (!Dimension->Label.empty())
                 AddReadout(*Group, "Label", Dimension->Label.c_str());
-            std::snprintf(Buffer, sizeof(Buffer), "%.3f", Dimension->Value); AddReadout(*Group, "Value", Buffer);
+            std::snprintf(Block, sizeof(Block), "%.3f", Dimension->Value); AddReadout(*Group, "Value", Block);
             AddReadout(*Group, "Live slot", Dimension->Slot >= 0 ? "parametric" : "read-only");
         }
         return true;
@@ -850,8 +850,8 @@ bool BuildSolidArcInspectorSheet(const ConsoleHost& Host,
         EditorPropertyGroup* Group = AddGroup(*Sheet, "Constraint", "Sketch solver");
         if (Group != nullptr)
         {
-            char Buffer[48] = {};
-            std::snprintf(Buffer, sizeof(Buffer), "#%u", Constraint->Id); AddReadout(*Group, "Identity", Buffer);
+            char Block[48] = {};
+            std::snprintf(Block, sizeof(Block), "#%u", Constraint->Id); AddReadout(*Group, "Identity", Block);
             AddReadout(*Group, "Relation", Type);
             AddReadout(*Group, "Note", Constraint->Note.c_str());
             AddReadout(*Group, "Solver", "2D sketch graph");
@@ -869,7 +869,7 @@ bool BuildSolidArcInspectorSheet(const ConsoleHost& Host,
     if (Figure == nullptr)
         return false;
 
-    char Buffer[48] = {};
+    char Block[48] = {};
     char Subtitle[40] = {};
     std::snprintf(Subtitle, sizeof(Subtitle), "%s \xc2\xb7 %s", ClassLabel(Figure->Classification), BlueprintLabel(Figure->Blueprint.Form));
     const bool IsEmpty   = Figure->Classification == FigureClassification::Empty;
@@ -892,26 +892,26 @@ bool BuildSolidArcInspectorSheet(const ConsoleHost& Host,
     if (IsBody)
     {
         const BodyReport Report = Figure->Body.Validate();
-        std::snprintf(Buffer, sizeof(Buffer), "%.3f", Report.Volume);
-        SeatHero(*Sheet, SubjectWord, Figure->Identity, Subtitle, Buffer, "m\xc2\xb3", "volume", true);
+        std::snprintf(Block, sizeof(Block), "%.3f", Report.Volume);
+        SeatHero(*Sheet, SubjectWord, Figure->Identity, Subtitle, Block, "m\xc2\xb3", "volume", true);
         AddStatNumber(*Sheet, "Faces", static_cast<size_t>(Report.Faces));
         AddStatNumber(*Sheet, "Edges", static_cast<size_t>(Report.Edges));
         AddStatNumber(*Sheet, "Vertices", static_cast<size_t>(Report.Vertices));
     }
     else if (IsSurface)
     {
-        std::snprintf(Buffer, sizeof(Buffer), "%zu", Figure->Surface.Poles.size());
-        SeatHero(*Sheet, SubjectWord, Figure->Identity, Subtitle, Buffer, "poles", "control net", true);
-        std::snprintf(Buffer, sizeof(Buffer), "%d \xc3\x97 %d", Figure->Surface.DegreeU, Figure->Surface.DegreeV);
-        AddStat(*Sheet, "Degree", Buffer);
-        std::snprintf(Buffer, sizeof(Buffer), "%d \xc3\x97 %d", Figure->Surface.CountU, Figure->Surface.CountV);
-        AddStat(*Sheet, "Net U\xc3\x97V", Buffer);
+        std::snprintf(Block, sizeof(Block), "%zu", Figure->Surface.Poles.size());
+        SeatHero(*Sheet, SubjectWord, Figure->Identity, Subtitle, Block, "poles", "control net", true);
+        std::snprintf(Block, sizeof(Block), "%d \xc3\x97 %d", Figure->Surface.DegreeU, Figure->Surface.DegreeV);
+        AddStat(*Sheet, "Degree", Block);
+        std::snprintf(Block, sizeof(Block), "%d \xc3\x97 %d", Figure->Surface.CountU, Figure->Surface.CountV);
+        AddStat(*Sheet, "Net U\xc3\x97V", Block);
         AddStatNumber(*Sheet, "Knots", Figure->Surface.KnotsU.size() + Figure->Surface.KnotsV.size());
     }
     else if (IsCurve)
     {
-        std::snprintf(Buffer, sizeof(Buffer), "%.3f", Figure->Curve.Length());
-        SeatHero(*Sheet, SubjectWord, Figure->Identity, Subtitle, Buffer, "m", "length", true);
+        std::snprintf(Block, sizeof(Block), "%.3f", Figure->Curve.Length());
+        SeatHero(*Sheet, SubjectWord, Figure->Identity, Subtitle, Block, "m", "length", true);
         AddStatNumber(*Sheet, "Degree", static_cast<size_t>(Figure->Curve.Degree));
         AddStatNumber(*Sheet, "Poles", Figure->Curve.Poles.size());
         AddStat(*Sheet, "Closed", Figure->Curve.Closed() ? "yes" : "no");
@@ -1007,12 +1007,12 @@ bool BuildSolidArcInspectorSheet(const ConsoleHost& Host,
                 if (Dimension.Anchor != Figure->Identity)
                     continue;
                 if (Dimension.Label.empty())
-                    std::snprintf(Buffer, sizeof(Buffer), "%.3f", Dimension.Value);
+                    std::snprintf(Block, sizeof(Block), "%.3f", Dimension.Value);
                 else
-                    std::snprintf(Buffer, sizeof(Buffer), "%s", Dimension.Label.c_str());
+                    std::snprintf(Block, sizeof(Block), "%s", Dimension.Label.c_str());
                 char Name[28] = {};
                 std::snprintf(Name, sizeof(Name), "#%u %s", Dimension.Id, Dimension.Slot >= 0 ? "driving" : "measured");
-                AddReadout(*Dims, Name, Buffer);
+                AddReadout(*Dims, Name, Block);
             }
         }
     }
@@ -1025,18 +1025,18 @@ bool BuildSolidArcInspectorSheet(const ConsoleHost& Host,
             if (IsBody)
             {
                 const BodyReport Report = Figure->Body.Validate();
-                std::snprintf(Buffer, sizeof(Buffer), "%.3f", Report.Area); AddReadout(*Topology, "Area", Buffer);
-                std::snprintf(Buffer, sizeof(Buffer), "%.3f", Report.Volume); AddReadout(*Topology, "Volume", Buffer);
+                std::snprintf(Block, sizeof(Block), "%.3f", Report.Area); AddReadout(*Topology, "Area", Block);
+                std::snprintf(Block, sizeof(Block), "%.3f", Report.Volume); AddReadout(*Topology, "Volume", Block);
                 AddReadout(*Topology, "B-rep", Report.Solid() ? "solid" : (Report.Manifold ? "sheet/wire" : "open"));
             }
             else
             {
-                std::snprintf(Buffer, sizeof(Buffer), "%zu", Figure->Surface.KnotsU.size()); AddReadout(*Topology, "Knots U", Buffer);
-                std::snprintf(Buffer, sizeof(Buffer), "%zu", Figure->Surface.KnotsV.size()); AddReadout(*Topology, "Knots V", Buffer);
+                std::snprintf(Block, sizeof(Block), "%zu", Figure->Surface.KnotsU.size()); AddReadout(*Topology, "Knots U", Block);
+                std::snprintf(Block, sizeof(Block), "%zu", Figure->Surface.KnotsV.size()); AddReadout(*Topology, "Knots V", Block);
             }
-            std::snprintf(Buffer, sizeof(Buffer), "%zu F \xc2\xb7 %zu E \xc2\xb7 %zu V", Figure->SelectedFaces.size(),
+            std::snprintf(Block, sizeof(Block), "%zu F \xc2\xb7 %zu E \xc2\xb7 %zu V", Figure->SelectedFaces.size(),
                           Figure->SelectedEdges.size(), Figure->SelectedPoles.size());
-            AddReadout(*Topology, "Picked", Buffer);
+            AddReadout(*Topology, "Picked", Block);
         }
     }
 

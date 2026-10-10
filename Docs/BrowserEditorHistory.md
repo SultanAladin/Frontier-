@@ -67,11 +67,11 @@ Moon transforms use three separate cards: **Moon size**, **Lunar position** (azi
 
 `scripts/compute_icons.py` supplies the revised colored 2D / dimensional 3D GPU pair, a flat colored RAM module, and World / Earth with simplified orthographic geography. GPU and RAM flat assets use solid vector fills without gradients or filters.
 
-`scripts/editor_icons.py` adds 20 compact, colored Editor symbols: five light types, select/move/rotate/scale, pivot, snap, mesh, camera, material, texture, collection, visibility, lock, keyframe and particle emitter. Use the **Editor** category in the gallery. These are separately simplified small-control symbols, not duplicates of the dimensional artwork.
+`scripts/editor_icons.py` adds 20 compact, colored Editor symbols: five light types, select/move/rotate/scale, pivot, snap, topology, camera, material, texture, collection, visibility, lock, keyframe and particle emitter. Use the **Editor** category in the gallery. These are separately simplified small-control symbols, not duplicates of the dimensional artwork.
 
-The Editor set now contains 46 icons. Move uses colored transform axes, Rotate uses directional orbit arcs, and Keyframe uses a diamond on a keyed track. The expansion adds rigid body, box/sphere colliders, trigger, navigation mesh/agent, prefab, instance, script, visual script, animation clip, bone, audio source, terrain, foliage, hierarchy, grid, play mode, pause, and stop.
+The Editor set now contains 46 icons. Move uses colored transform axes, Rotate uses directional orbit arcs, and Keyframe uses a diamond on a keyed track. The expansion adds rigid body, box/sphere colliders, trigger, navigation topology/agent, prefab, instance, script, visual script, animation clip, bone, audio source, terrain, foliage, hierarchy, grid, play mode, pause, and stop.
 
-Editor refinements: Move uses orthogonal colored handles; Rotate is a clear circular three-color control; Snap has vibrant red/blue magnet poles. Bone is a rigging bone rather than an anatomical bone. Lock/Unlock and Visible/Hidden are paired, Simulate uses a bouncing-body/play metaphor, and Navigation mesh is removed (Navigation agent remains).
+Editor refinements: Move uses orthogonal colored identifiers; Rotate is a clear circular three-color control; Snap has vibrant red/blue magnet poles. Bone is a rigging bone rather than an anatomical bone. Lock/Unlock and Visible/Hidden are paired, Simulate uses a bouncing-body/play metaphor, and Navigation topology is removed (Navigation agent remains).
 
 All 42 Editor symbols now share a saturated blue, mint, violet, gold and coral palette. Animation Clip uses multiple colors; Editor Spot/Area/Directional lights use cone, emitting-plane and parallel-ray silhouettes. Move shows a selected object moving to a target, replacing the previous axis-cross design. Other icon categories retain their own palettes.
 
@@ -107,7 +107,7 @@ File/folder accent refinement: each of the 32 asset icons has an individually as
 
 File/folder surface update: the 32 asset cards now use solid charcoal front/back/badge fills and solid pale inset sheets rather than surface gradients. Individual color accents remain. Each folder has its category name printed inside the lower pocket beside the badge; the small material-sphere glyph retains its shading.
 
-Folder SVGs include a smaller size/item-count line beneath the name (9-unit metadata below 14-unit labels). Values in `FOLDER_METADATA` are illustrative preview data, not measured filesystem metadata.
+Folder SVGs include a smaller size/item-count line beneath the name (9-unit metadata below 14-unit labels). Values in `FOLDER_METADATA` are illustrative preview record, not measured filesystem metadata.
 
 Control refresh: Wind is now three plain rounded airflow strokes; Stars contains 62 static dots without glow. The 2D LED/DRL strip is a white segmented swept light bar, with a new flat Car LED front-view icon. Three Editor debugging controls use bug-style shells (Debug bug, Run debugger, Debug breakpoint). Incandescent 3D, both low-beam/fog variants, custom Spotlight and Directional variants in the Lights section are retired; Editor Spotlight and Directional Light remain. Imported Slate Spotlight is unchanged. Source: `scripts/control_icon_refresh.py`.
 
@@ -135,7 +135,7 @@ Debug redesign: three graphite circuit-beetle controls with split plates, cyan t
 
 All 26 selected Slate icons use larger main artwork and independently positioned, smaller bottom-left/right badges. The fixtures are upright. Spotlight uses a shaded cylindrical housing and a connected rounded mounting strap; its approved beam shape, gradient, light core and framing are preserved. Lantern uses dimensional enamel shading on its rounded hood and approved fuel tank, with integrated side tubes and glass. Original source snapshots remain available for provenance.
 
-Rebuild the layout data with `node scripts/measure-slate-layout.mjs`, then `python3 scripts/build-icon-gallery.py && npm run build`. Validate with `node scripts/check-slate-import.mjs`, `node scripts/check-file-assets.mjs`, and `node scripts/check-weather-expansion.mjs`. The gallery server disables caching during iteration.
+Rebuild the layout record with `node scripts/measure-slate-layout.mjs`, then `python3 scripts/build-icon-gallery.py && npm run build`. Validate with `node scripts/check-slate-import.mjs`, `node scripts/check-file-assets.mjs`, and `node scripts/check-weather-expansion.mjs`. The gallery server disables caching during iteration.
 
 ### Gallery icons in the scene outliner
 
@@ -147,11 +147,11 @@ Outliner readability: Stars and Precipitation now use dedicated 24-unit SVG glyp
 
 Precipitation readability correction: the outliner now uses one large umbrella for the precipitation entity, rather than miniature clouds/particles. It stays consistent across Rain/Snow/Hail; those mode controls remain in the inspector and still work. The approved Stars glyph and detailed gallery assets are unchanged.
 
-### Quick bake tiles (editor setup, not engine rendering)
+### Quick precompute tiles (editor setup, not engine rendering)
 
-Sun lighting, Sun disk, Atmosphere, Rainbow, Lens Flare and Stars now have property-style bake cards at the bottom of the inspector, using monochrome symbols and the same ON/OFF tile styling as the other property switches. **Bake** records a timestamped `pending-renderer` request containing target/settings; it never reports a completed render. Requests can be exported as JSON. **Load image** accepts decoded PNG/JPEG/WebP previews up to 256 KB / 8192 px; **Use baked image** selects that source in editor metadata. Existing procedural controls are preserved for editing/rebaking; no engine shading is changed without a renderer integration.
+Sun lighting, Sun disk, Atmosphere, Rainbow, Lens Flare and Stars now have property-style precompute cards at the bottom of the inspector, using monochrome symbols and the same ON/OFF tile styling as the other property switches. **Precompute** records a timestamped `pending-renderer` request containing target/settings; it never reports a completed render. Requests can be exported as JSON. **Load image** accepts decoded PNG/JPEG/WebP previews up to 256 KB / 8192 px; **Use precomputed image** selects that source in editor metadata. Existing procedural controls are preserved for editing/rebaking; no engine shading is changed without a renderer integration.
 
-Images and per-target modes are saved with the existing project values (`bake:<target>`), with a 1.5 MB combined image budget and storage-failure reporting. Removing a file returns to procedural mode. Duplicated entities have independent bake state. Gallery **Bake** (`editor-bake.svg`) depicts light entering a checker texture. Tests: `node scripts/check-bake-controls.mjs` and `node scripts/check-outliner-icons.mjs`.
+Images and per-target modes are saved with the existing project values (`precompute:<target>`), with a 1.5 MB combined image budget and storage-failure reporting. Removing a file returns to procedural mode. Duplicated entities have independent precompute state. Gallery **Precompute** (`editor-precompute.svg`) depicts light entering a checker texture. Tests: `node scripts/check-precompute-controls.mjs` and `node scripts/check-outliner-icons.mjs`.
 
 ### Local atmosphere volumes
 

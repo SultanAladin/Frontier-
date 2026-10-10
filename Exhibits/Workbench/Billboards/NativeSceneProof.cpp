@@ -15,12 +15,12 @@ EditorProperty& Find(EditorSheet& S,const char* N){for(unsigned G=0;G<S.GroupCou
 uint64_t Key(CelestialEntity E){return 0x200000001ull+unsigned(E);}
 void Box(SceneStructure& L,const char* Name,float X,float Y,float Z,float SX,float SY,float SZ,float R,float G,float B,float Emission=0){
  MaterialDescriptor M;M.Name=Name;M.Slabs.emplace_back();auto& S=M.Slabs[0];S.BaseColor[0]=R;S.BaseColor[1]=G;S.BaseColor[2]=B;S.SpecularRoughness=.7f;S.EmissionLuminance=Emission;
- const auto Mat=L.RegisterMaterial(M);GeometryStructure Mesh;
+ const auto Mat=L.RegisterMaterial(M);GeometryStructure Hull;
  const float V[8][3]={{X-SX,Y-SY,Z},{X+SX,Y-SY,Z},{X+SX,Y+SY,Z},{X-SX,Y+SY,Z},{X-SX,Y-SY,Z+SZ},{X+SX,Y-SY,Z+SZ},{X+SX,Y+SY,Z+SZ},{X-SX,Y+SY,Z+SZ}};
  const unsigned Faces[6][4]={{0,3,2,1},{4,5,6,7},{0,1,5,4},{3,7,6,2},{0,4,7,3},{1,2,6,5}};
  const float Normals[6][3]={{0,0,-1},{0,0,1},{0,-1,0},{0,1,0},{-1,0,0},{1,0,0}};
- for(unsigned F=0;F<6;++F){VertexRecord A[4]{};for(unsigned I=0;I<4;++I){auto* P=V[Faces[F][I]];A[I].SpatialLocation={P[0],P[1],P[2]};A[I].NormalDirection={Normals[F][0],Normals[F][1],Normals[F][2]};}Mesh.AppendVertices(A,4);unsigned Base=F*4,Indices[]={Base,Base+1,Base+2,Base,Base+2,Base+3};Mesh.AppendIndices(Indices,6);}
- Matrix4x4 Identity;auto First=L.RegisterInstance(Mesh,Identity,Mat,InstanceFlagDoubleSided);auto Place=L.RegisterPlacement(Name,0xffffffffu,Identity,Identity);L.AttachInstances(Place,First,1);
+ for(unsigned F=0;F<6;++F){VertexRecord A[4]{};for(unsigned I=0;I<4;++I){auto* P=V[Faces[F][I]];A[I].SpatialLocation={P[0],P[1],P[2]};A[I].NormalDirection={Normals[F][0],Normals[F][1],Normals[F][2]};}Hull.AppendVertices(A,4);unsigned Base=F*4,Indices[]={Base,Base+1,Base+2,Base,Base+2,Base+3};Hull.AppendIndices(Indices,6);}
+ Matrix4x4 Identity;auto First=L.RegisterInstance(Hull,Identity,Mat,InstanceFlagDoubleSided);auto Place=L.RegisterPlacement(Name,0xffffffffu,Identity,Identity);L.AttachInstances(Place,First,1);
 }
 #include "../WindBindings/NativeWindProof.h"
 int RunEditorConversion(const char* Output);
@@ -84,7 +84,7 @@ int main(int argc,char** argv){if(argc>2&&!std::strcmp(argv[1],"--editor-convers
  Click(MarkerToggle);Check(Host->QueryBillboardCentre(Key(CelestialEntity::LocalFog)).x<0,"Markers toggle hides local proxies");
  Click(MarkerToggle);Check(Host->QueryBillboardCentre(Key(CelestialEntity::LocalFog)).x>=0,"Markers toggle restores local proxies");
  for(auto Entity:{CelestialEntity::LocalCloud,CelestialEntity::LocalFog}){
-  Click(Host->QueryBillboardCentre(Key(Entity)));Check(Rows[Host->QueryPickedInstance()].InspectorKey==Key(Entity),"billboard selects matching outliner row");Check(Sheet->InspectorKey==Key(Entity),"billboard mounts real matching inspector");float U,V;bool Add;Check(!Host->QueryViewTap(&U,&V,&Add),"billboard click consumed before mesh picker");Check(Host->TakeBillboardSelection(),"billboard cancels older asynchronous mesh selection");Check(!Host->TakeBillboardSelection(),"selection notification consumed once");
+  Click(Host->QueryBillboardCentre(Key(Entity)));Check(Rows[Host->QueryPickedInstance()].InspectorKey==Key(Entity),"billboard selects matching outliner row");Check(Sheet->InspectorKey==Key(Entity),"billboard mounts real matching inspector");float U,V;bool Add;Check(!Host->QueryViewTap(&U,&V,&Add),"billboard click consumed before topology picker");Check(Host->TakeBillboardSelection(),"billboard cancels older asynchronous topology selection");Check(!Host->TakeBillboardSelection(),"selection notification consumed once");
  }
  Host->PickInstance(Index(Key(CelestialEntity::Wind)));Tick();Capture("Editor-Wind");
  ImGuiWindow* Slider=nullptr;for(auto* Win:ImGui::GetCurrentContext()->Windows)if(Win->Active&&std::strstr(Win->Name,"/Speed_"))Slider=Win;Check(Slider!=nullptr,"actual native Wind slider mounted");float Old=Sky->Wind.Speed;Click({Slider->Pos.x+Slider->Size.x*.7f,Slider->Pos.y+15});Check(Sky->Wind.Speed!=Old,"native mouse edit commits Wind speed");Render(nullptr);Check(Raster->QueryCelestial().Wind.Speed==Sky->Wind.Speed,"native mouse edit propagated to rendered scene");Tick();Capture("Editor-Wind-edited");
@@ -103,7 +103,7 @@ int main(int argc,char** argv){if(argc>2&&!std::strcmp(argv[1],"--editor-convers
  // A modal above the viewport owns its clicks, not the scene or the markers beneath it.
  BlockInput=true;Tick();Tick();const auto PickBefore=Host->QueryPickedInstance();
  Click(Host->QueryBillboardCentre(Key(CelestialEntity::LocalFog)));Check(Host->QueryPickedInstance()==PickBefore,"modal blocks billboard selection");
- float TapU,TapV;bool Additive;Check(!Host->QueryViewTap(&TapU,&TapV,&Additive),"modal blocks mesh selection too");
+ float TapU,TapV;bool Additive;Check(!Host->QueryViewTap(&TapU,&TapV,&Additive),"modal blocks topology selection too");
  BlockInput=false;CloseModal=true;Tick();CloseModal=false;Tick();
  // Overlapping local markers: nearest visible proxy wins, independent of roster order.
  float CloudCentre[3],FogCentre[3];std::memcpy(CloudCentre,Sky->LocalCloud.Centre,sizeof(CloudCentre));std::memcpy(FogCentre,Sky->LocalFog.Centre,sizeof(FogCentre));

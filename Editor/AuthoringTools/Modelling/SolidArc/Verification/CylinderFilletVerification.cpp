@@ -2,7 +2,7 @@
 // 📦 Verification/CylinderFilletVerification.cpp — Phase 26: exact rolling-ball fillets on circular cylinder cap edges
 //============================================================================================================================================
 // A native circular cylinder rim has an analytic constant-radius solution: revolve a rational quarter-circle meridian
-// around the cylinder axis. These checks verify the quarter-torus itself and its G1 endpoint normals, not only a mesh.
+// around the cylinder axis. These checks verify the quarter-torus itself and its G1 endpoint normals, not only a topology.
 #include "Kernel/BlendSolver.h"
 #include "Console/ConsoleHost.h"
 #include "VerificationPanel.h"

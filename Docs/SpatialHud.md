@@ -49,7 +49,7 @@ the three bands a car cluster actually uses:
 
 Behind all of it, filling the face, the streak field.
 
-Still one `draw(4, instances)`. Twenty-odd figures, no vertex buffer, no texture, nothing
+Still one `draw(4, instances)`. Twenty-odd figures, no vertex store, no texture, nothing
 re-tessellated when a value moves.
 
 ## The browser shader is generated, not transcribed
@@ -88,7 +88,7 @@ pressing your nose against and a panel reflected in a windscreen forty metres aw
 `js/fibres.js` ports `fbHash`, `fbUnit`, `fbBezier`, `fbPulse`, `fbRamp`, `fbColourAt` and both the
 fibre and spark stages out of `Experimental/ParticleEditor/js/shaders.js`, keeping the editor's own
 uniform slot numbering so the two can be read side by side. Not ported: ribbon and trail. A trail
-needs the arc-length path table as a storage buffer and a ribbon is a sheet rather than a volume, so
+needs the arc-length path table as a storage store and a ribbon is a sheet rather than a volume, so
 the packer **refuses** any shape but `streak` instead of quietly falling back to it.
 
 The obvious way to put a 3D world behind a UI panel is to render it offscreen and sample the texture.
@@ -98,7 +98,7 @@ cheaply ask about — the objection `InterfacePanelSample.slang` already makes.
 But the engine has the mechanism a portal actually needs: the ⑥ **shader clip**, "a rounded rectangle
 in the figure's own plane ... works under any transform, unlike a scissor rectangle". So the fibres
 are drawn **in the same render pass**, in the panel's own local space, clipped by the panel's rounded
-rectangle in the fragment shader. Own pipeline, own vertex program, own geometry — a custom raster in
+rectangle in the fragment shader. Own chain, own vertex program, own geometry — a custom raster in
 every way that matters — and no offscreen target.
 
 An offscreen target earns its cost for exactly three things, none of which is "3D": **bloom**, a
@@ -150,7 +150,7 @@ and it should be decided deliberately rather than discovered.
 ### Either way, it is light
 
 The backdrop is an **Illuminant**, not an Overlay: it is light inside the glass, it feeds the panel's
-scene luminaire and pools on whatever the tablet stands on. A backdrop that lit nothing would read as
+scene luminaire and slots on whatever the tablet stands on. A backdrop that lit nothing would read as
 a sticker the moment the room went dark. Drop the ambient slider to see the bezel sink while the
 streaks, the arc and the lit knob stay.
 
@@ -246,7 +246,7 @@ So the tablet now **leans back 9.7° in a dock, standing on a desk, with a march
 - **The contact shadow** is the standard ratio-of-distance-to-travel march. That ratio *is* the
   penumbra, so the shadow is soft where the tablet is far from the desk and tightens to a hard line
   where it meets it, for free.
-- **The screen pools its own light on the desk**, shadowed by the body so it doesn't leak out
+- **The screen slots its own light on the desk**, shadowed by the body so it doesn't leak out
   behind the device. This is the other half of "it's really there".
 - **The lean lives in the scene, not the layout.** `layout.js` stands the panel bolt upright, which
   is the right *authoring* frame — every figure is placed against it and every check is pinned to
@@ -288,7 +288,7 @@ angle with a highlight added on top; now it correctly fades as the room wins.
 
 The obvious way to fill a screen texture is to render the interface orthographically, face on. That
 throws away the thing this whole experiment is about: the fibre volume is a hundred-odd millimetres
-deep, and an orthographic bake flattens it to a sticker the moment the camera moves.
+deep, and an orthographic precompute flattens it to a sticker the moment the camera moves.
 
 So it uses the projection a portal or a mirror uses — apex at the **real eye**, near plane the
 **panel rectangle** rather than a symmetric window about the view axis. Then texture UV and panel
@@ -350,7 +350,7 @@ obvious simplification and it returns the black sheet.
 ## 🔴 A finding about the native sort key
 
 `ComposeInterfaceSortKey` puts transparency in the **top** bit, so every transparent figure submits
-after every opaque one whatever its ordering rank. That is correct when a depth buffer is doing the
+after every opaque one whatever its ordering rank. That is correct when a depth store is doing the
 occlusion. It is wrong the moment a large *transparent* figure has to sit *under* opaque ones — which
 is exactly what the streak field is: rank 2, opacity 0.85, beneath an opaque needle at rank 7 and
 opaque digits at rank 9. Under the engine's key the backdrop submits last and paints over its own
@@ -373,7 +373,7 @@ node Experimental/SpatialHud/CheckHud.mjs            # PASS 176
 Both run in `frontier-build.yml`. `CheckHud` covers the composition arithmetic (a quarter turn about
 X really does send panel-up to world-up), the two-sweep resolver and its cycle refusal, the layout's
 structural claims, that no figure reaches past the bezel, the sort finding, the value writes, and the
-packed buffer.
+packed store.
 
 Two of its checks are worth naming:
 
@@ -446,7 +446,7 @@ Three things the first CPU stills exposed, none of which any numeric check could
   place on a dial where nothing moves.
 - ~~**The Live rung covers a band, not the face.**~~ Fixed by the slab, below.
 
-- Nothing is ported to C++ yet. The order would be: the fibre stages as a second pipeline beside the
+- Nothing is ported to C++ yet. The order would be: the fibre stages as a second chain beside the
   interface raster (they are already the editor's own code, which the engine does not yet have at
   all), the field rung into `InterfaceSignedDistance.slang`, the slot growth for its eight
   parameters, the sort-key decision above, then the composition into a new project-side sequence
@@ -457,7 +457,7 @@ Three things the first CPU stills exposed, none of which any numeric check could
   automatically — the page has three buttons. Native, this wants the same treatment as the gas
   quality ladder: a distance and a budget, not a switch.
 - **The panel is not interactive.** `InterfacePointerProjection` already exists natively and the
-  trial panel already handles a pointer contact; the browser page drives values from sliders and a
+  trial panel already identifiers a pointer contact; the browser page drives values from sliders and a
   scripted cycle instead. Pressing the toggle and dragging the slider *on the panel* is the next
   thing it needs.
 - The telltales are decoration — they breathe on a timer and mean nothing.

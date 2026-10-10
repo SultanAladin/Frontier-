@@ -1,4 +1,4 @@
-NATIVE GAS FLIPBOOK - the sheet the bottom rung plays, and one real bake of a camp fire
+NATIVE GAS FLIPBOOK - the sheet the bottom rung plays, and one real precompute of a camp fire
 
 ① The layout is the browser's, including what it refuses
   PASS  four tiles make a 2 by 2 sheet
@@ -37,13 +37,13 @@ Where each tile sits, left to right then top to bottom
   PASS  ② row zero of a readback is the bottom of the picture, and lands at the bottom of the tile
   PASS  while the tile's top row is the empty one - the flip happens exactly once
   PASS  ③ the colour is divided back out of its coverage: 64 premultiplied at half alpha is 128 straight
-  PASS  an opaque bake writes full alpha
+  PASS  an opaque precompute writes full alpha
   PASS  and leaves the colour exactly as it was rendered
   PASS  a tile writes inside its own region and nowhere else
   PASS  and naming a tile the sheet does not have writes nothing at all
   PASS  a null sheet is declined rather than written through
 
-A real bake: the camp fire preset, through the shipped solver and the shipped integration
+A real precompute: the camp fire preset, through the shipped solver and the shipped integration
   PASS  a second and a half of warm-up puts a fire in the box before the first tile
   PASS  a 12 per second sheet advances five solver steps a tile, at the solver's own fixed step
   PASS  every tile has smoke in it, starting with the first
@@ -65,8 +65,8 @@ A real bake: the camp fire preset, through the shipped solver and the shipped in
   PASS  the fire grows across the sheet rather than sitting still - the solver really advanced between tiles
   PASS  and two tiles a third of a second apart are not the same picture
 
-⑤ The same bake twice is the same bytes
-  PASS  a sheet is content: two bakes of the same preset are byte for byte the same file
+⑤ The same precompute twice is the same bytes
+  PASS  a sheet is content: two precomputes of the same preset are byte for byte the same file
 
 The descriptor beside it is TOML, and toml++ reads back what was written
   PASS  a descriptor is spelled for an admitted layout
@@ -85,7 +85,7 @@ The descriptor beside it is TOML, and toml++ reads back what was written
   PASS  the descriptor is written beside the sheet
 
 Capture
-  PASS  the baked sheet is written out, all sixteen tiles of it
+  PASS  the precomputed sheet is written out, all sixteen tiles of it
     wrote Exhibits/Gallery/GasFlipbook/CampFireSheet.png  (512x512, 16 tiles)
 
 What the rung is worth

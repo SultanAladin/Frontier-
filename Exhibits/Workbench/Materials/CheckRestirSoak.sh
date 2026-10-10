@@ -36,7 +36,7 @@
 #    What the numbers say (2026-09-18, 128×72): M is bounded, and so is the error — the ReSTIR arm's distance to a
 #    converged reference is FLAT from about frame 250 on (7 334.1 → 7 423.8 independent, band 6 918–7 636 over the run).
 #    The clamp is therefore both the fix and the floor: with M saturating near 60, the temporal filter's effective
-#    memory is ~M frames, and additional frames resample the same clamped weights instead of adding information.
+#    storage is ~M frames, and additional frames resample the same clamped weights instead of adding information.
 #    Buying accuracy past this point takes taps/candidates/coverage (report §14.3's dial matrix), not more frames.
 #
 #    Usage: CheckRestirSoak.sh [fast]      (fast = 250 frames, ~3 min; full = 1 000, ~6 min)

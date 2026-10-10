@@ -105,7 +105,7 @@ constexpr double HoleRadius = 1.0;
     return Planes2 == TwoLoopPlanes && Walls == Extrusions;
 }
 
-// The extrusion pipeline flattens a filleted rectangle to a degree-two rational chain, so recognition is structural plus sampled.
+// The extrusion chain flattens a filleted rectangle to a degree-two rational chain, so recognition is structural plus sampled.
 [[nodiscard]] bool ExactRoundedRect(const NurbsCurve& Curve, double HalfX, double HalfY, double Radius, Vec3& Centre) noexcept
 {
     if (!Curve.Closed() || !Curve.Rational() || Curve.Degree != 2 || Curve.PoleCount() != 17 ||

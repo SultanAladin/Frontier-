@@ -89,7 +89,7 @@ public:
 
     [[nodiscard]] uint32_t  QueryWidth() const noexcept { return Width; }
     [[nodiscard]] uint32_t  QueryHeight() const noexcept { return Height; }
-    [[nodiscard]] const std::vector<Vector3>& QueryAccumulatedBuffer() const noexcept { return AccumulatedBuffer; }
+    [[nodiscard]] const std::vector<Vector3>& QueryAccumulatedBuffer() const noexcept { return AccumulatedStore; }
 
     // Single unified conversion operator for pixel count
     template<typename TargetType>
@@ -107,10 +107,10 @@ private:
     float                   ToneExposure = 1.05f;               // [-] linear pre-tonemap multiplier
     RayTracingSolver        Scene;                              // [scene] analytical showcase geometry
     SkyFogIntegrator        SkyFog;                             // [atmosphere] celestial sky and fog volumes
-    std::vector<HitIntersection>      PrimaryHits;              // [visibility] primary visibility buffer
+    std::vector<HitIntersection>      PrimaryHits;              // [visibility] primary visibility store
     std::vector<PhotometricReservoir> DirectReservoirs;         // [restir_di] direct illumination reservoirs
     std::vector<IndirectGIReservoir>  IndirectReservoirs;       // [restir_gi] global illumination reservoirs
-    std::vector<Vector3>              AccumulatedBuffer;        // [radiance] HDR color radiance buffer
+    std::vector<Vector3>              AccumulatedStore;        // [radiance] HDR color radiance store
 };
 
 template<>

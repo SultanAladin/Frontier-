@@ -101,7 +101,7 @@ public:
 
     float ConstructNotificationLayout(PixelSpace& Surface, const PlaneExtent& Body, float ScrollY, const ControlPointer& Pointer, float Opacity) noexcept;
 
-    static constexpr uint32_t RowCount = 8u;   // 0 FPS  1 RAM  2 Scene  |  3 Baking  4 Render  5 Autosave  6 Frame drops  |  7 hold slider
+    static constexpr uint32_t RowCount = 8u;   // 0 FPS  1 RAM  2 Scene  |  3 Precomputing  4 Render  5 Autosave  6 Frame drops  |  7 hold slider
     [[nodiscard]] PlaneExtent QueryToggleExtent(uint32_t Row) const noexcept { return Row < 7u ? ToggleExtents[Row] : PlaneExtent{}; }
     [[nodiscard]] PlaneExtent QueryHoldSliderExtent() const noexcept { return HoldSliderExtent; }
 

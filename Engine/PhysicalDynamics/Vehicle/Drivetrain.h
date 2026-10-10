@@ -6,7 +6,7 @@
 //    headers Engine/Turbocharger/Transmission/Clutch Specifications.h). Pure C++/scalar — no Unreal, no Jolt, no threading.
 //    Defaults are the GRIT "preset-1 GTR" values extracted from the source (torque curve, turbo maps, ratios, inertias).
 //
-//    Pipeline per step:  engine (RK4 on ω, torque-curve × turbo boost − engine braking) → AMT single clutch (slip/lock)
+//    Sequence per step:  engine (RK4 on ω, torque-curve × turbo boost − engine braking) → AMT single clutch (slip/lock)
 //                        → transmission (gear × final drive) → differential (Open / Locked / LSD / TorqueVectoring).
 //
 //    References (as cited in GRIT source): Heywood (1988) "Internal Combustion Engine Fundamentals"; Dixon (2013)

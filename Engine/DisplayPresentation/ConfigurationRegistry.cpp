@@ -35,7 +35,7 @@ FRONTIER_NAMES(SampleCountCategory,      "1x", "2x", "4x", "8x");
 FRONTIER_NAMES(ThemeCategory,            "Oled", "Dark", "Dim", "Light", "Sepia", "Dracula", "Nord", "GitHub");
 FRONTIER_NAMES(AccentCategory,           "White", "Orange", "Amber", "Lime", "Emerald", "Cyan", "Blue", "Violet", "Fuchsia", "Rose");
 FRONTIER_NAMES(InputProfileCategory,     "Blender", "MayaUnity", "Unreal");
-FRONTIER_NAMES(RayTracingTierRequestCategory, "Auto", "Software", "RayQuery", "Pipeline");
+FRONTIER_NAMES(RayTracingTierRequestCategory, "Auto", "Software", "RayQuery", "Sequence");
 FRONTIER_NAMES(DebugViewSelection,       "Off", "Depth", "Visibility", "Motion", "Cluster", "HiZ", "Albedo", "Normal", "Roughness", "Metalness", "ShadingNormal", "ReservoirM", "ReservoirW", "ReservoirAge", "PatchTiles", "PatchWire");
 FRONTIER_NAMES(FontWeightCategory,       "Thin", "ExtraLight", "Light", "Regular", "Medium", "SemiBold", "Bold", "ExtraBold", "Black");
 #undef FRONTIER_NAMES
@@ -141,12 +141,12 @@ std::string ConfigurationRegistry::Serialise(const SlateConfiguration& P) noexce
         { "quality",             NameOf(P.Render.Quality) },
         { "render_scale",        static_cast<double>(P.Render.RenderScale) },
         { "shadow_resolution",   NameOf(P.Render.ShadowResolution) },   // Auto follows the quality tier; the rest pin the map side
-        { "ray_tracing_tier",    NameOf(P.Backend.RayTracingTier) },   // Auto | Software | RayQuery | Pipeline (never faked upward)
+        { "ray_tracing_tier",    NameOf(P.Backend.RayTracingTier) },   // Auto | Software | RayQuery | Sequence (never faked upward)
         { "debug_view",          NameOf(P.Backend.DebugView) },        // Off | Depth | Visibility | Motion | Cluster | HiZ | Albedo | Normal | Roughness | Metalness | ShadingNormal | ReservoirM | ReservoirW | ReservoirAge (F3 popup)
         { "occlusion_culling",   P.Backend.OcclusionCulling },         // HiZ two-phase cull; off = frustum only (proof 4 A/B)
         { "alias_pick",          P.Backend.AliasPick },                // R6 row 3 Walker-alias light pick; off = uniform R0 identity (F5 popup)
         { "patch_error_pixels",  P.Backend.PatchErrorPixels },         // patch-preview screen-error tolerance in pixels (F6 popup: 1 | 2 | 4 | 8)
-        { "sky_dome_baked",      P.Backend.SkyDomeBaked },             // #26A escaped rays fetch the baked dome sheet; off = analytic march (the editor's resting rule)
+        { "sky_dome_baked",      P.Backend.SkyDomePrecomputed },             // #26A escaped rays fetch the precomputed dome sheet; off = analytic march (the editor's resting rule)
         { "slab_limit",          static_cast<int64_t>(P.Backend.SlabLimit) },          // R4a material slabs kept per material (1 Tier A, 4 Tier B/C, ≤ 8)
         { "texture_edge_limit",  static_cast<int64_t>(P.Backend.TextureEdgeLimit) },   // R4a largest texture edge kept resident (0 = unlimited)
     });
@@ -170,7 +170,7 @@ std::string ConfigurationRegistry::Serialise(const SlateConfiguration& P) noexce
         { "accent",         NameOf(A.Accent) },
         { "warning_swatch", static_cast<int64_t>(A.WarningSwatch) },
         { "success_swatch", static_cast<int64_t>(A.SuccessSwatch) },
-        { "info_swatch",    static_cast<int64_t>(A.InfoSwatch) },
+        { "info_swatch",    static_cast<int64_t>(A.DetailsSwatch) },
         { "caution_swatch", static_cast<int64_t>(A.CautionSwatch) },
     };
     toml::table Fonts{
@@ -201,7 +201,7 @@ std::string ConfigurationRegistry::Serialise(const SlateConfiguration& P) noexce
         { "show_frame_rate_overlay", P.Notifications.ShowFrameRateOverlay },
         { "show_memory_usage",       P.Notifications.ShowMemoryUsage },
         { "show_scene_metadata",     P.Notifications.ShowSceneMetadata },
-        { "baking_complete",         P.Notifications.BakingComplete },
+        { "baking_complete",         P.Notifications.PrecomputingComplete },
         { "render_finished",         P.Notifications.RenderFinished },
         { "autosave_errors",         P.Notifications.AutosaveErrors },
         { "frame_rate_drops",        P.Notifications.FrameRateDrops },
@@ -248,7 +248,7 @@ bool ConfigurationRegistry::Deserialise(std::string_view Toml, SlateConfiguratio
         S.Get("occlusion_culling",       Out.Backend.OcclusionCulling);
         S.Get("alias_pick",              Out.Backend.AliasPick);
         S.Get("patch_error_pixels",      Out.Backend.PatchErrorPixels);
-        S.Get("sky_dome_baked",          Out.Backend.SkyDomeBaked);
+        S.Get("sky_dome_baked",          Out.Backend.SkyDomePrecomputed);
         S.Get("slab_limit",              Out.Backend.SlabLimit);        Out.Backend.SlabLimit        = std::clamp(Out.Backend.SlabLimit, 1u, 8u);
         S.Get("texture_edge_limit",      Out.Backend.TextureEdgeLimit); Out.Backend.TextureEdgeLimit = std::min(Out.Backend.TextureEdgeLimit, 16384u);
     }
@@ -274,11 +274,11 @@ bool ConfigurationRegistry::Deserialise(std::string_view Toml, SlateConfiguratio
         T.GetEnum("accent",        A.Accent);
         T.Get("warning_swatch",    A.WarningSwatch);
         T.Get("success_swatch",    A.SuccessSwatch);
-        T.Get("info_swatch",       A.InfoSwatch);
+        T.Get("info_swatch",       A.DetailsSwatch);
         T.Get("caution_swatch",    A.CautionSwatch);
         A.CornerRadius  = std::clamp(A.CornerRadius, 0.0f, 32.0f);
         A.WarningSwatch = std::min(A.WarningSwatch, 3u); A.SuccessSwatch = std::min(A.SuccessSwatch, 3u);
-        A.InfoSwatch    = std::min(A.InfoSwatch, 3u);    A.CautionSwatch = std::min(A.CautionSwatch, 3u);
+        A.DetailsSwatch    = std::min(A.DetailsSwatch, 3u);    A.CautionSwatch = std::min(A.CautionSwatch, 3u);
 
         Reader F = R.Sub("appearance").Sub("fonts");
         // Family by name first (stable across archive changes), index as fallback.
@@ -318,7 +318,7 @@ bool ConfigurationRegistry::Deserialise(std::string_view Toml, SlateConfiguratio
         S.Get("show_frame_rate_overlay", Out.Notifications.ShowFrameRateOverlay);
         S.Get("show_memory_usage",       Out.Notifications.ShowMemoryUsage);
         S.Get("show_scene_metadata",     Out.Notifications.ShowSceneMetadata);
-        S.Get("baking_complete",         Out.Notifications.BakingComplete);
+        S.Get("baking_complete",         Out.Notifications.PrecomputingComplete);
         S.Get("render_finished",         Out.Notifications.RenderFinished);
         S.Get("autosave_errors",         Out.Notifications.AutosaveErrors);
         S.Get("frame_rate_drops",        Out.Notifications.FrameRateDrops);
@@ -347,10 +347,10 @@ bool ConfigurationRegistry::Load(std::string_view Path) noexcept
 
     std::ifstream In(StoragePath, std::ios::binary);
     if (!In) { LastError = "cannot open"; return false; }
-    std::stringstream Buffer; Buffer << In.rdbuf();
+    std::stringstream Block; Block << In.rdbuf();
 
     SlateConfiguration Parsed{};
-    if (!Deserialise(Buffer.str(), Parsed, &LastError)) return false;
+    if (!Deserialise(Block.str(), Parsed, &LastError)) return false;
     Configuration = Parsed;
     LoadedFromDisk = true;
     return true;

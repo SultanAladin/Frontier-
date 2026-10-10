@@ -27,7 +27,7 @@ Engine drop-in guide: `../INTEGRATION.md`.
   winning ReSTIR DI sample.
 - `ReSTIRSequence.slang` — deterministic RNG, candidate draws, DI/GI
   reservoirs with RIS update/combine (dual region), then the Slang-only shell:
-  uniform buffers, visibility/reservoir descriptors, TLAS ray queries, and
+  uniform stores, visibility/reservoir descriptors, TLAS ray queries, and
   the 9 compute entries (`SkyAmbient`, `DirectInitial`, `DirectTemporal`,
   `DirectSpatial`, `IndirectInitial`, `IndirectTemporal`, `IndirectSpatial`,
   `PixelShade`, `SkyViewport`).
@@ -57,7 +57,7 @@ rules:
   denominator would bias the estimate; the convergence gate proves the fix.
 - **Targets**: `lum(emission·albedo·cos/π)` (DI), `lum(throughput·emission)`
   (GI), D65 weights. Visibility is retraced after every reuse pass and applied
-  at shade time, never baked into a target.
+  at shade time, never precomputed into a target.
 - **Reuse**: temporal (motion-vector reprojection, same guards) + 4-tap
   Poisson-disc spatial, geometric guards (10% depth, normal·normal > 0.9),
   M-cap 20. DI combine re-evaluates the target at the receiver (exact across
@@ -101,7 +101,7 @@ Descriptors (HLSL registers; Slang maps them to Vulkan bindings):
 | b2 `SkyViewExchange` | 4×float4 | world-frame camera basis + tanHalf (all entries: star pixel-angle) |
 | t0 | `VisibilityStructure[]` | pos, normal, albedo, depth (≤0 = background, pos = ray dir), motion |
 | t1 | TLAS | engine acceleration structure |
-| t2/t3/t4 | positions/normals/indices | merged mesh buffers (float3 / float3 / uint) |
+| t2/t3/t4 | positions/normals/indices | merged topology stores (float3 / float3 / uint) |
 | t5 | `InstanceStructure[]` | per-instance vertex/index bases |
 | t6/t7 | DI/GI reservoirs (read) | previous frame |
 | u0/u1 | DI/GI reservoirs (write) | current frame (ping-pong with t6/t7 on the host) |

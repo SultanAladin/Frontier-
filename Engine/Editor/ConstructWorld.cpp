@@ -7,7 +7,7 @@ namespace Frontier {
 namespace {
 constexpr float Pi = 3.14159265358979323846f;
 struct Point { Vector3 P, N; };
-void Triangle(GeometryStructure& Mesh, Point A, Point B, Point C) {
+void Triangle(GeometryStructure& Hull, Point A, Point B, Point C) {
     auto Cross = OrientationClassifier::CrossProduct(B.P-A.P,C.P-A.P);
     if (Cross.LengthSquared() < 1e-14f) return; // latitude poles, not degenerate facets
     if (OrientationClassifier::DotProduct(Cross,A.N+B.N+C.N)<0) std::swap(B,C);
@@ -19,8 +19,8 @@ void Triangle(GeometryStructure& Mesh, Point A, Point B, Point C) {
         V[J].TangentDirection=Vector4{T.x,T.y,T.z,1};
         V[J].TextureCoordinateU=J==1?1.f:0.f; V[J].TextureCoordinateV=J==2?1.f:0.f; ++J;
     }
-    const auto Start=static_cast<uint32_t>(Mesh.QueryVertices().size());
-    uint32_t Indices[]={Start,Start+1,Start+2}; Mesh.AppendVertices(V,3); Mesh.AppendIndices(Indices,3);
+    const auto Start=static_cast<uint32_t>(Hull.QueryVertices().size());
+    uint32_t Indices[]={Start,Start+1,Start+2}; Hull.AppendVertices(V,3); Hull.AppendIndices(Indices,3);
 }
 void Quad(GeometryStructure& M, Point A, Point B, Point C, Point D) {
     Triangle(M,A,B,C); Triangle(M,A,C,D);
@@ -123,20 +123,20 @@ ConstructResult ConstructEntity(SceneStructure& World,const ConstructRequest& R,
     auto Exists=[&](const std::string& N){for(const auto& P:World.QueryPlacements()) if(P.Name==N)return true;return false;};
     for(unsigned I=2;Exists(Name);++I) Name=Base+" "+std::to_string(I);
     Matrix4x4 T; for(unsigned I=0;I<3;++I) {T.Columns[I][I]=R.Size;T.Columns[3][I]=R.Position[I];}
-    GeometryStructure Mesh;
-    const bool IsMesh=R.Kind<=ConstructKind::Area;
+    GeometryStructure Hull;
+    const bool IsGeometry=R.Kind<=ConstructKind::Area;
     const bool IsLight=R.Kind>=ConstructKind::PointLight&&R.Kind<=ConstructKind::StripLight;
-    if(IsMesh) Build(Mesh,R.Kind);
+    if(IsGeometry) Build(Hull,R.Kind);
     uint32_t P=World.RegisterPlacement(Name,kPlacementNone,T,T);
-    // Record which base mesh built it, so the outliner can seat the right artwork and the fracture card
+    // Record which base topology built it, so the outliner can seat the right artwork and the fracture card
     // can read its primitive off that artwork rather than guessing from the name.
-    if(ConstructArtwork(R.Kind)!=IconSymbol::Count) World.AssignPlacementBaseMesh(P,static_cast<uint8_t>(R.Kind));
-    if(IsMesh) {
+    if(ConstructArtwork(R.Kind)!=IconSymbol::Count) World.AssignPlacementBaseGeometry(P,static_cast<uint8_t>(R.Kind));
+    if(IsGeometry) {
         MaterialDescriptor Material; Material.Name=Name+" surface"; Material.Slabs.emplace_back();
         const bool Emissive=R.Kind==ConstructKind::Area;
         if(Emissive) Material.Slabs[0].EmissionLuminance=1000;
         auto Slot=World.RegisterMaterial(Material);
-        auto First=World.RegisterInstance(Mesh,T,Slot,Emissive?InstanceFlagEmissive:0u);
+        auto First=World.RegisterInstance(Hull,T,Slot,Emissive?InstanceFlagEmissive:0u);
         World.AttachInstances(P,First,static_cast<uint32_t>(World.QueryInstances().size())-First);
     } else if(R.Kind==ConstructKind::Camera) {CameraRecord Camera;Camera.Name=Name;World.RegisterCamera(Camera,P);}
     else if(IsLight) {

@@ -74,7 +74,7 @@ ControlCentreHost::ControlCentreHost() noexcept
     , ButtonWidthCache{}
     , ActiveTheme{}
     , ProjectName("Frontier")
-    , HandleContour{}
+    , IdentifierContour{}
     , InitializedCondition(false)
 {
     ShadeChannel = Motion.Register(0.0);
@@ -107,7 +107,7 @@ bool ControlCentreHost::Initialize(uint32_t DesiredWidth, uint32_t DesiredHeight
     Motion.Spring(SlideChannel).Place(0.0);
 
     Pose = ControlCentreHostState::Closed;
-    GenerateHandleContour();
+    GenerateIdentifierContour();
     InitializedCondition = true;
     return true;
 }
@@ -115,7 +115,7 @@ bool ControlCentreHost::Initialize(uint32_t DesiredWidth, uint32_t DesiredHeight
 void ControlCentreHost::Terminate() noexcept
 {
     InitializedCondition = false;
-    HandleContour.clear();
+    IdentifierContour.clear();
     PageHistoryStack.clear();
 }
 
@@ -300,17 +300,17 @@ bool ControlCentreHost::IsSlideTransitionActive() const noexcept
 //    8 % of the seated width. Four convex corners fill cleanly; the tessellated curves threw miter spikes
 //    at every shoulder kink.
 
-void ControlCentreHost::GenerateHandleContour() noexcept
+void ControlCentreHost::GenerateIdentifierContour() noexcept
 {
-    HandleContour.clear();
-    HandleContour.reserve(4);
+    IdentifierContour.clear();
+    IdentifierContour.reserve(4);
 
     const float W = NotchWidth_;
     const float Inset = W * 0.08f;
-    HandleContour.push_back({ 0.0f, 0.0f });
-    HandleContour.push_back({ W, 0.0f });
-    HandleContour.push_back({ W - Inset, NotchHeight });
-    HandleContour.push_back({ Inset, NotchHeight });
+    IdentifierContour.push_back({ 0.0f, 0.0f });
+    IdentifierContour.push_back({ W, 0.0f });
+    IdentifierContour.push_back({ W - Inset, NotchHeight });
+    IdentifierContour.push_back({ Inset, NotchHeight });
     // Z — the polygon filler closes back to (0, 0)
 }
 
@@ -355,7 +355,7 @@ void ControlCentreHost::Depart(bool Opening) noexcept
     Motion.Spring(ShadeChannel).Depart(Opening ? OpenTravel() : 0.0);
     Pose = Opening ? ControlCentreHostState::Opening : ControlCentreHostState::Closing;
 
-    // ArcNotch.tsx closePanel / handleDragEnd: setTimeout(() => { setShowSettings(false); setActiveSetting(null) }, 300)
+    // ArcNotch.tsx closePanel / identifierDragEnd: setTimeout(() => { setShowSettings(false); setActiveSetting(null) }, 300)
     CloseResetTimer = Opening ? -1.0f : 0.3f;
 }
 
@@ -552,7 +552,7 @@ void ControlCentreHost::Relinquish() noexcept
         }
         else
         {
-            // Vertical carry — Notch ArcNotch.tsx handleDragEnd, verbatim:
+            // Vertical carry — Notch ArcNotch.tsx identifierDragEnd, verbatim:
             //   y > H/2 : close only if velocity < −20 px/s or offset < −50 px, else open
             //   y < H/2 : open  only if velocity >  20 px/s or offset >  50 px, else close
             const double ShadeY       = Motion.Spring(ShadeChannel).Current;
@@ -589,8 +589,8 @@ void ControlCentreHost::AdvanceInteraction(const InputExchange& Input, float Cur
     const bool Released = !Button &&  PreviousButton;
     PreviousButton = Button;
 
-    const PlaneExtent Handle = QueryHandleExtent();
-    Hovered = Handle.Encloses(CursorX, CursorY);
+    const PlaneExtent Tag = QueryHandleExtent();
+    Hovered = Tag.Encloses(CursorX, CursorY);
 
     // Shade content extent: everything above the notch's top edge.
     const bool OverShade = CursorY < QueryCurrentHeight();
@@ -794,20 +794,20 @@ void ControlCentreHost::ConstructControlLayout(PixelSpace& Surface) noexcept
 
     Pointer.Pressed = Pointer.Released = false;   // edges consumed by this frame's widgets
 
-    // ②c Grip pill: Slate's rectangle handle, centred on the display, lifted off the travelling edge.
+    // ②c Grip pill: Slate's rectangle identifier, centred on the display, lifted off the travelling edge.
     //    At open the pull has left the viewport, and this is what stays behind to close by. Position alone
     //    gates it: shut, it sits above the top edge and draws nothing.
     Surface.FillRectangle(QueryGripExtent(), ControlKit::Palette().TextDim);
 
-    // ③ Notch handle: the trapezoid translated to (NotchX, ShadeY). The pull is raised chrome, not sheet —
+    // ③ Notch identifier: the trapezoid translated to (NotchX, ShadeY). The pull is raised chrome, not sheet —
     //    filled with the raised face, no outline; a pull the user cannot see is a pull the user reports missing.
     std::vector<PlanePoint> Outline;
-    Outline.reserve(HandleContour.size());
-    for (const BezierPointIndex& P : HandleContour)
+    Outline.reserve(IdentifierContour.size());
+    for (const BezierPointIndex& P : IdentifierContour)
         Outline.push_back(PlanePoint{ NotchX + P.X, ShadeY + P.Y });
     Surface.FillPolygon(Outline.data(), static_cast<uint32_t>(Outline.size()), ControlKit::Palette().Raised);
 
-    // ④ Project name centred in the handle (Notch: 13 px, font-medium, text-white/50, pb-1 → 4 px lift).
+    // ④ Project name centred in the identifier (Notch: 13 px, font-medium, text-white/50, pb-1 → 4 px lift).
     constexpr float LabelSize = 13.0f;
     const PlanePoint Measured = Surface.MeasureText(ProjectName.c_str(), LabelSize);
     const float TextX = NotchX + (NotchWidth_ - Measured.X) * 0.5f;
@@ -868,7 +868,7 @@ void ControlCentreHost::SynchroniseTheme() noexcept
     const AppearanceSettings& D = Appearance.QueryDraft();
     const bool Retargeted = !ThemePreviewSeeded || D.Theme != PushedTheme || D.Accent != PushedAccent
         || D.WarningSwatch != PushedSwatches[0u] || D.SuccessSwatch != PushedSwatches[1u]
-        || D.InfoSwatch != PushedSwatches[2u] || D.CautionSwatch != PushedSwatches[3u];
+        || D.DetailsSwatch != PushedSwatches[2u] || D.CautionSwatch != PushedSwatches[3u];
     if (Retargeted)
     {
         // Non-colour state applies instantly; colours cross-fade so the change reads as a morph, not a snap.
@@ -879,13 +879,13 @@ void ControlCentreHost::SynchroniseTheme() noexcept
         ControlKit::AssignTheme(ActiveTheme,
                                 AppearanceInspector::QuerySemanticColour(0u, D.WarningSwatch),
                                 AppearanceInspector::QuerySemanticColour(1u, D.SuccessSwatch),
-                                AppearanceInspector::QuerySemanticColour(2u, D.InfoSwatch),
+                                AppearanceInspector::QuerySemanticColour(2u, D.DetailsSwatch),
                                 AppearanceInspector::QuerySemanticColour(3u, D.CautionSwatch));
         ThemeBlendTo = ControlKit::Palette();
         ControlKit::AssignPalette(Saved);
         PushedTheme = D.Theme; PushedAccent = D.Accent;
         PushedSwatches[0u] = D.WarningSwatch; PushedSwatches[1u] = D.SuccessSwatch;
-        PushedSwatches[2u] = D.InfoSwatch;    PushedSwatches[3u] = D.CautionSwatch;
+        PushedSwatches[2u] = D.DetailsSwatch;    PushedSwatches[3u] = D.CautionSwatch;
         if (!ThemePreviewSeeded)
         {
             // First frame: snap to the canonical palette (parity with the old instant push), blend after that.
@@ -1504,7 +1504,7 @@ float ControlCentreHost::ConstructRenderPageLayout(PixelSpace& Surface, const Pl
         RowY += RowH + RowGap;
     }
 
-    // Row 3 — the resolved map, in texels and in memory, so an override's cost is visible where it is chosen.
+    // Row 3 — the resolved map, in texels and in storage, so an override's cost is visible where it is chosen.
     {
         const PlaneExtent Ctl = ControlKit::ControlRow(Surface, Content.MinimumX, RowY, Content.Width(), "Map",
                                                        ControlKit::Palette().TextDim, Opacity);
@@ -1737,7 +1737,7 @@ void ControlCentreHost::ConstructSubPageLayout(PixelSpace& Surface, ControlCentr
             {
                 uint32_t N = 0u; const NotificationPreferences& A = NotificationPage.QueryApplied(); const NotificationPreferences& D = NotificationPage.QueryDraft();
                 N += A.ShowFrameRateOverlay != D.ShowFrameRateOverlay; N += A.ShowMemoryUsage != D.ShowMemoryUsage; N += A.ShowSceneMetadata != D.ShowSceneMetadata;
-                N += A.BakingComplete != D.BakingComplete; N += A.RenderFinished != D.RenderFinished; N += A.AutosaveErrors != D.AutosaveErrors;
+                N += A.PrecomputingComplete != D.PrecomputingComplete; N += A.RenderFinished != D.RenderFinished; N += A.AutosaveErrors != D.AutosaveErrors;
                 N += A.FrameRateDrops != D.FrameRateDrops; N += A.HoldSeconds != D.HoldSeconds;
                 char Head[48]; std::snprintf(Head, sizeof(Head), "%u unsaved change%s.", N, N == 1u ? "" : "s"); Status = Head;
             }

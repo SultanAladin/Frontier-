@@ -155,7 +155,7 @@ inline float CornerVis(float3 o, float3 d) noexcept
     return TraceCorner(o, d, 1e-3f).hit ? 0.0f : 1.0f;
 }
 
-void BuildGBuffer(std::vector<GB>& gb, const SkyProjection& cam) noexcept
+void BuildGStore(std::vector<GB>& gb, const SkyProjection& cam) noexcept
 {
     gb.resize(size_t(kW) * kH);
     const float3 eye = float3(0.0f, 2.0f, 3.0f);
@@ -776,7 +776,7 @@ int main(int argc, char** argv)
                 sun.elevationDeg, kW, kH, a.frames, a.runs);
 
     std::vector<GB> gb;
-    BuildGBuffer(gb, cam);
+    BuildGStore(gb, cam);
 
     const int probes[3][2] = { { 32, 26 }, { 16, 28 }, { 32, 10 } };
     const char* probeNames[3] = { "floor", "floor-left", "wall" };

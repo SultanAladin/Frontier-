@@ -3,7 +3,7 @@
 #
 #    The Vulkan build draws `--scene materials` with ReSTIRViewport.slang: RIS candidates, temporal and spatial
 #    reservoir reuse, visibility re-traced at the shading pixel, the running mean, then the M9 à-trous chain. A CPU
-#    render cannot dispatch that kernel (bindless tables, a BVH in buffers, storage images), so this driver renders
+#    render cannot dispatch that kernel (bindless tables, a BVH in stores, storage images), so this driver renders
 #    the same level with the same algorithm mirrored in MaterialLevelViewport.cpp — line for line against the shader
 #    text, constants included (kTemporalMClamp, the 25° / 10 % validation, kSpatialRadiusMin/MaxPx, kSunPickProbability,
 #    kSunShadowDistance, the shade form) — and writes the comparison the GPU cannot print:
@@ -12,7 +12,7 @@
 #      ② brute force at the SAME sample budget as the ReSTIR panels (16 frames × 4 spp = the Standard tier's
 #         CandidatesPerPixel)
 #      ③ ReSTIR, Standard tier (4 candidates/pixel/frame, 2 spatial taps) — what the app's default tier runs
-#      ④ ③ through the shipped à-trous chain (the product's actual pipeline: R7 filter over the R6 reuse)
+#      ④ ③ through the shipped à-trous chain (the product's actual chain: R7 filter over the R6 reuse)
 #      ⑤ ReSTIR with a triangular camera excursion (out and back, so the closing frame is the base pose again)
 #         — the R2/R7a reprojection doing its job: the running mean follows the surface out and back
 #      ⑥ ⑤ with BOTH reads forced to the pixel's own address (the pre-R7a rule) — the A/B the rule exists for.

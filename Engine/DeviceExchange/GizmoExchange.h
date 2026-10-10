@@ -5,11 +5,11 @@
 //    of References/Gizmo.html) become two draws — the triangle pieces and the corner quads' line edges — through
 //    Engine/Shaders/GizmoRaster.{vert,frag}.spv, composited over the resolved scene inside the same overlay
 //    bracket the spatial interface uses. Modelled directly on InterfaceExchange so the engine keeps one Vulkan
-//    idiom: one graphics pipeline per topology, one host-visible vertex extent per cycle slot, push constants
+//    idiom: one graphics chain per topology, one host-visible vertex extent per cycle slot, push constants
 //    for the view, no vertex input bindings (the SSBO is pulled by gl_VertexIndex).
 //
 //    Depth is deliberately NOT tested: like Blender's and the reference's gizmo, the grips must read over the
-//    object they manipulate. Vulkan handles cross this header as void* so it stays SDK-free for CPU proofs.
+//    object they manipulate. Vulkan identifiers cross this header as void* so it stays SDK-free for CPU proofs.
 
 #pragma once
 
@@ -61,7 +61,7 @@ private:
     struct VulkanRecord;
     VulkanRecord* Vulkan;
 
-    [[nodiscard]] bool BringPipelines() noexcept;
+    [[nodiscard]] bool BringChains() noexcept;
     [[nodiscard]] bool BringDescriptorSets() noexcept;
 
     bool     Ready    = false;

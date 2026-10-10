@@ -20,11 +20,11 @@ def prepare(extra_sources=()):
         if name in visited or name not in entries:return
         visited.add(name); dest=BASE/name
         if not dest.exists():
-            data=json.loads(subprocess.check_output(['gh','api',f'repos/SultanAladin/Frontier-/contents/{name}?ref={PIN}']))
-            dest.parent.mkdir(parents=True,exist_ok=True);dest.write_bytes(base64.b64decode(data['content']))
-        data=dest.read_bytes()
-        assert hashlib.sha1(b'blob '+str(len(data)).encode()+b'\0'+data).hexdigest()==entries[name]['sha'], 'Modified baseline: '+name
-        for inc in re.findall(r'^#include\s+"([^\"]+)"',data.decode(),re.M):
+            record=json.loads(subprocess.check_output(['gh','api',f'repos/SultanAladin/Frontier-/contents/{name}?ref={PIN}']))
+            dest.parent.mkdir(parents=True,exist_ok=True);dest.write_bytes(base64.b64decode(record['content']))
+        record=dest.read_bytes()
+        assert hashlib.sha1(b'blob '+str(len(record)).encode()+b'\0'+record).hexdigest()==entries[name]['sha'], 'Modified baseline: '+name
+        for inc in re.findall(r'^#include\s+"([^\"]+)"',record.decode(),re.M):
             choices=[os.path.normpath(str(Path(name).parent/inc)),inc]+[d+'/'+inc for d in SEARCH]
             match=next((p for p in choices if p in entries),None)
             if match:fetch(match)
@@ -38,7 +38,7 @@ def prepare(extra_sources=()):
     for name in OVERLAYS:
         dest=STAGE/name;dest.parent.mkdir(parents=True,exist_ok=True);shutil.copyfile(ROOT/name,dest)
     (STAGE/'stub/vulkan').mkdir(parents=True,exist_ok=True)
-    handles='VkPhysicalDevice VkDevice VkQueue VkCommandPool VkCommandBuffer VkImage VkBuffer VkInstance'
-    (STAGE/'stub/vulkan/vulkan.h').write_text('#pragma once\n#include <cstdint>\n'+''.join(f'typedef struct {h}_T* {h};\n' for h in handles.split()))
+    identifiers='VkPhysicalDevice VkDevice VkQueue VkCommandPool VkCommandBuffer VkImage VkBuffer VkInstance'
+    (STAGE/'stub/vulkan/vulkan.h').write_text('#pragma once\n#include <cstdint>\n'+''.join(f'typedef struct {h}_T* {h};\n' for h in identifiers.split()))
     return sorted(visited)
 if __name__=='__main__':print('Verified/staged',len(prepare()),'pinned dependencies')

@@ -75,7 +75,7 @@ ignited disc's lower limb just above the horizon — both reproduced exactly by
 the mirror under the same settings.
 
 Net: *same settings → same pixels.* The old proof compared a 6.4 h render
-against a sunset memory; the new matrix covers the window and both AF states.
+against a sunset storage; the new matrix covers the window and both AF states.
 
 ## 2. What is mirrored (every panel term)
 
@@ -105,7 +105,7 @@ Two upstream transcription defects were found and fenced (see
   moved accordingly (floor probe 0.186 → 0.287) and still match the independent
   refs: T2 PASS at all 3 probes.
 - **Shell additions** (`Shaders/CelestialReSTIR.slang`): `skyProbe` entry (the
-  panel's uProbe pass as 1 thread) + `u3` ambient buffer, `b0` extended to
+  panel's uProbe pass as 1 thread) + `u3` ambient store, `b0` extended to
   18 float4s (media + star globals), `b2` camera now required by *all* entries
   (star pixel-angle), `shade` backdrop and `skyViewport` upgraded from
   `celSkyFull` to full `celSkyPixel` (post + grain included). 9 compute

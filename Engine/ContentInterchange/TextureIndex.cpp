@@ -147,7 +147,7 @@ uint32_t TextureIndex::RegisterHalves(const std::string& Name, const uint16_t* H
 {
     if (Halves == nullptr || Width == 0u || Height == 0u) return 0xFFFFFFFFu;
     // A repeated Name re-seats the SAME slot: the caller's descriptors keep their index and only the texels
-    //    change — the re-bake path. A fresh Name appends, as the other registrations do.
+    //    change — the re-precompute path. A fresh Name appends, as the other registrations do.
     uint32_t Slot = 0xFFFFFFFFu;
     for (uint32_t I = 0u; I < Textures.size(); ++I)
         if (Textures[I].Path.empty() && Textures[I].Name == Name && Textures[I].Encoding == TextureEncoding::LinearHalf)

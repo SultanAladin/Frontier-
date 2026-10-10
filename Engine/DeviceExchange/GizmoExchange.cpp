@@ -1,7 +1,7 @@
 //============================================================================================================================================
 //                                                      GIZMOEXCHANGE.CPP
 //============================================================================================================================================
-// 🧩 Two pipelines (triangle list + line list) over one pulled-vertex SSBO per cycle slot, one render pass that
+// 🧩 Two chains (triangle list + line list) over one pulled-vertex SSBO per cycle slot, one render pass that
 //    loads the resolved scene and composites the gizmo over it. Modelled on InterfaceExchange line for line so
 //    there is a single overlay idiom in the engine; the only structural differences are the second topology and
 //    push constants instead of a uniform extent (the view is 96 bytes — well under every minimum).
@@ -202,7 +202,7 @@ bool GizmoExchange::Bring(void* Device, void* PhysicalDevice, uint32_t CycleSlot
                               static_cast<VkDeviceSize>(Capacity) * sizeof(GizmoVertex), "vertices"))
             return false;
 
-    if (!BringPipelines())      return false;
+    if (!BringChains())      return false;
     if (!BringDescriptorSets()) return false;
 
     Ready = true;
@@ -238,10 +238,10 @@ void GizmoExchange::Retire() noexcept
 }
 
 //------------------------------------------------------------------------------------------------------------------------
-//                                                      PIPELINES
+//                                                      CHAINS
 //------------------------------------------------------------------------------------------------------------------------
 
-bool GizmoExchange::BringPipelines() noexcept
+bool GizmoExchange::BringChains() noexcept
 {
     VkDevice D = Vulkan->Device;
 

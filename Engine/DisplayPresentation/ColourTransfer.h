@@ -34,7 +34,7 @@
 //
 //        rgba32f  accumulation and history   — the running mean, moments, the à-trous input. Full float, because
 //                                              a running mean of thousands of samples in half would quantise.
-//        rgba16f  intermediate G-buffers     — normals, history surface. Half is plenty for a unit vector.
+//        rgba16f  intermediate G-stores     — normals, history surface. Half is plenty for a unit vector.
 //        rgba8    presentation only          — the LAST step, after the tone map, never before it.
 //
 //    Everything upstream of presentation is LINEAR and unbounded. The sky's radiance range makes that necessary
@@ -96,7 +96,7 @@ struct ColourTransfer
 //                                                    THE TRANSFER
 //------------------------------------------------------------------------------------------------------------------------
 
-class ColourPipeline
+class ColourChain
 {
 public:
     static constexpr float kLuminance[3] = { 0.2126f, 0.7152f, 0.0722f };

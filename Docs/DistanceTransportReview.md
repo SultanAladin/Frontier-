@@ -7,7 +7,7 @@
 
 ## First, the correction
 
-The preceding tyre demo traced **triangles**. There was no SDF hidden behind that mesh. Its progressive diffuse
+The preceding tyre demo traced **triangles**. There was no SDF hidden behind that topology. Its progressive diffuse
 path tracer was a geometry/lighting reference, not the requested SDF-raymarching implementation. This new,
 separate demo corrects that mismatch. The previous tyre demo remains available and unchanged as a reference.
 
@@ -49,28 +49,28 @@ a real-time recording. This delivery still has **no gaming-GPU benchmark**.
   This is a controlled deformation, not a calibrated crash or XPBD simulation.
 - The **35 mm cooling fins** and **25 mm undertray** deliberately challenge field resolution. The thicker body
   panels are approximately 130–160 mm in this enlarged study; they are not realistic sheet-metal gauges.
-- Actual **mesh-derived signed-volume construction on the GPU**, not a hand-authored analytic SDF for the car.
+- Actual **topology-derived signed-volume construction on the GPU**, not a hand-authored analytic SDF for the car.
 - **Single-frame, one-bounce diffuse gathering** with SDF shadow and bounce rays. There is no progressive image
   accumulation, recursive multibounce renderer or ReSTIR reuse in this browser study.
 - A triangle reference uses the same point lights and diffuse-direction quadrature for comparison. It is not the
   default lighting path and does not silently replace failed SDF traces.
 
 This is more demanding than the tyre, but it is still a bounded synthetic assembly, **not validation on your
-production car asset, arbitrary open/nonmanifold meshes, tearing geometry or an open world**.
+production car asset, arbitrary open/nonmanifold geometries, tearing geometry or an open world**.
 
-## The debug views are not hidden behind the mesh
+## The debug views are not hidden behind the topology
 
 | View                         | What is actually displayed                                                |
 | ---------------------------- | ------------------------------------------------------------------------- |
 | SDF surface only             | Raymarched field surface with direct field-shadowed lighting; no raster    |
 | SDF gradient normals         | Normals from distance-field finite differences; no raster                  |
 | Signed-distance slice        | X/Y/Z section: blue outside, orange inside, white near zero, cell contours |
-| Mesh ↔ SDF hit error          | Primary-ray depth/hit comparison, independent of mesh rasterization        |
+| Hull ↔ SDF hit error          | Primary-ray depth/hit comparison, independent of topology rasterization        |
 | Sphere-tracing step cost     | March counts; magenta explicitly marks iteration-budget exhaustion        |
 | Raster + SDF one-bounce GI    | Detailed visible triangles; all shadow/bounce queries use the field        |
 | Indirect only                | Only the one-bounce field-gather contribution                              |
 | Triangle reference GI        | Same simple lighting estimator with actual triangle queries               |
-| Mesh normals + quad edges    | The actual deformed source surface, not a distance-field reconstruction    |
+| Hull normals + quad edges    | The actual deformed source surface, not a distance-field reconstruction    |
 | Raster direct only           | Same raster receivers, with only direct SDF-shadowed lighting              |
 
 **Error colours:** green is close; yellow increases toward two largest-axis voxel spacings of depth difference.
@@ -80,7 +80,7 @@ Green is therefore not an exact-equality certificate, and the thresholds change 
 
 ![Signed horizontal slice](../../VisualProof/DistanceIntegrator/Captures/07SignedSliceY.png)
 
-![Mesh-versus-field error at 64 cubed](../../VisualProof/DistanceIntegrator/Captures/09Error64.png)
+![Hull-versus-field error at 64 cubed](../../VisualProof/DistanceIntegrator/Captures/09Error64.png)
 
 Try **Undeformed / Full deformation**, then switch between surface, slice and error views. Freeze the current SDF
 and move the geometry to expose stale-field errors. **Rebuild field now** forces a fresh volume even while frozen.
@@ -110,7 +110,7 @@ the union boundary. The scene is limited to 32 closed components by this represe
 The stored volume is `rgba16float`: signed distance, material identifier, component identifier and a written marker.
 Distance is trilinearly sampled; material lookup uses a nearest voxel. Normals use finite differences. The sampled
 dynamic volume occupies **2 MiB at 64³**, **6.75 MiB at 96³**, or **16 MiB at 128³**; these are payload sizes, not total
-GPU-resident memory. The static floor and two room panels use analytic box SDFs matching their raster geometry.
+GPU-resident storage. The static floor and two room panels use analytic box SDFs matching their raster geometry.
 
 The marcher uses a 0.75 distance-step factor, a small minimum step, a voxel-relative hit tolerance, sign-crossing
 refinement and a 256-iteration limit. These are practical numerical choices, **not a certified intersection guarantee
@@ -127,7 +127,7 @@ reconstruction and ray bias as well as intersection geometry.
 
 `VerifyStructure.mjs` checks the 31 component edge incidences, BVH leaf coverage, field-domain containment, finite
 normals and positive triangle areas at five poses. The smallest tested triangle area is **0.00115688 m²**. The
-largest tested vertex displacement is **1.06727 m**. This is not a complete arbitrary-mesh self-intersection audit.
+largest tested vertex displacement is **1.06727 m**. This is not a complete arbitrary-topology self-intersection audit.
 
 `VerifyWebGpu.cjs` executes the actual WGSL, reads back vertices and every stored voxel, and compares sampled field
 locations against an independent CPU closest-point/parity calculation. The CPU closest-point routine uses triangle

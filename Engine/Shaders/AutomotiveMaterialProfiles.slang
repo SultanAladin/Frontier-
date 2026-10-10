@@ -18,7 +18,7 @@ ShadingRecord AutomotiveDefaults()
 {
     ShadingRecord M;
 #ifdef FRONTIER_AUTOMOTIVE_SHOWCASE
-    M.AutomotiveData=vec4(0.0);M.AutomotiveDensity=0.0;M.AutomotiveFootprint=0.0;
+    M.AutomotivePayload=vec4(0.0);M.AutomotiveDensity=0.0;M.AutomotiveFootprint=0.0;
 #endif
     M.BaseColor = vec3(0.5);
     M.Metalness = 0.0;

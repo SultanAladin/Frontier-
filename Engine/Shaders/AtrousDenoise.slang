@@ -179,7 +179,7 @@ void main()
     //    a different value. At 1e-5 the same measurement gives 4.4 steps, which is plainly visible; the useful
     //    range is narrow and sits far lower than intuition suggests, which is why it was measured.
     //
-    // This is self-gating in a way that also handles a still frame for free. Variance only falls this low AFTER
+    // This is self-gating in a way that also identifiers a still frame for free. Variance only falls this low AFTER
     //    the early levels have done their work and only where the estimate has genuinely converged, so:
     //      · a noisy frame (1-4 spp) skips nothing at all — 0.0% of taps, the filter behaves exactly as before;
     //      · a frame held still accumulates samples and skips progressively more — 9.7% of taps at 64 spp,

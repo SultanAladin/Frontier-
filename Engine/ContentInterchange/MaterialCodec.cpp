@@ -75,9 +75,9 @@ const float* Param(const MaterialSlabDescriptor& S, const ParameterEntry& E) { r
 
 std::string Number(float F)
 {
-    char Buffer[32];
-    std::snprintf(Buffer, sizeof(Buffer), "%.9g", static_cast<double>(F));
-    std::string S = Buffer;
+    char Block[32];
+    std::snprintf(Block, sizeof(Block), "%.9g", static_cast<double>(F));
+    std::string S = Block;
     if (S.find_first_of(".einf") == std::string::npos) S += ".0";
     return S;
 }
@@ -370,7 +370,7 @@ MaterialDescriptor MaterialCodec::DecodeGltf(const cgltf_material* M, const Mate
     if (D.Flags & MaterialFlagThinWalled) S.GeometryThinWalled = true;
 
     // Slate extras: scalars first (single slab), then a full slab graph if present (replaces the slab list).
-    if (M->extras.data) (void)DecodeSlateExtras(M->extras.data, D);
+    if (M->extras.record) (void)DecodeSlateExtras(M->extras.record, D);
     return D;
 }
 
@@ -656,7 +656,7 @@ MaterialDescriptor MaterialCodec::DecodeFbx(const ufbx_material* M, const Materi
     MaterialSlabDescriptor& S = D.Slabs.back();
     S.SpecularRoughness = 0.5f;
     if (!M) { D.Name = "fallback"; return D; }
-    D.Name = std::string(M->name.data, M->name.length);
+    D.Name = std::string(M->name.record, M->name.length);
 
     const ufbx_material_pbr_maps& P = M->pbr;
     const ufbx_material_fbx_maps& F = M->fbx;

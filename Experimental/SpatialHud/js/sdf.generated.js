@@ -213,8 +213,8 @@ fn DistanceLamp(Point: vec2f, Radius: f32) -> f32
 //------------------------------------------------------------------------------------------------------------------------
 // P1 — real text, as an analytic stroke font rather than a sampled distance sheet.
 //
-// Why strokes and not a baked glyph sheet: this exchange binds no texture at all, and adding one would mean a
-//    sampler binding, an offline bake, and a texture lifetime to manage — for a panel that draws labels and units,
+// Why strokes and not a precomputed glyph sheet: this exchange binds no texture at all, and adding one would mean a
+//    sampler binding, an offline precompute, and a texture lifetime to manage — for a panel that draws labels and units,
 //    not paragraphs. A stroke glyph is evaluated exactly like Needle and Arc already are, so it needs no new
 //    binding, no upload, and stays resolution-independent at any camera distance or tilt. The trade is real and
 //    worth stating: this suits labels, units and readouts. It is not a body-text engine and cannot render a font

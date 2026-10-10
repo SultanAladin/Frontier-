@@ -25,7 +25,7 @@ Dependencies are managed archives, not missing submodule pointers. The lock reta
 ## Build repairs
 
 - Added root CMake presets and a standalone native-proof target that does not require a GPU or Vulkan SDK.
-- The proof's runtime data/output is staged in `build/native-proof/evidence`; tests do not overwrite checked-in captures.
+- The proof's runtime record/output is staged in `build/native-proof/evidence`; tests do not overwrite checked-in captures.
 - Added shared Python setup with checksum checking, safe extraction, atomic installation and refusal to overwrite unmanaged dependency directories.
 - Added the missing GLFW/ThorVG Windows dependency-build helpers and explicit inspector/icon compilation units.
 - Corrected the moved Jolt helper's root calculation and call site.

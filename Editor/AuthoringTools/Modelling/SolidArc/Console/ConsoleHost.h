@@ -140,7 +140,7 @@ private:
     [[nodiscard]] Workplane ActivePlane() const noexcept { return Plane; }
 
     // Native document persistence. A .arc document is an auditable, versioned command journal: it
-    // preserves the *parametric construction*, rather than flattening the model into a mesh. `open`
+    // preserves the *parametric construction*, rather than flattening the model into a topology. `open`
     // replays into an isolated host first, so a malformed or incompatible document cannot corrupt the
     // document already open in this host. `save` writes a same-directory temporary file then renames it.
     [[nodiscard]] bool SaveDocument(const std::string& Path) noexcept;
@@ -193,7 +193,7 @@ private:
     // Phase 19: mirror + radial + empty helpers. ParseMirrorSpec decodes a token like "xy" / "P_top"
     //    / "(1,2,3)" / "((0,0,0),(0,0,1))" into a plane or axis spec. ApplyMirrors composes a list
     //    of specs. ReflectBlueprint / RotateBlueprint mutate a figure's Blueprint cells. MirrorFigureCopy
-    //    / RadialFigureCopy produce a new figure. AddEmpty creates a transform handle.
+    //    / RadialFigureCopy produce a new figure. AddEmpty creates a transform identifier.
     [[nodiscard]] bool                ParseMirrorSpec(const std::string& Tok, MirrorSpec& Out) const noexcept;
     [[nodiscard]] Vec3                ApplyMirrors(Vec3 P, const std::vector<MirrorSpec>& Specs) const noexcept;
     [[nodiscard]] bool                ReflectBlueprint(SceneFigure& F, const std::vector<MirrorSpec>& Specs) const noexcept;
@@ -260,7 +260,7 @@ private:
     bool                                 ShowDimensions = false;        // [Phase 13] dims hidden by default until the renderer is polished
     SurfaceShading                       Shading = SurfaceShading::Matcap;
 
-    // Phase 10 contact sheet: four RasterImage buffers captured by `render sheet N` and tiled by
+    // Phase 10 contact sheet: four RasterImage stores captured by `render sheet N` and tiled by
     // `render sheet finalize <name>`. 0 = top-left, 1 = top-right, 2 = bottom-left, 3 = bottom-right.
     // The captured tile keeps the raster's current Width/Height at capture time so a script that
     // changes size between tiles is still composited correctly.

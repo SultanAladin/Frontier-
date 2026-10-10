@@ -9,11 +9,11 @@
 //              │ StepOnce()                          │ hooks (read pose / apply force at point / ground sample)
 //        VehiclePhysicsThread (240 Hz)  ──drives──▶  VehicleSolver (chassis + 4 XPBD soft tyres)
 //              ▲                                     │
-//              │ DataChannel<DriverInput>            │ DataChannel<VehicleTelemetry>
+//              │ PayloadChannel<DriverInput>            │ PayloadChannel<VehicleTelemetry>
 //        game thread: AssignInput() / Telemetry()  ◀────┘
 //
 //    Threading: the rigid-body solver and vehicle solver live entirely on the physics thread (touched only inside Step()). The game
-//    thread hands input in and reads a telemetry snapshot out through the Phase-0 lock-free DataChannels. Rendering reads
+//    thread hands input in and reads a telemetry snapshot out through the Phase-0 lock-free PayloadChannels. Rendering reads
 //    the chassis + wheel transforms straight out of the telemetry snapshot (no extra solver access needed).
 //
 //    This TU includes RigidBodySolver.h and therefore only compiles inside the Frontier tree (Jolt headers present). The
@@ -164,8 +164,8 @@ private:
     Frontier::Vehicle::VehicleSolver                         ActiveVehicleSolver;
     TractrixProvingGround                                            track_;
     RigidBodyIdentity                                            chassis_ = InvalidRigidBody;
-    DataChannel<Frontier::Vehicle::DriverInput>                  inputChannel_;
-    DataChannel<Frontier::Vehicle::VehicleTelemetry>            telemetryChannel_;
+    PayloadChannel<Frontier::Vehicle::DriverInput>                  inputChannel_;
+    PayloadChannel<Frontier::Vehicle::VehicleTelemetry>            telemetryChannel_;
 };
 
 } // namespace Frontier::Tractrix

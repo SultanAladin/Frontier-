@@ -19,23 +19,23 @@
 //         0 taps at every budget (240x135, 4 candidates — N=32/64/128: 3 251/3 777/4 660 with 4 taps against
 //         3 489/2 601/1 953 with none). After: 4 taps < 2 taps < 0 taps everywhere (7 462/7 163/7 599 against
 //         7 843/7 623/8 082) with M bounded (41.7 mean / 64 max at frame 16, 50.4 / 84 at frame 32).
-//       • the indirect half's own pool — ReSTIR GI-style reuse of the FIRST-BOUNCE VERTEX's NEE stratum — landed as
-//         kFeatureGiReuse (bit 8, ON by default; the Control Centre's "Indirect reuse (GI pool)" checkbox and
+//       • the indirect half's own slots — ReSTIR GI-style reuse of the FIRST-BOUNCE VERTEX's NEE stratum — landed as
+//         kFeatureGiReuse (bit 8, ON by default; the Control Centre's "Indirect reuse (GI slots)" checkbox and
 //         ReSTIRIntegratorConfiguration::GlobalIlluminationReuse turn it off for the A/B). A second 80 B/px
-//         reservoir pair (bindings 25/26 — same GpuReservoir, D10 widened it from 64 B, so the two pools share the
+//         reservoir pair (bindings 25/26 — same GpuReservoir, D10 widened it from 64 B, so the two slots share the
 //         stride and the Identity tail) holds light samples DRAWN AT THE VERTEX; temporal reuse reprojects by the
 //         pixel's motion and validates on the PRIMARY surface (25° / 10 % / stride guard), and spatial reuse runs the
-//         same cross as the direct pool with the neighbour's reservoir re-evaluated at THIS pixel's vertex. (No
+//         same cross as the direct slots with the neighbour's reservoir re-evaluated at THIS pixel's vertex. (No
 //         vertex-proximity test: the transferred quantity is a light SAMPLE — a world point on an emitter — so the
 //         receiver's own target re-evaluation plus its re-traced shadow ray is the test. Measured and rejected in the
-//         mirror; see the section 4b comment.) The vertex needs no buffer: this kernel is one dispatch, so the receiver's vertex
-//         is in registers where the DI block built it. The pool REPLACES that vertex's single-sample NEE (never adds
-//         to it — the giPoolOwns branch in the one-bounce block); a dielectric, SSS or interior vertex keeps the single-sample
+//         mirror; see the section 4b comment.) The vertex needs no store: this kernel is one dispatch, so the receiver's vertex
+//         is in registers where the DI block built it. The slots REPLACES that vertex's single-sample NEE (never adds
+//         to it — the giSlotsOwns branch in the one-bounce block); a dielectric, SSS or interior vertex keeps the single-sample
 //         arm, because a refraction site is not a NEE site. Measured in the CPU mirror before the port, where the
-//         pool is `--restir-no-gi-reuse`'s on-arm: RMSE 7 387 vs 7 508 at N=32, 7 223 vs 7 295 at N=64, 7 632 vs
-//         7 680 at N=128, pool shaded on ~16 % of surface pixels (the share whose own BSDF sample hits geometry).
+//         slots is `--restir-no-gi-reuse`'s on-arm: RMSE 7 387 vs 7 508 at N=32, 7 223 vs 7 295 at N=64, 7 632 vs
+//         7 680 at N=128, slots shaded on ~16 % of surface pixels (the share whose own BSDF sample hits geometry).
 //       • R4b: surfaces are shaded with the OpenPBR lobe set of MaterialEvaluation.slang (one resolved slab, interpolated
-//         normals + normal maps from the VertexRecord buffer, ray-cone texture LOD, GGX energy / LTC sheen LUTs),
+//         normals + normal maps from the VertexRecord store, ray-cone texture LOD, GGX energy / LTC sheen LUTs),
 //       • a running-mean accumulation that restarts on camera motion; motion vectors exist (R2) but are consumed only
 //         by the R6 temporal reservoir (row 2), no denoiser (R7).
 //    It is kept as the reference image source until the staged frame graph replaces it.
@@ -62,29 +62,29 @@ layout(rgba16f, binding = 5) uniform readonly image2D NormalImage;    // R2 Surf
 
 #include "SceneShadingRecords.slang"   // GpuTriangle / GpuMaterial / GpuMaterialSlab / GpuInstance / GpuVertex
 
-layout(std430, binding = 1) readonly buffer TriangleExtent  { GpuTriangle  Triangles[];  };
-layout(std430, binding = 2) readonly buffer MaterialExtent  { GpuMaterial  Materials[];  };
-layout(std430, binding = 6) readonly buffer InstanceExtent  { GpuInstance  Instances[];  };
-layout(std430, binding = 7) readonly buffer LuminaireExtent { GpuLuminaire Luminaires[]; };
+layout(std430, binding = 1) readonly store TriangleExtent  { GpuTriangle  Triangles[];  };
+layout(std430, binding = 2) readonly store MaterialExtent  { GpuMaterial  Materials[];  };
+layout(std430, binding = 6) readonly store InstanceExtent  { GpuInstance  Instances[];  };
+layout(std430, binding = 7) readonly store LuminaireExtent { GpuLuminaire Luminaires[]; };
 #include "TraversalRecords.slang"   // D6/D7: the two-level traversal's device records (must precede the buffers below)
-layout(std430, binding = 8) readonly buffer TraversalNodeExtent { vec4 CwbvhNodes[]; };   // R3: shared CWBVH node blob (all BLASes)
-layout(std430, binding = 9) readonly buffer TraversalLeafExtent { vec4 CwbvhTris[];  };   // R3: shared CWBVH triangle blob
+layout(std430, binding = 8) readonly store TraversalNodeExtent { vec4 CwbvhNodes[]; };   // R3: shared CWBVH node blob (all BLASes)
+layout(std430, binding = 9) readonly store TraversalLeafExtent { vec4 CwbvhTris[];  };   // R3: shared CWBVH triangle blob
 // D6/D7 — the two-level set. Present in every dispatch; whether they are WALKED depends on TlasInstanceCount, which the
 //    host sets to the resident instance count (0 = the scene is one world-space blob, ie every scene before D6). The
-//    bindings are written unconditionally by SwapchainExchange (empty buffers until UploadInstances), so a scene
+//    bindings are written unconditionally by SwapchainExchange (empty stores until UploadInstances), so a scene
 //    without instances reads nothing and the single-blob arithmetic is what it always was.
-layout(std430, binding = 27) readonly buffer TraversalTlasNodeExtent      { TraversalTlasNode      TlasNodes[];      };
-layout(std430, binding = 28) readonly buffer TraversalTlasPrimitiveExtent { uint                   TlasPrimitives[]; };
-layout(std430, binding = 29) readonly buffer TraversalInstanceExtent      { TraversalTlasInstance TlasInstances[];  };
-layout(std430, binding = 30) readonly buffer TraversalBlasPlacementExtent { TraversalBlasPlacement BlasPlacements[]; };
-#define FRONTIER_TRAVERSAL_INSTANCES   // the four buffers above are declared: TraversalCWBVH.slang's two-level walkers compile
-layout(std430, binding = 10) readonly buffer MaterialSlabExtent { GpuMaterialSlab MaterialSlabs[]; };
+layout(std430, binding = 27) readonly store TraversalTlasNodeExtent      { TraversalTlasNode      TlasNodes[];      };
+layout(std430, binding = 28) readonly store TraversalTlasPrimitiveExtent { uint                   TlasPrimitives[]; };
+layout(std430, binding = 29) readonly store TraversalInstanceExtent      { TraversalTlasInstance TlasInstances[];  };
+layout(std430, binding = 30) readonly store TraversalBlasPlacementExtent { TraversalBlasPlacement BlasPlacements[]; };
+#define FRONTIER_TRAVERSAL_INSTANCES   // the four stores above are declared: TraversalCWBVH.slang's two-level walkers compile
+layout(std430, binding = 10) readonly store MaterialSlabExtent { GpuMaterialSlab MaterialSlabs[]; };
 
-layout(std430, binding = 11) readonly buffer VertexExtent { GpuVertex Vertices[]; };   // R4b: shared with the R2 raster set
-layout(std430, binding = 12) readonly buffer IndexExtent  { uint      Indices[];  };   // R4b
+layout(std430, binding = 11) readonly store VertexExtent { GpuVertex Vertices[]; };   // R4b: shared with the R2 raster set
+layout(std430, binding = 12) readonly store IndexExtent  { uint      Indices[];  };   // R4b
 // 13 = EnergyLut, 14 = SheenLut (declared in MaterialEvaluation.slang)
 layout(binding = 15) uniform sampler2D MotionImage;   // R6: R2 motion (CurrentUv − PreviousUv, [0,1] uv units) — texelFetch only
-struct GpuReservoir   // 80 B stride (D10) — mirrors ReservoirBufferRecord in SwapchainExchange.cpp
+struct GpuReservoir   // 80 B stride (D10) — mirrors ReservoirStoreRecord in SwapchainExchange.cpp
 {
     vec4  Sample;    // xyz = light sample point, w = WeightSum
     uvec4 Counts;    // x = M, y = SelectedLight, z = Visible, w = Age
@@ -92,17 +92,17 @@ struct GpuReservoir   // 80 B stride (D10) — mirrors ReservoirBufferRecord in 
     vec4  Normal;    // xyz = viewer-facing geometric normal at the build pixel, w = stride guard (ViewportWidth)
     uvec4 Identity;  // D10: x = the packed (instance, primitive) this reservoir was built on; yzw reserved
 };
-layout(std430, binding = 16) readonly buffer PrevReservoirExtent { GpuReservoir PrevReservoirs[]; };
-layout(std430, binding = 17) writeonly buffer CurrReservoirExtent { GpuReservoir CurrReservoirs[]; };
-// The indirect pool's own pair (kFeatureGiReuse). Same 80 B record (D10; 64 B before the Identity tail) and the same
+layout(std430, binding = 16) readonly store PrevReservoirExtent { GpuReservoir PrevReservoirs[]; };
+layout(std430, binding = 17) writeonly store CurrReservoirExtent { GpuReservoir CurrReservoirs[]; };
+// The indirect slots's own pair (kFeatureGiReuse). Same 80 B record (D10; 64 B before the Identity tail) and the same
 //    field meanings, but the sample inside lives
 //    on the FIRST-BOUNCE VERTEX rather than on the primary surface: Sample.xyz is a light point sampled from that
 //    vertex (for the sun, a far point along a cone-sampled direction from it), UvDepth.xy its uv, and the record's
-//    Normal/primaryT are the PRIMARY pixel's validation pair — the same pair the direct pool validates, because the
-//    pool is reprojected by the pixel's motion vector whatever point the light sample came from. The vertex itself
-//    needs no buffer: this kernel is one dispatch, so the receiver's vertex is in registers where it was built.
-layout(std430, binding = 25) readonly buffer GiPrevReservoirExtent { GpuReservoir GiPrevReservoirs[]; };
-layout(std430, binding = 26) writeonly buffer GiCurrReservoirExtent { GpuReservoir GiCurrReservoirs[]; };
+//    Normal/primaryT are the PRIMARY pixel's validation pair — the same pair the direct slots validates, because the
+//    slots is reprojected by the pixel's motion vector whatever point the light sample came from. The vertex itself
+//    needs no store: this kernel is one dispatch, so the receiver's vertex is in registers where it was built.
+layout(std430, binding = 25) readonly store GiPrevReservoirExtent { GpuReservoir GiPrevReservoirs[]; };
+layout(std430, binding = 26) writeonly store GiCurrReservoirExtent { GpuReservoir GiCurrReservoirs[]; };
 layout(rgba16f, binding = 18) uniform image2D HistorySurfacePair[2];   // R7a: xyz = normal, w = depth the history mean was shaded at (w ≤ 0 = no surface)
 layout(rgba32f, binding = 19) uniform image2D MomentPair[2];           // R7: x = E[luma], y = E[luma²], reprojected with the mean
 layout(rgba32f, binding = 20) uniform writeonly image2D DenoiseImage; // R7: xyz = linear radiance, w = variance — the à-trous input
@@ -113,7 +113,7 @@ layout(rgba32f, binding = 20) uniform writeonly image2D DenoiseImage; // R7: xyz
 //    ⚠️ The bindless table is declared BEFORE the includes: MoonAlong samples it, and SkyAlong calls MoonAlong,
 //    so the table and the moons must both be visible where the sky is defined. 27 is still the highest binding
 //    NUMBER in the set, which is what the variable-count rule constrains — source order is free.
-layout(binding = 31) uniform sampler2D Textures[];   // R4a bindless table — ⚠️ moved 11 → 15 → 18 → 19 → 21 → 23 → 25 → 27 → 31 (the GI reservoir pair took 25/26, D6/D7's four instance buffers took 27-30): a variable-count binding must be the last one in the set
+layout(binding = 31) uniform sampler2D Textures[];   // R4a bindless table — ⚠️ moved 11 → 15 → 18 → 19 → 21 → 23 → 25 → 27 → 31 (the GI reservoir pair took 25/26, D6/D7's four instance stores took 27-30): a variable-count binding must be the last one in the set
 #include "Shaders/MoonRecords.slang"
 #include "Shaders/PostRecords.slang"
 #include "Shaders/SkyRecords.slang"
@@ -132,7 +132,7 @@ const uint  kSpatialTapCeiling = 4u;         // R6 row 3: the widest cross the k
 //    pixel (x,y) could only ever exchange reservoirs with (x±r,y) and (x,y±r), which partitions the image into r²
 //    residue classes that never share a sample. Each class converges to its own estimate and temporal accumulation
 //    cements the difference instead of averaging it away, so a fixed r = 11 lattice stayed visible at any frame count.
-//    Measured: 121 isolated pools versus 1 when jittered, and a 30 % class-to-class bias that never decayed.
+//    Measured: 121 isolated slots versus 1 when jittered, and a 30 % class-to-class bias that never decayed.
 const float kSpatialRadiusMinPx = 4.0;       // [px] at 1280 px width — scaled by RenderWidth/1280 for resolution independence
 const float kSpatialRadiusMaxPx = 16.0;      // [px] the band's mean matches the old fixed radius, so reuse reach is unchanged
 
@@ -149,9 +149,9 @@ uint VisibilityInstance(uint Packed)  { return (Packed >> 14) & 0x3FFFFu; }
 uint VisibilityPrimitive(uint Packed) { return Packed & 0x3FFFu; }
 
 // ⚠️ Where the history's identity lives, and why it is not a new binding. Bindings 0–31 of this set are all taken
-//    (21-24 are the sky/moons/stars/post records, 25/26 the GI reservoir pair, 27-30 D6/D7's instance buffers, 31 the
+//    (21-24 are the sky/moons/stars/post records, 25/26 the GI reservoir pair, 27-30 D6/D7's instance stores, 31 the
 //    bindless table, which must stay the highest number because it is variable-count). Adding a 33rd descriptor for four
-//    bytes per pixel would be a pipeline change for a channel pair that is already allocated, already reprojected with
+//    bytes per pixel would be a chain change for a channel pair that is already allocated, already reprojected with
 //    the mean, and already reserved for growth: MomentImage's z/w, which held 0.0 and nothing else.
 //
 //    The packing is exact, not approximate: each half is a 16-bit integer, and every integer below 2^24 is exact in a
@@ -175,7 +175,7 @@ const uint kIdentityNone = 0xFFFFFFFFu;
 //
 //    The object is the right granularity, and it is the one this feature exists for: it survives the motion of a moving
 //    object (so the object keeps its own history as it moves — the point of D10), it differs between two objects that
-//    exchange places (the ghost the rule catches), and it is the same number the raster, the instance buffers and the
+//    exchange places (the ghost the rule catches), and it is the same number the raster, the instance stores and the
 //    acceleration structure all agree on. Same object, different face is the normal/depth test's job, not this one's.
 uint IdentityObject(uint Packed) { return Packed >> 14u; }   // 18 bits — VisibilityInstance's own shift
 
@@ -203,7 +203,7 @@ layout(push_constant) uniform ReSTIRConstants
     uint    FeatureFlags;           // [bit] kFeatureGlobalIllumination | kFeatureAntiAliasing
     // Push constants stay within 128 bytes, which is Vulkan’s GUARANTEED MINIMUM. Growing past it works on a
     //    card offering 256 and fails on one offering only the guarantee — a defect that appears on someone
-    //    else’s machine. Anything that does not fit goes into a uniform buffer rather than growing this block.
+    //    else’s machine. Anything that does not fit goes into a uniform store rather than growing this block.
     // A7d. How much colour the eye still has at the adapted luminance: 1 in daylight, 0 under starlight.
     float   ColourSaturation;       // [-]   taken from one of the reserves, so the block is still 128 B
     uint    SpatialTapCount;        // [cnt] R10: spatial-reuse neighbours per pixel, tier-keyed (0 = cross off)
@@ -226,7 +226,7 @@ const uint kFeatureSpatialReuse       = 16u;  // bit 4: R6 row 3 — spatiotempo
 const uint kFeatureAliasPick          = 32u;  // bit 5: R6 row 3 — Walker-alias light pick (off = uniform, the R0 identity proof)
 const uint kFeatureTemporalReprojection = 64u;  // bit 6: R7a — reproject the running mean through the R2 motion vectors
 const uint kFeatureDenoise            = 128u; // bit 7: R7 — the à-trous filter runs, so the kernel defers the tone map to it
-const uint kFeatureGiReuse            = 256u; // bit 8: the indirect half's pool — ReSTIR GI-style reuse of the first-bounce
+const uint kFeatureGiReuse            = 256u; // bit 8: the indirect half's slots — ReSTIR GI-style reuse of the first-bounce
 // D10: bit 9 — validate a reprojected history against the IDENTITY of the surface, not only its normal and depth.
 //    ⚠️ Off by default, and byte-identical when off: with the bit clear the resolve reads, validates and stores exactly
 //    what it did before this existed, which is what makes the exhibit's A/B a comparison rather than a rewrite.
@@ -551,10 +551,10 @@ vec3 LightNormal(uint lightIndex)
 }
 
 // ── The sun as a direct light ──────────────────────────────────────────────────────────────────────────
-// The light set used to be emissive mesh triangles only: sunlight entered through the sky integral on escaped
+// The light set used to be emissive topology triangles only: sunlight entered through the sky integral on escaped
 //    rays plus the flat indoor fill, so no surface ever caught direct sun and nothing cast a sun shadow. The sun
 //    now joins the reservoir as a first-class candidate — a distant disc sampled uniformly in solid angle,
-//    shadowed by the same TraceShadow every mesh sample takes. It rides the SAME reservoir (not a side
+//    shadowed by the same TraceShadow every topology sample takes. It rides the SAME reservoir (not a side
 //    estimator), so temporal/spatial reuse, M-clamp and W apply to sunlight unchanged — the reservoir algebra
 //    only ever asks w = p̂/p, and both light kinds now answer it exactly.
 const float kSunPickProbability = 0.5;   // legacy fixed coin — the fallback when the host sends no probability
@@ -574,7 +574,7 @@ const uint  kSunLightIndex      = 0xFFFFFFFFu;   // SelectedLight sentinel: the 
 const uint  kSkyLightIndex      = 0xFFFFFFFEu;   // #27B sentinel: the sample is a SKY direction — the dome as a light
 const float kSunShadowDistance  = 1.0e4;   // [m] the far point sun samples are stored as — past any scene, inside float range
 
-// True for both distant species: their stored point is a far shadow-ray target, never a surface — the mesh
+// True for both distant species: their stored point is a far shadow-ray target, never a surface — the topology
 //    path's 1e-3 pull-back and its d² are meaningless for them. One predicate, so the five sites that used to
 //    ask "== kSunLightIndex" cannot drift apart over which species are distant.
 bool IsDistantLight(uint light) { return light >= kSkyLightIndex; }
@@ -584,7 +584,7 @@ bool IsDistantLight(uint light) { return light >= kSkyLightIndex; }
 //    unbiased for any positive share, so this dials noise, never energy.
 const float kSkyPickChance = 0.3;
 
-// Indirect-contribution bound. Applied to every term the BOUNCE adds to the image (its NEE arms and the GI pool's
+// Indirect-contribution bound. Applied to every term the BOUNCE adds to the image (its NEE arms and the GI slots's
 //    shade), never to the primary hit's direct lighting — clamping direct light would visibly darken a surface that
 //    legitimately faces a bright luminaire, whereas an indirect sample this large is always a sampling artefact.
 const float kIndirectFireflyBound = 64.0;
@@ -635,7 +635,7 @@ vec3 SunEmission()
 //    estimated by BSDF sampling alone, with NO reuse — the measured 4.45x sky excess and the glass shimmer
 //    (report §14.6). Here the sky becomes a third candidate species: cosine-sampled about the surface normal
 //    (pdf cos/π — the dome is smooth, so the surface's own weighting is the better importance), p̂ from ONE
-//    SkyAlong evaluation (a probe fetch when the baked dome is resident — #26A is what makes this affordable),
+//    SkyAlong evaluation (a probe fetch when the precomputed dome is resident — #26A is what makes this affordable),
 //    validated by the same far shadow ray the sun uses, and reused through every merge unchanged: a sky
 //    sample's direction is shift-invariant, so a neighbour re-evaluates only p̂, exactly as it does for the sun.
 //
@@ -719,7 +719,7 @@ float PHatSun(SurfaceFrame F, ShadingRecord m, ResolvedLayers L, vec3 wo, vec3 s
     return max(dot(EvaluateBsdf(m, L, wo, wi), sunEmit), 0.0) * cosT;
 }
 
-// #27B the dome's radiance as an EMITTER: SkyAlong (one probe fetch when the baked dome is resident), with
+// #27B the dome's radiance as an EMITTER: SkyAlong (one probe fetch when the precomputed dome is resident), with
 //    the solar disc's cone handed to the sun species — both species can sample a near-sun direction, and
 //    without this exclusion the disc would be counted by two estimators at once. The aureole outside the
 //    cone is the sky's own. Zero when the species is off, so a stale stored sky sample dies at its p̂.
@@ -773,7 +773,7 @@ void ResampleCandidate(inout Reservoir res, vec3 point, uint light, vec2 uv, flo
 
 // One direct-light candidate, sun or lamp — the initial loop and the extras loop both draw through here, so the
 //    two cannot drift into different estimators. Weights answer w = p̂/p EXACTLY, both continuous pdfs included:
-//    a mesh sample's pdf is p_coin·p_light·(1/area) and a sun sample's is p_coin·(1/Ω). The kernel used to divide
+//    a topology sample's pdf is p_coin·p_light·(1/area) and a sun sample's is p_coin·(1/Ω). The kernel used to divide
 //    by the pick alone, which paid every lamp's contribution divided by its area (a ceiling lamp rendered 2.5x
 //    too bright) — the CPU raster never had this bug (Tap.Weight carries the area), and the SunDirectProof pins
 //    the corrected scale against quadrature. HitPos anchors the sun's far point; SunUp (any direct radiance)
@@ -1038,7 +1038,7 @@ void ResolveSurface(uvec2 pixel, vec3 radiance, vec3 normal, float depth, uint i
 
 #endif
 
-    // Composite deterministic weather AFTER storing clean lighting history: wind and
+    // Combined deterministic weather AFTER storing clean lighting history: wind and
     // volume edits cannot smear old clouds or restart surface GI every frame.
     // Common resolve covers sky, emissive, unlit and ordinary surface branches.
     // Use the actual visibility hit even when an early return uses depth=-1.
@@ -1052,7 +1052,7 @@ void ResolveSurface(uvec2 pixel, vec3 radiance, vec3 normal, float depth, uint i
         if(surfaceHit){vec3 delta=weatherSurface.xyz-CameraOrigin;distance=length(delta);direction=delta/max(distance,1e-6);}
         // FOG horizon continuity: a sky-miss ray pointing below the horizon integrates fog to the implicit ground
         //    plane at z=0 (the height-fog reference) instead of the full 100000 sky distance. Without this, past the
-        //    edge of the finite ground mesh the fog thickness jumps from "ground hit" to "sky", drawing a ring/wall
+        //    edge of the finite ground topology the fog thickness jumps from "ground hit" to "sky", drawing a ring/wall
         //    around the camera — the low-quality "cylinder". z=0 matches WeatherColumn's own z-reference.
         else if(direction.z<-1e-4){float g=-CameraOrigin.z/direction.z; if(g>0.0) distance=min(g,100000.0);}
         // Weather is composited AFTER temporal accumulation. Changing this offset every recording
@@ -1095,37 +1095,37 @@ void Resolve(uvec2 pixel, vec3 radiance)
     ResolveSurface(pixel, radiance, vec3(0.0, 0.0, 1.0), -1.0, kIdentityNone, vec3(1.0));   // no surface -> nothing to demodulate
 }
 //------------------------------------------------------------------------------------------------------------------------
-// 4b. The indirect half's pool — ReSTIR GI-style reuse of the first-bounce vertex's NEE stratum (kFeatureGiReuse)
+// 4b. The indirect half's slots — ReSTIR GI-style reuse of the first-bounce vertex's NEE stratum (kFeatureGiReuse)
 //------------------------------------------------------------------------------------------------------------------------
-// The direct pool's samples live on the PRIMARY surface; these live on the FIRST-BOUNCE vertex. Everything else is the
+// The direct slots's samples live on the PRIMARY surface; these live on the FIRST-BOUNCE vertex. Everything else is the
 //    same machinery: RIS candidates drawn at the vertex, a temporal merge against the previous frame's GI reservoir
 //    (reprojected by the pixel's motion vector, validated by the same 25 deg / 10 % pair against the pixel's own
 //    PRIMARY depth and normal — carried in the record — because the reprojection is the pixel's motion), the same
 //    kSpatialTapCount cross, each tap's M capped against the receiver's PRE-merge count, and one visibility re-trace at
-//    the vertex before the shade. The history carries the TEMPORAL reservoir only, exactly as for the direct pool:
+//    the vertex before the shade. The history carries the TEMPORAL reservoir only, exactly as for the direct slots:
 //    spatial reuse stays a shading-time refinement, so it cannot inflate the M the next frame's temporal cap reasons
 //    about (that fault is measured in the CPU mirror at 843 633 mean M by frame 20).
 //
 //    Why a light sample can cross vertices at all: the transferred quantity is a WORLD POINT on a light, not a
 //    direction. The receiver re-evaluates its own target function against that point (PHatSelected at ITS vertex) and
-//    re-traces the shadow ray — the same validity test the direct pool's taps use. A stricter "the two vertices must be
+//    re-traces the shadow ray — the same validity test the direct slots's taps use. A stricter "the two vertices must be
 //    nearly the same place" rule was tried in the CPU mirror and rejected: each frame redraws its own primary BSDF
 //    direction, so the vertices are different points almost always, and the test killed 6 989 of 20 831 temporal
 //    attempts while buying nothing.
 //
 //    Glass, SSS and interior vertices are excluded and keep the single-sample NEE: the candidate drawer has no
-//    below-stratum, and a refraction site is not a NEE site. The pool REPLACES the vertex's own NEE, so the caller
+//    below-stratum, and a refraction site is not a NEE site. The slots REPLACES the vertex's own NEE, so the caller
 //    takes one or the other, never both — and the deeper bounces continue from the same vertex direction as before.
 //
 //    CPU mirror (the proof harness, line for line): Projects/Project-Zero/Host/MaterialLevelViewport.cpp —
 //    `RestirGiTemporalReservoir` + `RestirGiSpatialShade`, with `--restir-no-gi-reuse` as the A/B. Measured there at
 //    240x135 / 4 candidates / 2 taps against a 512-spp reference: 7 387.34 vs 7 508.13 (32 frames), 7 223.23 vs
-//    7 294.72 (64), 7 631.62 vs 7 680.03 (128); the pool exists on ~16 % of surface pixels (the share whose own
+//    7 294.72 (64), 7 631.62 vs 7 680.03 (128); the slots exists on ~16 % of surface pixels (the share whose own
 //    primary BSDF sample hits geometry rather than the sky), shaded M ~10, ~25 % of selections occluded.
 //
 //    Writes GiCurrReservoirs[pixel] unconditionally (zeros when the vertex is ineligible) so a stale entry cannot be
 //    reused across a frame in which this pixel had no vertex.
-vec3 GiPoolShade(SurfaceFrame F, ShadingRecord m, ResolvedLayers L, vec3 wo, vec3 hitPos,
+vec3 GiSlotsShade(SurfaceFrame F, ShadingRecord m, ResolvedLayers L, vec3 wo, vec3 hitPos,
                  vec3 primaryNormal, float primaryT, uint primaryIdentity, uvec2 pixel, bool sunUp, inout uint seed)
 {
     Reservoir ris;
@@ -1146,8 +1146,8 @@ vec3 GiPoolShade(SurfaceFrame F, ShadingRecord m, ResolvedLayers L, vec3 wo, vec
         DrawDirectCandidate(F, m, L, wo, hitPos, sunUp, /*skyOn=*/false, lp, li, uv, w, seed);
         ResampleCandidate(ris, lp, li, uv, w, seed);
     }
-    // The tier's extra same-pixel candidates count for the indirect pool too: it is the same dial, and leaving them to
-    //    the direct pool alone would make the tiers mean two different things.
+    // The tier's extra same-pixel candidates count for the indirect slots too: it is the same dial, and leaving them to
+    //    the direct slots alone would make the tiers mean two different things.
     for (uint e = 0u; e < ExtraCandidateCount; ++e)
     {
         vec3  lp; uint li; vec2 uv; float w;
@@ -1162,7 +1162,7 @@ vec3 GiPoolShade(SurfaceFrame F, ShadingRecord m, ResolvedLayers L, vec3 wo, vec
         ris.UnbiasedWeight = pSelected > 0.0 ? ris.WeightSum / (float(ris.SampleCount) * pSelected) : 0.0;
     }
 
-    // 2. Temporal reuse from the previous frame's pool.
+    // 2. Temporal reuse from the previous frame's slots.
     uint giAge = 0u;
     if ((FeatureFlags & kFeatureTemporalReuse) != 0u && FrameIndex > 0u)
     {
@@ -1178,7 +1178,7 @@ vec3 GiPoolShade(SurfaceFrame F, ShadingRecord m, ResolvedLayers L, vec3 wo, vec
                 && prev.Normal.w == float(ViewportWidth)   // stride guard (render-scale change)
                 && dot(primaryNormal, prev.Normal.xyz) > kTemporalNormalCos
                 && abs(primaryT - prev.UvDepth.w) / max(primaryT, 1e-3) < kTemporalDepthTol
-                // D10: the same surface. It matters more here than in the direct pool: the pooled sample is a light
+                // D10: the same surface. It matters more here than in the direct slots: the pooled sample is a light
                 //    point chosen at the FIRST-BOUNCE VERTEX, so inheriting one across a surface change inherits an
                 //    occlusion test and a BRDF evaluated somewhere else — which reads as a reflection of an object
                 //    that is no longer there, and clears only as 1/n.
@@ -1206,7 +1206,7 @@ vec3 GiPoolShade(SurfaceFrame F, ShadingRecord m, ResolvedLayers L, vec3 wo, vec
         }
     }
 
-    // ⚠️ Publish the TEMPORAL reservoir before the taps touch it — the direct pool's rule, and the same measured fault
+    // ⚠️ Publish the TEMPORAL reservoir before the taps touch it — the direct slots's rule, and the same measured fault
     //    if broken: spatial merges feeding the next frame's temporal cap compounded M to 843 633 by frame 20 (mirror).
     {
         GpuReservoir hist;
@@ -1218,7 +1218,7 @@ vec3 GiPoolShade(SurfaceFrame F, ShadingRecord m, ResolvedLayers L, vec3 wo, vec
         GiCurrReservoirs[pixel.y * ViewportWidth + pixel.x] = hist;
     }
 
-    // 3. Spatial taps — the same cross, read from the PREVIOUS frame's pool (a same-frame neighbour read would race
+    // 3. Spatial taps — the same cross, read from the PREVIOUS frame's slots (a same-frame neighbour read would race
     //    inside a dispatch), each neighbour's M capped against this pixel's pre-merge count.
     if ((FeatureFlags & kFeatureSpatialReuse) != 0u && FrameIndex > 0u)
     {
@@ -1264,13 +1264,13 @@ vec3 GiPoolShade(SurfaceFrame F, ShadingRecord m, ResolvedLayers L, vec3 wo, vec
     }
 
     // 4. Visibility re-traced at the vertex for whichever sample the merges selected — an occluded selection
-    //    contributes nothing this frame (the direct pool's rule at the primary).
+    //    contributes nothing this frame (the direct slots's rule at the primary).
     bool blocked = IsDistantLight(ris.SelectedLight)
         ? TraceShadow(hitPos + F.Geometric * kEps, ris.SelectedPoint)
         : TraceShadow(hitPos + F.Geometric * kEps, ris.SelectedPoint - normalize(ris.SelectedPoint - hitPos) * 1e-3);
     if (blocked || ris.SampleCount == 0u) return vec3(0.0);
 
-    // 5. Shade at the vertex. The sun divides by nothing; a mesh light pays the emitter cosine the target pays.
+    // 5. Shade at the vertex. The sun divides by nothing; a topology light pays the emitter cosine the target pays.
     vec3 shadeDir = normalize(ris.SelectedPoint - hitPos);
     float shadeCos = max(0.0, dot(F.Geometric, shadeDir));
     vec3 wiLocal = ToLocal(F, shadeDir);
@@ -1296,9 +1296,9 @@ void main()
     uvec2 pixel = gl_GlobalInvocationID.xy;
     if (pixel.x >= ViewportWidth || pixel.y >= ViewportHeight) return;
 
-    // The indirect pool's slot for this pixel is cleared up front (kFeatureGiReuse): every early return below — sky,
+    // The indirect slots's slot for this pixel is cleared up front (kFeatureGiReuse): every early return below — sky,
     //    an emissive hit, an unlit material, the rain column's own early out — must not leave a stale entry for a
-    //    neighbour's tap to reuse next frame. The pool overwrites this slot when it runs.
+    //    neighbour's tap to reuse next frame. The slots overwrites this slot when it runs.
     if ((FeatureFlags & kFeatureGiReuse) != 0u)
     {
         GpuReservoir giClear;
@@ -1344,7 +1344,7 @@ void main()
     }
 
     // D10: the identity every temporal validation in this pixel compares against — the raster's packed
-    //    (instance, primitive), which is the same number the visibility buffer already carries. Nothing new is derived.
+    //    (instance, primitive), which is the same number the visibility store already carries. Nothing new is derived.
     const uint primaryIdentity = visibility;
 
     GpuInstance primaryInstance = Instances[VisibilityInstance(visibility)];
@@ -1457,7 +1457,7 @@ void main()
             }
             // W for the final selection (the selected point may have changed in the loop above). This is the one
             //    evaluation that establishes pSelected; everything downstream carries it. PHatSelected answers for
-            //    whichever light kind the reservoir holds — the old code's emit2 temp only knew mesh lights.
+            //    whichever light kind the reservoir holds — the old code's emit2 temp only knew topology lights.
             {
                 vec3 toSel2 = res.SelectedPoint - hitPos;
                 pSelected   = PHatSelected(frame, shading, layers, woLocal, res.SelectedLight, toSel2, hitPos);
@@ -1545,7 +1545,7 @@ void main()
             float    histWeightSum = res.WeightSum;
             float    histW         = res.UnbiasedWeight;
 
-            // R6 row 3: spatiotemporal neighbour reuse — K taps read the STABLE prev-frame buffer at neighbouring
+            // R6 row 3: spatiotemporal neighbour reuse — K taps read the STABLE prev-frame store at neighbouring
             //    pixels of the current frame (same-frame Curr reads would race within the dispatch). Each valid tap
             //    merges by the same pairwise-MIS algebra as temporal: validation, per-tap M-clamp, winner age+1.
             //    Gated on kFeatureSpatialReuse and FrameIndex > 0 (no prev frame on the first accumulation frame).
@@ -1650,7 +1650,7 @@ void main()
             CurrReservoirs[pixel.y * ViewportWidth + pixel.x] = histRes;
 
             // Shade (R6: the stored selection carries its light — no search). The sun divides by nothing: it is at
-            //    infinity, so its d² is 1 by definition and the stored far point's is meaningless. Mesh lights pay
+            //    infinity, so its d² is 1 by definition and the stored far point's is meaningless. Hull lights pay
             //    the emitter cosine the target pays (same quantity, same value — shade and target must agree).
             if (res.Visible == 1u)
             {
@@ -1803,7 +1803,7 @@ void main()
 
             if (!bounceHit.valid)
             {
-                // A ray that is inside a medium may miss the exit surface (open mesh, clipped shell,
+                // A ray that is inside a medium may miss the exit surface (open topology, clipped shell,
                 // or traversal limit). Use the entry medium's fallback thickness, never the current
                 // hit's material record: the current hit can be an opaque object inside the glass.
                 if (curInsideSolid) curThroughput *= exp(-curMediumSigma * curMediumFallbackThickness);
@@ -1853,15 +1853,15 @@ void main()
                 if (bFromInside) bLayers.SolidInterface = true;
             }
 
-            bool giPoolOwns = (bounceIndex == 0u)
+            bool giSlotsOwns = (bounceIndex == 0u)
                 && (FeatureFlags & kFeatureGiReuse) != 0u
                 && !curInsideSolid
                 && bShading.TransmissionWeight <= 0.0
                 && bShading.SssWeight <= 0.0;
 
-            if (giPoolOwns)
+            if (giSlotsOwns)
             {
-                accumulatedRadiance += BoundIndirect(curThroughput * GiPoolShade(bFrame, bShading, bLayers, bWo, bHitPos,
+                accumulatedRadiance += BoundIndirect(curThroughput * GiSlotsShade(bFrame, bShading, bLayers, bWo, bHitPos,
                                                                                 hitNormal, primaryT, primaryIdentity, pixel, sunUp, seed));
             }
             else if ((sunUp || LightTriangleCount > 0u) && !bFromInside)

@@ -1,7 +1,7 @@
 /**
- * Portable sheet-metal dents: bake once on a flat steel sheet, stamp anywhere.
+ * Portable sheet-metal dents: precompute once on a flat steel sheet, stamp anywhere.
  *
- * The per-site bakes in `carrig.ts` are tied to one spot on one body, which is
+ * The per-site precomputes in `carrig.ts` are tied to one spot on one body, which is
  * right for structural crush (a front-end crumple depends on where the rails
  * and the bumper beam are) but wrong for ordinary panel damage. On a panel, a
  * dent is *translation invariant*: hit the middle of a door or the middle of a
@@ -17,7 +17,7 @@
  * type and a cursor along the damage sequence. The vertex shader projects each
  * vertex into the instance's frame, samples the map bilinearly and adds the
  * displacement. That gives arbitrary hit positions, arbitrary orientation and
- * unlimited dents from a 1-2 MB bake, on any mesh - no per-asset bake at all.
+ * unlimited dents from a 1-2 MB precompute, on any topology - no per-asset precompute at all.
  *
  * This is the piece you would actually ship on vehicles: one steel-sheet
  * library (a few impactor shapes x a few angles), stamped wherever the
@@ -25,7 +25,7 @@
  */
 
 import { v3, clamp } from '../core/math';
-import { ShellTopo, bakeDent, DentSite } from './dent';
+import { ShellTopo, precomputeDent, DentSite } from './dent';
 
 export interface DentType {
   label: string;
@@ -55,7 +55,7 @@ export interface DentAtlas {
   ms: number;
 }
 
-/** Flat welded grid with a pinned rim, used as the bake substrate. */
+/** Flat welded grid with a pinned rim, used as the precompute substrate. */
 function sheetTopo(half: number, res: number): { topo: ShellTopo; n: number } {
   const n = res * res;
   const x0 = new Float32Array(n * 3);
@@ -140,7 +140,7 @@ export const DENT_TYPES: DentType[] = [
  * buckling modes, and the panel turns to corduroy. The grid spacing is a
  * physical choice here: it is the facet size.
  */
-export function bakeDentAtlas(res = 32, frames = 12, types = DENT_TYPES): DentAtlas {
+export function precomputeDentAtlas(res = 32, frames = 12, types = DENT_TYPES): DentAtlas {
   const t0 = (typeof performance !== 'undefined' ? performance.now() : Date.now());
   const pos = new Float32Array(types.length * frames * res * res * 4);
   const nrm = new Float32Array(types.length * frames * res * res * 4);
@@ -159,7 +159,7 @@ export function bakeDentAtlas(res = 32, frames = 12, types = DENT_TYPES): DentAt
       drawIn: ty.drawIn,
       zone: ty.span ? ty.span * 1.4 : undefined,
     };
-    const b = bakeDent(topo, site, {
+    const b = precomputeDent(topo, site, {
       frames,
       // the sheet is small and clamped at the rim, so it can take more
       // iterations than a whole car body for the same cost

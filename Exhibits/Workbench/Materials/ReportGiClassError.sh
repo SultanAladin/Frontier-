@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Roadmap #5, step 1 — is COVERAGE the binding constraint, or is the residual somewhere else?
 #
-#    §14.5 measured where the pool's missing 84 % go, and the answer was 69 % sky escape: a first-bounce vertex needs a
+#    §14.5 measured where the slots's missing 84 % go, and the answer was 69 % sky escape: a first-bounce vertex needs a
 #    BSDF ray that reached geometry, and most of them see the sky. The obvious reading is "close the coverage gap, then"
 #    — but coverage is a share of PIXELS, and the question that decides whether the replay + shift-mapping rewrite is
 #    worth its bias risk is a share of ERROR. Those are different questions and this script is the second one: it masks
@@ -39,7 +39,7 @@ echo "[GiClass] rendering at ${Width}x${Height}: reference (512 spp, stream 1), 
        --class-map "$Work/class.png" --out "$Work/restir.png" > "$Work/restir.log" 2>&1
 "$Bin" --width "$Width" --height "$Height" --spp 1 --frames "$Frames" --out "$Work/plain.png" > /dev/null 2>&1
 
-grep -E "GI classes \(last frame\)|indirect pool on|\[restir\] frame +$Frames:" "$Work/restir.log" | sed 's/^/    /'
+grep -E "GI classes \(last frame\)|indirect slots on|\[restir\] frame +$Frames:" "$Work/restir.log" | sed 's/^/    /'
 
 echo "[GiClass] decoding to raw dumps (ImageMagick) and masking"
 for N in ref restir plain; do convert "$Work/$N.png" -depth 8 "rgb:$Work/$N.rgb"; done

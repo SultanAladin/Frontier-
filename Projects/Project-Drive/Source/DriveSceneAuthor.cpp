@@ -2,12 +2,12 @@
 // 📦 Projects/Project-Drive/Source/DriveSceneAuthor.cpp — builds the `--scene drive` level: course, ControlVehicle, wheels
 //============================================================================================================================================
 #include "DriveSceneAuthor.h"
-#include "DriveWheelMesh.h"
+#include "DriveWheelGeometry.h"
 #include "../../../Engine/ContentInterchange/AutomotiveShowcasePresets.h"
 #include "../../../Engine/ContentInterchange/SceneCodec.h"
 #include "DriveCourse.h"
-#include "ControlVehicleMesh.inl"
-#include "ControlVehicleWheelMesh.inl"
+#include "ControlVehicleGeometry.inl"
+#include "ControlVehicleWheelGeometry.inl"
 
 #include <algorithm>
 #include <cmath>
@@ -50,7 +50,7 @@ Vector3 Normalize(const Vector3& v) noexcept
 MaterialDescriptor MakeMaterial(const char* Name, const MaterialSlabDescriptor& Slab) noexcept
 { MaterialDescriptor m; m.Name = Name; m.Slabs.push_back(Slab); return m; }
 
-// The authored material families now arrive with the mesh.  ControlVehicleMesh.inl carries kTriangleFamily, a
+// The authored material families now arrive with the topology.  ControlVehicleGeometry.inl carries kTriangleFamily, a
 // per-triangle CourseMaterial id recovered from the .blend's `material_index` attribute by ExtractVehicle.py.
 //
 // What used to sit here was ClassifyControlVehicleFace(): a hand-written guess that inferred paint / glazing /
@@ -104,11 +104,11 @@ void DriveSceneAuthor::AppendFace(const Vector3& A, const Vector3& B, const Vect
     AppendTriangle(P, Ns, Uv, Material);
 }
 
-//------------------------------------------------------------------------------------------------------------------------ vehicle body (ControlVehicleMesh, shifted so local origin = centre of mass)
+//------------------------------------------------------------------------------------------------------------------------ vehicle body (ControlVehicleGeometry, shifted so local origin = centre of mass)
 void DriveSceneAuthor::AppendVehicleBody(float ComHeight, uint32_t Material) noexcept
 {
     (void)Material; // retained in the declaration for source compatibility; per-face family assignment is authoritative.
-    using namespace Frontier::Drive::ControlVehicleMesh;
+    using namespace Frontier::Drive::ControlVehicleGeometry;
     auto Raw = [&](uint32_t i)
     { return Vector3{ kPositions[i*3+0], kPositions[i*3+1], kPositions[i*3+2] }; };
     // 🔴 Rebase model vertices onto the CoM, NOT onto ComHeight directly. The model origin sits 0.41715 m above
@@ -127,10 +127,10 @@ void DriveSceneAuthor::AppendVehicleBody(float ComHeight, uint32_t Material) noe
     }
 }
 
-//------------------------------------------------------------------------------------------------------------------------ wheel (axle along +Y) — rest pose of the shared DriveWheelMesh surface
+//------------------------------------------------------------------------------------------------------------------------ wheel (axle along +Y) — rest pose of the shared DriveWheelGeometry surface
 // Emits the SAME surface DriveSceneMirror draws per frame; the only difference is that this lattice is the
 //    undeformed cylinder while the mirror's is XPBDSoftTyre's live node set. Rings/segments/spokes/materials all
-//    come from DriveWheelMesh.h, so an exported wheel and a simulated wheel can never drift apart in topology.
+//    come from DriveWheelGeometry.h, so an exported wheel and a simulated wheel can never drift apart in topology.
 void DriveSceneAuthor::AppendWheel(const Vector3& C, float Radius, float HalfWidth, uint32_t Segments, uint32_t Material) noexcept
 {
     (void)Material;
@@ -163,12 +163,12 @@ void DriveSceneAuthor::AppendWheel(const Vector3& C, float Radius, float HalfWid
     // ── the authored rim, mags and all ──────────────────────────────────────────────────────────────────────
     // EmitWheelSurface above draws the TREAD (the XPBD lattice, which must stay procedural because it
     // deforms) and used to draw the rim as concentric bands with kDriveWheelSpokeCount = 0 — that is, a flat
-    // disc with no mags whatsoever.  The real RimFL mesh is right there in ControlVehicle.blend, so it is
+    // disc with no mags whatsoever.  The real RimFL topology is right there in ControlVehicle.blend, so it is
     // emitted here instead: 1568 triangles carrying the authored black rim and the blue Material.024 mag
     // accent that is visible on the wheels in the viewport.
     {
-        using namespace Frontier::Drive::ControlVehicleWheelMesh;
-        // The mesh is authored hub-local at its own rim radius; scale it if the configured rim differs, so the
+        using namespace Frontier::Drive::ControlVehicleWheelGeometry;
+        // The topology is authored hub-local at its own rim radius; scale it if the configured rim differs, so the
         // rim always sits inside the tread rather than poking through it.
         const float Scale = (kRimRadius > 1e-4f) ? (geo.TyreRimRadius / kRimRadius) : 1.0f;
         auto At = [&](uint32_t i)
@@ -310,7 +310,7 @@ void DriveSceneAuthor::Construct(bool StaticPose) noexcept
     Triangles.clear(); CornerNormals.clear(); Spans.clear();
     AuthorMaterials();
 
-    Frontier::Vehicle::VehicleGeometry geo;   // real ControlVehicle socket data (dims, CoM height, wheel layout)
+    Frontier::Vehicle::VehicleGeometry geo;   // real ControlVehicle socket record (dims, CoM height, wheel layout)
     const float comH   = geo.CoMHeight;        // shift the body so local origin = CoM
     const float radius = geo.TyreRadius;
     const float halfW  = 0.5f * geo.TyreWidth; // measured section width (ControlVehicle.blend RubberFL)

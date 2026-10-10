@@ -168,7 +168,7 @@ void BlasBuildMirror::QuantiseNode(float* Node, const float SlotMin[8][3], const
     if (!(Lo[0] <= Hi[0])) return;   // no live child: leave the node exactly as it was
 
     Node[0] = Lo[0]; Node[1] = Lo[1]; Node[2] = Lo[2];
-    // A flat node (zero extent on an axis — a perfectly planar mesh) has no exponent: log2(0) is −inf and the cast to
+    // A flat node (zero extent on an axis — a perfectly planar topology) has no exponent: log2(0) is −inf and the cast to
     //    int8 is undefined. tinybvh takes that cast on faith; here the axis is pinned to a cell of 1.0, which quantises a
     //    zero-extent range to 0/0 and is therefore exact.
     const float Extent[3] = { Hi[0] - Lo[0], Hi[1] - Lo[1], Hi[2] - Lo[2] };
@@ -486,7 +486,7 @@ bool BlasBuildMirror::BuildHPloc(const std::vector<TriangleIndex>& Triangles, st
         Sorted_[I].Morton = (Spread(Q[0]) << 2) | (Spread(Q[1]) << 1) | Spread(Q[2]);
     }
 
-    // ② sort by code. The kernel runs the same order out of shared memory (four 8-bit radix passes); here a stable sort
+    // ② sort by code. The kernel runs the same order out of shared storage (four 8-bit radix passes); here a stable sort
     //    over the 30-bit code — the two produce the same sequence up to ties, and ties are all inside one octant anyway.
     std::stable_sort(Sorted_.begin(), Sorted_.end(), [](const Sorted& A, const Sorted& B) { return A.Morton < B.Morton; });
 
@@ -538,13 +538,13 @@ bool BlasBuildMirror::BuildHPloc(const std::vector<TriangleIndex>& Triangles, st
     Pending.push_back({ 0u, Count, 0u, 0u });
     std::vector<Sorted> Scratch(Count);
 
-    // Which slot a child PREFERS: the octant of its first triangle at this depth. A preference only — the pool in the
+    // Which slot a child PREFERS: the octant of its first triangle at this depth. A preference only — the slots in the
     //    slot-assignment block decides, and nothing in the traversal depends on a slot meaning an octant.
     const auto PreferredSlot = [&](uint32_t Lo, uint32_t Depth) -> uint32_t
     {
         return Depth < kMortonDepth ? OctantAt(Sorted_[Lo].Morton, Depth) : 0u;
     };
-    // A contiguous slice of the node's Morton range as a child. `Slot` starts as the preference; the pool resolves it.
+    // A contiguous slice of the node's Morton range as a child. `Slot` starts as the preference; the slots resolves it.
     //    (Named MakeChild, not Child: the emit loops below iterate `StagedChild& Child`, which would hide it — C4456.)
     const auto MakeChild = [&](uint32_t Slot, uint32_t Lo, uint32_t Hi, uint32_t Depth) -> StagedChild
     {
@@ -566,7 +566,7 @@ bool BlasBuildMirror::BuildHPloc(const std::vector<TriangleIndex>& Triangles, st
     {
         const Work W = Pending[Head];
         // ⚠️ No reference into `Nodes` may be held across the `emplace_back` below: growing the vector reallocates and
-        //    every write through the stale reference lands in freed memory (it silently produced a tree of empty nodes).
+        //    every write through the stale reference lands in freed storage (it silently produced a tree of empty nodes).
         RangeBox(W.Lo, W.Hi, Nodes[W.Node].Min, Nodes[W.Node].Max);
         Nodes[W.Node].Depth = W.Depth;
 
@@ -686,7 +686,7 @@ bool BlasBuildMirror::BuildHPloc(const std::vector<TriangleIndex>& Triangles, st
         //    SAH is choosing between groupings of the same children — but the grouping that a bin merge produces can hide
         //    cells no ray can reach, and D9 measured that as the difference between 64 % empty slots and 90 % used ones.
         //
-        //    Slot assignment, from a POOL of free slots: the octant is a preference, never a requirement. A slot only
+        //    Slot assignment, from a SLOTS of free slots: the octant is a preference, never a requirement. A slot only
         //    decides which box lane a child's quantised box lives in and where its meta byte goes, while the traversal's
         //    child index comes from the imask byte and the stored slot.
         std::vector<uint32_t> FreeSlots;

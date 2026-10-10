@@ -9,7 +9,7 @@
 //    ① PRIMITIVE — sphere, capsule, box, cylinder, or the tyre ring the simulator already understands.
 //       Written analytically into the occupancy reading each advance. Six signed distances, no storage.
 //    ② DISTANCE READING — sample whatever already answers "how far to the nearest surface" at a world point.
-//       Arbitrary geometry obstructs the gas with no new code in the solver, because the engine already bakes
+//       Arbitrary geometry obstructs the gas with no new code in the solver, because the engine already precomputes
 //       that answer: Engine/GeometricRaster/GlobalDistanceFieldSpace.h exposes SampleSceneDistance(Vector3),
 //       and no target presently consumes it. The adapter is one line, shown below.
 //

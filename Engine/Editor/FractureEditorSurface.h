@@ -11,7 +11,7 @@
 //
 //    This is the UI only, as asked. It draws every pane, card, readout and control of the three-column
 //    workspace at whatever size the host gives it, from a Subject the host fills. It does not partition
-//    geometry: Fracture(), Validate() and the bake depot in FractureStructure.js are a separate body of
+//    geometry: Fracture(), Validate() and the precompute depot in FractureStructure.js are a separate body of
 //    work and are not started here. Where a figure would come from that solver the Subject carries the
 //    reference's own "not yet run" text, which is exactly what the browser shows before you press
 //    Fracture object.
@@ -22,7 +22,7 @@
 
 #pragma once
 
-#include "BaseMeshSurface.h"
+#include "BaseGeometrySurface.h"
 #include "WindInstrumentSurface.h"
 #include <cstdio>
 #include <cstring>
@@ -110,7 +110,7 @@ constexpr ImU32 ModeInk      = IM_COL32(116, 116, 116, 255);  // [-] its buttons
 constexpr ImU32 ModePicked   = IM_COL32( 52,  52,  52, 255);  // [-] [aria-pressed] #343434
 constexpr ImU32 ReceiptEdge  = IM_COL32(255, 255, 255,   9);  // [-] .bake-receipt border #ffffff09
 constexpr ImU32 ReceiptSmall = IM_COL32(101, 101, 101, 255);  // [-] .bake-receipt small #656565
-constexpr ImU32 DotIdle      = IM_COL32( 85,  85,  85, 255);  // [-] #bake-dot default #555
+constexpr ImU32 DotIdle      = IM_COL32( 85,  85,  85, 255);  // [-] #precompute-dot default #555
 constexpr ImU32 DotReady     = IM_COL32(137, 165, 145, 255);  // [-] ready #89a591
 constexpr ImU32 DotStale     = IM_COL32(170, 121,  90, 255);  // [-] stale #aa795a
 constexpr ImU32 ReceiptTerm  = IM_COL32(104, 104, 104, 255);  // [-] .verification-card dt #686868
@@ -390,7 +390,7 @@ inline void Grouped(int Value, char* Out, size_t Room)
 // Everything the page displays, in the state the host hands it. FracturePanel.js derives most of this in
 //    Refresh(); the derivations that are pure text live here so the harness can pin them.
 
-enum class Mode { Dynamic, Baked };
+enum class Mode { Dynamic, Precomputed };
 enum class Freshness { None, Stale, Ready };
 enum class Primitive { Cube, Sphere, Cylinder, Cone, Torus, Count };
 
@@ -445,7 +445,7 @@ inline const MaterialRow& Stock(const Subject& Specimen) { return Materials[size
 // Refresh(): "DYNAMIC / GEOMETRY", or "DISABLED / GEOMETRY" when the card's switch is off.
 inline void ExecutionLabel(const Subject& Specimen, char* Out, size_t Room)
 {
-    const char* Lead = !Specimen.Settings.Enabled ? "DISABLED" : Specimen.Settings.Run == Mode::Dynamic ? "DYNAMIC" : "BAKED";
+    const char* Lead = !Specimen.Settings.Enabled ? "DISABLED" : Specimen.Settings.Run == Mode::Dynamic ? "DYNAMIC" : "PRECOMPUTED";
     std::snprintf(Out, Room, "%s / GEOMETRY", Lead);
 }
 
@@ -467,8 +467,8 @@ inline const char* ModeDescription(const Subject& Specimen)
 
 inline const char* StoredStatus(const Subject& Specimen)
 {
-    if (Specimen.Stored == Freshness::Ready) return Specimen.Settings.PieceSdf ? "Geometry ready \xc2\xb7 SDF pending" : "Baked \xc2\xb7 ready";
-    return Specimen.Stored == Freshness::Stale ? "Bake is stale" : "Not baked";
+    if (Specimen.Stored == Freshness::Ready) return Specimen.Settings.PieceSdf ? "Geometry ready \xc2\xb7 SDF pending" : "Precomputed \xc2\xb7 ready";
+    return Specimen.Stored == Freshness::Stale ? "Precompute is stale" : "Not baked";
 }
 
 inline void StoredDetail(const Subject& Specimen, char* Out, size_t Room)
@@ -485,7 +485,7 @@ inline ImU32 StoredDot(const Subject& Specimen)
 
 inline const char* StoredAction(const Subject& Specimen)
 {
-    return Specimen.Settings.PieceSdf ? "Bake geometry" : Specimen.Stored != Freshness::None ? "Rebake object" : "Bake object";
+    return Specimen.Settings.PieceSdf ? "Precompute geometry" : Specimen.Stored != Freshness::None ? "Rebake object" : "Precompute object";
 }
 
 inline const char* FractureAction(const Subject& Specimen)
@@ -1068,16 +1068,16 @@ inline float MetricsHeight()
 // CheckerViewport's roster is cube / sphere / cylinder / torus / cone; the editor's Primitive is
 //    cube / sphere / cylinder / cone / torus. The two orders differ in their last two entries, so the
 //    crossing is spelled out rather than cast.
-inline BaseMesh::Solid MarkerPrimitive(Primitive Which)
+inline BaseGeometry::Solid MarkerPrimitive(Primitive Which)
 {
     switch (Which)
     {
-    case Primitive::Cube:     return BaseMesh::Solid::Cube;
-    case Primitive::Sphere:   return BaseMesh::Solid::Sphere;
-    case Primitive::Cylinder: return BaseMesh::Solid::Cylinder;
-    case Primitive::Cone:     return BaseMesh::Solid::Cone;
-    case Primitive::Torus:    return BaseMesh::Solid::Torus;
-    default:                  return BaseMesh::Solid::Cube;
+    case Primitive::Cube:     return BaseGeometry::Solid::Cube;
+    case Primitive::Sphere:   return BaseGeometry::Solid::Sphere;
+    case Primitive::Cylinder: return BaseGeometry::Solid::Cylinder;
+    case Primitive::Cone:     return BaseGeometry::Solid::Cone;
+    case Primitive::Torus:    return BaseGeometry::Solid::Torus;
+    default:                  return BaseGeometry::Solid::Cube;
     }
 }
 
@@ -1120,10 +1120,10 @@ inline void PaintViewportPane(ImDrawList* Draw, ImFont* Light, ImFont* Regular, 
         const float CheckTop = ViewTop, CheckTall = ViewTall;
         Draw->PushClipRect({ X, CheckTop }, { X + W, CheckTop + CheckTall }, true);
         const float Box = ImMin(ImMin(W, CheckTall) * 0.46f, 320.0f);
-        BaseMesh::PaintMarkerIn(Draw, { X + (W - Box) * 0.5f, CheckTop + (CheckTall - Box) * 0.5f },
+        BaseGeometry::PaintMarkerIn(Draw, { X + (W - Box) * 0.5f, CheckTop + (CheckTall - Box) * 0.5f },
                                 Box, Box, MarkerPrimitive(Specimen.Shape),
                                 Specimen.Settings.Enabled ? SpecimenInk : TinyInk, IM_COL32(23, 23, 23, 117),
-                                BaseMesh::MarkerStroke * 0.6f);
+                                BaseGeometry::MarkerStroke * 0.6f);
         Draw->PopClipRect();
     }
     char Eyebrow[48];  ExecutionLabel(Specimen, Eyebrow, sizeof(Eyebrow));
@@ -1401,7 +1401,7 @@ inline float StoredCardHeight(ImFont* Light, float Wide, const Subject& Specimen
     float Tall = CardPadY * 2.0f + CardHeaderHeight() + ModeLift
                + ButtonTall + ModePad * 2.0f + 2.0f
                + ProseLift + ProseHeight(Light, ProseSize, Inner, ModeDescription(Specimen));
-    if (Specimen.Settings.Run == Mode::Baked)
+    if (Specimen.Settings.Run == Mode::Precomputed)
     {
         Tall += SdfLift + SdfRule + SdfPad + ImMax(Kit::Grind(SdfSize), SdfBox);
         if (Specimen.Settings.PieceSdf)
@@ -1419,7 +1419,7 @@ inline float StoredCardHeight(ImFont* Light, float Wide, const Subject& Specimen
 inline void PaintStoredCard(ImDrawList* Draw, ImFont* Light, ImFont* Regular, ImVec2 Spot, float Wide,
                           float Tall, const Subject& Specimen)
 {
-    float Y = PaintCardHead(Draw, Light, Regular, Spot, Wide, Tall, "Bake", "04");
+    float Y = PaintCardHead(Draw, Light, Regular, Spot, Wide, Tall, "Precompute", "04");
     const float Inner = Wide - CardPadX * 2.0f;
     const float X = Spot.x + CardPadX;
 
@@ -1435,19 +1435,19 @@ inline void PaintStoredCard(ImDrawList* Draw, ImFont* Light, ImFont* Regular, Im
         const ImVec2 At { X + 1.0f + ModePad + float(I) * (Each + ModePad), Y + 1.0f + ModePad };
         if (Picked) Draw->AddRectFilled(At, { At.x + Each, At.y + ButtonTall }, ModePicked, ButtonRound);
         Line(Draw, Light, At.x + Each * 0.5f, At.y, ButtonTall, ModeSize, Picked ? PressedInk : ModeInk,
-             I == 0 ? "Dynamic" : "Baked", Kit::Anchor::Middle);
+             I == 0 ? "Dynamic" : "Precomputed", Kit::Anchor::Middle);
     }
     Y += TrackTall + ProseLift;
     Y += PaintProse(Draw, Light, { X, Y }, ProseSize, Inner, ProseInk, ModeDescription(Specimen));
 
-    // .sdf-authoring — present only in baked mode; its border-top breaks the margin collapse.
-    if (Specimen.Settings.Run == Mode::Baked)
+    // .sdf-authoring — present only in precomputed mode; its border-top breaks the margin collapse.
+    if (Specimen.Settings.Run == Mode::Precomputed)
     {
         Y += SdfLift;
         Draw->AddLine({ X, Y }, { X + Inner, Y }, CardEdge);
         Y += SdfRule + SdfPad;
         const float RowTall = ImMax(Kit::Grind(SdfSize), SdfBox);
-        Line(Draw, Light, X, Y, RowTall, SdfSize, HeadInk, "Bake SDF per piece");
+        Line(Draw, Light, X, Y, RowTall, SdfSize, HeadInk, "Precompute SDF per piece");
         const ImVec2 Box { X + Inner - SdfBox, Y + (RowTall - SdfBox) * 0.5f };
         Draw->AddRectFilled(Box, { Box.x + SdfBox, Box.y + SdfBox },
                             Specimen.Settings.PieceSdf ? IM_COL32(0x9f, 0xb8, 0xa6, 255) : InputFill, 3.0f);

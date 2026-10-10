@@ -19,20 +19,20 @@
 //
 //        GpuTriangle      Triangles[]        ─ flat triangle soup, indexed by instance.FlatTriangleOffset + primitive
 //        GpuVertex        Vertices[]         ─ shared vertex records (normal / tangent / texcoord)
-//        uint             Indices[]          ─ shared index buffer
+//        uint             Indices[]          ─ shared index store
 //        GpuMaterialSlab  MaterialSlabs[]    ─ the 304 B authored slabs
 //        sampler2D        Textures[]         ─ the bindless table (constants-only passes may bind an empty table)
 //
 //    and must have included MaterialEvaluation.slang (for ShadingRecord, the kChannel* table and ReflectanceConsumes)
-//    and declared `const uint kMaterialTextureNone`. That is the same include-after-your-buffers discipline
+//    and declared `const uint kMaterialTextureNone`. That is the same include-after-your-stores discipline
 //    TraversalCWBVH.slang already uses, for the same reason: one body of arithmetic, many binding sets.
 
 //------------------------------------------------------------------------------------------------------------------------
 //                                          R4b: MATERIAL RESOLVE (slab + textures → ShadingRecord)
 //------------------------------------------------------------------------------------------------------------------------
 // Barycentrics are rebuilt from the hit position against the flat triangle (one convention for the raster-fed primary
-//    hit and the CWBVH bounce hit). Vertex normals / tangents / UVs come from the shared VertexRecord buffer (binding 11/12)
-//    through the instance's index range — the same data the R2 raster consumes, so nothing is uploaded twice.
+//    hit and the CWBVH bounce hit). Vertex normals / tangents / UVs come from the shared VertexRecord store (binding 11/12)
+//    through the instance's index range — the same record the R2 raster consumes, so nothing is uploaded twice.
 // Texture LOD: ray cones (Akenine-Möller et al. 2019/2021). Cone width w = t · pixelSpread (primary) + t₂ · pixelSpread
 //    (bounce, ⚠️ no curvature term yet — flat-surface spread only); λ = ½ log2(texW·texH · uvArea / worldArea) + log2(w / |n·d|).
 // ⚠️ Texture channel selection is not part of MaterialSlabRecord; the shader assumes the glTF packing the codec emits:
@@ -67,7 +67,7 @@ struct SurfaceFrame         // everything the kernel needs at a hit besides the 
     vec3  Geometric;        // face normal facing the viewer side (ray offsets, shadow rays)
     vec3  Emission;         // slab emission × texture [nit]
     float Opacity;          // geometry_opacity × texture alpha
-    float Occlusion;        // baked AO — multiplies the ambient fills (debug floor, moonlight), never the direct light
+    float Occlusion;        // precomputed AO — multiplies the ambient fills (debug floor, moonlight), never the direct light
     float LodBias;          // ½ log2(uvArea / worldArea) + log2(coneWidth / |n·d|): add ½ log2(texW·texH) per texture
     bool  ThinWalled;       // K4: SlabFlags bit0 (P14.z) — foil (thin-wall compound) vs solid (tracer walks the medium)
 };
@@ -156,7 +156,7 @@ ShadingRecord ResolveMaterial(GpuMaterial mat, GpuInstance instance, uint primit
     F.LodBias = (uvArea > 0.0 && worldArea > 0.0) ? 0.5 * log2(uvArea / worldArea) + log2(max(coneWidth, 1e-6) / max(abs(dot(ng, viewDir)), 1e-3)) : 0.0;
 
     ShadingRecord m;
-    m.AutomotiveData=vec4(0.0);m.AutomotiveDensity=0.0;m.AutomotiveFootprint=0.0;
+    m.AutomotivePayload=vec4(0.0);m.AutomotiveDensity=0.0;m.AutomotiveFootprint=0.0;
     m.BaseColor = mat.Albedo.xyz; m.Metalness = mat.Emissive.w; m.DiffuseRoughness = 0.0;
     m.SpecularWeight = 1.0; m.SpecularColor = vec3(1.0); m.SpecularRoughness = mat.Albedo.w; m.SpecularAnisotropy = 0.0; m.AnisotropyAngle = 0.0; m.SpecularIor = 1.5;
     m.ThinFilmWeight = 0.0; m.ThinFilmThickness = 0.5; m.ThinFilmIor = 1.4;
@@ -231,7 +231,7 @@ ShadingRecord ResolveMaterial(GpuMaterial mat, GpuInstance instance, uint primit
                                P12.z > 0.0 || ReflectanceConsumes(selection, kChannelThinFilm)).x;
         m.ThinFilmThickness  = P12.w;
         m.ThinFilmIor        = P13.x;
-        m.AutomotiveData=vec4(S.Slate2.zw,uv*vec2(3.4557519,1.7278760));
+        m.AutomotivePayload=vec4(S.Slate2.zw,uv*vec2(3.4557519,1.7278760));
         m.AutomotiveDensity=P14.x;
         m.AutomotiveFootprint=exp2(F.LodBias)*3.4557519;
         m.HazinessWeight     = P13.z;
@@ -260,7 +260,7 @@ ShadingRecord ResolveMaterial(GpuMaterial mat, GpuInstance instance, uint primit
         //    sparkle to dense metallic salt; uv_scale × 3 brackets the preview's own frequency (24) across the
         //    row's 4 → 12. Applied AFTER the normal map (flakes ride the mapped surface) and BEFORE the coat
         //    frame derives (the coat follows the base surface, flakes included — the preview's own order).
-        if (P14.x > 0.0 && m.AutomotiveData.x == 0.0)
+        if (P14.x > 0.0 && m.AutomotivePayload.x == 0.0)
         {
             float glintCoverage = 1.0 - exp(-P14.x * 0.25);
             vec3 gn = AutomotiveApplyTriCoatFlakeNormal(n, hitPos, glintCoverage, P14.y * 3.0, 0.37);

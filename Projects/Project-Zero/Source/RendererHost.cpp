@@ -29,7 +29,7 @@ RendererHost::RendererHost(uint32_t ViewportWidth, uint32_t ViewportHeight) noex
     , PrimaryHits(ViewportWidth * ViewportHeight)
     , DirectReservoirs(ViewportWidth * ViewportHeight)
     , IndirectReservoirs(ViewportWidth * ViewportHeight)
-    , AccumulatedBuffer(ViewportWidth * ViewportHeight, Vector3{ 0.0f, 0.0f, 0.0f })
+    , AccumulatedStore(ViewportWidth * ViewportHeight, Vector3{ 0.0f, 0.0f, 0.0f })
 {
 }
 
@@ -88,11 +88,11 @@ float RendererHost::EvaluateJacobian(const Vector3& x1, const Vector3& x2, const
 }
 
 //------------------------------------------------------------------------------------------------------------------------
-//                                           RESTIR DI & GI RENDER PIPELINE
+//                                           RESTIR DI & GI RENDER CHAIN
 //------------------------------------------------------------------------------------------------------------------------
 
 //------------------------------------------------------------------------------------------------------------------------
-//                                     SHOWCASE SUN SKY FOG RENDER PIPELINE
+//                                     SHOWCASE SUN SKY FOG RENDER CHAIN
 //------------------------------------------------------------------------------------------------------------------------
 
 void RendererHost::RenderShowcaseFrame(const Frontier::CameraProjection& ActiveCamera, double SunHour, SkyFogIntegrator::FogScenario Scenario, uint32_t SpatialPassCount, uint32_t BounceCount, bool FlareEnabled, float FlareVariety, bool CloudShadows, float CloudTime, uint32_t CloudType, float CloudCoverage, float CloudScale, float CloudBase, float CloudThickness, float CloudDensity) noexcept
@@ -114,7 +114,7 @@ void RendererHost::RenderShowcaseFrame(const Frontier::CameraProjection& ActiveC
     const Vector3 SkyAmbient = SkyFog.QueryAmbientRadiance();
     const float FogFar = SkyFog.QueryFogFarDistance();
 
-    // Phase 1: Visibility Buffer Primary Ray Trace from Active Camera
+    // Phase 1: Visibility Block Primary Ray Trace from Active Camera
     for (uint32_t y = 0; y < Height; ++y)
     {
         for (uint32_t x = 0; x < Width; ++x)
@@ -373,7 +373,7 @@ void RendererHost::RenderShowcaseFrame(const Frontier::CameraProjection& ActiveC
                     SkyDir = (SkyLenSq > 1e-12f) ? SkyDir / std::sqrt(SkyLenSq) : RenderDir;
                 }
                 Vector3 Sky = SkyFog.ComputeSkyRadiance(SkyDir);
-                AccumulatedBuffer[idx] = Scatter + Sky * Transmittance;
+                AccumulatedStore[idx] = Scatter + Sky * Transmittance;
                 continue;
             }
 
@@ -384,7 +384,7 @@ void RendererHost::RenderShowcaseFrame(const Frontier::CameraProjection& ActiveC
             float FogVisible = Scene.EvaluateOcclusion(MidPoint, MidPoint + FogLightWorld * 1000.0f) ? 0.0f : 1.0f;
             float Transmittance = 1.0f;
             Vector3 Scatter = SkyFog.MarchFog(RenderOrigin, RenderDir, 0.0f, Hit.RayDistance, FogVisible, Transmittance);
-            AccumulatedBuffer[idx] = Scatter + Aerial * Transmittance;
+            AccumulatedStore[idx] = Scatter + Aerial * Transmittance;
         }
     }
 
@@ -437,9 +437,9 @@ void RendererHost::ApplyLensFlare(const Frontier::CameraProjection& ActiveCamera
             float u = ((static_cast<float>(x) + 0.5f) / static_cast<float>(Width) * 2.0f - 1.0f) * Aspect;
             size_t idx = static_cast<size_t>(y) * Width + x;
             float3 sunF = FlareLensKernel(u, v, SunU, SunV, SunVis, FlareCfg);
-            AccumulatedBuffer[idx].x += sunF.x * SunFlareTint.x;
-            AccumulatedBuffer[idx].y += sunF.y * SunFlareTint.y;
-            AccumulatedBuffer[idx].z += sunF.z * SunFlareTint.z;
+            AccumulatedStore[idx].x += sunF.x * SunFlareTint.x;
+            AccumulatedStore[idx].y += sunF.y * SunFlareTint.y;
+            AccumulatedStore[idx].z += sunF.z * SunFlareTint.z;
         }
     }
 }
@@ -459,7 +459,7 @@ bool RendererHost::ExportPpmImage(const std::string& OutputPath) const noexcept
         for (uint32_t x = 0; x < Width; ++x)
         {
             size_t idx = y * Width + x;
-            Vector3 Radiance = AccumulatedBuffer[idx];
+            Vector3 Radiance = AccumulatedStore[idx];
 
             // ACES Film Tone Mapping Curve
             auto AcesFilm = [](float x) -> float
@@ -507,7 +507,7 @@ void RendererHost::ExportLdrPixels(std::vector<uint8_t>& OutRgba) const noexcept
         for (uint32_t x = 0; x < Width; ++x)
         {
             size_t idx = static_cast<size_t>(y) * Width + x;
-            Vector3 Display = SkyFog.ApplyPanelPost(AccumulatedBuffer[idx], x, y, Width, Height);
+            Vector3 Display = SkyFog.ApplyPanelPost(AccumulatedStore[idx], x, y, Width, Height);
 
             size_t o = idx * 4U;
             OutRgba[o + 0U] = static_cast<uint8_t>(std::clamp(Display.x * 255.0f, 0.0f, 255.0f));

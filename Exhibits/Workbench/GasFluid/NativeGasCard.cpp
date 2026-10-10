@@ -12,7 +12,7 @@
 //       fog card does with the same stylesheet.
 //    ② THE SHEET. Eleven inline readings, each one naming a parameter the simulator actually has, with the
 //       lattice deliberately absent — the quality ladder owns the extent, and a control the budget
-//       overrules every frame is a lie with a handle on it.
+//       overrules every frame is a lie with a identifier on it.
 //    ③ THE LIFECYCLE. 🔴 Most gas is a one-shot. Fired, it burns for its lifetime, fades until the smoke is
 //       under the faintest visible reading, and is then released — its bytes back in the budget on that
 //       tick. A capture cannot show that; the arithmetic can.
@@ -186,7 +186,7 @@ int main()
     Banner("A 3D entity: a transform, children, and what is deliberately not a child");
     {
         Check(Near(Subject.Bounds[0], 1.85f) && Near(Subject.Bounds[1], 2.1f) && Near(Subject.Bounds[2], 1.85f),
-              "① bounds are three metres on the transform, where a mesh has Scale");
+              "① bounds are three metres on the transform, where a topology has Scale");
         Check(Near(Subject.Bounds[0], Subject.Bounds[2]),
               "X and Z stay equal: the solver uses one width for both horizontal axes");
         Check(std::strstr(RotationCaption(), "NOT THE LATTICE") != nullptr,

@@ -1,7 +1,7 @@
 //============================================================================================================================================
 //                                                  MATERIALSCENEPROOF.CPP
 //============================================================================================================================================
-// M8 gate — full-scene validation + the Tier B decision data. CornellBox (committed), GlassProof (committed), the
+// M8 gate — full-scene validation + the Tier B decision record. CornellBox (committed), GlassProof (committed), the
 // R4b shaderball level (generated headless via ShaderBallStructure — the same export-once path GameExecution uses),
 // and Sponza when present (fetch script; skipped otherwise — the conditional idiom of the M7a runner's GameExecution
 // check): decode → Finalise at slab_limit 1/2/8 → census + fold review. Synthetic multi-slab probes pin the fold

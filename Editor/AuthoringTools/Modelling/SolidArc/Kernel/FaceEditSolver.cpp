@@ -221,10 +221,10 @@ struct FaceFrame
             Edge.VertexStart >= static_cast<int>(Source.Vertices.size()) || Edge.VertexEnd >= static_cast<int>(Source.Vertices.size()) ||
             Edge.VertexStart == Edge.VertexEnd) return false;
     }
-    for (const BrepFace& FaceData : Source.Faces)
+    for (const BrepFace& FacePayload : Source.Faces)
     {
-        if (FaceData.Loops.size() != 1 || (FaceData.Surface.Classification != SurfaceClassification::Plane &&
-                                           FaceData.Surface.Classification != SurfaceClassification::Extrusion)) return false;
+        if (FacePayload.Loops.size() != 1 || (FacePayload.Surface.Classification != SurfaceClassification::Plane &&
+                                           FacePayload.Surface.Classification != SurfaceClassification::Extrusion)) return false;
     }
     Polygon.clear(); Polygon.reserve(Sides);
     for (int Coedge : Source.Loops[Loop].Coedges)
@@ -603,9 +603,9 @@ struct FaceFrame
         if (std::fabs(A.Z - B.Z) > ScalarCriteria::GeometricTolerance &&
             (!Close(A.X, B.X, ScalarCriteria::GeometricTolerance) || !Close(A.Y, B.Y, ScalarCriteria::GeometricTolerance))) return false;
     }
-    for (const BrepFace& FaceData : Source.Faces)
-        if (FaceData.Loops.size() != 1 || (FaceData.Surface.Classification != SurfaceClassification::Plane &&
-                                           FaceData.Surface.Classification != SurfaceClassification::Extrusion)) return false;
+    for (const BrepFace& FacePayload : Source.Faces)
+        if (FacePayload.Loops.size() != 1 || (FacePayload.Surface.Classification != SurfaceClassification::Plane &&
+                                           FacePayload.Surface.Classification != SurfaceClassification::Extrusion)) return false;
 
     Polygon.clear(); Polygon.reserve(Sides);
     for (int Coedge : Source.Loops[Loop].Coedges)
@@ -2522,7 +2522,7 @@ struct MultiLoopHoleProfile
 //------------------------------------------------------------------------------------------------------------------------
 // Batch 64: exact filleted-rectangle domains — a rounded-rectangular prism with one canonical eccentric circular bore,
 // and a rectangular prism with one canonical rounded-rectangular through-hole. A rounded rectangle is the exact analytic
-// tangent line/arc composite built by NurbsCurve::Rectangle with a corner radius (closed, rational, degree two, seventeen
+// tangent line/arc combined built by NurbsCurve::Rectangle with a corner radius (closed, rational, degree two, seventeen
 // poles). Both routes remain closed manifolds and support only a finite positive +Z extension of their upper planar cap;
 // arbitrary half-extents, corner radii, bore placements, hole counts or supports stay refused.
 //------------------------------------------------------------------------------------------------------------------------
@@ -3475,8 +3475,8 @@ struct MultiLoopHoleProfile
                  E.VertexStart < 0 || E.VertexEnd < 0) return false;
     }
     if (ArcEdge < 0) return false;
-    const BrepEdge& ArcEdgeData = Source.Edges[ArcEdge];
-    Centre = ArcEdgeData.Curve.Centre;
+    const BrepEdge& ArcEdgePayload = Source.Edges[ArcEdge];
+    Centre = ArcEdgePayload.Curve.Centre;
     const Vec3 ArcStart = Source.Vertices[ArcStartVertex].Point;
     const Vec3 ArcEnd = Source.Vertices[ArcEndVertex].Point;
     Centre.Z = High;
@@ -3484,7 +3484,7 @@ struct MultiLoopHoleProfile
     const Vec3 B{ ArcEnd.X - Centre.X, ArcEnd.Y - Centre.Y, 0.0 };
     Radius = 0.5 * (A.Length() + B.Length());
     if (!std::isfinite(Radius) || Radius <= ScalarCriteria::MergeTolerance ||
-        std::fabs(ArcEdgeData.Curve.AxisZ.Normalised().Dot(Vec3::UnitZ())) < 1.0 - UnitTolerance ||
+        std::fabs(ArcEdgePayload.Curve.AxisZ.Normalised().Dot(Vec3::UnitZ())) < 1.0 - UnitTolerance ||
         std::fabs(A.Length() - B.Length()) > ScalarCriteria::GeometricTolerance) return false;
     StartAngle = std::atan2(A.Y, A.X);
     Sweep = std::atan2(A.X * B.Y - A.Y * B.X, A.X * B.X + A.Y * B.Y);

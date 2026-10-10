@@ -57,7 +57,7 @@ Proves the CPU `MaterialIndex` (records, flags, fold/mix, channel×stage registr
 ## 2. Furnace proof — `MaterialEvaluation.slang` compiled 1:1 as C++ (3556/3556)
 
 The shader under test is `#include`d as C++ through `SlangCpuShim.h`, so these numbers are the shipped
-shading code, not a model of it. Tables are baked fresh each run (32×32, 1024 spp/cell).
+shading code, not a model of it. Tables are precomputed fresh each run (32×32, 1024 spp/cell).
 
 ### EON diffuse — furnace vs analytic, ceiling, multi-scatter floor
 
@@ -109,7 +109,7 @@ ok tilted coat albedo ≤ 1 (0.4234 / 0.3765 / 0.4027 / 0.3774)
 ok coat continuity 2° (0.3868 vs 0.3844) · ok tilted-coat mixture E[f·cos/pdf]=0.3812 furnace=0.3813
 ```
 
-### M3 Charlie bake + rescale safety — all 1024 texels in [0,1]
+### M3 Charlie precompute + rescale safety — all 1024 texels in [0,1]
 
 ```
 1024/1024 texels E_c ∈ [0,1] (min 0.0000, max 1.0000)
@@ -130,7 +130,7 @@ ok sheen lobe retro-ordered (0.1368 > 0.1161 > 0.0998)
 ok cloth mixture E[f·cos/pdf]=0.6759 furnace=0.6755
 ok weak-GGX reciprocal (2.71e-06) · ok EON reciprocal (1.17e-07)
 ok LTC sheen asymmetry bounded (grid-worst 1.24 — documented fit artifact, grazing-driven)
-ok cloth eta unmodulated (1.5) · cloth F0 = 0.04 · rescale matches bake · layer weight = F·rescale·R
+ok cloth eta unmodulated (1.5) · cloth F0 = 0.04 · rescale matches precompute · layer weight = F·rescale·R
 ok sheen E[f·cos/pdf]=0.04188 albedo=0.04189 / 0.24519 vs 0.24532  ← sampler reproduces albedo
 ok cloth spec
 ok cloth specular alpha isotropic · aniso basis identity · aniso+angle bit-inert under Cloth
@@ -149,7 +149,7 @@ ok single numeric over-closure E=1.0363/1.0179 + invisible-facet gap=0.0763/0.02
 ok off-eta bounded ior=1.1/2.0 E=0.9627/0.9558 (single-eta approx: bounded, not tight)
 ```
 
-The `R+T=E_ss` equality was REJECTED by data+theory (transmitted rays bend toward the normal and shadow
+The `R+T=E_ss` equality was REJECTED by record+theory (transmitted rays bend toward the normal and shadow
 less, +4–12% at rough-oblique) and replaced by the rigorous ceiling + empirical floor above.
 The numeric bounds pin the invisible-facet mass (opposed-facet T + underside-facet R — see the T_ms note).
 
@@ -189,7 +189,7 @@ ok slab trapped=2.5e-4/1.5e-9/0/0 (rare smooth-TIR-loop; Beer-decayed when tinte
 ok single f/p identity entry+exit to 6 digits (exit: 5 pairs, 3 TIR-skips — T = 0 exactly there)
 ```
 
-Solid mode = tracer context, not material data: `ResolvedLayers` gains `SolidInterface` + `IncidentIor`
+Solid mode = tracer context, not material record: `ResolvedLayers` gains `SolidInterface` + `IncidentIor`
 (stack-local, no layout change; foil defaults keep every legacy path bit-identical — the furnace log
 diffed byte-for-byte before/after). The R Fresnel follows the relative eta (TIR-aware from inside);
 thin-film gates to outer surfaces; Beer lives tracer-side over true segments (doubling it in the BSDF
@@ -236,7 +236,7 @@ chord (reused unchanged, open-plane rule intact); r·s ≤ 0 stays opaque (the r
 ## 3. Known gaps (acknowledged, by design)
 
 - ~~**T_ms**~~ TERMINATED 2026-09-16 (implemented, measured, reverted — SS-only is minimax-optimal). The full
-  story: a second lobe WAS built (M(μ,α) baked into `Energy.w`, S(μo)·S(μi)·η²/(π·Q) shape, η²-exact to 1e-7,
+  story: a second lobe WAS built (M(μ,α) precomputed into `Energy.w`, S(μo)·S(μi)·η²/(π·Q) shape, η²-exact to 1e-7,
   ①b MS-decomposition identity proven) — then killed by measurement. The T-sampler covers only VNDF-reachable
   wi (p_T = 0 where wo·ht < 0); the D·G lobe form assigns ~6.8 % to unreachable wi (opposed-facet T +
   underside-facet R — the η²-required |wo·m|·|wi·m| symmetry FORBIDS gating it out, and any μo-dependent
@@ -257,8 +257,8 @@ chord (reused unchanged, open-plane rule intact); r·s ≤ 0 stays opaque (the r
 - ~~**Exhibit BVH corruption**~~ CAUGHT+FIXED 2026-09-16 (M5): `BuildBvh` held a node reference across
   `emplace_back` — `root.Right` was silently lost (capacity 1→2 realloc) and half the scene (the y>0 half:
   backfaces + the blue/fill/backlight softboxes) was invisible to every ray. Camera rays only ever needed
-  frontfaces so no sheet showed it; M4b's "open mesh / numeric leak" fallback was actually firing on the lost
-  back-half (the mesh audits closed to a 3-edge crack). Fixed (index-based child assignment) + an always-on
+  frontfaces so no sheet showed it; M4b's "open topology / numeric leak" fallback was actually firing on the lost
+  back-half (the topology audits closed to a 3-edge crack). Fixed (index-based child assignment) + an always-on
   BVH audit (reachable-tris == total, else exit 1). ALL kept sheets re-rendered (brighter honest indirect —
   half the lights were missing from bounce rays); M4b's thin-vs-solid numbers below are SUPERSEDED (recomputed
   post-fix).
@@ -433,7 +433,7 @@ Exhibits/Workbench/Editor`). 158 M7a checks intact (F5/H7 updated for editors) +
 - **L retention + Discard** — brick/wax drafts survive the round-trip switch and commit together; Discard
   re-snapshots (lamp back to 5 nit).
 - **M cutout** — commits on an opaque (non-mask) material through to the record.
-- **N preview** — 64 px/2 spp renders with sane stats (bad 0, lit, full mesh), byte-identical re-render
+- **N preview** — 64 px/2 spp renders with sane stats (bad 0, lit, full topology), byte-identical re-render
   (deterministic), edit→Apply→pixels-differ (the loop closed), null request fails clean.
 - **O toggle** — seed/enable/revision semantics, request-on-commit iff enabled, take-consumes, ok/fail stamps.
 - **P host** — `IsPageDirty` transitions through the host; page Apply/Discard commit+revert (the private
@@ -445,7 +445,7 @@ The preview IS the exhibit: `SetupStage`/`SetupCamera`/`BlitFilm` were extracted
 (the 96 px smoke re-renders md5-identical, `5a89e025…`), `main`/`BuildMaterials` guard out under
 `SHADERBALL_PREVIEW_LIB`, and the entry maps the descriptor to ball 0 (weight×colour folds included, 8
 `static_assert`s pinning `MaterialReflectance` to the slang table) through the same rig/camera/integrator/PNG
-writer. Limits, documented: constants only (no texture pipeline), no cutout (the record carries no alpha),
+writer. Limits, documented: constants only (no texture chain), no cutout (the record carries no alpha),
 `Slabs[0]` only, standard rig, exposure 1. The feeder (`GameExecution` ①h) re-derives the selection fresh at
 render time (the inspector's retained selection predates the requesting commit), renders 160 px/6 spp to the
 ignored `Diagnostics/MaterialPreview_<name>.png`, and stamps the header line; commits restart the accumulation
@@ -500,12 +500,12 @@ validates when present, skipped otherwise (absent here — `raw.githubuserconten
   survives as a weighted pair, silently); at 8 nothing folds and flatten returns the slabs verbatim
   (`operator==`). Albedo scaling pinned to its closed form (`Keep = 1 − TopAlbedo(top) = 0.908876`, rel-1e-6 —
   the F0(1.6)+F0(1.5) chain, double-precision shadow).
-- **D preview sweep** — all 44 materials shade through the M7b entry at 64 px/2 spp (Bad 0, lit, full mesh);
+- **D preview sweep** — all 44 materials shade through the M7b entry at 64 px/2 spp (Bad 0, lit, full topology);
   clear-glass re-render byte-identical.
 - **E consumption tripwire** — the M3 128-cell table re-pinned verbatim (0 drift) — the fetch-skipping half of
   the §6 perf budget; gated fetches 5/6/7/6/6/6/0/0 (+3 unconditional base/emission/opacity).
 - **F Tier verdict** — printed AND asserted: **keep Tier A + fold** — 0 multi-slab materials in 44 real
-  materials. Tier B kernel work stays out (§2); the deliverable is the data + the decision.
+  materials. Tier B kernel work stays out (§2); the deliverable is the record + the decision.
 
 Census (limit 1): cornell 9+fallback all Standard/Simple; glass 2× Transmissive/Special + 2× Standard/Simple +
 fallback; ball 28 authored (coat×2 ClearCoated/Single, cloth×2 Cloth/Single, film×2 Standard/Special, fuzz×2 +
@@ -513,7 +513,7 @@ haze×2 Standard/Single, 18 Standard/Simple) + fallback.
 
 **Honest scope.** Sponza never decoded here (fetch blocked — A8 is validate-if-present and the verdict line says
 so). The verdict rests on 44 materials across three scenes; a production corpus could still surface authored
-multi-slab content — the C probes prove the fold handles it deterministically when it does. Kernel-ms half of
+multi-slab content — the C probes prove the fold identifiers it deterministically when it does. Kernel-ms half of
 §6 still needs a GPU runner (same caveat as §5). No GPU, no window.
 
 ---
@@ -738,7 +738,7 @@ proof of the *product*; these four sheets are the visual proof of the content.
     (channel 20), Tier B in-kernel multi-slab (post-M9 revisit).
 12. ~~**The two ReSTIR convergence paths**~~ DONE 2026-09-17 (both faults found, fixed in the mirror and for 14.1 in
    the kernel text, and measured — see §14; the evidence sheet is `RestirConvergenceSheet.png`).
-13. **Environment lighting — bake the sky, and let the sky be a light** (deferred; recorded here because the
+13. **Environment lighting — precompute the sky, and let the sky be a light** (deferred; recorded here because the
     question "does the ray tracer / ReSTIR also sample the sun, sky, moon, and if so can we sample it as an image
     instead" has a measured answer and a concrete plan).
 
@@ -769,13 +769,13 @@ proof of the *product*; these four sheets are the visual proof of the content.
 
     The plan, in two stages that can ship independently:
 
-    **A. Bake the environment to a probe.** Precompute sky + moons + stars + twilight (the sun's *disc* stays
+    **A. Precompute the environment to a probe.** Precompute sky + moons + stars + twilight (the sun's *disc* stays
     analytic — cone sampling and soft shadows are the reason the sun is a light) into a mipmapped 256²
     octahedral (or cubemap) probe per staging: sun hour, fog scenario, moon phase, star rotation, atmosphere
     constants. Escaped rays then take one prefiltered fetch instead of 96 taps, and the probe's total power gives
-    the pick probability stage B needs. Key the cache on a hash of the staging and store the bake in the project
+    the pick probability stage B needs. Key the cache on a hash of the staging and store the precompute in the project
     package (`.environment` — the world-environment file in `Docs/ProjectFormat.md` — carrying a `BLOB`), so a
-    bake travels with the project and never runs twice for the same sky. *Acceptance:* probe radiance vs the
+    precompute travels with the project and never runs twice for the same sky. *Acceptance:* probe radiance vs the
     analytic march on a direction grid (mean and max relative error printed), plus the escaping-bounce panel of
     the M10 viewport comparing fetch-lit against march-lit within the sheet's own RMSE tolerance.
 
@@ -786,7 +786,7 @@ proof of the *product*; these four sheets are the visual proof of the content.
     glass/specular variance above. *Acceptance:* the ReSTIR sheet's RMSE table on a sky-backed glass scene, with
     the existing `--taps` A/B unchanged — a reuse win, not a new variance source.
 
-    Smallest version that pays: bake the probe, use it only for escaped rays (A), and leave the reservoir alone.
+    Smallest version that pays: precompute the probe, use it only for escaped rays (A), and leave the reservoir alone.
     That is a pure replacement of the march with a fetch and is measurable on this CPU alone.
 
 ## 14. The two ReSTIR convergence paths — both faults found, fixed and measured (2026-09-17)
@@ -803,7 +803,7 @@ The symptom was specific and reproducible: with the reuse off the estimator conv
 0 taps reached 1952.52). Two faults, both in the merge algebra rather than in the sampling:
 
 1. **The history carried the post-spatial reservoir.** The kernel's single dispatch ran temporal reuse, then spatial
-   reuse, then wrote the *post-spatial* result into `CurrReservoirs` — which is the buffer the next frame's temporal
+   reuse, then wrote the *post-spatial* result into `CurrReservoirs` — which is the store the next frame's temporal
    merge reads. Every frame's spatial merges therefore raised the M that the next frame's temporal cap reasoned
    about, so M compounded through both passes instead of growing once per frame: mean M **1 879 (max 4 436)** at
    frame 16 and **843 633** by frame 20. The published guidance is the same rule (don't feed the spatial result back
@@ -866,12 +866,12 @@ The reference oracle has a standing invariant: with `--restir` off, `Radiance()`
 what they rendered before any of this. Two frames of a wide render differed against the committed mirror (AE 289 at
 2 frames, 447 at 3, **0 at 1 frame**) — the signature of a history bug, since a first frame touches no history. Cause:
 the plain path's sample loop published its own last jittered sample's hit into the film's surface record, so the next
-frame's reprojection was validated against a texel up to a pixel away instead of the pixel-centre G-buffer that the
+frame's reprojection was validated against a texel up to a pixel away instead of the pixel-centre G-store that the
 kernel's `ResolveSurface` writes. With the centre ray published instead, the plain path matches the committed mirror
 exactly again (AE 0 at 1, 2 and 3 frames; and against the pre-turn binary at 512 spp / 1 frame: AE 0). Every ReSTIR
 number in this section is from the fixed binary, and the standard sheet was re-rendered with it.
 
-### 14.2 Indirect/GI — the first-bounce vertex now has its own pool (ReSTIR GI-style reuse)
+### 14.2 Indirect/GI — the first-bounce vertex now has its own slots (ReSTIR GI-style reuse)
 
 The indirect half was a single BSDF-sampled path per frame per pixel: NEE at the first-bounce vertex, NEE at deeper
 vertices, no reuse anywhere. It now has a second reservoir over the **first-bounce vertex's NEE stratum**, built with
@@ -879,50 +879,50 @@ the same machinery as the direct one: RIS candidates drawn at the vertex, tempor
 vertex record, spatial taps over the same cross, pre-merge cap, one visibility re-trace at shading time — and the
 pixel's indirect half partitions cleanly around it:
 
-    indirect = Beta0 · [ pool estimate of the vertex's NEE ] + Beta0 · [ vertex terminal ] + sub-trace from V
+    indirect = Beta0 · [ slots estimate of the vertex's NEE ] + Beta0 · [ vertex terminal ] + sub-trace from V
 
-where `Beta0` is the primary bounce's f·cos/pdf, the terminal covers the cases the pool cannot estimate (the vertex
+where `Beta0` is the primary bounce's f·cos/pdf, the terminal covers the cases the slots cannot estimate (the vertex
 ray escaped to the sky, or landed on an emitter — both stored, not re-rolled), and the sub-trace continues from the
 vertex with the *same* BSDF sample the vertex was built from, its `LastPdf` seeded so an emitter-hit MIS at the second
-vertex still pairs with the pool's NEE at the first. Glass, SSS, and solid-interface vertices are excluded from the
-pool on purpose (the candidate drawer has no below-stratum and no refraction site), and those pixels — plus the whole
+vertex still pairs with the slots's NEE at the first. Glass, SSS, and solid-interface vertices are excluded from the
+slots on purpose (the candidate drawer has no below-stratum and no refraction site), and those pixels — plus the whole
 indirect half when `--restir-no-gi-reuse` is passed — keep the untouched single-sample arm. Nothing is counted twice:
-the pool replaces the vertex's NEE, and the sub-trace starts *after* that vertex.
+the slots replaces the vertex's NEE, and the sub-trace starts *after* that vertex.
 
 Measured (240×135, 4 candidates, 2 taps, vs the same 512-spp reference):
 
-| frames | pool ON | pool OFF (`--restir-no-gi-reuse`) | gain |
+| frames | slots ON | slots OFF (`--restir-no-gi-reuse`) | gain |
 |---|---|---|---|
 | 32 | **7 387.34** | 7 508.13 | 1.6 % |
 | 64 | **7 223.23** | 7 294.72 | 1.0 % |
 | 128 | **7 631.62** | 7 680.03 | 0.6 % |
 
-- The gain is real and consistent, and it is small for a measured reason: the pool exists on **16.2 % of surface
+- The gain is real and consistent, and it is small for a measured reason: the slots exists on **16.2 % of surface
   pixels** — the share whose own primary BSDF sample hits geometry at all (the level is an open sky: 41 % of those
   samples escape, 1.8 % land on an emitter, 0.3 % are emissive/unlit, 2.7 % are glass/SSS vertices). On those pixels
   it works: mean M 1.0 over all surface pixels / shaded M 10.2 over the pooled ones at frame 8 (320×180), growing
-  with the taps like the direct pool, 24.2 % of selections occluded and dropped.
+  with the taps like the direct slots, 24.2 % of selections occluded and dropped.
 - **A design tried and rejected, recorded so it is not retried**: the obvious-looking extra validity test is vertex
   proximity (require the receiver's vertex and the candidate's vertex to be the same place). It sounds stricter and is
   the wrong test here — the transferred quantity is a **light sample** (a world point on an emitter), not a direction,
   and the receiver re-evaluates its own target against it and re-traces the shadow ray, which is exactly what the
-  direct pool's taps do. With proximity in place, **6 989 of 20 831** temporal attempts failed on distance alone and
-  the pool bought almost nothing. The stricter form belongs with a replay + shift mapping (ReSTIR GI proper), which is
+  direct slots's taps do. With proximity in place, **6 989 of 20 831** temporal attempts failed on distance alone and
+  the slots bought almost nothing. The stricter form belongs with a replay + shift mapping (ReSTIR GI proper), which is
   the next step if the indirect half is to be covered at 100 % rather than 16 %.
 - **Kernel status**: both are in `Engine/Shaders/ReSTIRViewport.slang`. §14.1 is the history split plus the
-  pre-merge tap cap, with the measured numbers in the comment; §14.2 is `GiPoolShade()` (section 4b), wired into the
-  bounce's NEE by `giPoolOwns` — the pool **replaces** that vertex's single-sample NEE and the deeper bounces carry
-  on from the same vertex direction, so nothing is counted twice. Two host-side facts complete it: the pool needs no
-  vertex buffer at all (the receiving vertex is in registers — this kernel is one dispatch — and a neighbour's
+  pre-merge tap cap, with the measured numbers in the comment; §14.2 is `GiSlotsShade()` (section 4b), wired into the
+  bounce's NEE by `giSlotsOwns` — the slots **replaces** that vertex's single-sample NEE and the deeper bounces carry
+  on from the same vertex direction, so nothing is counted twice. Two host-side facts complete it: the slots needs no
+  vertex store at all (the receiving vertex is in registers — this kernel is one dispatch — and a neighbour's
   *validity* is already carried by `Counts.x > 0`, exactly the mirror's `Vertex[].Valid` gate), and it needs the
   second 64 B/px reservoir pair, which the host now owns as bindings **25/26** (the bindless table moved 25 → **27**,
   `kComputeBindingCount` 26 → 28, zero-filled with the DI pair on the first frame and ping-ponged in the same
   `SwapReservoirParity()` call). The toggle is `kFeatureGiReuse` (bit 8) with
   `ReSTIRIntegratorConfiguration::GlobalIlluminationReuse = true` — ON by default, exposed as the Control Centre's
-  **"Indirect reuse (GI pool)"** checkbox — and the diagnostic HUD's ReSTIR row prints it alongside temporal/spatial.
+  **"Indirect reuse (GI slots)"** checkbox — and the diagnostic HUD's ReSTIR row prints it alongside temporal/spatial.
 - **Two deliberate deviations from the mirror, both forced by one dispatch** (recorded rather than hidden): a
-  spatial tap reads the *previous* frame's pool (a same-frame neighbour read would race inside a dispatch, the same
-  deviation the direct pool has had since R6), and the deeper bounces keep the kernel's existing second-vertex MIS
+  spatial tap reads the *previous* frame's slots (a same-frame neighbour read would race inside a dispatch, the same
+  deviation the direct slots has had since R6), and the deeper bounces keep the kernel's existing second-vertex MIS
   bookkeeping instead of the mirror's explicit `DeeperBeta` / `LastPdf` carry — the estimator form is the same, the
   MIS pairing at the second vertex is not bit-equal. Both want one GPU A/B before the numbers are quoted as equal.
 - **GPU verification is pending, and that is the whole caveat**: nothing in this sandbox compiles SPIR-V or runs
@@ -965,20 +965,20 @@ flagged, and the flag was worth raising — the correction is not the ~15 % the 
 
 Why the reuse does not pay on *this* level yet, in order of measured weight — now with the per-class measurement behind
 it: §14.6 masks this same comparison by pixel class and finds the penalty UNIFORM (3.4–4.5×) rather than concentrated in
-the classes the pool cannot cover, so closing the coverage gap would spread the pool's current penalty rather than fix a
+the classes the slots cannot cover, so closing the coverage gap would spread the slots's current penalty rather than fix a
 deficit that lives there:
-- **The indirect pool exists on 16 % of surface pixels** (the share whose primary BSDF sample hits geometry; 41 % escape
-  to the sky). The other 84 % get no GI reuse by construction: a light-sample pool cannot estimate a sky vertex, and
+- **The indirect slots exists on 16 % of surface pixels** (the share whose primary BSDF sample hits geometry; 41 % escape
+  to the sky). The other 84 % get no GI reuse by construction: a light-sample slots cannot estimate a sky vertex, and
   real ReSTIR GI needs the replay + shift mapping rather than a proximity test.
 - **One shaded sample per frame into the running mean.** The reservoir concentrates samples within a frame; the running
-  mean then spends 128 frames of them, so the residual is dominated by what the pool did *not* fix — sun/coin variance,
+  mean then spends 128 frames of them, so the residual is dominated by what the slots did *not* fix — sun/coin variance,
   the 12–25 % of selections that are occluded and dropped, and the sparse indirect coverage.
 - **The level is sun-dominated** with a handful of small lamps, which is the regime where per-pixel NEE is already a
   decent estimator and reuse has the least to buy. ReSTIR's advantage is a claim about scenes with many luminaires and
   high DI variance — the next scene, not this one. That is why fixing the two faults above was worth doing even though
   the headline RMSE is not yet favourable.
 
-Open items this reading named: sun-coin variance in the candidate pool, weight loss from dropped occluded selections, an
+Open items this reading named: sun-coin variance in the candidate slots, weight loss from dropped occluded selections, an
 independent reference, and a 100 %-coverage indirect estimator (replay + shift mapping). **The independent reference is
 done** (`--seed-stream`, roadmap #7, re-measured above); the other three stand.
 
@@ -1016,7 +1016,7 @@ The plain arm keeps buying accuracy with frames; the ReSTIR arm does not. Readin
 shared stream gives 7 310.73 · 7 635.93 · 7 391.16 · 6 918.20 · 7 437.20 — no secular trend, a ±5 % band around ≈7 340,
 not a slow decay; the gain happens earlier (8 367.70 at 128 frames → 7 334.12 at 250, −12 %) and stops. So the honest
 statement about the fix is two-sided: **the pre-merge cap bounds M, and a bounded M bounds the error — but it is also the
-floor.** With M saturating near 60, the temporal filter's effective memory is ≈M frames, and frames past that resample
+floor.** With M saturating near 60, the temporal filter's effective storage is ≈M frames, and frames past that resample
 clamped weights (and their own correlated history) instead of adding information. Two consequences worth stating plainly:
 
 - The 128-frame sheets sit ~12 % above the reached floor and nothing past 250 frames improves on it, so §14.3's 5.1× is
@@ -1050,9 +1050,9 @@ both modes, which the 250-frame run does not satisfy. The lesson is the same one
 a check whose failure mode is indistinguishable from a real regression has to be calibrated against the measurement it
 claims, not written from the claim.
 
-### 14.5 Why the indirect pool covers 16 % — the gap, measured (2026-09-18, roadmap #5)
+### 14.5 Why the indirect slots covers 16 % — the gap, measured (2026-09-18, roadmap #5)
 
-§14.3 says the pool exists on 16 % of surface pixels and names the cause from the design side. Roadmap #5 is the item
+§14.3 says the slots exists on 16 % of surface pixels and names the cause from the design side. Roadmap #5 is the item
 that closes the gap, and before any estimator change it is worth knowing *where* the 84 % go, because "16 % → 100 %" is
 not one fix but four, of very different size. The mirror already counted the reasons; `--restir` runs now also count the
 temporal half's attempts, so both halves of the answer are in the transcript:
@@ -1060,7 +1060,7 @@ temporal half's attempts, so both halves of the answer are in the transcript:
 | per frame, 240×135, 4 candidates, 2 taps | pixels | share of surface pixels |
 |---|---|---|
 | **escape** — the primary BSDF sample saw the sky, so no first-bounce vertex exists | 13 426 | **69.2 %** |
-| **vertex** — usable, this is the pool's coverage | 2 344 | 12.1 % |
+| **vertex** — usable, this is the slots's coverage | 2 344 | 12.1 % |
 | **unusable** — glass / SSS vertices, out of scope by design | 867 | 4.5 % |
 | **emitter** — the primary sample landed on a light: the path ends there | 560 | 2.9 % |
 | **bad** — degenerate BSDF draw | 232 | 1.2 % |
@@ -1069,11 +1069,11 @@ temporal half's attempts, so both halves of the answer are in the transcript:
 (19 404 surface pixels that frame; the ~10 % not listed are pixels whose primary ray missed geometry, which the kernel
 resolves as sky rather than through the DI block. The same shares over 1 000 frames at 128×72: escape 77 % of the
 reasons, vertex 13.4 %, unusable 5.0 %, emitter 3.2 %.) **The gap is overwhelmingly the escape case**, which is exactly
-what §14.3 predicted from the estimator's shape: a light-sample pool needs a vertex to reconnect from, and a sky ray
+what §14.3 predicted from the estimator's shape: a light-sample slots needs a vertex to reconnect from, and a sky ray
 does not make one.
 
-**The temporal half is alive, but starved — and that is where the pool's M goes.** The indirect line's mean M reads 1.1
-against the direct pool's 63.1 at the same moment, which looks like a broken merge. It is not:
+**The temporal half is alive, but starved — and that is where the slots's M goes.** The indirect line's mean M reads 1.1
+against the direct slots's 63.1 at the same moment, which looks like a broken merge. It is not:
 
 | 240×135, 128 frames | count |
 |---|---|
@@ -1084,10 +1084,10 @@ against the direct pool's 63.1 at the same moment, which looks like a broken mer
 So the merge succeeds whenever it is asked; it is asked on only ~25 % of the covered pixels per frame. The reason is the
 estimator's own shape again: the first-bounce vertex is derived from a *fresh primary BSDF sample every frame*, so whether
 a given pixel has a vertex at all is a per-frame coin flip (12–16 % heads). A pixel's reprojected history pixel
-therefore holds an indirect reservoir only a quarter of the time, and the pool's M sits near the candidate count instead
-of climbing to the direct pool's 60–84. ⚠️ This was first misdiagnosed as a dead validation buffer
+therefore holds an indirect reservoir only a quarter of the time, and the slots's M sits near the candidate count instead
+of climbing to the direct slots's 60–84. ⚠️ This was first misdiagnosed as a dead validation store
 (`State.VertexHistory` looked write-only). It is not: the frame end does `std::swap(State.VertexHistory, State.Vertex)`,
-so the buffer is last frame's vertices by construction. The counters above — and a one-line experiment that proved a
+so the store is last frame's vertices by construction. The counters above — and a one-line experiment that proved a
 write there only perturbs the arm by 10 RMSE units—settled it; the write was dropped and the arm reproduces its previous
 RMSE 6 181.33 **byte-for-byte** with the counters in place.
 
@@ -1119,23 +1119,23 @@ that check, so the class table sums to the whole-image number.
 | emitter hit | 572 | 1.8 % | 6 434.46 | 2.3 % | 2 495.76 | 4.7 % | 2.58× |
 | unlit receiver | 30 | 0.1 % | 5 058.47 | 0.1 % | 1 341.99 | 0.1 % | 3.77× |
 | unusable — glass / SSS | 868 | 2.7 % | **14 680.80** | 17.8 % | 4 339.10 | 21.5 % | 3.38× |
-| **VERTEX — the pool's coverage** | 2 333 | 7.2 % | 8 638.99 | 16.6 % | 2 305.26 | 16.3 % | 3.75× |
+| **VERTEX — the slots's coverage** | 2 333 | 7.2 % | 8 638.99 | 16.6 % | 2 305.26 | 16.3 % | 3.75× |
 | no sample — empty candidate set | 746 | 2.3 % | 9 466.13 | 6.4 % | 2 572.83 | 6.5 % | 3.68× |
 | **TOTAL** | 32 400 | 100 % | **5 688.39** | 100 % | 1 531.96 | 100 % | 3.71× |
 
 **The measurement says the rewrite is not the lever, and it says it three ways.**
 
-- **The penalty is UNIFORM.** ReSTIR's excess over the plain arm is 3.75× in the class the pool covers and 3.75× in the
+- **The penalty is UNIFORM.** ReSTIR's excess over the plain arm is 3.75× in the class the slots covers and 3.75× in the
   class it cannot reach; every class with enough pixels to matter sits between 3.38× and 4.45×. A deficit that does not
   concentrate in the uncovered class cannot be fixed by covering it — extending reuse to the escape pixels would import
   an estimator that is *already 3.75× worse than the plain fallback*, not remove a class-specific loss.
-- **The pool's own class is not the best-off.** 8 638.99 RMSE where the pool works, against 5 568.60 where it does not
+- **The slots's own class is not the best-off.** 8 638.99 RMSE where the slots works, against 5 568.60 where it does not
   (the classes are different pixels, so the honest comparison is the excess column, but the direction is unmistakable).
-  The place the pool *does* operate is not where the image is closest to converged.
+  The place the slots *does* operate is not where the image is closest to converged.
 - **The class that carries the error is 43 % of the frame and has no reuse path at all.** Sky (never a surface, so the
-  GI pool is structurally inapplicable) is the largest single excess at 4.45×, and it is the sun coin / MIS story — #6,
-  not #5. Second by per-pixel error is glass/SSS, 2.7 % of the pixels carrying 17.8 % of the MSE, which the pool
-  excludes by design for a good reason (a light-sample pool loses the refracted subpath).
+  GI slots is structurally inapplicable) is the largest single excess at 4.45×, and it is the sun coin / MIS story — #6,
+  not #5. Second by per-pixel error is glass/SSS, 2.7 % of the pixels carrying 17.8 % of the MSE, which the slots
+  excludes by design for a good reason (a light-sample slots loses the refracted subpath).
 
 So #5's step 1 is a **negative result, recorded as one**: the coverage gap is real (§14.5) and it is not the binding
 constraint (§14.6). The replay + shift-mapping build stays unbuilt, deliberately, and the effort it would have consumed

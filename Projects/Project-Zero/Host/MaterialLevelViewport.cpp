@@ -106,7 +106,7 @@ inline double abs(double x)         { return x < 0.0 ? -x : x; }   // un-suffixe
 
 namespace {
 
-using Frontier::ColourPipeline;
+using Frontier::ColourChain;
 using Frontier::ColourTransfer;
 using Frontier::MaterialFlagAlphaMask;
 using Frontier::MaterialRecord;
@@ -120,7 +120,7 @@ using Frontier::MaterialIndex;
 //                                                    RENDER SCENE
 //------------------------------------------------------------------------------------------------------------------------
 // One flat triangle list, one BVH, one material table — the same three things the GPU build hands the kernel, just in
-//    CPU memory. Positions come world-space from the level's facet soup and the normals are the three authored corner
+//    CPU storage. Positions come world-space from the level's facet soup and the normals are the three authored corner
 //    normals per triangle, which is what the kernel interpolates at a hit from its vertex/index path.
 
 struct RenderTriangle
@@ -144,9 +144,9 @@ struct BvhNode
 // [nit] the emissive triangles' total power, for the discrete selection pdf (see PickLight).
 float g_AutomotiveRaySpread=0.001f;
 void BindAutomotiveHit(ShadingRecord& m,const RenderTriangle& t,float u,float v,float distance,vec3 direction,vec3 normal) {
-    if(m.AutomotiveData.x<1.0f||m.AutomotiveData.x>5.0f)return;
-    m.AutomotiveData.z=(t.U0*(1-u-v)+t.U1*u+t.U2*v)*3.4557519f;
-    m.AutomotiveData.w=(t.V0*(1-u-v)+t.V1*u+t.V2*v)*1.7278760f;
+    if(m.AutomotivePayload.x<1.0f||m.AutomotivePayload.x>5.0f)return;
+    m.AutomotivePayload.z=(t.U0*(1-u-v)+t.U1*u+t.U2*v)*3.4557519f;
+    m.AutomotivePayload.w=(t.V0*(1-u-v)+t.V1*u+t.V2*v)*1.7278760f;
     float worldArea=length(cross(t.P1-t.P0,t.P2-t.P0));
     float uvArea=std::abs((t.U1-t.U0)*(t.V2-t.V0)-(t.V1-t.V0)*(t.U2-t.U0));
     m.AutomotiveFootprint=3.4557519f*std::sqrt(uvArea/std::max(worldArea,1e-12f))*distance*g_AutomotiveRaySpread/std::max(std::abs(dot(direction,normal)),.001f);
@@ -241,10 +241,10 @@ std::string g_Level = "materials";
 //                                 THE INTERFACE PANEL (showcase only) — two widget kinds, end to end
 //------------------------------------------------------------------------------------------------------------------------
 // The showcase carries Project-Zero's trial panel at the berth ShowcaseStructure authors (stand + housing slab).
-//    The harness composes the panel's figures with the ENGINE's own pipeline (InterfaceTrialSequence → InterfaceSequence),
+//    The harness composes the panel's figures with the ENGINE's own chain (InterfaceTrialSequence → InterfaceSequence),
 //    measures its radiance with the ENGINE's own MeasureRadiance — which is where the ⑧ light-role split bites:
 //
-//      · Type 1, Overlay figures (needle, tick ring, readout): drawn in the composite below, EXCLUDED from the light.
+//      · Type 1, Overlay figures (needle, tick ring, readout): drawn in the combined below, EXCLUDED from the light.
 //      · Type 2, Illuminant figures (telltale lamp, toggle LED, lit fills, backlit buttons): drawn identically AND
 //        averaged into the panel's proxy luminaire, which ComposeProxy registers through a real SceneStructure —
 //        so the two panel triangles that light the plinth come out of the engine's own Finalise, not a lookalike.
@@ -553,18 +553,18 @@ void ShadingFrame(const vec3& N, vec3& T, vec3& B)
 //------------------------------------------------------------------------------------------------------------------------
 //                              RESTIR DIRECT LIGHTING — CPU MIRROR OF THE KERNEL'S DI BLOCK
 //------------------------------------------------------------------------------------------------------------------------
-// ReSTIRViewport.slang is not compilable off-GPU (bindless tables, a BVH in buffers, storage images), so this is the
+// ReSTIRViewport.slang is not compilable off-GPU (bindless tables, a BVH in stores, storage images), so this is the
 //    same move the M9 proof made for the filter: a line-for-line mirror of the kernel's direct-lighting block, checked
 //    against the shader text by the driver (it prints the constants it mirrors). What is mirrored:
 //
 //      · DrawDirectCandidate — the lamp/sun coin flip (kSunPickProbability 0.5), the sun's disc sample, w = p̂/p with
-//        BOTH continuous pdfs (a mesh sample pays area/(p_source·p_pick), a sun sample pays Ω/p_pick);
+//        BOTH continuous pdfs (a topology sample pays area/(p_source·p_pick), a sun sample pays Ω/p_pick);
 //      · ResampleCandidate — the streaming RIS resample, weightSum/count accumulation, 1-in-M selection;
 //      · the temporal merge — back-projection, the 25° normal and 10 % depth validation, the stride guard, the 20×
 //        M-clamp, pairwise MIS on w = p̂·W·M, and the p̂ re-evaluation of the stored sample at THIS pixel (the
 //        "revalidation re-evaluates the BSDF" claim: no Jacobian, no per-lobe history, just the same target function);
 //      · the spatial merge — K taps on a rotated cross at radius 4…16 px (scaled by width/1280), read from the previous
-//        frame's buffer, same validation and the same pairwise algebra;
+//        frame's store, same validation and the same pairwise algebra;
 //      · visibility re-traced at the shading pixel, an occluded reservoir contributing nothing (but still counting for
 //        M next frame), and the shade step's own f·L·cos·cosL·W/dist² form;
 //      · the running mean + first two luminance moments of ResolveSurface, so the filter downstream reads the variance
@@ -574,7 +574,7 @@ void ShadingFrame(const vec3& N, vec3& T, vec3& B)
 //      · the reprojection is computed from the previous camera pose, not read from the R2 motion image: on the CPU the
 //        pose is exact, and the kernel's rule (a back-projection off screen is a disocclusion, not a clamp) is kept;
 //      · a pixel that missed geometry clears its reservoir slot; the kernel leaves the stale one for the M/stride
-//        guards to reject (same outcome, one fewer way to read uninitialised memory);
+//        guards to reject (same outcome, one fewer way to read uninitialised storage);
 //      · no cloud-shadow transmittance (the level's scenario is Clear) and no R2 raster jitter: the primary ray is the
 //        pixel's own camera ray with the pixel's own sub-pixel offset.
 //
@@ -634,7 +634,7 @@ int   g_RestirDriftAxis = -1;       // [-]  -1: the object's own longest extent 
                                     //         0/1/2: force x/y/z — a lateral slide crosses coplanar neighbours (the
                                     //         case normal+depth cannot see), a bob does not.
 bool g_RestirHistorySplit = true;
-// The indirect half's pool (ReSTIR GI). Off ⇒ the pre-pool single-sample arm, which is the A/B.
+// The indirect half's slots (ReSTIR GI). Off ⇒ the pre-slots single-sample arm, which is the A/B.
 bool g_RestirGiReuse = true;
 // Visibility reuse (Bitterli et al. 2020 §5): the spatial pass TRUSTS the winning tap's stored visibility instead of
 //    re-tracing the merged selection, cutting the second DI shadow ray per pixel. Sound because a blocked reservoir
@@ -652,28 +652,28 @@ std::atomic<long> g_VisibilityReuseSaved{0};   // [rays] spatial-pass shadow ray
 //    merge) vs 6 221 (skipped) — 9 % WORSE — with the mean +1.3 % over the reference and 458k direct + 43k GI
 //    merges refused. The M a dead entry carries is real information: those candidates were CONSIDERED, and
 //    the set's estimator must count them. OFF by default, kept under `--restir-dead-skip` so the negative
-//    result stays re-measurable; the counters below say how often each pool WOULD have refused an entry.
+//    result stays re-measurable; the counters below say how often each slots WOULD have refused an entry.
 bool g_RestirDeadSkip = false;
-std::atomic<long> g_DeadSkipDirect{0};   // [merges] direct-pool entries refused for W = 0 (temporal + spatial)
-std::atomic<long> g_DeadSkipGi{0};       // [merges] GI-pool entries refused for W = 0 (temporal + spatial)
-// Roadmap #5, step 1: WHY a pixel has no pool coverage, as a per-pixel image rather than a counter. §14.5's counters say
+std::atomic<long> g_DeadSkipDirect{0};   // [merges] direct-slots entries refused for W = 0 (temporal + spatial)
+std::atomic<long> g_DeadSkipGi{0};       // [merges] GI-slots entries refused for W = 0 (temporal + spatial)
+// Roadmap #5, step 1: WHY a pixel has no slots coverage, as a per-pixel image rather than a counter. §14.5's counters say
 //    what share of the frame falls in each case; they cannot say whether those pixels are where the ERROR is, and that
 //    is the question that decides whether the 16 → 100 % fix (replay + shift mapping) is worth its bias risk. Writing
 //    the classification out as a PNG lets the same pixels be masked in an RMSE table — coverage and error, per class.
 enum : unsigned char
 {
-    kGiClassNone     = 0u,   // the primary ray missed geometry — no surface, so no vertex and no pool either way
+    kGiClassNone     = 0u,   // the primary ray missed geometry — no surface, so no vertex and no slots either way
     kGiClassBad      = 1u,   // the primary BSDF draw was degenerate (zero weight / zero pdf)
     kGiClassEscape   = 2u,   // the primary BSDF sample saw the sky: no first-bounce vertex exists  (69 % of the frame)
     kGiClassEmitter  = 3u,   // it landed on a light: the path ends there (already a perfect light sample)
     kGiClassUnlit    = 4u,   // it landed on an emissive-only / unlit surface: the terminal IS the answer
-    kGiClassUnusable = 5u,   // glass / SSS / solid-interface vertex: out of scope for a light-sample pool by design
-    kGiClassVertex   = 6u,   // a reusable opaque vertex — the pool's coverage, and the ONLY class it currently gets
+    kGiClassUnusable = 5u,   // glass / SSS / solid-interface vertex: out of scope for a light-sample slots by design
+    kGiClassVertex   = 6u,   // a reusable opaque vertex — the slots's coverage, and the ONLY class it currently gets
     kGiClassNoSample = 7u,   // a vertex was usable, but the frame's candidate draw produced NO sample (zero total
                              //    weight — every candidate behind the horizon), so there is nothing to merge or shade
 };
 std::atomic<long> g_GiBad{0}, g_GiEscape{0}, g_GiEmitter{0}, g_GiUnlit{0}, g_GiUnusable{0}, g_GiVertex{0}, g_GiNoPHat{0};
-// The indirect pool's temporal half, counted so a DEAD merge is visible in the transcript rather than inferred from a
+// The indirect slots's temporal half, counted so a DEAD merge is visible in the transcript rather than inferred from a
 //    flat mean M: `Tried` is every attempt against a history pixel that held samples, `NoVertexHistory` the share of
 //    those refused only because the previous frame's vertex record was missing, `Merged` the accepted ones. Measured
 //    (240x135, 128 frames): 104 805 tried, 97 194 merged, 78 refused for a missing record — the temporal half IS alive
@@ -683,8 +683,8 @@ std::atomic<long> g_GiBad{0}, g_GiEscape{0}, g_GiEmitter{0}, g_GiUnlit{0}, g_GiU
 //    geometry at all. The counters exist so that distinction stays measured rather than assumed — it was assumed wrong
 //    once already (a "dead VertexHistory" hypothesis, disproved by the swap plus these counters).
 std::atomic<long> g_GiTemporalTried{0}, g_GiTemporalNoVertexHistory{0}, g_GiTemporalMerged{0};
-// D10: temporal merges the geometry test would have allowed and the identity refused — per pool, because the two pools
-//    ghost differently (the DI pool inherits a light sample chosen for another object; the GI pool inherits one chosen
+// D10: temporal merges the geometry test would have allowed and the identity refused — per slots, because the two slots
+//    ghost differently (the DI slots inherits a light sample chosen for another object; the GI slots inherits one chosen
 //    at another object's first-bounce VERTEX, which reads as a reflection of something that is no longer there).
 std::atomic<long> g_IdentityRefusedDirect{0}, g_IdentityRefusedGi{0};
 std::atomic<long> g_GiTried{0}, g_GiTValid{0}, g_GiFDepth{0}, g_GiFNormal{0}, g_GiFVertex{0}, g_GiFHist{0};   // [-] the training-wheels switch: false restores the pre-fix feedback loop   // [-] the pre-R7a same-pixel history read (the D9 switch, for the A/B sheet)
@@ -871,7 +871,7 @@ float PHatSelected(const ShadingRecord& m, const ResolvedLayers& L, const vec3& 
     return PHatSurface(m, L, Ng, T, B, Ns, wo, Q.Radiance, ToLight, Q.Ng);
 }
 
-// The G-buffer the SECOND pass reads: on the GPU that is SurfaceImage/NormalImage plus a fresh ResolveMaterial in
+// The G-store the SECOND pass reads: on the GPU that is SurfaceImage/NormalImage plus a fresh ResolveMaterial in
 //    the spatial dispatch, so the mirror carries the same quantities (surface point, frame, material, layers).
 struct RestirSurface
 {
@@ -907,9 +907,9 @@ struct RestirSurface
 //    same screen-space transfer approximation the direct path already leans on.
 //    The vertex is derived once per frame per pixel from ONE primary BSDF sample. The pixel's indirect half then
 //    partitions cleanly around it:
-//        indirect = Beta0 · [ pool estimate of the vertex's NEE ] + Beta0 · [ vertex terminal ] + deeper trace from V
+//        indirect = Beta0 · [ slots estimate of the vertex's NEE ] + Beta0 · [ vertex terminal ] + deeper trace from V
 //    where the deeper trace starts AT the vertex with the vertex's own BSDF sample (its LastPdf seeded so its
-//    emitter-hit MIS pairs with the pool, exactly as the single-sample arm pairs the vertex NEE with it). Pixels
+//    emitter-hit MIS pairs with the slots, exactly as the single-sample arm pairs the vertex NEE with it). Pixels
 //    whose vertex is unusable (glass, an SSS mat, a degenerate frame) fall back to the single-sample arm — no
 //    reuse, no risk of a partition error. `--restir-no-gi-reuse` forces that fallback everywhere, which is the A/B.
 struct RestirVertex
@@ -1045,11 +1045,11 @@ struct RestirFrameState
 {
     std::vector<CpuReservoir> Temporal;     // THIS frame's post-temporal reservoirs — pass 1's output, pass 2's input
     std::vector<CpuReservoir> History;      // LAST frame's post-temporal reservoirs — what temporal reuse reads
-    std::vector<CpuGiReservoir> GiTemporal; // the indirect pool's temporal reserves (same split as the direct one)
+    std::vector<CpuGiReservoir> GiTemporal; // the indirect slots's temporal reserves (same split as the direct one)
     std::vector<CpuGiReservoir> GiHistory;  // LAST frame's GiTemporal — always pre-spatial: the fix is not optional
     std::vector<RestirVertex>   Vertex;     // this frame's first-bounce vertices
     std::vector<RestirVertex>   VertexHistory;   // last frame's, for the vertex-proximity validation of a tap
-    std::vector<RestirSurface> Surface;     // the G-buffer pass 2 reads (see RestirSurface)
+    std::vector<RestirSurface> Surface;     // the G-store pass 2 reads (see RestirSurface)
     std::vector<unsigned char> GiClass;     // roadmap #5: this frame's class per pixel (see kGiClass* — diagnostic)
     CameraPose PreviousPose;
     CameraPose LastPose;
@@ -1287,7 +1287,7 @@ vec3 RestirSpatialShade(const CpuReservoir& Temporal, const RestirSurface& Surfa
 // ────────────────────────────── PASS 1b — the vertex, its candidates, RIS, TEMPORAL ───────────────────────────────
 // Mirrors Radiance()'s depth-1 surface resolution (frame, layers, SSS chord, the emissive-only/unlit short
 //    circuits) and then runs the same candidate drawer the direct reservoir uses, at the VERTEX instead of the
-//    primary point. Writes this frame's vertex G-buffer entry and the GI reservoir the history will take.
+//    primary point. Writes this frame's vertex G-store entry and the GI reservoir the history will take.
 CpuGiReservoir RestirGiTemporalReservoir(const RestirSurface& Surface, int Candidates, bool SunUp,
                                             RestirFrameState& State, int Width, int Height, int X, int Y, Rng& R)
 {
@@ -1318,7 +1318,7 @@ CpuGiReservoir RestirGiTemporalReservoir(const RestirSurface& Surface, int Candi
     const vec3 Dir = Surface.T * wi.x + Surface.B * wi.y + Surface.Ns * wi.z;
 
     // The vertex's own terminal cases come first: a BSDF-sampled ray that escapes or lands on an emitter ends the
-    //    path at the vertex, and neither case is something a light-sample pool can estimate.
+    //    path at the vertex, and neither case is something a light-sample slots can estimate.
     const Hit H = Intersect(Surface.P + Surface.Ng * 1.0e-4f, Dir, 1e30f, -1);
     V.WiOut = Dir;
     if (!H.Valid)
@@ -1380,7 +1380,7 @@ CpuGiReservoir RestirGiTemporalReservoir(const RestirSurface& Surface, int Candi
         MarkClass(kGiClassUnlit);
         return Res;
     }
-    // Glass and SSS vertices are out of scope for the pool: the pool's candidates are surface/sun light samples,
+    // Glass and SSS vertices are out of scope for the slots: the slots's candidates are surface/sun light samples,
     //    so an SSS vertex would silently lose the below stratum, and a dielectric vertex is a refraction site, not
     //    a NEE site. Those pixels keep the single-sample arm (see the caller).
     if (vm.TransmissionWeight > 0.0f || vm.SssWeight > 0.0f || L.SolidInterface)
@@ -1397,7 +1397,7 @@ CpuGiReservoir RestirGiTemporalReservoir(const RestirSurface& Surface, int Candi
 
     // The deeper half's BSDF sample at the vertex. Its weight carries the vertex's f·cos/pdf so the sub-trace can
     //    be handed exactly that Beta, and its pdf seeds the sub-trace's LastPdf — that is what keeps the emitter-hit
-    //    MIS at the SECOND vertex paired with the pool's NEE at this one.
+    //    MIS at the SECOND vertex paired with the slots's NEE at this one.
     const vec4 S2 = SampleBsdf(vm, VL, VWo, vec4(R.Next(), R.Next(), R.Next(), R.Next()));
     if (S2.w > 0.0f)
     {
@@ -1427,7 +1427,7 @@ CpuGiReservoir RestirGiTemporalReservoir(const RestirSurface& Surface, int Candi
         Res.VertexNg = VNg;
         Res.Depth    = Surface.Depth;
         Res.Identity = Surface.Identity;   // D10
-        V.Valid = true;   // a reusable vertex exists — the caller can spend it on the pool
+        V.Valid = true;   // a reusable vertex exists — the caller can spend it on the slots
 
         ++g_GiVertex;
         MarkClass(kGiClassVertex);
@@ -1456,19 +1456,19 @@ CpuGiReservoir RestirGiTemporalReservoir(const RestirSurface& Surface, int Candi
                 //    depth/normal test alone would happily merge across a shadow boundary's two different hits.
                 // ⚠️ NO vertex-proximity test. The quantity being transferred is a LIGHT SAMPLE (a world point on
                 //    an emitter), not a direction: the receiver re-evaluates its own target function against that
-                //    point and re-traces the shadow ray, which is the validity test the direct pool uses for its
+                //    point and re-traces the shadow ray, which is the validity test the direct slots uses for its
                 //    taps too. Requiring the two vertices to be near-identical ("the same place") sounds stricter
                 //    but is the wrong test here, because each frame redraws its own primary BSDF direction: with it
-                //    in place, 6 989 of 20 831 temporal attempts failed on vertex distance alone and the pool
+                //    in place, 6 989 of 20 831 temporal attempts failed on vertex distance alone and the slots
                 //    bought almost nothing. Research note kept: the stricter form belongs with a replay + shift
-                //    mapping (ReSTIR GI proper), not with a light-sample pool.
+                //    mapping (ReSTIR GI proper), not with a light-sample slots.
                 const bool GeometryOk = PV2.Valid
                     && Prev.StrideWidth == static_cast<float>(Width)
                     && dot(Surface.Ng, Prev.Normal) > kRestirNormalCos
                     && fabsf(Surface.Depth - Prev.Depth) / max(Surface.Depth, 1.0e-3f) < kRestirDepthTol;
                 const bool IdentityDiffers = Prev.Identity != Surface.Identity;
                 const bool IdentityOk = !g_RestirIdentity || !IdentityDiffers;
-                // #6 the dead-entry rule (see g_RestirDeadSkip): an occluded pool entry carries W = 0 and only its M.
+                // #6 the dead-entry rule (see g_RestirDeadSkip): an occluded slots entry carries W = 0 and only its M.
                 const bool DeadOk = !g_RestirDeadSkip || Prev.UnbiasedWeight > 0.0f;
                 if (Prev.SampleCount > 0u && GeometryOk && IdentityOk && !DeadOk) ++g_DeadSkipGi;
                 const bool Valid = Prev.SampleCount > 0u && GeometryOk && IdentityOk && DeadOk;
@@ -1513,7 +1513,7 @@ CpuGiReservoir RestirGiTemporalReservoir(const RestirSurface& Surface, int Candi
     return Res;
 }
 
-// ─────────────────────────────────── PASS 3 — the indirect pool's taps and shade ────────────────────────────────
+// ─────────────────────────────────── PASS 3 — the indirect slots's taps and shade ────────────────────────────────
 // Reads pass 1b's output through the dispatch boundary, exactly like the direct path: spatial reuse is a
 //    shading-time refinement, so the history never sees it.
 vec3 RestirGiSpatialShade(const CpuGiReservoir& Temporal, const RestirSurface& Surface, const RestirVertex& V,
@@ -1580,7 +1580,7 @@ vec3 RestirGiSpatialShade(const CpuGiReservoir& Temporal, const RestirSurface& S
         }
     }
 
-    // One shadow ray from the vertex to whichever light the pool selected — the same "visibility re-traced" rule
+    // One shadow ray from the vertex to whichever light the slots selected — the same "visibility re-traced" rule
     //    the direct path uses, one pass later in the path.
     const bool Blocked = Res.Light == kRestirSunLight
         ? Occluded(VP + VNg * 1.0e-4f, VP + normalize(Res.Point - VP) * 1.0e4f)
@@ -1724,7 +1724,7 @@ vec3 Radiance(vec3 O, vec3 D, Rng& R, int Bounces, bool SkipPrimaryDirect = fals
         NeeSkipped = false;
         if (!H.Valid)
         {
-            if (Inside)   // open mesh / numeric leak: the nominal-Beer fallback, then out
+            if (Inside)   // open topology / numeric leak: the nominal-Beer fallback, then out
             {
                 Beta = Beta * exp(-EntrySigma * g_Mat[EntryMat].TransmissionThickness);
                 Inside = false;
@@ -1776,7 +1776,7 @@ vec3 Radiance(vec3 O, vec3 D, Rng& R, int Bounces, bool SkipPrimaryDirect = fals
         if (dot(Ns, D) > 0.0f) Ns = -Ns;
         // M6 glints — the same perturbation the primary surface takes; a bounce that lands on a glinting
         //    material must see the same microsurface or the two paths shade two different materials.
-        if (!g_MatGlintsOff && g_MatGlintDensity[T.Material] > 0.0f && Mat.AutomotiveData.x == 0.0f)
+        if (!g_MatGlintsOff && g_MatGlintDensity[T.Material] > 0.0f && Mat.AutomotivePayload.x == 0.0f)
         {
             const float GlintCoverage = 1.0f - expf(-g_MatGlintDensity[T.Material] * 0.25f);
             const vec3 Gn = g_FlakesSystemB
@@ -1898,7 +1898,7 @@ bool BuildInterfacePanel(uint16_t ObjectId)
 {
     using Frontier::HostRuntime::InterfaceTrialSequence;
 
-    // ── The panel, composed by the engine's own pipeline ────────────────────────────────────────────────────────
+    // ── The panel, composed by the engine's own chain ────────────────────────────────────────────────────────
     // Placement is the berth ShowcaseStructure authors: upright (local +Y onto world +Z), face along −Y toward the
     //    default viewpoint, at the published scale.
     Frontier::PlanePlacement Placement;
@@ -1938,7 +1938,7 @@ bool BuildInterfacePanel(uint16_t ObjectId)
     g_PanelFigures.assign(Slots, Slots + SlotCount);
     g_PanelActive = true;
 
-    // The face frame, world space. Placement is baked into the half-axes (ComposeProxy's own contract). The proxy
+    // The face frame, world space. Placement is precomputed into the half-axes (ComposeProxy's own contract). The proxy
     //    is INSET from the housing edge by the bezel: the emitting region of a display is its active area, and a
     //    proxy flush with the housing shows as a glowing rim wherever the rounded corners fall inside the quad.
     const float Inset = 0.020f * Frontier::kShowcasePanelScale;   // [m] world bezel inset (≥ the corner radius 0.016)
@@ -2177,7 +2177,7 @@ bool BuildLevel()
 struct SequenceResult
 {
     std::vector<float> Mean;        // [W*H*3] the running mean, linear radiance (what ResolveSurface publishes)
-    std::vector<float> Surface;     // [W*H*4] normal xyz + depth in w (0 = sky): the filter's geometry buffer
+    std::vector<float> Surface;     // [W*H*4] normal xyz + depth in w (0 = sky): the filter's geometry store
     std::vector<float> Variance;    // [W*H]   the variance of the mean the kernel's recursion reports
     // Denoiser-prototype guides (populated at resolve, used by the --denoise-sweep A/B modes; ignored by the shipped
     //    à-trous). Albedo = per-pixel demodulation colour, Rough = specular roughness, FlakeMask = deterministic
@@ -2192,12 +2192,12 @@ struct SequenceResult
     double             ReservoirCoverage = 0.0;   // [%]  pixels whose reservoir survived the frame
     double             MeanReservoirM = 0.0;      // [-]  mean M over the surface pixels (reuse is visible here)
     double             MeanReservoirMPublished = 0.0;   // [-] mean M of the reservoir the SHADING used (post-spatial)
-    double             MeanGiM = 0.0;                   // [-] the indirect pool, same two numbers
+    double             MeanGiM = 0.0;                   // [-] the indirect slots, same two numbers
     double             MeanGiMPublished = 0.0;
     double             GiOccludedPercent = 0.0;
     double             IdentityRefused = 0.0;   // D10: [reads] geometry agreed, the surface differed — the ghost case
     double             Disocclusion = 0.0;      // [px] every restart of the running mean
-    double             ReservoirIdentityRefused = 0.0;   // [merges] the same case in the two reservoir pools
+    double             ReservoirIdentityRefused = 0.0;   // [merges] the same case in the two reservoir slots
     double             IdentityRefusedCrossMaterial = 0.0;   // [reads] of those, those showing a different MATERIAL
     std::vector<unsigned char> GiClass;   // roadmap #5: the last frame's per-pixel GI class (0 = none, see kGiClass*)
 };
@@ -2326,9 +2326,9 @@ SequenceResult RenderSequence(const Viewpoint& VP, int Width, int Height, int Sp
 
         auto RunRows = [&](int Phase, auto&& PerPixel)
         {
-            std::vector<std::thread> Pool;
+            std::vector<std::thread> Bank;
             for (unsigned Th = 0u; Th < Threads; ++Th)
-                Pool.emplace_back([&, Th]()
+                Bank.emplace_back([&, Th]()
                 {
                     FrameTally Local;
                     for (int Y = static_cast<int>(Th); Y < Height; Y += static_cast<int>(Threads))
@@ -2345,10 +2345,10 @@ SequenceResult RenderSequence(const Viewpoint& VP, int Width, int Height, int Sp
                     T.CoveredGi += Local.CoveredGi; T.MSumGi += Local.MSumGi; T.OccludedGi += Local.OccludedGi;
                     if (Local.MaxM > T.MaxM) T.MaxM = Local.MaxM;
                 });
-            for (std::thread& T : Pool) T.join();
+            for (std::thread& T : Bank) T.join();
         };
 
-        // ── The G-buffer and the film's history read (R7a), for both paths ───────────────────────────────────────
+        // ── The G-store and the film's history read (R7a), for both paths ───────────────────────────────────────
         RunRows(0, [&](int X, int Y, FrameTally& T)
         {
             const size_t Pixel = static_cast<size_t>(Y) * Width + X;
@@ -2384,7 +2384,7 @@ SequenceResult RenderSequence(const Viewpoint& VP, int Width, int Height, int Sp
                     if (dot(Surf.Ns, D) > 0.0f) Surf.Ns = -Surf.Ns;
                     // M6 glints — the kernel's rule, line for line: coverage 1 - exp(-D/4), frequency x3,
                     //    jitter 0.37, applied before the frame builds, below-surface rejected against Ng.
-                    if (!g_MatGlintsOff && g_MatGlintDensity[Tri.Material] > 0.0f && g_Mat[Tri.Material].AutomotiveData.x == 0.0f)
+                    if (!g_MatGlintsOff && g_MatGlintDensity[Tri.Material] > 0.0f && g_Mat[Tri.Material].AutomotivePayload.x == 0.0f)
                     {
                         const float GlintCoverage = 1.0f - expf(-g_MatGlintDensity[Tri.Material] * 0.25f);
                         const vec3 Gn = g_FlakesSystemB
@@ -2404,7 +2404,7 @@ SequenceResult RenderSequence(const Viewpoint& VP, int Width, int Height, int Sp
                         && (g_MatFlags[Tri.Material] & Frontier::MaterialFlagThinWalled) == 0u;
                     if (SolidHit) { Surf.Layers.SolidInterface = true; Surf.Layers.IncidentIor = 1.0f; }
                     // The reservoir build, exactly where the kernel skips it: sky, a directly hit emitter, an
-                    //    emissive-only or unlit surface. The G-buffer stays valid (the film and the filter read it).
+                    //    emissive-only or unlit surface. The G-store stays valid (the film and the filter read it).
                     Surf.Valid = !Emitter
                         && Surf.Mat.Selection != static_cast<uint>(kReflectanceEmissiveOnly)
                         && Surf.Mat.Selection != static_cast<uint>(kReflectanceUnlit);
@@ -2574,17 +2574,17 @@ SequenceResult RenderSequence(const Viewpoint& VP, int Width, int Height, int Sp
                     //    and SelectedLight but not its identity, and a reservoir with a zero weight never reaches the
                     //    branch that sets it at all — so `State.Temporal[Pixel]` above can still carry "no surface" while
                     //    the pixel plainly shows one. That was the whole of a measured 1275 phantom refusals per frame in
-                    //    the direct pool; the history is the record the NEXT frame validates against, so it is normalised
+                    //    the direct slots; the history is the record the NEXT frame validates against, so it is normalised
                     //    here, where the record is final.
                     State.History[Pixel].Identity = Surf.Identity;
                     T.MSumPublished += static_cast<double>(Published.SampleCount);
                     if (Published.Visible == 0u) T.Occluded += 1.0;
 
-                    // The indirect half. With the pool ON the frame's partition is
-                    //      indirect = Beta0·[pool NEE at the vertex] + Beta0·[vertex terminal] + sub-trace from V
+                    // The indirect half. With the slots ON the frame's partition is
+                    //      indirect = Beta0·[slots NEE at the vertex] + Beta0·[vertex terminal] + sub-trace from V
                     //    where the sub-trace is handed the vertex's own BSDF sample (direction, weight, pdf) so no
                     //    second direction is drawn and nothing is counted twice; its LastPdf seed is what keeps the
-                    //    emitter-hit MIS at the second vertex paired with the pool's NEE at the first. With the pool
+                    //    emitter-hit MIS at the second vertex paired with the slots's NEE at the first. With the slots
                     //    OFF this is the untouched single-sample arm — the pixel's own full path from the primary
                     //    point, which is also where an unusable vertex (glass, SSS) falls back to.
                     const RestirVertex& V = State.Vertex[Pixel];
@@ -2680,7 +2680,7 @@ SequenceResult RenderSequence(const Viewpoint& VP, int Width, int Height, int Sp
                     Out.Mean[Pixel * 3u + 2u] = RadianceOut[2];
                     Out.Variance[Pixel] = VarianceOut;
                 }
-                // ⚠️ The film's surface record is the CENTRE-ray G-buffer pass 0 published (`Surf`), which is what the
+                // ⚠️ The film's surface record is the CENTRE-ray G-store pass 0 published (`Surf`), which is what the
                 //    kernel's ResolveSurface writes and what the next frame's history read validates against. The
                 //    sample loop must NOT publish its own last hit here: a jittered sample lands on a different texel
                 //    by up to a pixel, and validating a reprojection against the wrong texel rejects (or accepts)
@@ -2694,9 +2694,9 @@ SequenceResult RenderSequence(const Viewpoint& VP, int Width, int Height, int Sp
                 if (Surf.Depth > 0.0f) { T.Surface += 1.0; T.SamplesBehind += static_cast<double>(Accumulator.Count); }
             });
 
-        const FrameTally& Film  = Tally[0];   // the G-buffer/film pass
+        const FrameTally& Film  = Tally[0];   // the G-store/film pass
         const FrameTally& Rest  = Tally[1];   // pass 1: the temporal reservoir this frame publishes
-        const FrameTally& Gi    = Tally[2];   // pass 2: the indirect pool's temporal reservoir
+        const FrameTally& Gi    = Tally[2];   // pass 2: the indirect slots's temporal reservoir
         const FrameTally& Shade = Tally[3];   // pass 3: what the shading actually used
         Out.NonFinite += Film.Bad + Shade.Bad;
 
@@ -2759,13 +2759,13 @@ SequenceResult RenderSequence(const Viewpoint& VP, int Width, int Height, int Sp
         std::swap(FilmSurfacePrevious, FilmSurfaceCurrent);
         std::swap(FilmIdentityPrevious, FilmIdentityCurrent);
         std::swap(FilmMaterialPrevious, FilmMaterialCurrent);
-        // The vertex history is read an entire frame later (temporal validation), so it follows the film buffers.
+        // The vertex history is read an entire frame later (temporal validation), so it follows the film stores.
         std::swap(State.VertexHistory, State.Vertex);
         // ⚠️ NO History/Temporal swap here. There used to be one, and it silently made the reservoir the next
         //    frame's temporal source *the pass-1 output*, overwriting the very line that chooses between the
         //    temporal and the post-spatial reservoir — i.e. `--restir-no-history-split` was a no-op and the
         //    flag's two arms produced byte-identical PNGs (the tell). Pass 2 now decides what the history takes;
-        //    pass 1 overwrites every pixel of State.Temporal next frame, so the two buffers stay disjoint.
+        //    pass 1 overwrites every pixel of State.Temporal next frame, so the two stores stay disjoint.
     }
     Out.GiClass = State.GiClass;   // roadmap #5: the class map is the LAST frame's classification, same as the film
     return Out;
@@ -2957,7 +2957,7 @@ void ApplyDenoiseMode(SequenceResult& Result, DenoiseMode Mode, int Extent, int 
 //    display luminance; albedo figures show BaseColour under a flat ambient — the P0 AmbientIrradiance term. The ⑧
 //    role changes NOTHING here, which is the whole point: a Type 1 needle and a Type 2 telltale draw the same way;
 //    only the light differs, and that was settled at scene-build time by MeasureRadiance/ComposeProxy.
-void CompositeInterfaceOverlay(SequenceResult& Result, const Viewpoint& VP, int Width, int Height)
+void CombinedInterfaceOverlay(SequenceResult& Result, const Viewpoint& VP, int Width, int Height)
 {
     if (!g_PanelActive || g_PanelFigures.empty()) return;
 
@@ -2990,7 +2990,7 @@ void CompositeInterfaceOverlay(SequenceResult& Result, const Viewpoint& VP, int 
             const float T = (PlaneD - dot(O, N)) / Facing;
             if (T <= 0.0f) continue;
 
-            // Occlusion against the traced scene: the film's own G-buffer depth. A sphere in front of the panel
+            // Occlusion against the traced scene: the film's own G-store depth. A sphere in front of the panel
             //    hides it; the panel's own slab (5 mm behind the face) does not.
             const float SceneDepth = Result.Surface[Pixel * 4u + 3u];
             if (SceneDepth > 0.0f && SceneDepth < T - 2.0e-3f) continue;
@@ -3392,7 +3392,7 @@ int main(int ArgumentCount, char** ArgumentValues)
                     "floor is measured rather than shared)\n", SeedStream);
     g_SeedStream = SeedStream;
 
-    Frontier::ShadingTableSet Tables = Frontier::ShadingTableCodec::Bake(1024u);
+    Frontier::ShadingTableSet Tables = Frontier::ShadingTableCodec::Precompute(1024u);
     g_Tables = &Tables;
     Frontier::UnifiedMaterial::BindTables(Tables);   // the raster and surfel paths read these too
 
@@ -3413,11 +3413,11 @@ int main(int ArgumentCount, char** ArgumentValues)
     SequenceResult Sequence = RenderSequence(VP, Width, Height, Spp, Bounces, Frames, PanPerFrame, UseRestir, Threads, true);
     // The interface overlay composites on LINEAR radiance, straight after the resolve — the engine's own order.
     //    (With --denoise the filter then runs over the composited film; the gallery render does not filter.)
-    CompositeInterfaceOverlay(Sequence, VP, Width, Height);
+    CombinedInterfaceOverlay(Sequence, VP, Width, Height);
     if(!RawOutPath.empty()){
         ColourTransfer RawTransfer;RawTransfer.ToneMap=Frontier::ToneMapCategory::Aces;RawTransfer.Exposure=Exposure;RawTransfer.Saturation=1.0f;
         std::vector<unsigned char> RawPng(Sequence.Mean.size());
-        for(size_t i=0;i<Sequence.Mean.size();i+=3)ColourPipeline::ApplyToByte(RawTransfer,Sequence.Mean.data()+i,RawPng.data()+i);
+        for(size_t i=0;i<Sequence.Mean.size();i+=3)ColourChain::ApplyToByte(RawTransfer,Sequence.Mean.data()+i,RawPng.data()+i);
         if(!PngWriteCounterpart::WritePng(RawOutPath.c_str(),Width,Height,3,RawPng.data(),Width*3))return 2;
         std::printf("[material-level] unfiltered accumulated film -> %s\n",RawOutPath.c_str());
     }
@@ -3447,7 +3447,7 @@ int main(int ArgumentCount, char** ArgumentValues)
 
             std::vector<unsigned char> Png(Copy.Mean.size());
             for (size_t i = 0; i < Copy.Mean.size(); i += 3u)
-                ColourPipeline::ApplyToByte(SweepTransfer, Copy.Mean.data() + i, Png.data() + i);
+                ColourChain::ApplyToByte(SweepTransfer, Copy.Mean.data() + i, Png.data() + i);
             std::string Path = Stem + "_" + DenoiseModeName(Mode) + ".png";
             const int Ok = PngWriteCounterpart::WritePng(Path.c_str(), Width, Height, 3, Png.data(), Width * 3);
             std::printf("[denoise-sweep] %-11s %8.2f ms   -> %s%s\n",
@@ -3484,7 +3484,7 @@ int main(int ArgumentCount, char** ArgumentValues)
         for (int C = 0; C < 3; ++C)
             if (!(Film[I + static_cast<size_t>(C)] >= 0.0f) || Film[I + static_cast<size_t>(C)] > 1.0e7f) ++Bad;
         Mean += (Linear[0] + Linear[1] + Linear[2]) / 3.0;
-        ColourPipeline::ApplyToByte(Transfer, Linear, &Png[I]);
+        ColourChain::ApplyToByte(Transfer, Linear, &Png[I]);
     }
     Mean /= static_cast<double>(Film.size() / 3u);
     std::printf("[material-level] film: mean %.4f, %ld non-finite/out-of-range samples\n", Mean, Bad + Sequence.NonFinite);

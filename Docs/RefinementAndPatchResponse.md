@@ -90,7 +90,7 @@ post record / material apply / instance motion / debug popup / exposure / and on
 
 ### What was ruled out (measured, not assumed)
 
-* **A 256-frame cap.** There is none. `BakeFrameCount` only raises the “Initial accumulation ready — refinement
+* **A 256-frame cap.** There is none. `PrecomputeFrameCount` only raises the “Initial accumulation ready — refinement
   continues” notification; the integrator keeps incrementing and `ResolveSurface` keeps updating the mean.
 * **The SVGF moving-history clamp pinning a still frame at 32 samples.** `kMovingHistoryBound` applies only when
   `prevPx != pixel`. Motion vectors are built from **unjittered** current and previous clip positions
@@ -112,7 +112,7 @@ The preview selects a patch's coarse alternative when its projected geometric er
 projected = focal · (error · scale) · (1 + (lateral + radius)/nearest) / nearest        ≤ tolerance (px)
 ```
 
-`error` is the patch's object-space deviation, produced by the bake. v1 computed it as
+`error` is the patch's object-space deviation, produced by the precompute. v1 computed it as
 
 ```
 radius[a] = max(radius[a], radius[b] + |ab|)         // the full edge length, summed along the collapse chain
@@ -124,7 +124,7 @@ the camera distance by exactly that number, so a 10× over-statement is a 10× f
 until the camera was hundreds of metres from a 2 m ball. That is report ② and ③ — not “not wired”, but
 “wired to a number that never fires at a distance a person would dolly”.
 
-The bake now **measures** the deviation: the one-sided distance from the original patch surface to the
+The precompute now **measures** the deviation: the one-sided distance from the original patch surface to the
 simplified one, sampled at every fine vertex, every fine edge midpoint and every fine triangle centroid
 (6 samples per fine triangle, ≤ 768 per patch), each closed against every simplified triangle with the exact
 point-in-Voronoi-region closest-point test. It is a **sampled** Hausdorff estimate, not a certified bound —
@@ -188,7 +188,7 @@ Triangle counts for the sphere (960 fine → 550 fully coarse), by camera distan
 
 `Experimental/FrontierEditor/cluster-lod.html` (the Nanite-style cluster-LOD lab, `Docs/ClusterLodLab.md`) is an
 HTML/Canvas demo with no engine integration. It was checked here and it does respond to distance — same scene,
-`buildMesh` triangle count by eye distance: 18 240 (2.2) · 11 248 (4) · 4 928 (8) · 2 784 (16) · 1 552 (24).
+`buildGeometry` triangle count by eye distance: 18 240 (2.2) · 11 248 (4) · 4 928 (8) · 2 784 (16) · 1 552 (24).
 If “the clusters don't change” was about the lab, that is not reproducible; the report matches the **engine**
 patch preview, which is what ② and ③ above fix. The two systems share a name and nothing else.
 
@@ -210,7 +210,7 @@ patch preview, which is what ② and ③ above fix. The two systems share a name
 The cold-load cost of measuring the deviation is pruned rather than paid: a fine triangle that survives into
 the alternative is skipped (it is part of the simplified surface), and a candidate triangle whose bounding
 sphere is already further than the incumbent is skipped. Identical errors, 4.3× faster — the sphere's eight
-patches measure in 2.04 ms, 15 % of their cold bake. It is cached (`.pgeom`) after the first load either way.
+patches measure in 2.04 ms, 15 % of their cold precompute. It is cached (`.pgeom`) after the first load either way.
 
 The whole change is ONE commit on top of the imported engine tree, so it lands on
 `streamlinkinbox/Frontier@arena/01a0c77d-frontier` as a single conflict-free cherry-pick — the import commit's
@@ -226,7 +226,7 @@ tree is byte-identical to `ceee3d2`'s, and the cherry-picked result's tree hash 
 3. Compare a fine texture or a specular edge at ~30 s of hold against the same frame at one second. The first
    second is unchanged by design; the difference is everything after it.
 4. Patches: F3 to open the popup, quick tile to **Tiles + Wireframe**, F6 until it reads `patch error 8 px`,
-   then dolly an opaque smooth mesh between 3 m and 10 m. The wireframe inside the tiles must thin out, the tile
+   then dolly an opaque smooth topology between 3 m and 10 m. The wireframe inside the tiles must thin out, the tile
    colours must not change, and the popup's triangle count must drop. Glass and emissive objects must keep their
    full wireframe at every distance.
 
@@ -306,7 +306,7 @@ drag cannot disagree about which entities are movable.
 
 ## Also worth knowing, from the log you sent
 
-* `SceneDecode` took **95.8 s**. That is the patch bake running COLD: the v1 → v2 cache bump invalidated every
+* `SceneDecode` took **95.8 s**. That is the patch precompute running COLD: the v1 → v2 cache bump invalidated every
   entry, so every one of the 3 590 clusters rebaked on that launch. It is cached afterwards
   (`.frontier/cache/patch-geometry-v2/`) — the second launch should be back to a few seconds. The measurement
   itself is ~15 % of that; the greedy collapse loop is the rest.
@@ -405,7 +405,7 @@ could not be done from this sandbox, and what was already open in `Docs/Roadmap.
 | A1 | **Every change in these four passes is GPU-unseen.** Patch tiles darkening, the denoiser fade, the new rail, the outliner fold, the volume gizmo, the flight pointer lock. | Rebuild exe + shaders, run, report. Steps are in “How to confirm it on the machine that has the GPU”, above. |
 | A2 | **The freeze after `CpuAnimationMirrorCapacity`** on the launch you logged. Not reproducible or explicable from here. | If it recurs: `Build/Diagnostics/startup-*.csv` + the last `[GPU startup]` line. |
 | A3 | **Construct menu invisible when opened deliberately** (dock + or Shift+A while not flying). The accidental opening is fixed; whether the panel draws where you can see it is untested. | Open it on purpose and say what you see. |
-| A4 | **First-launch cold bake ≈ 96 s** on the showcase (3 590 patches, one thread, synchronous). Cached afterwards. | Decide whether it is worth parallelising the bake or moving it off the load path. |
+| A4 | **First-launch cold precompute ≈ 96 s** on the showcase (3 590 patches, one thread, synchronous). Cached afterwards. | Decide whether it is worth parallelising the precompute or moving it off the load path. |
 | A5 | Roadmap **B#11 / B#12** — the standing GPU render verification and the owner's blur + fireflies report. | The same run as A1, with the F3 ReSTIR row open. |
 
 ## B · Red before I arrived (pre-existing, untouched)
@@ -425,7 +425,7 @@ could not be done from this sandbox, and what was already open in `Docs/Roadmap.
 | C4 | **Volume gizmo is translate-only**, and only for the local cloud and the local fog. | A centre has no orientation; the extent is an inspector figure. Scaling the volume from the gizmo is a separate decision. |
 | C5 | **The global celestial markers are gone with no way back.** | You asked for them gone. If you ever want them, the honest form is a “Global proxies” item in the Markers control, not the old shelf. |
 | C6 | **Header options B and C not built.** | You picked A. They stay in `Docs/Design/ViewportHeader.html` as the alternatives that were weighed. |
-| C7 | **The hairline's 256 is duplicated** — `RenderScheduler.cpp` mirrors `GameExecution`'s `BakeFrameCount`. | One shared constant when something else needs it; not worth a header today. |
+| C7 | **The hairline's 256 is duplicated** — `RenderScheduler.cpp` mirrors `GameExecution`'s `PrecomputeFrameCount`. | One shared constant when something else needs it; not worth a header today. |
 | C8 | **Precipitation draws nothing.** Rain at 12 mm/h is simulation state feeding the media; no drops are rendered anywhere in `Engine/Shaders`. | A screen-space or volumetric rain pass is a feature, not a fix. Say if you want it scoped. |
 | C9 | **Flakes exist only on showcase row 12.** | By design of the material study. Nothing to fix; know where to look. |
 
@@ -434,7 +434,7 @@ could not be done from this sandbox, and what was already open in `Docs/Roadmap.
 1. **A#5 indirect coverage 16 % → 100 %** (replay + shift mapping) — the largest measured residual, and the only
    item the roadmap says moves the headline.
 2. **A#10 deferred materials** — M4c dispersion, displacement ch20, Tier-B multi-slab.
-3. **#26 / #27 environment lighting** — bake the sky probe, then sky as a reservoir candidate (“the smallest
+3. **#26 / #27 environment lighting** — precompute the sky probe, then sky as a reservoir candidate (“the smallest
    version that pays”).
 4. **C#14–18 dynamic geometry** — built and CPU-gated; each is waiting on one device run.
 5. **#28** — the `main` designation, an owner's merge click.

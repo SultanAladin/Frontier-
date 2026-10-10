@@ -36,10 +36,10 @@ public:
         Mark("main");}
     void Mark(const char* event,double phase=-1,uint64_t payload=0){std::lock_guard lock(Mutex);uint64_t rss=0,peak=0;int64_t commit=-1;
 #ifdef _WIN32
-        PROCESS_MEMORY_COUNTERS_EX memory{};memory.cb=sizeof(memory);
+        PROCESS_MEMORY_COUNTERS_EX storage{};storage.cb=sizeof(storage);
         using Query=BOOL(WINAPI*)(HANDLE,PPROCESS_MEMORY_COUNTERS,DWORD);
         auto query=reinterpret_cast<Query>(GetProcAddress(GetModuleHandleW(L"kernel32.dll"),"K32GetProcessMemoryInfo"));
-        if(query&&query(GetCurrentProcess(),reinterpret_cast<PPROCESS_MEMORY_COUNTERS>(&memory),sizeof(memory))){rss=memory.WorkingSetSize;peak=memory.PeakWorkingSetSize;commit=int64_t(memory.PrivateUsage);}
+        if(query&&query(GetCurrentProcess(),reinterpret_cast<PPROCESS_MEMORY_COUNTERS>(&storage),sizeof(storage))){rss=storage.WorkingSetSize;peak=storage.PeakWorkingSetSize;commit=int64_t(storage.PrivateUsage);}
 #else
         std::ifstream status("/proc/self/status");std::string line;while(std::getline(status,line)){if(line.rfind("VmRSS:",0)==0)rss=std::stoull(line.substr(6))*1024;else if(line.rfind("VmHWM:",0)==0)peak=std::stoull(line.substr(6))*1024;}
 #endif

@@ -1,5 +1,5 @@
 //============================================================================================================================================
-// 📦 Engine/Shaders/HiZReduce.slang — Reverse-Z min-reduction of the depth buffer into a mip pyramid (one level per dispatch)
+// 📦 Engine/Shaders/HiZReduce.slang — Reverse-Z min-reduction of the depth store into a mip pyramid (one level per dispatch)
 //============================================================================================================================================
 // Level 0 copies the depth attachment (rendered region only; the rest of the image is left at 0 = "infinitely far",
 //    which is the correct conservative value for the min). Level N reads the 2×2 (or 3×3 on odd edges) footprint of

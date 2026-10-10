@@ -48,12 +48,12 @@ bool PerformanceTelemetrySequence::AdvanceFrame(float DeltaSeconds,
     Logger.RecordMeasurement("FrameTimePeakMs",  static_cast<double>(PeakMs),            "ms");
     Logger.RecordMeasurement("FramesPerSecond",  static_cast<double>(FramesPerSecond),   "fps");
     Logger.RecordMeasurement("FrameSampleCount", static_cast<double>(SampleCount),       "count");
-    Logger.RecordMeasurement("ResidentMemory",   static_cast<double>(ResidentMebibytes), "MiB");
+    Logger.RecordMeasurement("ResidentStorage",   static_cast<double>(ResidentMebibytes), "MiB");
 
     const char* CpuNames[4]={"CpuCelestialTickMeanMs","CpuSunMoonSolveMeanMs","CpuSkyPackUploadMeanMs","CpuWeatherPostPackUploadMeanMs"};
     for(unsigned I=0;I<4;++I){Logger.RecordMeasurement(CpuNames[I],CelestialCpuSum[I]/SampleCount,"ms");CelestialCpuSum[I]=0;}
-    Logger.RecordMeasurement("CelestialBufferPayloadBytes",double(Workload.CelestialBufferPayloadBytes),"bytes");
-    Logger.RecordMeasurement("CelestialBufferAllocationBytes",double(Workload.CelestialBufferAllocationBytes),"bytes");
+    Logger.RecordMeasurement("CelestialStorePayloadBytes",double(Workload.CelestialStorePayloadBytes),"bytes");
+    Logger.RecordMeasurement("CelestialStoreAllocationBytes",double(Workload.CelestialStoreAllocationBytes),"bytes");
     Logger.RecordMeasurement("SkySunUniformPayloadBytes",Workload.SkySunUniformBytes,"bytes");
     Logger.RecordMeasurement("CloudFogUniformPayloadBytes",Workload.CloudFogUniformBytes,"bytes");
     Logger.RecordMeasurement("PostUniformPayloadBytes",Workload.PostUniformBytes,"bytes");
@@ -71,7 +71,7 @@ bool PerformanceTelemetrySequence::AdvanceFrame(float DeltaSeconds,
         "On the ReSTIR path sky, sun lighting, clouds and fog execute INLINE: separate timings N/A, not zero cost. "
         "Map-only sun lighting instead shares the shadow stage. "
         "GpuReSTIRMs includes geometry/materials/lighting/weather. CPU pack timings are not GPU execution. "
-        "Buffer bytes cover sky+moon+post+stars only; textures, shared targets/history and shadow maps are excluded; "
+        "Block bytes cover sky+moon+post+stars only; textures, shared targets/history and shadow maps are excluded; "
         "cloud density has no dedicated volume image. Budgets are limits, not measured step counts.");
 
     LastMeanMs = MeanMs;

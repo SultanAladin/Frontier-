@@ -14,9 +14,9 @@ NS='http://www.w3.org/2000/svg'; E.register_namespace('',NS)
 ALLOWED={'svg','title','desc','defs','g','path','rect','circle','ellipse','line','polyline','polygon','linearGradient','radialGradient','stop','clipPath','mask','filter','feGaussianBlur'}
 def tag(e):return e.tag.split('}')[-1]
 def elem(name,attrs=None):return E.Element('{'+NS+'}'+name,attrs or {})
-def fingerprint(data):
+def fingerprint(record):
     value=14695981039346656037
-    for byte in data:value=((value^byte)*1099511628211)&0xffffffffffffffff
+    for byte in record:value=((value^byte)*1099511628211)&0xffffffffffffffff
     return f'{value:016x}'
 FONTS={}
 def outline(text):
@@ -37,7 +37,7 @@ def outline(text):
     return group
 
 def convert(path):
-    data=path.read_bytes();root=E.fromstring(data);unsupported=sorted({tag(e) for e in root.iter()}-ALLOWED)
+    record=path.read_bytes();root=E.fromstring(record);unsupported=sorted({tag(e) for e in root.iter()}-ALLOWED)
     if not unsupported:return None
     notes=[]
     # SVG2 rgba() colors are not parsed by this pin, including gradient stops.
@@ -118,8 +118,8 @@ def convert(path):
     if unknown:raise ValueError((path.name,unknown))
     svg=E.tostring(root,encoding='unicode')
     assert '<image' not in svg and 'href=' not in svg
-    (OUT/path.name).write_text(f'<!-- frontier-source-fnv1a64:{fingerprint(data)} -->\n'+svg+'\n')
-    return {'original_unsupported':unsupported,'changes':sorted(set(notes)),'source_fnv1a64':fingerprint(data)}
+    (OUT/path.name).write_text(f'<!-- frontier-source-fnv1a64:{fingerprint(record)} -->\n'+svg+'\n')
+    return {'original_unsupported':unsupported,'changes':sorted(set(notes)),'source_fnv1a64':fingerprint(record)}
 
 def main():
     OUT.mkdir(exist_ok=True);manifest={}

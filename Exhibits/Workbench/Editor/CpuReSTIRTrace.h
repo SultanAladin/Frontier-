@@ -196,9 +196,9 @@ inline void Render(const RayTracingSolver& Scene, const Frontier::HostRuntime::F
     const uint32_t Threads = std::thread::hardware_concurrency() > 0u ? std::thread::hardware_concurrency() : 2u;
     for (uint32_t Frame = 0u; Frame < Frames; ++Frame)
     {
-        std::vector<std::thread> Pool;
+        std::vector<std::thread> Bank;
         for (uint32_t Th = 0u; Th < Threads; ++Th)
-            Pool.emplace_back([&, Th]()
+            Bank.emplace_back([&, Th]()
             {
                 for (uint32_t Y = Th; Y < Height; Y += Threads)
                     for (uint32_t X = 0u; X < Width; ++X)
@@ -213,7 +213,7 @@ inline void Render(const RayTracingSolver& Scene, const Frontier::HostRuntime::F
                         S[0] += L.x; S[1] += L.y; S[2] += L.z;
                     }
             });
-        for (auto& Th : Pool) Th.join();
+        for (auto& Th : Bank) Th.join();
     }
     const float Inv = Exposure / static_cast<float>(Frames);
     for (size_t I = 0u; I < static_cast<size_t>(Width) * Height; ++I)

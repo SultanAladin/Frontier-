@@ -8,7 +8,7 @@
     ],
     "elapsedSeconds": 7.57886116200001,
     "exit": 0,
-    "output": "Flux PBF C++ mirror | material Water | particles 1620 | t 1.50000 s\nbounds [-1.95,1.95] x [0.19,3.70] x [-1.25,1.25] m | sphere contacts 0 | wall contacts 0 | min sphere distance 0.46668 m\npressure passes 3 | mean/peak compression 0.00245 / 0.02244\nviscosity PCG iterations 1 | relative residual 0.00000\nsurface mesh: 15952 vertices | 32984 triangles | dirty bricks 288 initial / 0 unchanged | open/nonmanifold edges 0/0\nproof frame: build/fluid-cpu/evidence/flux-water.ppm\n"
+    "output": "Flux PBF C++ mirror | material Water | particles 1620 | t 1.50000 s\nbounds [-1.95,1.95] x [0.19,3.70] x [-1.25,1.25] m | sphere contacts 0 | wall contacts 0 | min sphere distance 0.46668 m\npressure passes 3 | mean/peak compression 0.00245 / 0.02244\nviscosity PCG iterations 1 | relative residual 0.00000\nsurface topology: 15952 vertices | 32984 triangles | dirty bricks 288 initial / 0 unchanged | open/nonmanifold edges 0/0\nproof frame: build/fluid-cpu/evidence/flux-water.ppm\n"
   },
   {
     "command": [
@@ -19,7 +19,7 @@
     ],
     "elapsedSeconds": 7.588927617000024,
     "exit": 0,
-    "output": "Flux PBF C++ mirror | material Honey | particles 1620 | t 1.50000 s\nbounds [-1.95,1.95] x [0.19,3.70] x [-1.25,1.25] m | sphere contacts 0 | wall contacts 0 | min sphere distance 0.40853 m\npressure passes 3 | mean/peak compression 0.00407 / 0.02078\nviscosity PCG iterations 15 | relative residual 0.00001\nsurface mesh: 13734 vertices | 28112 triangles | dirty bricks 288 initial / 0 unchanged | open/nonmanifold edges 0/0\nproof frame: build/fluid-cpu/evidence/flux-honey.ppm\n"
+    "output": "Flux PBF C++ mirror | material Honey | particles 1620 | t 1.50000 s\nbounds [-1.95,1.95] x [0.19,3.70] x [-1.25,1.25] m | sphere contacts 0 | wall contacts 0 | min sphere distance 0.40853 m\npressure passes 3 | mean/peak compression 0.00407 / 0.02078\nviscosity PCG iterations 15 | relative residual 0.00001\nsurface topology: 13734 vertices | 28112 triangles | dirty bricks 288 initial / 0 unchanged | open/nonmanifold edges 0/0\nproof frame: build/fluid-cpu/evidence/flux-honey.ppm\n"
   },
   {
     "command": [

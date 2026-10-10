@@ -223,7 +223,7 @@ struct SoftTyreParameters
 
     // Friction
     float    FrictionCoefficient = 2.2f;   // Coulomb μ (calibrated so emergent peak ≈ Pacejka D-factor at the ~0.6
-                                           // patch-utilisation of this mesh resolution; see the validation report)
+                                           // patch-utilisation of this topology resolution; see the validation report)
 
     Vec3     Gravity = {0.0f, 0.0f, -9.81f};   // Frontier is +Z up; spin axis is +Y; longitudinal is +X
 };

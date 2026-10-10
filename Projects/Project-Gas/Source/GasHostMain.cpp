@@ -54,22 +54,22 @@ namespace
 // Read whole, or report why not. A scene is kilobytes; streaming it would be ceremony.
 bool ReadWholeFile(const char* Path, std::string& OutText)
 {
-    std::FILE* Handle = std::fopen(Path, "rb");
-    if (Handle == nullptr) return false;
+    std::FILE* Tag = std::fopen(Path, "rb");
+    if (Tag == nullptr) return false;
     char Chunk[4096];
     std::size_t Taken = 0u;
-    while ((Taken = std::fread(Chunk, 1u, sizeof(Chunk), Handle)) > 0u) OutText.append(Chunk, Taken);
-    std::fclose(Handle);
+    while ((Taken = std::fread(Chunk, 1u, sizeof(Chunk), Tag)) > 0u) OutText.append(Chunk, Taken);
+    std::fclose(Tag);
     return true;
 }
 
 
 bool WriteWholeFile(const char* Path, const std::string& Text)
 {
-    std::FILE* Handle = std::fopen(Path, "wb");
-    if (Handle == nullptr) return false;
-    const std::size_t Written = std::fwrite(Text.data(), 1u, Text.size(), Handle);
-    std::fclose(Handle);
+    std::FILE* Tag = std::fopen(Path, "wb");
+    if (Tag == nullptr) return false;
+    const std::size_t Written = std::fwrite(Text.data(), 1u, Text.size(), Tag);
+    std::fclose(Tag);
     return Written == Text.size();
 }
 

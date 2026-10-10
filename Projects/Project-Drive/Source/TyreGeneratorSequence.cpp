@@ -328,7 +328,7 @@ bool TyreGeneratorSequence::BuildSheet(uint64_t Key, EditorSheet* Sheet) const n
         AddReadout(Instance, "Outer", Text);
         std::snprintf(Text, sizeof(Text), "%.0f mm", double(Derived.Circumference));
         AddReadout(Instance, "Circumference", Text);
-        AddReadout(Instance, "Source", "TreadMeshSolver");
+        AddReadout(Instance, "Source", "TreadGeometrySolver");
         break;
     }
     case TyreSection::Carcass:

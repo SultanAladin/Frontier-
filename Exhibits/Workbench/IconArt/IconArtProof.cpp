@@ -90,16 +90,16 @@ void Verify(const fs::path& Root,const fs::path& Scratch){
     Require(V.Rasterize(IconSymbol::Clouds,40,40)->Result==IconResult::Unsupported,"unsupported variant still refused");
     Write(VariantRoot/"ThorVG/clouds.svg",Variant);fs::remove(VariantRoot/"clouds.svg");V.Clear();
     Require(V.Rasterize(IconSymbol::Clouds,40,40)->Result==IconResult::Missing,"variant cannot conceal missing original source");
-    // A valid legacy FIB1 bake with different pixels must have no runtime effect.
+    // A valid legacy FIB1 precompute with different pixels must have no runtime effect.
     const auto RedSource=Svg("<rect width=\"40\" height=\"40\" fill=\"red\"/>");
     Write(Scratch/"no-bakes/sun.svg",RedSource);
-    std::string Bake="FIB1";
-    auto U32=[&](uint32_t N){for(int I=0;I<4;++I)Bake+=char((N>>(8*I))&255);};
-    U32(256);U32(256);U32(uint32_t(RedSource.size()));Bake+=RedSource;
-    for(int I=0;I<256*256;++I){Bake+=char(0);Bake+=char(0);Bake+=char(255);Bake+=char(255);}
-    Write(Scratch/"no-bakes/Baked/sun.rgba",Bake);IconArt NoBake(Scratch/"no-bakes");
-    const auto Red=NoBake.Rasterize(IconSymbol::Sun,40,40);
-    Require(Byte(*Red,20,20,0)==255&&Byte(*Red,20,20,2)==0&&NoBake.Statistics().Rasterizations==1,"valid offline bake ignored; ThorVG renders SVG source");
+    std::string Precompute="FIB1";
+    auto U32=[&](uint32_t N){for(int I=0;I<4;++I)Precompute+=char((N>>(8*I))&255);};
+    U32(256);U32(256);U32(uint32_t(RedSource.size()));Precompute+=RedSource;
+    for(int I=0;I<256*256;++I){Precompute+=char(0);Precompute+=char(0);Precompute+=char(255);Precompute+=char(255);}
+    Write(Scratch/"no-bakes/Precomputed/sun.rgba",Precompute);IconArt NoPrecompute(Scratch/"no-bakes");
+    const auto Red=NoPrecompute.Rasterize(IconSymbol::Sun,40,40);
+    Require(Byte(*Red,20,20,0)==255&&Byte(*Red,20,20,2)==0&&NoPrecompute.Statistics().Rasterizations==1,"valid offline bake ignored; ThorVG renders SVG source");
     Require(tvg::Initializer::init(0)==tvg::Result::Success,"existing host can retain ThorVG lifetime");
     std::shared_ptr<const IconRaster> Survives;
     for(int I=0;I<8;++I){IconArt Scoped(Root);Survives=Scoped.Rasterize(IconSymbol::CollectionBracketedObjects,24,24);}

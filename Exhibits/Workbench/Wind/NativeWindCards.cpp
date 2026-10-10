@@ -1,7 +1,7 @@
 //==============================================================================================================================================
 //                                                            NATIVEWINDCARDS.CPP
 //==============================================================================================================================================
-// 📦 Executed proof: records the native wind binding card and its composite flow field from real ImGui draw commands.
+// 📦 Executed proof: records the native wind binding card and its combined flow field from real ImGui draw commands.
 
 #include "WindPanelSurface.h"
 #include "CpuDraw.h"
@@ -32,16 +32,16 @@ void Check(bool Condition, const char* Claim)
     }
 }
 
-float Speed(const WindComposite& Field, float X, float Z, float Time)
+float Speed(const WindCombined& Field, float X, float Z, float Time)
 {
     float Velocity[2];
     Evaluate(Field, X, Z, Time, Velocity);
     return std::sqrt(Velocity[0] * Velocity[0] + Velocity[1] * Velocity[1]);
 }
 
-WindComposite Single(WindKind Kind, float Strength, float Bearing, float Radius)
+WindCombined Single(WindKind Kind, float Strength, float Bearing, float Radius)
 {
-    WindComposite Field;
+    WindCombined Field;
     WindPart Part;
     std::snprintf(Part.Name, sizeof(Part.Name), "%s", KindName(Kind));
     Part.Kind     = Kind;
@@ -76,7 +76,7 @@ int main()
     enum class Subject { Binding, Flow };
     Subject        Shown = Subject::Binding;
     BindingValues  Values;
-    WindComposite  Field = Resolve(7.0f, 250.0f, 0.25f);
+    WindCombined  Field = Resolve(7.0f, 250.0f, 0.25f);
     WindMotes      Motes;
     CanvasSettings Look;
     BindingHits    Hits;
@@ -162,7 +162,7 @@ int main()
         Check(Field.Parts[1].Radius == 450.0f, "the gust reaches 450 m");
         Check(Field.Parts[1].Frequency == 0.3f, "the gust pulses at .3 Hz");
 
-        WindComposite Clamps;
+        WindCombined Clamps;
         WindPart Wild;
         Wild.X = -9000.0f; Wild.Z = 9000.0f; Wild.Radius = 1.0f;
         Wild.Strength = 500.0f; Wild.Bearing = 940.0f; Wild.Frequency = 40.0f;
@@ -178,7 +178,7 @@ int main()
     // EvaluateWind — one branch at a time, read against the reference arithmetic.
     //-----------------------------------------------------------------------------------------------------
     {
-        const WindComposite East = Single(WindKind::Directional, 7.0f, 90.0f, 260.0f);
+        const WindCombined East = Single(WindKind::Directional, 7.0f, 90.0f, 260.0f);
         float Velocity[2];
         Evaluate(East, 0.0f, 0.0f, 0.0f, Velocity);
         Check(std::fabs(Velocity[0] - 7.0f) < 1e-5f, "a 90 deg directional blows along +X at full strength");
@@ -186,7 +186,7 @@ int main()
         Evaluate(East, 4000.0f, -3000.0f, 0.0f, Velocity);
         Check(std::fabs(Velocity[0] - 7.0f) < 1e-5f, "a directional ignores radius and reaches the whole slice");
 
-        const WindComposite Prevailing = Single(WindKind::Directional, 7.0f, 250.0f, 260.0f);
+        const WindCombined Prevailing = Single(WindKind::Directional, 7.0f, 250.0f, 260.0f);
         Evaluate(Prevailing, 0.0f, 0.0f, 0.0f, Velocity);
         Check(std::fabs(Velocity[0] + 6.5778f) < 1e-3f, "250 deg resolves to -6.58 m/s on X");
         Check(std::fabs(Velocity[1] - 2.3941f) < 1e-3f, "250 deg resolves to +2.39 m/s on Z");
@@ -194,7 +194,7 @@ int main()
     }
 
     {
-        const WindComposite Gust = Single(WindKind::Gust, 10.0f, 90.0f, 400.0f);
+        const WindCombined Gust = Single(WindKind::Gust, 10.0f, 90.0f, 400.0f);
         Check(std::fabs(Speed(Gust, 0.0f, 0.0f, 0.0f) - 6.5f) < 1e-4f, "a gust sits at .65 of strength at phase 0");
         const float Crest = 1.0f / (4.0f * 0.3f);
         Check(std::fabs(Speed(Gust, 0.0f, 0.0f, Crest) - 10.0f) < 1e-3f, "the gust crests at full strength");
@@ -205,7 +205,7 @@ int main()
     }
 
     {
-        const WindComposite Vortex = Single(WindKind::Tornado, 22.0f, 90.0f, 300.0f);
+        const WindCombined Vortex = Single(WindKind::Tornado, 22.0f, 90.0f, 300.0f);
         float Velocity[2];
         Evaluate(Vortex, 150.0f, 0.0f, 0.0f, Velocity);
         Check(Velocity[1] > 0.0f && std::fabs(Velocity[0]) < Velocity[1], "a vortex is mostly tangential");
@@ -214,7 +214,7 @@ int main()
         Check(std::fabs(Speed(Vortex, 50.0f, 0.0f, 0.0f) - Speed(Vortex, 50.0f, 0.0f, 9.0f)) < 1e-6f,
               "a vortex does not pulse with the clock");
 
-        const WindComposite Burst = Single(WindKind::Radial, 12.0f, 0.0f, 300.0f);
+        const WindCombined Burst = Single(WindKind::Radial, 12.0f, 0.0f, 300.0f);
         Evaluate(Burst, 150.0f, 0.0f, 0.0f, Velocity);
         Check(Velocity[0] > 0.0f && std::fabs(Velocity[1]) < 1e-6f, "a radial burst blows straight outward");
         Evaluate(Burst, -150.0f, 0.0f, 0.0f, Velocity);
@@ -224,7 +224,7 @@ int main()
     }
 
     {
-        WindComposite Sum;
+        WindCombined Sum;
         WindPart A; A.Kind = WindKind::Directional; A.Strength = 5.0f; A.Bearing = 90.0f;
         WindPart B; B.Kind = WindKind::Directional; B.Strength = 3.0f; B.Bearing = 90.0f;
         Adopt(Sum, A);
@@ -373,7 +373,7 @@ int main()
         Check(std::fabs(Walk.X[1] - 73.0f / 151.0f) < 1e-6f, "the X stride is 73 over 151");
         Check(std::fabs(Walk.Y[1] - 43.0f / 149.0f) < 1e-6f, "the Y stride is 43 over 149");
 
-        const WindComposite East = Single(WindKind::Directional, 10.0f, 90.0f, 260.0f);
+        const WindCombined East = Single(WindKind::Directional, 10.0f, 90.0f, 260.0f);
         const float Before = Walk.X[5];
         Advance(East, 352.0f, 180.0f, Walk, 1.0f / 30, true, true);
         Check(Walk.X[5] > Before, "an eastward field carries the motes along +X");

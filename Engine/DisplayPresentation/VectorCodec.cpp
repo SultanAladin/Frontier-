@@ -230,14 +230,14 @@ const std::array<VectorGlyphRecord, static_cast<size_t>(ControlCentreIconCategor
     VectorGlyphRecord{ "TriangleAlert", "m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3ZM12 9v4M12 17h.01", 24, 24, 2.0f },
     // 21: CircleCheck — lucide "circle-check-big"
     VectorGlyphRecord{ "CircleCheck", "M22 11.08V12a10 10 0 1 1-5.93-9.14M9 11l3 3L22 4", 24, 24, 2.0f },
-    // 22: CircleInfo — lucide "info"
-    VectorGlyphRecord{ "CircleInfo", "M12 2a10 10 0 1 1 0 20 10 10 0 0 1 0-20zM12 16v-4M12 8h.01", 24, 24, 2.0f },
+    // 22: CircleDetails — lucide "facts"
+    VectorGlyphRecord{ "CircleDetails", "M12 2a10 10 0 1 1 0 20 10 10 0 0 1 0-20zM12 16v-4M12 8h.01", 24, 24, 2.0f },
     // 23: OctagonAlert — lucide "octagon-alert"
     VectorGlyphRecord{ "OctagonAlert", "M12 16h.01M12 8v4M15.312 2a2 2 0 0 1 1.414.586l4.688 4.688A2 2 0 0 1 22 8.688v6.624a2 2 0 0 1-.586 1.414l-4.688 4.688a2 2 0 0 1-1.414.586H8.688a2 2 0 0 1-1.414-.586l-4.688-4.688A2 2 0 0 1 2 15.312V8.688a2 2 0 0 1 .586-1.414l4.688-4.688A2 2 0 0 1 8.688 2z", 24, 24, 2.0f },
 
     // ── Outliner row columns and tree furniture ──────────────────────────────────────────────────────────────────
     // <circle cx cy r> is rewritten as two arcs, matching how the existing entries encode their circles: the
-    //    decoder handles one path grammar, so every primitive has to arrive as path data.
+    //    decoder identifiers one path grammar, so every primitive has to arrive as path record.
 
     // 24: EyeVisible — lucide "eye". Lid outline plus a 3-radius pupil at (12,12).
     VectorGlyphRecord{ "EyeVisible", "M2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 19.876 0 1 1 0 0 1 0 .696 10.75 10.75 0 0 1-19.876 0M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0z", 24, 24, 2.0f },
@@ -254,9 +254,9 @@ const std::array<VectorGlyphRecord, static_cast<size_t>(ControlCentreIconCategor
     VectorGlyphRecord{ "FolderClosed", "M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2z", 24, 24, 2.0f },
     // 30: FolderOpen — lucide "folder-open".
     VectorGlyphRecord{ "FolderOpen", "M2 7.5V5a2 2 0 0 1 2-2h3.9a2 2 0 0 1 1.69.9l.81 1.2a2 2 0 0 0 1.67.9H20a2 2 0 0 1 2 2v1.5M2.239 18.578A2 2 0 0 0 4 20h16a2 2 0 0 0 1.964-1.618l1.402-7A1 1 0 0 0 22.386 10H1.614a1 1 0 0 0-.98 1.382z", 24, 24, 2.0f },
-    // 31: CubeObject — lucide "box". The mesh row.
+    // 31: CubeObject — lucide "box". The topology row.
     VectorGlyphRecord{ "CubeObject", "M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16zM3.3 7l8.7 5 8.7-5M12 22V12", 24, 24, 2.0f },
-    // 32: SearchGlass — lucide "search". Lens as two arcs, then the handle.
+    // 32: SearchGlass — lucide "search". Lens as two arcs, then the identifier.
     VectorGlyphRecord{ "SearchGlass", "M18 11a7 7 0 1 1-14 0 7 7 0 0 1 14 0zM21 21l-4.35-4.35", 24, 24, 2.0f },
     // 33: PlusAdd — lucide "plus".
     VectorGlyphRecord{ "PlusAdd", "M5 12h14M12 5v14", 24, 24, 2.0f },

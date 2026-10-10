@@ -22,7 +22,7 @@ else
 fi
 rm -f "$CoverageBin"
 
-echo "[MaterialsProof] compiling the furnace proof (slang-as-C++ against baked tables)"
+echo "[MaterialsProof] compiling the furnace proof (slang-as-C++ against precomputed tables)"
 FurnaceBin="$(mktemp -u /tmp/MaterialsFurnace.XXXXXX)"
 if ! g++ -std=c++20 -O2 -Wall -Wextra -DFRONTIER_CPU_PORT -I Exhibits/Workbench/Materials \
      -I Engine/DisplayPresentation -I Engine/Shaders \

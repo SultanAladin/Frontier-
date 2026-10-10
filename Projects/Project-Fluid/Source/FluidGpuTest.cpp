@@ -14,8 +14,8 @@ using Clock=std::chrono::steady_clock;
 double Elapsed(Clock::time_point start){return std::chrono::duration<double,std::milli>(Clock::now()-start).count();}
 void Check(VkResult result,const char* name){if(result!=VK_SUCCESS)throw std::runtime_error(std::string(name)+" VkResult="+std::to_string(result));}
 struct Device {
- VkInstance Instance{};VkDevice Handle{};VkPhysicalDevice Physical{};VkQueue Queue{};uint32_t Family{};VkPhysicalDeviceProperties Properties{};
- ~Device(){if(Handle){vkDeviceWaitIdle(Handle);vkDestroyDevice(Handle,nullptr);}if(Instance)vkDestroyInstance(Instance,nullptr);}
+ VkInstance Instance{};VkDevice Tag{};VkPhysicalDevice Physical{};VkQueue Queue{};uint32_t Family{};VkPhysicalDeviceProperties Properties{};
+ ~Device(){if(Tag){vkDeviceWaitIdle(Tag);vkDestroyDevice(Tag,nullptr);}if(Instance)vkDestroyInstance(Instance,nullptr);}
  void Init(uint32_t selection){
   VkApplicationInfo app{VK_STRUCTURE_TYPE_APPLICATION_INFO};app.pApplicationName="Project-Zero Fluid GPU Test";app.apiVersion=VK_API_VERSION_1_2;
   VkInstanceCreateInfo ci{VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO};ci.pApplicationInfo=&app;Check(vkCreateInstance(&ci,nullptr,&Instance),"create instance");
@@ -27,10 +27,10 @@ struct Device {
   for(uint32_t i=0;i<queues;++i)if(families[i].queueCount&&(families[i].queueFlags&VK_QUEUE_COMPUTE_BIT)){Family=i;break;}
   if(Family==UINT32_MAX)throw std::runtime_error("No fluid compute queue");float priority=1;
   VkDeviceQueueCreateInfo qi{VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO};qi.queueFamilyIndex=Family;qi.queueCount=1;qi.pQueuePriorities=&priority;
-  VkDeviceCreateInfo di{VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO};di.queueCreateInfoCount=1;di.pQueueCreateInfos=&qi;Check(vkCreateDevice(Physical,&di,nullptr,&Handle),"create fluid device");vkGetDeviceQueue(Handle,Family,0,&Queue);
+  VkDeviceCreateInfo di{VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO};di.queueCreateInfoCount=1;di.pQueueCreateInfos=&qi;Check(vkCreateDevice(Physical,&di,nullptr,&Tag),"create fluid device");vkGetDeviceQueue(Tag,Family,0,&Queue);
  }
 };
-std::vector<std::array<uint32_t,3>> Faces(const SurfaceGpuOutput& mesh){std::vector<std::array<uint32_t,3>> out;for(size_t i=0;i<mesh.Indices.size();i+=3)out.push_back({mesh.Indices[i],mesh.Indices[i+1],mesh.Indices[i+2]});std::sort(out.begin(),out.end());return out;}
+std::vector<std::array<uint32_t,3>> Faces(const SurfaceGpuOutput& topology){std::vector<std::array<uint32_t,3>> out;for(size_t i=0;i<topology.Indices.size();i+=3)out.push_back({topology.Indices[i],topology.Indices[i+1],topology.Indices[i+2]});std::sort(out.begin(),out.end());return out;}
 }
 int RunFluidGpuTest(int argc,char** argv){
  std::ofstream summary;
@@ -46,11 +46,11 @@ int RunFluidGpuTest(int argc,char** argv){
   if(steps==0)throw std::runtime_error("Fluid steps must be positive");
   std::filesystem::create_directories(folder);std::ofstream csv(folder/"performance.csv");summary.open(folder/"summary.txt");if(!csv||!summary)throw std::runtime_error("Cannot create fluid logs");
   auto log=[&](const std::string& s){std::cerr<<"[FluidTest] "<<s<<'\n';summary<<s<<'\n';summary.flush();};
-  log(std::string("mode=")+(cpu?"CPU GPU-layout mirror":"Vulkan GPU extraction")+"; CPU solver/PCA; raw mesh, no mesh smoothing; NOT live Project-Zero scene water");
+  log(std::string("mode=")+(cpu?"CPU GPU-layout mirror":"Vulkan GPU extraction")+"; CPU solver/PCA; raw topology, no topology smoothing; NOT live Project-Zero scene water");
   Device device;std::unique_ptr<GpuSurfaceExtractor> extractor;
   if(!cpu){const auto initStart=Clock::now();device.Init(gpu);log(std::string("device=")+device.Properties.deviceName+" type="+std::to_string(device.Properties.deviceType)+" driver="+std::to_string(device.Properties.driverVersion));
    if(!std::filesystem::exists(shader)){const auto alternative=std::filesystem::path(argv[0]).parent_path()/shader;if(std::filesystem::exists(alternative))shader=alternative.string();}
-   extractor=std::make_unique<GpuSurfaceExtractor>(device.Physical,device.Handle,device.Queue,device.Family,shader.c_str());log("allocated_buffer_bytes="+std::to_string(extractor->AllocatedBytes())+" gpu_setup_wall_ms="+std::to_string(Elapsed(initStart)));}
+   extractor=std::make_unique<GpuSurfaceExtractor>(device.Physical,device.Tag,device.Queue,device.Family,shader.c_str());log("allocated_buffer_bytes="+std::to_string(extractor->AllocatedBytes())+" gpu_setup_wall_ms="+std::to_string(Elapsed(initStart)));}
   csv<<"step,warmup,particles,solver_ms,pca_ms,prepare_ms,extract_wall_ms,gpu_field_ms,gpu_edges_ms,gpu_triangles_ms,submit_wait_ms,index_count,overflow,total_wall_ms\n";csv<<std::fixed<<std::setprecision(6);
   PbfFluid fluid;SurfaceReconstruction pca;SurfaceGpuOutput output;SurfaceGpuInput input;std::vector<double> totals;uint32_t count=0;
   for(uint32_t step=0;step<steps;++step){const auto start=Clock::now();auto t=start;fluid.Step(1.f/60);const double solver=Elapsed(t);t=Clock::now();pca.Update(fluid.Positions());const double reconstruction=Elapsed(t);t=Clock::now();input=PrepareGpuSurface(pca.Kernels());const double prepare=Elapsed(t);t=Clock::now();GpuSurfaceTiming timing;
@@ -59,7 +59,7 @@ int RunFluidGpuTest(int argc,char** argv){
    csv<<step<<','<<(step<5)<<','<<fluid.Positions().size()<<','<<solver<<','<<reconstruction<<','<<prepare<<','<<extract<<',';
    if(timing.Timestamps)csv<<timing.FieldMs<<','<<timing.EdgesMs<<','<<timing.TrianglesMs;else csv<<"NA,NA,NA";
    csv<<','<<timing.HostWaitMs<<','<<count<<','<<timing.Overflow<<','<<total<<'\n';
-   if(timing.Overflow){csv.flush();throw std::runtime_error("GPU index overflow: truncated mesh rejected");}
+   if(timing.Overflow){csv.flush();throw std::runtime_error("GPU index overflow: truncated topology rejected");}
    if(step%30==0||step+1==steps){csv.flush();log("step="+std::to_string(step+1)+" total_ms="+std::to_string(total)+" triangles="+std::to_string(count/3));}
   }
   if(!cpu)output=extractor->Readback();

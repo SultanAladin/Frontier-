@@ -1,6 +1,6 @@
 #pragma once
 // Startup-only observer. The Vulkan call stays on its original thread. This worker
-// only samples process memory and prints a heartbeat; it never calls Vulkan.
+// only samples process storage and prints a heartbeat; it never calls Vulkan.
 #include <atomic>
 #include <chrono>
 #include <condition_variable>
@@ -44,11 +44,11 @@ class DriverProgress {
         bool available=false;
 #ifdef _WIN32
         pid=GetCurrentProcessId();
-        PROCESS_MEMORY_COUNTERS_EX memory{};memory.cb=sizeof(memory);
+        PROCESS_MEMORY_COUNTERS_EX storage{};storage.cb=sizeof(storage);
         using Query=BOOL(WINAPI*)(HANDLE,PPROCESS_MEMORY_COUNTERS,DWORD);
         auto query=reinterpret_cast<Query>(GetProcAddress(GetModuleHandleW(L"kernel32.dll"),"K32GetProcessMemoryInfo"));
-        if(query&&query(GetCurrentProcess(),reinterpret_cast<PPROCESS_MEMORY_COUNTERS>(&memory),sizeof(memory))){
-            resident=memory.WorkingSetSize;peak=memory.PeakWorkingSetSize;commit=int64_t(memory.PrivateUsage);available=true;
+        if(query&&query(GetCurrentProcess(),reinterpret_cast<PPROCESS_MEMORY_COUNTERS>(&storage),sizeof(storage))){
+            resident=storage.WorkingSetSize;peak=storage.PeakWorkingSetSize;commit=int64_t(storage.PrivateUsage);available=true;
         }
 #else
         pid=static_cast<uint64_t>(getpid());

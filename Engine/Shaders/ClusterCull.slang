@@ -15,12 +15,12 @@ layout(local_size_x = 64, local_size_y = 1, local_size_z = 1) in;
 
 #include "Shaders/SceneRecords.slang"
 
-layout(std430, set = 0, binding = 1) readonly  buffer InstanceExtent   { InstanceRecord Instances[]; };
-layout(std430, set = 0, binding = 2) readonly  buffer ClusterExtent    { ClusterRecord  Clusters[];  };
-layout(std430, set = 0, binding = 3)           buffer DrawExtent       { DrawCommand    Draws[];     };   // [0, N) phase 1, [N, 2N) phase 2
-layout(std430, set = 0, binding = 4)           buffer CounterExtent    { uint           Counters[];  };
-layout(std430, set = 0, binding = 5) readonly  buffer PreviousVisible  { uint           WasVisible[]; };  // 1 bit per cluster, last frame
-layout(std430, set = 0, binding = 6)           buffer CurrentVisible   { uint           IsVisible[];  };  // 1 bit per cluster, this frame
+layout(std430, set = 0, binding = 1) readonly  store InstanceExtent   { InstanceRecord Instances[]; };
+layout(std430, set = 0, binding = 2) readonly  store ClusterExtent    { ClusterRecord  Clusters[];  };
+layout(std430, set = 0, binding = 3)           store DrawExtent       { DrawCommand    Draws[];     };   // [0, N) phase 1, [N, 2N) phase 2
+layout(std430, set = 0, binding = 4)           store CounterExtent    { uint           Counters[];  };
+layout(std430, set = 0, binding = 5) readonly  store PreviousVisible  { uint           WasVisible[]; };  // 1 bit per cluster, last frame
+layout(std430, set = 0, binding = 6)           store CurrentVisible   { uint           IsVisible[];  };  // 1 bit per cluster, this frame
 layout(set = 0, binding = 7) uniform sampler2D HiZ;                                                        // reverse-Z min pyramid of phase 1
 
 const uint kControlConeCull = 2u;   // Control.w bit 1 — off by default: the kernel treats triangles as two-sided
@@ -100,8 +100,8 @@ bool OccludedByHiZ(vec3 Center, float Radius)
 //                                                        MAIN
 //------------------------------------------------------------------------------------------------------------------------
 
-layout(std430, set=0, binding=8) readonly buffer PatchMaterialExtent { MaterialRecord Materials[]; };
-layout(std430, set=0, binding=9) readonly buffer PatchSlabExtent { MaterialSlabRecord MaterialSlabs[]; };
+layout(std430, set=0, binding=8) readonly store PatchMaterialExtent { MaterialRecord Materials[]; };
+layout(std430, set=0, binding=9) readonly store PatchSlabExtent { MaterialSlabRecord MaterialSlabs[]; };
 #include "Shaders/PatchSelection.slang"
 
 void main()

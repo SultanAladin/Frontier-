@@ -30,7 +30,7 @@ void Validate(const SceneStructure& s){uint32_t fineTotal=0;for(auto&i:s.QueryIn
  for(size_t t=0;t<coarse.size();t+=3){std::array<uint32_t,3> tri{coarse[t],coarse[t+1],coarse[t+2]};std::sort(tri.begin(),tri.end());Check(unique.insert(tri).second,"no duplicate faces");}
  }
  }Check(fineTotal==s.QueryTriangleCount(),"public scene count excludes alternatives");Check(fineTotal==s.QueryFlatTriangles().size(),"secondary rays retain ALL fine triangles, NO alternatives");}
-// Perspective painter's reference, not a Vulkan screenshot. Uses actual native mesh indices
+// Perspective painter's reference, not a Vulkan screenshot. Uses actual native topology indices
 // and the shared policy. Far image is optically magnified for topology inspection only.
 void Svg(const SceneStructure& s,const std::string& path,float distance,bool preview){
  struct Face{float depth;uint32_t patch;float p[6];};std::vector<Face> faces;auto cam=Camera(distance);
@@ -40,7 +40,7 @@ void Svg(const SceneStructure& s,const std::string& path,float distance,bool pre
  std::sort(faces.begin(),faces.end(),[](auto a,auto b){return a.depth>b.depth;});std::ofstream out(path);out<<"<svg xmlns='http://www.w3.org/2000/svg' width='720' height='760' viewBox='0 0 720 760'><rect width='720' height='760' fill='#16191f'/><g font-family='sans-serif' fill='#eee'><text x='28' y='38' font-size='23'>Patch Geometry — CPU reference</text><text x='28' y='65' font-size='14'>"<<(preview?"Native coarse selection":"Original native sphere")<<" · "<<faces.size()<<" triangles · not a GPU capture</text></g>";
  for(auto& f:faces){out<<"<polygon points='";for(int k=0;k<3;++k)out<<f.p[k*2]<<","<<f.p[k*2+1]<<" ";uint32_t hash=f.patch*2654435761u;hash^=hash>>16;hash*=0x7feb352du;hash^=hash>>15;hash*=0x846ca68bu;hash^=hash>>16;
  out<<"' fill='rgb("<<int((hash&255)*.8f+51)<<","<<int(((hash>>8)&255)*.8f+51)<<","<<int(((hash>>16)&255)*.8f+51)<<")' stroke='#18202a' stroke-width='.75'/>";}
- out<<"<text x='28' y='732' fill='#b4bbc7' font-size='13' font-family='sans-serif'>Camera distance "<<distance<<" m; display magnified; original ray mesh unchanged.</text></svg>";
+ out<<"<text x='28' y='732' fill='#b4bbc7' font-size='13' font-family='sans-serif'>Camera distance "<<distance<<" m; display magnified; original ray topology unchanged.</text></svg>";
 }
 int main(int argc,char**argv){try{
  Check(sizeof(ClusterRecord)==64&&offsetof(ClusterRecord,CoarseFirstIndex)==48,"runtime/persistent ABI");
@@ -66,13 +66,13 @@ int main(int argc,char**argv){try{
     sequential.push_back(uint32_t(sequential.size()));
    }
   std::vector<uint32_t> first(sequential.begin(),sequential.begin()+384);
-  Check(Bake(soup,first).Indices.size()==first.size(),"unindexed soup reproduces locked-boundary failure");
-  GeometryStructure mesh;mesh.AppendVertices(soup.data(),soup.size());mesh.AppendIndices(sequential.data(),sequential.size());
+  Check(Precompute(soup,first).Indices.size()==first.size(),"unindexed soup reproduces locked-boundary failure");
+  GeometryStructure topology;topology.AppendVertices(soup.data(),soup.size());topology.AppendIndices(sequential.data(),sequential.size());
   SceneStructure restored;MaterialDescriptor material;material.Slabs.emplace_back();
-  restored.RegisterInstance(mesh,Matrix4x4{},restored.RegisterMaterial(material),0);restored.Finalise();Validate(restored);
+  restored.RegisterInstance(topology,Matrix4x4{},restored.RegisterMaterial(material),0);restored.Finalise();Validate(restored);
   auto nearCount=Selected(restored,1.7f),farCount=Selected(restored,1000);
   Check(farCount<nearCount,"triangle soup changes detail with distance");
-  Check(Selected(restored,1000,false)==fine,"soup production and ray mesh retain fine count");
+  Check(Selected(restored,1000,false)==fine,"soup production and ray topology retain fine count");
   Check(farCount<fine,"soup has usable coarse alternatives despite vertex-numbering-dependent collapse ties");
   std::cout<<"Triangle soup: near="<<nearCount<<", far="<<farCount<<", production="<<fine<<"\n";
   // Every fine corner keeps its exact attributes, despite a change of vertex identity.
@@ -127,15 +127,15 @@ int main(int argc,char**argv){try{
  }
  auto& c=sphere.QueryClusters()[0];std::vector<uint32_t> ix(sphere.QueryIndices().begin()+c.FirstIndex,sphere.QueryIndices().begin()+c.FirstIndex+c.TriangleCount*3);
  auto key=Key(sphere.QueryVertices(),ix);auto path=std::filesystem::path(std::getenv("FRONTIER_PATCH_CACHE"))/(std::to_string(key)+".pgeom");std::filesystem::remove(path);
- auto cold=LoadOrBake(sphere.QueryVertices(),ix),warm=LoadOrBake(sphere.QueryVertices(),ix);Check(!cold.CacheHit&&warm.CacheHit&&cold.Indices==warm.Indices&&cold.Error==warm.Error,"cold/warm cache roundtrip");
+ auto cold=LoadOrPrecompute(sphere.QueryVertices(),ix),warm=LoadOrPrecompute(sphere.QueryVertices(),ix);Check(!cold.CacheHit&&warm.CacheHit&&cold.Indices==warm.Indices&&cold.Error==warm.Error,"cold/warm cache roundtrip");
  {std::fstream f(path,std::ios::binary|std::ios::in|std::ios::out);f.seekp(24);f.put(char(255));}
- auto repair=LoadOrBake(sphere.QueryVertices(),ix);Check(!repair.CacheHit&&repair.Indices==cold.Indices,"corrupt cache fallback");Check(LoadOrBake(sphere.QueryVertices(),ix).CacheHit,"corrupt cache repaired");
+ auto repair=LoadOrPrecompute(sphere.QueryVertices(),ix);Check(!repair.CacheHit&&repair.Indices==cold.Indices,"corrupt cache fallback");Check(LoadOrPrecompute(sphere.QueryVertices(),ix).CacheHit,"corrupt cache repaired");
  {std::ofstream f(path,std::ios::binary|std::ios::trunc);f<<"FPG";}
- Check(!LoadOrBake(sphere.QueryVertices(),ix).CacheHit,"truncated cache fallback");
+ Check(!LoadOrPrecompute(sphere.QueryVertices(),ix).CacheHit,"truncated cache fallback");
  // Header corruption is bounded and never trusted as an allocation/index count.
  for(auto field:std::vector<std::pair<int,uint32_t>>{{4,kPatchCacheVersion+1u},{8,0},{16,0xffffffffu},{20,0x7f800000u}}){
   {std::fstream f(path,std::ios::binary|std::ios::in|std::ios::out);f.seekp(field.first);Word(f,field.second);}
-  Check(!LoadOrBake(sphere.QueryVertices(),ix).CacheHit,"invalid version/key/count/error fallback");
+  Check(!LoadOrPrecompute(sphere.QueryVertices(),ix).CacheHit,"invalid version/key/count/error fallback");
  }
  // An indexed disk enters the common path, but its silhouette is never decimated.
  {GeometryStructure disk;std::vector<VertexRecord> dv(65);dv[0].NormalDirection={0,0,1};
@@ -144,9 +144,9 @@ int main(int argc,char**argv){try{
   std::cout<<"Indexed disk: fine=64, preview far="<<Selected(ds,1000)<<", boundary protected\n";
  }
  // More than 16k fine triangles: real registration split + alternate token addressing.
- GeometryStructure mesh;std::vector<VertexRecord> vertices;std::vector<uint32_t> indices;
+ GeometryStructure topology;std::vector<VertexRecord> vertices;std::vector<uint32_t> indices;
  for(uint32_t y=0;y<=92;++y)for(uint32_t x=0;x<=92;++x){VertexRecord v{};v.SpatialLocation={float(x),float(y),0};v.NormalDirection={0,0,1};v.TangentDirection={1,0,0,1};v.TextureCoordinateU=float(x)/92;v.TextureCoordinateV=float(y)/92;vertices.push_back(v);}
  for(uint32_t y=0;y<92;++y)for(uint32_t x=0;x<92;++x){uint32_t a=y*93+x;for(auto q:{a,a+1,a+94,a,a+94,a+93})indices.push_back(q);}
- mesh.AppendVertices(vertices.data(),vertices.size());mesh.AppendIndices(indices.data(),indices.size());SceneStructure large;MaterialDescriptor mat;mat.Slabs.emplace_back();auto slot=large.RegisterMaterial(mat);large.RegisterInstance(mesh,Matrix4x4{},slot,0u);large.Finalise();Validate(large);Check(large.QueryInstances().size()==3,"large mesh split");
+ topology.AppendVertices(vertices.data(),vertices.size());topology.AppendIndices(indices.data(),indices.size());SceneStructure large;MaterialDescriptor mat;mat.Slabs.emplace_back();auto slot=large.RegisterMaterial(mat);large.RegisterInstance(topology,Matrix4x4{},slot,0u);large.Finalise();Validate(large);Check(large.QueryInstances().size()==3,"large topology split");
  std::cout<<"PASS "<<Checks<<" CPU checks. No Vulkan runtime/image/timing validation.\n";
 }catch(const std::exception&e){std::cerr<<"FAIL after "<<Checks<<": "<<e.what()<<"\n";return 1;}}

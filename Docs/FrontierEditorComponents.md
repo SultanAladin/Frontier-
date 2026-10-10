@@ -24,16 +24,16 @@ but presentation, order or content differs; **Browser only** = no dedicated nati
 | `construct-menu.jsx`                | Construct palette           | `NativeConstructPanel.h`, `ConstructWorld.cpp`      | Native       |
 | `outliner-icons.jsx`                | Outliner artwork            | `OutlinerPanel.cpp`                                 | Partial      |
 | `material-inspector.jsx`            | Material channels           | Generic Surface group only                          | Browser only |
-| `object-inspector.jsx`              | Mesh transform / material   | Generic Transform group only                        | Browser only |
+| `object-inspector.jsx`              | Hull transform / material   | Generic Transform group only                        | Browser only |
 | `foliage-inspectors.jsx`            | Forest / species            | None                                                | Browser only |
 | `fluid-graphics.jsx`                | Lake / ocean / river / liquid | None                                              | Browser only |
 | `property-graphics.jsx`             | Terrain instruments         | None                                                | Browser only |
-| `bake-quick-tiles.jsx`              | Bake tiles                  | Terminal bake sections in the dedicated panels      | Partial      |
+| `precompute-quick-tiles.jsx`              | Precompute tiles                  | Terminal precompute sections in the dedicated panels      | Partial      |
 
 ## 2026-10-07 — Scene emitters added to the browser editor
 
 The editor had no scene lights at all. Its object list ran Sun → Moon → Stars → Atmosphere → Clouds → Wind →
-Forest → Terrain → water bodies → meshes → Material → Camera, and the only lighting entry anywhere was a single
+Forest → Terrain → water bodies → geometries → Material → Camera, and the only lighting entry anywhere was a single
 `Area emitter` row in the Construct palette. The Sun is the scene's directional source and is deliberately
 untouched by this change.
 
@@ -44,7 +44,7 @@ untouched by this change.
 - `light-graphics.jsx` — four instruments drawn from the authored values:
   - `PhotometricPolar` — luminous-intensity distribution. Uniform sphere for a point source, a cone with a soft
     shoulder between the inner and outer angle for a spot, a Lambertian cosine lobe for the surface emitters.
-  - `BeamCone` — side elevation of the cone against a floor plane, with the lit pool at the authored reach.
+  - `BeamCone` — side elevation of the cone against a floor plane, with the lit slots at the authored reach.
     Dragging horizontally widens or narrows the outer cone.
   - `FalloffCurve` — inverse-square attenuation across the authored reach, marking the half-illuminance distance.
   - `EmitterFigure` — dimensioned schematic of the rectangle, tube or strip.
@@ -75,13 +75,13 @@ slider. Strip output is authored per metre and multiplied by the run length.
 | Intensity, surface    | `I = Φ / π` — Lambertian                                         |
 | Illuminance at reach  | `E = I / d²`                                                     |
 | Luminance, surface    | `L = Φ / (π · A)`                                                |
-| Spot pool diameter    | `2 · d · tan(θ_outer / 2)`                                       |
+| Spot slots diameter    | `2 · d · tan(θ_outer / 2)`                                       |
 
 ### Renderer support is reported, not implied
 
 Every emitter ends with a support card carrying three explicit states, matching what the engine actually does
 today: the scene record persists; punctual sources are consumed by the lighting kernel while extended emitters
-are not; and no lightmap bake path exists. Unsupported states are labelled rather than drawn as if they worked.
+are not; and no lightmap precompute path exists. Unsupported states are labelled rather than drawn as if they worked.
 
 ### Executed verification
 
@@ -110,7 +110,7 @@ diagnostics computed from the authored record, not scene-camera imagery.
 
 `Engine/Editor/LightInspectorPanel.cpp` was rewritten as a redraw of the browser cards rather than a second
 design. The previous contents were built against `ProjectZeroEditor` and drew a different card set
-(`Main light visual / data`, `Statistics`, `Quick controls`, `Source & response`, plus a separate LED-strip
+(`Main light visual / record`, `Statistics`, `Quick controls`, `Source & response`, plus a separate LED-strip
 electrical panel). Those cards no longer exist in the reference, so they were removed.
 
 ### What now matches exactly
@@ -126,7 +126,7 @@ Derived photometry uses the same expressions as the browser, so both produce ide
 | Emitter   | Flux     | Intensity | At 12 m  | Extra                      |
 | --------- | -------- | --------- | -------- | -------------------------- |
 | Point     | 1,500 lm | 119 cd    | 0.83 lx  | —                          |
-| Spot      | 1,500 lm | 2,113 cd  | 15 lx    | pool 12.5 m across         |
+| Spot      | 1,500 lm | 2,113 cd  | 15 lx    | slots 12.5 m across         |
 | Area      | 1,500 lm | 477 cd    | 3.32 lx  | 663 nit, 0.720 m²          |
 | Tube      | 1,500 lm | 477 cd    | 3.32 lx  | luminance from 2πrl        |
 | LED Strip | 1,350 lm | 430 cd    | 2.98 lx  | 900 lm/m × 1.5 m           |

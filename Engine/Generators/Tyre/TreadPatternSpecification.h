@@ -17,7 +17,7 @@ namespace Frontier {
 
 /// 📦 What a layer cuts. The kind selects which fields of TreadLayerSpecification are read.
 /// note  ⚠️ Noise carries no polygons. It perturbs the depth field only, so the region solver skips it and
-///       the mesh solver applies it after the floors are placed. A noise layer in the boolean stack would
+///       the topology solver applies it after the floors are placed. A noise layer in the boolean stack would
 ///       produce an unbounded number of microscopic pieces.
 /// tag   schema
 enum class TreadLayerKind : uint8_t

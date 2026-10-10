@@ -70,14 +70,14 @@ bool SpaceExportGeometry(const SpaceExportContext& Context, const std::string& N
         OutError = "the writer refused the GEOM type tag";
         return false;
     }
-    Writer.BeginTable(kTagMesh);
+    Writer.BeginTable(kTagGeometry);
     Writer.WriteBytes(&VertexCount, sizeof(VertexCount));
     Writer.WriteBytes(&IndexCount, sizeof(IndexCount));
     Writer.WriteBytes(Vertices, size_t(VertexCount) * sizeof(VertexRecord));
     Writer.WriteBytes(Indices, size_t(IndexCount) * sizeof(uint32_t));
     Writer.EndTable();
     Writer.BeginTable(kTagClst);
-    for (uint32_t I = 0u; I < ClusterCount; ++I) Writer.WriteRow(&Clusters[I], kSpaceClusterPrefixBytes); // CLST v1 prefix; runtime LOD tail is derived cache data
+    for (uint32_t I = 0u; I < ClusterCount; ++I) Writer.WriteRow(&Clusters[I], kSpaceClusterPrefixBytes); // CLST v1 prefix; runtime LOD tail is derived cache record
     Writer.EndTable();
     if (!Writer.Finish(OutBytes, OutError)) return false;
     return true;
@@ -194,7 +194,7 @@ SpaceProjectBuilder::SpaceProjectBuilder(SpaceExportContext InContext) noexcept 
 uint32_t SpaceProjectBuilder::AddSiblingReference(const SpaceTag& Type, const std::string& Path, uint64_t ContentHash, bool Required) noexcept
 {
     // The same file added twice is the same reference: two instances of one object share it, and so do two copies of a
-    //    project that imported the same mesh. Dedup by (type, path) is what makes "N copies, one geometry" structural.
+    //    project that imported the same topology. Dedup by (type, path) is what makes "N copies, one geometry" structural.
     for (uint32_t I = 0u; I < References.size(); ++I)
         if (References[I].Type == Type && References[I].Mode == kSpaceRefSibling && ReferencePaths[I] == Path) return I;
     SpaceReferenceRecord Record{};
@@ -358,7 +358,7 @@ bool SpaceExportEnvironment(const SpaceExportContext& Context, const SpaceEnviro
     SpaceEnvironmentRow Written = Row;
     if (SkyProbe.empty())
     {
-        Written.SkyProbeBlob = 0xFFFFFFFFu;   // not baked: a state the format has to be able to express
+        Written.SkyProbeBlob = 0xFFFFFFFFu;   // not precomputed: a state the format has to be able to express
         Written.SkyProbeLevels = 0u;
     }
     else
@@ -442,7 +442,7 @@ bool SpaceExportWorkflow(const SpaceExportContext& Context, const std::string& N
     for (size_t I = 0u; I < StepNames.size(); ++I)
     {
         SpaceFlowStepRow Row{};
-        Row.Kind = static_cast<uint32_t>(I < 4u ? I : 4u);   // 0 import · 1 bake · 2 validate · 3 package · 4 custom
+        Row.Kind = static_cast<uint32_t>(I < 4u ? I : 4u);   // 0 import · 1 precompute · 2 validate · 3 package · 4 custom
         Row.ScriptRef = 0xFFFFFFFFu;
         Row.InputBlob = 0xFFFFFFFFu;
         Row.OutputBlob = 0xFFFFFFFFu;

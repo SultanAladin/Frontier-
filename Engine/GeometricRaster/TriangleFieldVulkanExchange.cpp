@@ -1,7 +1,7 @@
 //============================================================================================================================================
 //                                                      TRIANGLEFIELDVULKANEXCHANGE.CPP
 //============================================================================================================================================
-// 📦 Vulkan host for the mesh SDF kernels. See TriangleFieldVulkanExchange.h. Compile-checked only in the build sandbox; device-unverified.
+// 📦 Vulkan host for the topology SDF kernels. See TriangleFieldVulkanExchange.h. Compile-checked only in the build sandbox; device-unverified.
 
 #include "TriangleFieldVulkanExchange.h"
 
@@ -59,7 +59,7 @@ bool FindMemoryIndex(const VkPhysicalDeviceMemoryProperties& TypeTable, uint32_t
     return false;
 }
 
-// Host-visible, host-coherent buffer. First version: simple and correct. A device-local path comes later.
+// Host-visible, host-coherent store. First version: simple and correct. A device-local path comes later.
 struct DeviceRange
 {
     VkBuffer Native = VK_NULL_HANDLE;
@@ -135,7 +135,7 @@ VkDescriptorSetLayout MakeSetLayout(VkDevice Device, const std::vector<std::pair
     return Layout;
 }
 
-VkPipeline MakePipeline(VkDevice Device, VkShaderModule Module, const char* Entry, VkPipelineLayout Layout)
+VkPipeline MakeChain(VkDevice Device, VkShaderModule Module, const char* Entry, VkPipelineLayout Layout)
 {
     VkComputePipelineCreateInfo Request{ VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO };
     Request.stage.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
@@ -289,9 +289,9 @@ bool Kernels::Create(const Context& Ctx, std::string& Error)
     PL.pSetLayouts = &ClipMinimumLayout;
     if (vkCreatePipelineLayout(Device, &PL, nullptr, &ClipMinimumPipelineLayout) != VK_SUCCESS) { Error = "composite pipeline layout failed"; return false; }
 
-    ProjectPipeline = MakePipeline(Device, ProjectModule, "ProjectGridMain", ProjectPipelineLayout);
-    ClipMinimumPipeline = MakePipeline(Device, ClipMinimumModule, "ClipMinimumMain", ClipMinimumPipelineLayout);
-    if (!ProjectPipeline || !ClipMinimumPipeline) { Error = "compute pipeline creation failed"; return false; }
+    ProjectChain = MakeChain(Device, ProjectModule, "ProjectGridMain", ProjectPipelineLayout);
+    ClipMinimumChain = MakeChain(Device, ClipMinimumModule, "ClipMinimumMain", ClipMinimumPipelineLayout);
+    if (!ProjectChain || !ClipMinimumChain) { Error = "compute pipeline creation failed"; return false; }
 
     VkDescriptorPoolSize Sizes[2] = { { VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 4u }, { VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 12u } };
     VkDescriptorPoolCreateInfo SlotBudget{ VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO };
@@ -317,8 +317,8 @@ void Kernels::Destroy()
     if (Fence) vkDestroyFence(Device, Fence, nullptr);
     if (Commands) vkDestroyCommandPool(Device, Commands, nullptr);
     if (DescriptorSlots) vkDestroyDescriptorPool(Device, DescriptorSlots, nullptr);
-    if (ProjectPipeline) vkDestroyPipeline(Device, ProjectPipeline, nullptr);
-    if (ClipMinimumPipeline) vkDestroyPipeline(Device, ClipMinimumPipeline, nullptr);
+    if (ProjectChain) vkDestroyPipeline(Device, ProjectChain, nullptr);
+    if (ClipMinimumChain) vkDestroyPipeline(Device, ClipMinimumChain, nullptr);
     if (ProjectPipelineLayout) vkDestroyPipelineLayout(Device, ProjectPipelineLayout, nullptr);
     if (ClipMinimumPipelineLayout) vkDestroyPipelineLayout(Device, ClipMinimumPipelineLayout, nullptr);
     if (ProjectLayout) vkDestroyDescriptorSetLayout(Device, ProjectLayout, nullptr);
@@ -353,7 +353,7 @@ bool Kernels::Project(const std::vector<float>& TriangleFloats, const float Min[
         Write(Device, Set, 0u, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, ParamBuf);
         Write(Device, Set, 1u, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, TriBuf);
         Write(Device, Set, 2u, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, OutBuf);
-        Ok = RunOnce(Device, Queue, Commands, Fence, ProjectPipeline, ProjectPipelineLayout, Set, (Total + 63u) / 64u, 1u, 1u, Seconds, Error);
+        Ok = RunOnce(Device, Queue, Commands, Fence, ProjectChain, ProjectPipelineLayout, Set, (Total + 63u) / 64u, 1u, 1u, Seconds, Error);
         if (Ok)
         {
             Out.assign(Total, 0.0f);
@@ -393,7 +393,7 @@ bool Kernels::ClipMinimum(const ClipMinimumParamsHost& Params, const std::vector
         // ClipMinimumMain uses [numthreads(4,4,4)]. Dispatch covers the dirty box only.
         const uint32_t Ext[3] = { Params.DirtyHi[0] - Params.DirtyLo[0] + 1u, Params.DirtyHi[1] - Params.DirtyLo[1] + 1u,
                                   Params.DirtyHi[2] - Params.DirtyLo[2] + 1u };
-        Ok = RunOnce(Device, Queue, Commands, Fence, ClipMinimumPipeline, ClipMinimumPipelineLayout, Set, (Ext[0] + 3u) / 4u, (Ext[1] + 3u) / 4u,
+        Ok = RunOnce(Device, Queue, Commands, Fence, ClipMinimumChain, ClipMinimumPipelineLayout, Set, (Ext[0] + 3u) / 4u, (Ext[1] + 3u) / 4u,
                      (Ext[2] + 3u) / 4u, Seconds, Error);
         if (Ok) Download(Device, ClipBuf, ClipVolume.data(), size_t(Total) * sizeof(float));
         vkFreeDescriptorSets(Device, DescriptorSlots, 1u, &Set);

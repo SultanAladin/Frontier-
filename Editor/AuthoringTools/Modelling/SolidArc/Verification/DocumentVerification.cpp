@@ -1,7 +1,7 @@
 //============================================================================================================================================
 // 📦 Editor/EditorTools/ParametricSketcher/Verification/DocumentVerification.cpp — Phase 22: native .arc document persistence
 //============================================================================================================================================
-// A native .arc is a versioned construction journal, rather than a mesh export. These checks cover the properties that
+// A native .arc is a versioned construction journal, rather than a topology export. These checks cover the properties that
 // matter to a modelling document: semantic replay preserves exact B-rep geometry and associative recipes; names containing
 // whitespace remain valid; a subsequent save leaves a recovery copy; and a malformed document cannot damage the model
 // currently open in the host.
@@ -64,7 +64,7 @@ int main()
     Panel.Expect("native .arc was written", std::filesystem::exists(Document));
     std::ifstream First(Document);
     std::string Header; std::getline(First, Header);
-    First.close(); // Release the read handle before the Windows atomic replacement check.
+    First.close(); // Release the read identifier before the Windows atomic replacement check.
     Panel.Expect("native document declares v1 header", Header == "# SolidArc native document v1");
     Panel.Expect("first save has no backup yet", !std::filesystem::exists(Backup));
 
@@ -82,7 +82,7 @@ int main()
     Panel.Expect("open restores original figure count", Host.AllFigures().size() == 5);
     Panel.Expect("open restores the exact saved geometric document fingerprint", UndoSequence::Fingerprint(Host.Document()) == BeforeOpen);
     // The second save contains the one-unit move made after the first save; this check confirms both model revisions
-    // retained their semantic structure rather than flattening the scene to display meshes.
+    // retained their semantic structure rather than flattening the scene to display geometries.
     const SceneFigure* SourceAfter = Figure(Host, "Plate Profile");
     const SceneFigure* BodyAfter = Figure(Host, "Plate Body");
     const SceneFigure* BaseAfter = Figure(Host, "Base Plate");
@@ -103,7 +103,7 @@ int main()
     Panel.Section("Rejected open is transactional");
     {
         std::ofstream Out(Invalid, std::ios::binary | std::ios::trunc);
-        Out << "# SolidArc native document v1\nunknown-command definitely-not-model-data\n";
+        Out << "# SolidArc native document v1\nunknown-command definitely-not-model-record\n";
     }
     const uint64_t BeforeBadOpen = UndoSequence::Fingerprint(Host.Document());
     const size_t FiguresBeforeBadOpen = Host.AllFigures().size();

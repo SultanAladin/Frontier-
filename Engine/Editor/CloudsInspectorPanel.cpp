@@ -19,7 +19,7 @@ struct Panel {
  ImVec2 At(float X,float Y){return {O.x+X,O.y+Y};}
  void Text(float X,float Y,const char* T,float Size=12,ImU32 C=Ink){D->AddText(Font,Size,At(X,Y),C,T);}
  void Wrap(float X,float Y,float W,const char* T){D->AddText(Font,11,At(X,Y),Muted,T,nullptr,W);}
- void Card(float X,float Y,float W,float H,const char* Title){int Start=D->VtxBuffer.Size;D->AddRectFilled(At(X,Y),At(X+W,Y+H),IM_COL32_WHITE,22);ImGui::ShadeVertsLinearColorGradientKeepAlpha(D,Start,D->VtxBuffer.Size,At(X,Y),At(X+W,Y+H),IM_COL32(37,37,37,255),IM_COL32(32,32,32,255));D->AddRect(At(X,Y),At(X+W,Y+H),IM_COL32(52,52,52,255),22);Text(X+24,Y+23,Title);}
+ void Card(float X,float Y,float W,float H,const char* Title){int Start=D->VtxStore.Size;D->AddRectFilled(At(X,Y),At(X+W,Y+H),IM_COL32_WHITE,22);ImGui::ShadeVertsLinearColorGradientKeepAlpha(D,Start,D->VtxStore.Size,At(X,Y),At(X+W,Y+H),IM_COL32(37,37,37,255),IM_COL32(32,32,32,255));D->AddRect(At(X,Y),At(X+W,Y+H),IM_COL32(52,52,52,255),22);Text(X+24,Y+23,Title);}
  void Slider(float X,float Y,float W,const char* N){auto& P=*Find(Sheet,N);Text(X,Y,N,11,Muted);ImGui::SetCursorScreenPos(At(X,Y+22));ImGui::PushID(N);ImGui::BeginChild(N,{W,30},ImGuiChildFlags_None,ImGuiWindowFlags_NoScrollbar|ImGuiWindowFlags_NoScrollWithMouse);Controls.SliderPill("##value",&P.Figure,P.Minimum,P.Maximum,P.Decimals,P.Unit,false,false,true);ImGui::EndChild();ImGui::PopID();}
  void Tile(float X,float Y,float W,const char* N,bool* Value){ImGui::SetCursorScreenPos(At(X,Y));ImGui::BeginDisabled(!Value);if(ImGui::InvisibleButton(N,{W,65})&&Value)*Value=!*Value;ImGui::EndDisabled();bool On=Value&&*Value;ImU32 C=!Value?Muted:On?IM_COL32(131,207,158,255):IM_COL32(221,137,137,255);D->AddRectFilled(At(X,Y),At(X+W,Y+65),IM_COL32(34,34,34,255),13);D->AddRect(At(X,Y),At(X+W,Y+65),IM_COL32(56,56,56,255),13);if(Value){D->AddCircle(At(X+W/2,Y+20),7,C,20,1.4f);D->AddLine(At(X+W/2,Y+10),At(X+W/2,Y+18),C,1.5f);}else{float M=X+W/2;D->AddRect(At(M-7,Y+15),At(M+7,Y+28),C,2);D->AddLine(At(M-11,Y+12),At(M+2,Y+12),C,1.4f);D->AddLine(At(M-2,Y+8),At(M+2,Y+12),C,1.4f);D->AddLine(At(M-2,Y+16),At(M+2,Y+12),C,1.4f);}float L=Font->CalcTextSizeA(10,10000,0,N).x;Text(X+(W-L)/2,Y+42,N,10,C);}
 };
@@ -72,7 +72,7 @@ void RecordCloudsInspector(ControlPanel& Controls,EditorInstance&,EditorSheet& S
   Bound.Assigned=Source!=nullptr;
   Bound.FieldName=Source?Source->Options[Pick]:nullptr;
   Bound.Following=Find(Sheet,"Follow Wind")?Find(Sheet,"Follow Wind")->On:true;
-  const WindCards::WindComposite Air=WindCards::Resolve(7.f,250.f,.25f);
+  const WindCards::WindCombined Air=WindCards::Resolve(7.f,250.f,.25f);
   const float Body=WindCards::BindingBodyHeight(U.Font,W-48,Bound);
   U.Card(0,End,W,49+Body+104,"Wind binding");
   auto Hits=WindCards::PaintBindingBody(U.D,U.Font,U.At(24,End+49),W-48,Bound,Air,Motes,ImGui::GetIO().DeltaTime,IM_COL32(34,34,34,255));

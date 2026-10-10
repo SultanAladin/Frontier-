@@ -12,7 +12,7 @@
 //      · a `.material` file carries the material's OWN slab range (Record.SlabOffset/SlabCount) — never the whole index;
 //      · a `.projectspace`'s material slots record how the object got its material (Shared/Copied/CopyOnWrite), which is
 //        the editor's provenance and not a rendering decision;
-//      · an `.environment`'s sky probe is baked by the caller (the atmosphere model lives in DisplayPresentation): what
+//      · an `.environment`'s sky probe is precomputed by the caller (the atmosphere model lives in DisplayPresentation): what
 //        this file does is write the row and the blob that carry it.
 #pragma once
 
@@ -108,7 +108,7 @@ namespace Frontier
                                           const std::vector<std::pair<SpaceTag, std::string>>& Opens,
                                           std::vector<uint8_t>& OutBytes, std::string& OutError) noexcept;
 
-    // `.environment` — the staging (sun hour, fog, atmosphere, moon) and, when the caller has one, the baked sky probe.
+    // `.environment` — the staging (sun hour, fog, atmosphere, moon) and, when the caller has one, the precomputed sky probe.
     [[nodiscard]] bool SpaceExportEnvironment(const SpaceExportContext& Context, const SpaceEnvironmentRow& Row, const std::string& Name,
                                               const std::vector<uint8_t>& SkyProbe, uint32_t SkyProbeLevels,
                                               std::vector<uint8_t>& OutBytes, std::string& OutError) noexcept;
@@ -125,7 +125,7 @@ namespace Frontier
                                           const std::vector<std::vector<uint8_t>>& StrokeBlobs,
                                           std::vector<uint8_t>& OutBytes, std::string& OutError) noexcept;
 
-    // `.workflow` — the import → bake → validate → package steps (§6's own list), each naming its operand and its files.
+    // `.workflow` — the import → precompute → validate → package steps (§6's own list), each naming its operand and its files.
     [[nodiscard]] bool SpaceExportWorkflow(const SpaceExportContext& Context, const std::string& Name,
                                            const std::vector<std::string>& StepNames, const std::vector<std::string>& StepOperands,
                                            std::vector<uint8_t>& OutBytes, std::string& OutError) noexcept;

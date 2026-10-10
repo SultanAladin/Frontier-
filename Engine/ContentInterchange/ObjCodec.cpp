@@ -21,8 +21,8 @@ namespace Frontier {
 bool ObjCodec::Decode(const std::string& Path, SceneStructure& Out, TextureIndex* Textures, const SceneDecodeConfiguration& Config, std::string* Error) noexcept
 {
     Out.Clear();
-    fastObjMesh* Mesh = fast_obj_read(Path.c_str());
-    if (!Mesh) { if (Error) *Error = "fast_obj_read failed (file missing or unreadable)"; return false; }
+    fastObjMesh* Hull = fast_obj_read(Path.c_str());
+    if (!Hull) { if (Error) *Error = "fast_obj_read failed (file missing or unreadable)"; return false; }
     const std::filesystem::path Directory = std::filesystem::path(Path).parent_path();
 
     // Materials: fast_obj order (slot 0 is fast_obj's default material when the file has none) + fallback slot.
@@ -34,11 +34,11 @@ bool ObjCodec::Decode(const std::string& Path, SceneStructure& Out, TextureIndex
         const std::filesystem::path P(TexturePath);
         return Textures->RegisterPath((P.is_absolute() ? P : Directory / P).lexically_normal().string(), Linear);
     };
-    auto TexturePath = [&](unsigned int Slot) -> std::string { return (Slot < Mesh->texture_count && Mesh->textures[Slot].path) ? Mesh->textures[Slot].path : std::string(); };
-    std::vector<uint32_t> MaterialSlot(Mesh->material_count);
-    for (unsigned int I = 0; I < Mesh->material_count; ++I)
+    auto TexturePath = [&](unsigned int Slot) -> std::string { return (Slot < Hull->texture_count && Hull->textures[Slot].path) ? Hull->textures[Slot].path : std::string(); };
+    std::vector<uint32_t> MaterialSlot(Hull->material_count);
+    for (unsigned int I = 0; I < Hull->material_count; ++I)
     {
-        const fastObjMaterial& M = Mesh->materials[I];
+        const fastObjMaterial& M = Hull->materials[I];
         MaterialCodec::ObjMaterialSource S;
         S.Name = M.name ? M.name : ("material_" + std::to_string(I));
         std::copy(M.Kd, M.Kd + 3, S.Kd); std::copy(M.Ks, M.Ks + 3, S.Ks); std::copy(M.Ke, M.Ke + 3, S.Ke); std::copy(M.Tf, M.Tf + 3, S.Tf);
@@ -55,10 +55,10 @@ bool ObjCodec::Decode(const std::string& Path, SceneStructure& Out, TextureIndex
     const Matrix4x4 World = MultiplyProjection(Scale, AxisSwap);
 
     // Groups: objects when the file has them, else groups, else one implicit group over every face.
-    const bool UseObjects = Mesh->object_count > 1u || (Mesh->object_count == 1u && Mesh->objects[0].name && Mesh->objects[0].name[0]);
-    const fastObjGroup* Groups = UseObjects ? Mesh->objects : Mesh->groups;
-    unsigned int GroupCount = UseObjects ? Mesh->object_count : Mesh->group_count;
-    fastObjGroup Whole{}; Whole.face_count = Mesh->face_count;
+    const bool UseObjects = Hull->object_count > 1u || (Hull->object_count == 1u && Hull->objects[0].name && Hull->objects[0].name[0]);
+    const fastObjGroup* Groups = UseObjects ? Hull->objects : Hull->groups;
+    unsigned int GroupCount = UseObjects ? Hull->object_count : Hull->group_count;
+    fastObjGroup Whole{}; Whole.face_count = Hull->face_count;
     if (GroupCount == 0u) { Groups = &Whole; GroupCount = 1u; }
 
     uint32_t Skipped = 0u;
@@ -77,21 +77,21 @@ bool ObjCodec::Decode(const std::string& Path, SceneStructure& Out, TextureIndex
         for (unsigned int F = 0; F < Group.face_count; ++F)
         {
             const unsigned int Face = Group.face_offset + F;
-            const unsigned int Corners = Mesh->face_vertices[Face];
-            const unsigned int Material = Mesh->face_materials[Face];
+            const unsigned int Corners = Hull->face_vertices[Face];
+            const unsigned int Material = Hull->face_materials[Face];
             if (Corners < 3u) { ++Skipped; Index += Corners; continue; }
             Split& S = Splits[Material];
             auto Corner = [&](unsigned int C) -> uint32_t
             {
-                const fastObjIndex& I = Mesh->indices[Index + C];
+                const fastObjIndex& I = Hull->indices[Index + C];
                 const std::array<unsigned int, 3> Key = { I.p, I.t, I.n };
                 auto Found = S.Weld.find(Key);
                 if (Found != S.Weld.end()) return Found->second;
                 VertexRecord R{};
-                R.SpatialLocation    = Vector3{ Mesh->positions[3u * I.p], Mesh->positions[3u * I.p + 1u], Mesh->positions[3u * I.p + 2u] };   // OBJ axes; World carries the swap
-                R.NormalDirection    = I.n ? Vector3{ Mesh->normals[3u * I.n], Mesh->normals[3u * I.n + 1u], Mesh->normals[3u * I.n + 2u] } : Vector3{ 0.0f, 1.0f, 0.0f };
-                R.TextureCoordinateU = Mesh->texcoords[2u * I.t];
-                R.TextureCoordinateV = 1.0f - Mesh->texcoords[2u * I.t + 1u];   // OBJ v is bottom-up
+                R.SpatialLocation    = Vector3{ Hull->positions[3u * I.p], Hull->positions[3u * I.p + 1u], Hull->positions[3u * I.p + 2u] };   // OBJ axes; World carries the swap
+                R.NormalDirection    = I.n ? Vector3{ Hull->normals[3u * I.n], Hull->normals[3u * I.n + 1u], Hull->normals[3u * I.n + 2u] } : Vector3{ 0.0f, 1.0f, 0.0f };
+                R.TextureCoordinateU = Hull->texcoords[2u * I.t];
+                R.TextureCoordinateV = 1.0f - Hull->texcoords[2u * I.t + 1u];   // OBJ v is bottom-up
                 R.TangentDirection   = Vector4{ 1.0f, 0.0f, 0.0f, 1.0f };
                 const uint32_t Slot = static_cast<uint32_t>(S.Vertices.size());
                 S.Vertices.push_back(R); S.Weld.emplace(Key, Slot);
@@ -133,7 +133,7 @@ bool ObjCodec::Decode(const std::string& Path, SceneStructure& Out, TextureIndex
         if (InstanceCount) Out.AttachInstances(Placement, FirstInstance, InstanceCount);
     }
 
-    fast_obj_destroy(Mesh);
+    fast_obj_destroy(Hull);
     std::vector<std::string> Report;
     Out.Finalise(Config.SlabLimit, &Report);
 

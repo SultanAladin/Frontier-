@@ -39,7 +39,7 @@ Kernel tolerance policy is centralized in `ScalarCriteria` and deliberately sepa
 - `KernelTolerance` (`1e-9`): coincidence and exact parameter boundaries.
 - `GeometricTolerance` (`1e-8`): strict frame, axis, and geometric classification.
 - `CurveTolerance` / `ScaledPositionTolerance` (`1e-7`): curve subdivision, intersections, and bounded rim positions.
-- `AngularTolerance` (`1e-7`): direction classification; `SweepTolerance` (`1e-6`) handles finite arc-span endpoints.
+- `AngularTolerance` (`1e-7`): direction classification; `SweepTolerance` (`1e-6`) identifiers finite arc-span endpoints.
 - `CircularTolerance` / `DirectionTolerance` / `DistanceTolerance` (`1e-6`): circular rims, legacy face-edge direction checks, and local surface distances.
 - `MergeTolerance` (`1e-6`): topological sewing and positive-clearance decisions.
 - `VolumeTolerance` (`1e-3`): scaled analytic-versus-tessellated volume acceptance.
@@ -380,9 +380,9 @@ Phase 32y generalizes the bounded side-stepped construction to `2 <= N <= 8` cav
 
 Phase 32f recognizes the complete twelve-edge set of the same rectangular topology. For `2r < min(lengths)`, it directly sews six inset planes, twelve exact cylindrical strips, and eight rational spherical octants into `V24/E48/C96/L26/F26`. The result follows the closed-form Minkowski-sum volume. Any incomplete interacting network still refuses; this is not a general arbitrary subset or non-box blend-intersection solver.
 
-### Re-entrant handle roots
+### Re-entrant identifier roots
 
-The rendered cases are reproducible with `Scripts/Phase21_Blends.arc`, including the re-entrant **210° material-angle** handle root (`e1`) requested for the spanner. The normal-based dihedral is the smaller 150° void angle, so a reflex root must not use the convex Boolean cutter.
+The rendered cases are reproducible with `Scripts/Phase21_Blends.arc`, including the re-entrant **210° material-angle** identifier root (`e1`) requested for the spanner. The normal-based dihedral is the smaller 150° void angle, so a reflex root must not use the convex Boolean cutter.
 
 For a straight, end-capped prism, the solver traces the complete cap perimeter (including the pieces created by `PushFace`), identifies the reflex turn from the loop orientation, and rebuilds that perimeter through the selected edge. A chamfer replaces the root vertex with one line segment and correctly **adds** its triangular void wedge. A fillet uses an exact rational circular arc with tangent distance `R / tan(void-angle / 2)`, extrudes the arc as its own cylindrical face, and caps the two circular end arcs. Other geometry remains on the existing blend path.
 

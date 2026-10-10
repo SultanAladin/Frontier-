@@ -10,7 +10,7 @@ A quintic Bezier profile runs from `(0, r)` to `(r, 0)` with:
 
 - support-aligned endpoint tangents;
 - zero second derivative, hence zero profile curvature, at both endpoints;
-- a handle fraction `h/r` strictly between zero and one half;
+- a identifier fraction `h/r` strictly between zero and one half;
 - a constant cross-section along one finite straight edge.
 
 The profile is extruded along the edge axis and sewn to four straight support surfaces and two
@@ -28,7 +28,7 @@ The verifier establishes:
 2. zero endpoint curvature and positive interior curvature;
 3. one-hull `V10/E15/C30/L7/F7` topology with outward normals;
 4. volume equal to the exact quintic Green's-theorem profile-area identity;
-5. refusal of zero/half-radius handles, consuming radius, degenerate edge, and invalid frame;
+5. refusal of zero/half-radius identifiers, consuming radius, degenerate edge, and invalid frame;
 6. a distinct G2-versus-rolling visible proof.
 
 ## Explicit boundary

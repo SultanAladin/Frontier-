@@ -3,7 +3,7 @@
 #    shader nobody has run. This exists because two defects sat undetected in Engine/Shaders/ for a whole milestone:
 #      · ReSTIRViewport.slang used `flat` as an identifier, and `flat` is a GLSL keyword (an interpolation qualifier) —
 #        the glslc fallback path in CMakeLists.txt cannot lower that file, even though the Slang path can;
-#      · the GI pool's history snapshot declared `vec3 histUv = res.SelectedUv;` and then built a vec4 from it, which is
+#      · the GI slots's history snapshot declared `vec3 histUv = res.SelectedUv;` and then built a vec4 from it, which is
 #        five components out of two — an error in both toolchains, in a commit nobody had lowered yet.
 #    Compiling is not running, but it is the difference between "reviewed" and "well-formed".
 #

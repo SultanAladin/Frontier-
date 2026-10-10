@@ -7,7 +7,7 @@
 //
 // The edge width comes from the screen-space derivative of the local coordinate, so a figure stays exactly as sharp
 //    when it is two metres away and tilted forty degrees as when it fills the screen. That is the property a
-//    pre-rasterised vector image cannot hold, and the reason this pipeline draws shapes instead of sampling images.
+//    pre-rasterised vector image cannot hold, and the reason this chain draws shapes instead of sampling images.
 //
 // Output is premultiplied alpha, to be composited with (ONE, ONE_MINUS_SRC_ALPHA) against the resolved scene.
 // NOTE: GLSL source lowered by glslc -fshader-stage=fragment.

@@ -217,7 +217,7 @@ void VehicleInstanceSequence::RefreshBodyFacets(std::vector<TriangleIndex>& Face
             for (uint32_t t = 0; t < I.TriangleCount; ++t)
             {
                 const uint32_t f = I.FlatTriangleOffset + t;
-                if (f < Facets.size()) RestFacets.push_back(Facets[f]);   // baked object-local at rest
+                if (f < Facets.size()) RestFacets.push_back(Facets[f]);   // precomputed object-local at rest
             }
         };
         capture(0u, Instancing.BodyInstance);

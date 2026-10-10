@@ -1120,7 +1120,7 @@ function App() {
       [Id]: {
         ...Properties,
         ...(Properties.Fracture
-          ? { Fracture: { ...Properties.Fracture, Baked: undefined } }
+          ? { Fracture: { ...Properties.Fracture, Precomputed: undefined } }
           : {}),
       },
     }));
@@ -1562,7 +1562,7 @@ function App() {
             }
             onClick={() => {
               const Marker = [
-                ...document.querySelectorAll("[data-preview-id]"),
+                ...document.querySelectorAll("[record-preview-id]"),
               ].find((Entry) => Entry.dataset.previewId === Selected);
               Marker?.scrollIntoView({
                 block: "center",
@@ -1698,7 +1698,7 @@ function App() {
           </label>
           <p>
             F3 / Shift+F3 cycle debug views. These are HTML diagnostic
-            selections; no native render buffers are connected.
+            selections; no native render stores are connected.
           </p>
         </section>
       )}

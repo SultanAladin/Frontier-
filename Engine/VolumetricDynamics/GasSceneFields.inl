@@ -25,10 +25,10 @@ namespace GasSceneDetail {
 template <typename Number>
 inline std::string SpellShortest(Number Reading, bool AsFloat) noexcept
 {
-    char Buffer[64];
-    const auto Written = std::to_chars(Buffer, Buffer + sizeof(Buffer), Reading);
+    char Block[64];
+    const auto Written = std::to_chars(Block, Block + sizeof(Block), Reading);
     if (Written.ec != std::errc{}) return AsFloat ? "0.0" : "0";
-    std::string Spelt(Buffer, Written.ptr);
+    std::string Spelt(Block, Written.ptr);
     if (AsFloat && Spelt.find('.') == std::string::npos && Spelt.find('e') == std::string::npos)
         Spelt += ".0";
     return Spelt;

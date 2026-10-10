@@ -87,7 +87,7 @@ static void Check(const char* name, bool ok, double got, double want)
     if (ok) ++g_pass; else ++g_fail;
 }
 // A KNOWN LIMITATION of the placeholder box (high CoM, single soft-spring "suspension"): reported honestly but not
-// counted as a failure. Tracked in PortPlan.md — to be revisited when a real vehicle mesh / inertia tensor lands.
+// counted as a failure. Tracked in PortPlan.md — to be revisited when a real vehicle topology / inertia tensor lands.
 static void KnownLimitation(const char* name, bool ok, double got, double want)
 {
     std::printf("  [%s] %-54s got % .4f  (want % .4f)\n", ok ? "PASS" : "KNOWN", name, got, want);

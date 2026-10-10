@@ -349,9 +349,9 @@ void InspectorPanel::RecordFracture(EditorInstance& Picked, uint32_t PickedIndex
     }
 
     // Describe().Primitive, 1:1: the browser reads the primitive off the row's icon, never off its name.
-    //    A row whose artwork is not one of the five base meshes has no primitive, and the card says so.
-    const char* Primitive = BaseMeshPrimitive(Picked.Artwork);
-    const FR::Owner Who { Picked.Label[0] ? Picked.Label : "Object", Primitive ? Primitive : "mesh" };
+    //    A row whose artwork is not one of the five base geometries has no primitive, and the card says so.
+    const char* Primitive = BaseGeometryPrimitive(Picked.Artwork);
+    const FR::Owner Who { Picked.Label[0] ? Picked.Label : "Object", Primitive ? Primitive : "topology" };
 
     const float Wide = ImGui::GetContentRegionAvail().x;
     if (Wide < 120.0f) return;
@@ -378,7 +378,7 @@ void InspectorPanel::RecordFracture(EditorInstance& Picked, uint32_t PickedIndex
             if (Hit(I == 0 ? "##fracture-dynamic" : "##fracture-baked",
                     FR::PadX + 1.0f + FR::ModePad + I * (Each + FR::ModePad),
                     Plan.ModeTop + 1.0f + FR::ModePad, Each, FR::ButtonTall))
-                Recipe.Run = I == 0 ? FR::Mode::Dynamic : FR::Mode::Baked;
+                Recipe.Run = I == 0 ? FR::Mode::Dynamic : FR::Mode::Precomputed;
 
         if (Plan.HasSdf && Hit("##fracture-sdf", Wide - FR::PadX - FR::ToggleWide, Plan.SdfSwitchTop,
                                FR::ToggleWide, FR::ToggleTall))

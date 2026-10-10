@@ -104,8 +104,8 @@ try {
   }
   await Select("World");
   assert.equal(
-    await Page.locator("[data-collection-total]").getAttribute(
-      "data-collection-total",
+    await Page.locator("[record-collection-total]").getAttribute(
+      "record-collection-total",
     ),
     "13",
   );
@@ -192,7 +192,7 @@ try {
     20,
     0,
   );
-  // Exercise measured browser stalls, never fabricated telemetry or native GPU data.
+  // Exercise measured browser stalls, never fabricated telemetry or native GPU record.
   await Page.evaluate(async () => {
     for (let I = 0; I < 6; I++) {
       await new Promise((R) => setTimeout(R, 120));
@@ -208,7 +208,7 @@ try {
   const Number = await Page.locator(".debug-number").innerText();
   await Page.waitForTimeout(700);
   assert.equal(await Page.locator(".debug-number").innerText(), Number);
-  assert.equal(await Card.getAttribute("data-paused"), "true");
+  assert.equal(await Card.getAttribute("record-paused"), "true");
   await Page.locator(".debug-card-body").evaluate((N) => (N.scrollTop = 0));
   await Page.screenshot({ path: Proof + "/FolderDiagnostics.png" });
   await Page.getByRole("slider", {
@@ -349,8 +349,8 @@ try {
   await Page.reload({ waitUntil: "networkidle" });
   await Page.setViewportSize({ width: 1366, height: 768 });
   assert.equal(
-    await Page.locator("[data-collection-total]").getAttribute(
-      "data-collection-total",
+    await Page.locator("[record-collection-total]").getAttribute(
+      "record-collection-total",
     ),
     "2508",
   );
@@ -419,8 +419,8 @@ try {
   );
   await Select("Empty collection");
   assert.equal(
-    await Page.locator("[data-collection-total]").getAttribute(
-      "data-collection-total",
+    await Page.locator("[record-collection-total]").getAttribute(
+      "record-collection-total",
     ),
     "0",
   );

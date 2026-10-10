@@ -32,22 +32,22 @@ constexpr int kMaximumAncestorDepth = 12;
 std::filesystem::path QueryExecutableDirectory() noexcept
 {
 #if defined(_WIN32)
-    wchar_t Buffer[MAX_PATH]{};
-    const DWORD Length = GetModuleFileNameW(nullptr, Buffer, MAX_PATH);
+    wchar_t Block[MAX_PATH]{};
+    const DWORD Length = GetModuleFileNameW(nullptr, Block, MAX_PATH);
     if (Length == 0u) return {};
-    return std::filesystem::path(Buffer).parent_path();
+    return std::filesystem::path(Block).parent_path();
 #elif defined(__APPLE__)
-    char     Buffer[4096]{};
-    uint32_t Size = sizeof(Buffer);
-    if (_NSGetExecutablePath(Buffer, &Size) != 0) return {};
+    char     Block[4096]{};
+    uint32_t Size = sizeof(Block);
+    if (_NSGetExecutablePath(Block, &Size) != 0) return {};
     std::error_code Error;
-    const std::filesystem::path Real = std::filesystem::weakly_canonical(std::filesystem::path(Buffer), Error);
-    return (Error ? std::filesystem::path(Buffer) : Real).parent_path();
+    const std::filesystem::path Real = std::filesystem::weakly_canonical(std::filesystem::path(Block), Error);
+    return (Error ? std::filesystem::path(Block) : Real).parent_path();
 #else
-    char Buffer[4096]{};
-    const ssize_t Length = readlink("/proc/self/exe", Buffer, sizeof(Buffer) - 1u);
+    char Block[4096]{};
+    const ssize_t Length = readlink("/proc/self/exe", Block, sizeof(Block) - 1u);
     if (Length <= 0) return {};
-    return std::filesystem::path(std::string(Buffer, static_cast<size_t>(Length))).parent_path();
+    return std::filesystem::path(std::string(Block, static_cast<size_t>(Length))).parent_path();
 #endif
 }
 

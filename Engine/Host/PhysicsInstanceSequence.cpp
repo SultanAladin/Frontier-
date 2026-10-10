@@ -57,7 +57,7 @@ bool PhysicsInstanceSequence::Construct(RigidBodySolver& Solver, const PhysicsIn
 
     // ── Static colliders ─────────────────────────────────────────────────────────────────────────────────────────
     // Only the surfaces a falling ball can actually reach. The showroom's visual geometry is 16 806 triangles; a
-    //    mesh collider over all of it would be wasteful and slow, and none of the detail changes where a sphere
+    //    topology collider over all of it would be wasteful and slow, and none of the detail changes where a sphere
     //    comes to rest. Boxes matching the floor, walls and plinth are exact for this scene.
     const auto AddStatic = [&](const char* Name, const Vector3& Centre, const Vector3& HalfExtent)
     {
@@ -94,7 +94,7 @@ bool PhysicsInstanceSequence::Construct(RigidBodySolver& Solver, const PhysicsIn
         RigidBodyDescription D;
         D.Name           = "drop_body";
         D.Motion         = RigidBodyMotionCategory::Dynamic;
-        D.Position       = Rest;                       // physics starts exactly where the geometry was baked
+        D.Position       = Rest;                       // physics starts exactly where the geometry was precomputed
         D.Shape.Category = CollisionShapeCategory::Sphere;
         D.Shape.Radius   = Config.BodyRadius;
         D.Friction       = Config.Friction;
@@ -148,7 +148,7 @@ void PhysicsInstanceSequence::RefreshBodyFacets(std::vector<TriangleIndex>& Face
     if (Bodies.empty()) return;
 
     // ── Capture the rest geometry once ───────────────────────────────────────────────────────────────────────────
-    // The flat triangles arrive baked at the rest pose. Subtracting the rest origin here gives body-local
+    // The flat triangles arrive precomputed at the rest pose. Subtracting the rest origin here gives body-local
     //    geometry, which every later frame is transformed from. Transforming the PREVIOUS frame's output instead
     //    would compound rounding every frame and visibly drift over a long run.
     if (!RestCaptured)
@@ -199,7 +199,7 @@ void PhysicsInstanceSequence::RefreshBodyFacets(std::vector<TriangleIndex>& Face
 
         const auto Apply = [&](float X, float Y, float Z, float* OutX, float* OutY, float* OutZ)
         {
-            const float Wx = X + Rest.x, Wy = Y + Rest.y, Wz = Z + Rest.z;   // back to baked world space
+            const float Wx = X + Rest.x, Wy = Y + Rest.y, Wz = Z + Rest.z;   // back to precomputed world space
             *OutX = M[0] * Wx + M[4] * Wy + M[8]  * Wz + M[12];
             *OutY = M[1] * Wx + M[5] * Wy + M[9]  * Wz + M[13];
             *OutZ = M[2] * Wx + M[6] * Wy + M[10] * Wz + M[14];

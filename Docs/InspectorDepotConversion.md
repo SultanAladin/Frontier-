@@ -16,7 +16,7 @@ Neither is the shipped UI.
 
 ## What a light inspector is
 
-`LightPanel.js` handles seven styles — `pointlight`, `spotlight`, `ieslight`, `arealight`, `tubelight`,
+`LightPanel.js` identifiers seven styles — `pointlight`, `spotlight`, `ieslight`, `arealight`, `tubelight`,
 `ledlight`, `ledstrip`. The host is `div.mpanel.lighting-panel`, `display:flex; flex-direction:column; gap:12px`,
 and the children are appended in this order by the final `replaceChildren`:
 
@@ -103,7 +103,7 @@ with left 43, right `width − 15`, top 28, bottom `height − 30`, five gridlin
 | `ProjectLight` illustrations, seven styles | Done — `PaintStudy` |
 | `ProjectResponse` plot and sections | Done — `PaintResponse` |
 | Superseded InspectorDepot conversion removed | Done — `LightDepotSurface.h` deleted |
-| Header source glyph (`lp-source-icon`) | Done — shipped artwork, baked for the harness |
+| Header source glyph (`lp-source-icon`) | Done — shipped artwork, precomputed for the harness |
 | Control interaction (drag, click, write-back) | Outstanding — the port draws, it does not yet edit |
 | Fog cards (`FogPanel.jsx`, `FogShapePanel.jsx`) | Not started |
 
@@ -116,10 +116,10 @@ asks for the shipped artwork rather than redrawing it, through the `LightGlyphSo
 `LightInspectorPanel.h`. The editor answers that from `IconArt` / ThorVG.
 
 The harness cannot — this sandbox has no SVG rasteriser, `rsvg-convert` is absent and ImageMagick's SVG
-delegate fails. `BakeLightGlyphs.mjs` rasterises the same seven SVGs with `@resvg/resvg-js` to straight-alpha
+delegate fails. `PrecomputeLightGlyphs.mjs` rasterises the same seven SVGs with `@resvg/resvg-js` to straight-alpha
 RGBA8 at 2x into `Glyphs/*.rgba`, which the harness reads with a plain `fread` and hands to the CPU backend as
-its one custom sheet. Re-bake with `node Exhibits/Workbench/Lighting/BakeLightGlyphs.mjs` after
-`npm i @resvg/resvg-js`; the baked files are committed so the proof runs without node.
+its one custom sheet. Re-precompute with `node Exhibits/Workbench/Lighting/PrecomputeLightGlyphs.mjs` after
+`npm i @resvg/resvg-js`; the precomputed files are committed so the proof runs without node.
 
 ### Two fills ImGui cannot do directly
 
@@ -193,8 +193,8 @@ decimals), which is why the check asserts both moved from one press.
 `FogShape.js` is reproduced branch for branch so the vertex indices match: Box, Custom and Prism/Cylinder extrude
 a ring; Cone fans 48 base vertices to an apex with a spoke every sixth; Diamond is six points; Sphere and
 Ellipsoid sweep 13 latitudes by 24 longitudes. The preview is the same isometric,
-`[(x−y)/√2, (x+y)/√6 − z·√(2/3)]`, fitted to 270 x 190 and centred at 160, 120. Bounds are the mesh extremes plus
-Centre; Size is the mesh alone.
+`[(x−y)/√2, (x+y)/√6 − z·√(2/3)]`, fitted to 270 x 190 and centred at 160, 120. Bounds are the topology extremes plus
+Centre; Size is the topology alone.
 
 Two deviations, both forced and both recorded here rather than hidden:
 
@@ -212,7 +212,7 @@ Acceptance test: `python3 Exhibits/Workbench/Fog/RunNativeFogCards.py`, 56 check
 
 ## Wind binding card
 
-`WindPanel.jsx` ships `WindBinding` as a card (`data-card="Wind binding"`); the native side carried only
+`WindPanel.jsx` ships `WindBinding` as a card (`record-card="Wind binding"`); the native side carried only
 `Engine/Editor/WindBindingControls.h`, a bare `SeparatorText` + `Checkbox` + `BeginCombo` stub. The fog panel
 already drew a card *titled* "Wind binding" with that stub inside it, so only the card's contents were missing.
 
@@ -290,7 +290,7 @@ from the checked-in source in three anchored replacements, all recorded below.
 
 | # | Card | Class | Native today | State |
 |---|------|-------|--------------|-------|
-| 1 | Hero flow field | `pcard mp-hero wf-hero` | `Composite wind field` (a compass rose) | **converted** |
+| 1 | Hero flow field | `pcard mp-hero wf-hero` | `Combined wind field` (a compass rose) | **converted** |
 | 2 | Rail, four pills | `mp-rail` | — | **converted** |
 | 3 | Gusting / lulling duo | `mp-duo` | — | **converted** |
 | 4 | Anemometer | `pcard mp-metric wf-trace` | `Anemometer` (speed text + 10 m vector) | **converted** |
@@ -298,7 +298,7 @@ from the checked-in source in three anchored replacements, all recorded below.
 | 6 | Steadiness | `pcard` | `Variation controls` + `Gust envelope` | **converted** |
 | 7 | Driving | `pcard` | — | **converted** |
 
-The native `Composite wind field`, `Variation controls` and `Gust envelope` are **not in the bundle at all** —
+The native `Combined wind field`, `Variation controls` and `Gust envelope` are **not in the bundle at all** —
 they are native inventions. They have been left in place: the brief was to add what is missing, not to redesign
 what is already there. Deleting them is a one-line change in `WeatherInspectorPanel.cpp` if that is wanted.
 
@@ -454,13 +454,13 @@ push their own clip rectangles.
 
 `WindPanel.jsx:503`, `export default function WindEditor` — the full-screen modal the wind inspector raises
 from *Open WindEditor · place and combine components*. It is the only authoring surface in the reference that
-is not a card, and `CheckReference.mjs` guards it by name ("Pre-C041 composite WindEditor is restored and
+is not a card, and `CheckReference.mjs` guards it by name ("Pre-C041 combined WindEditor is restored and
 opens"). Ported whole into `Engine/Editor/WindEditorSurface.h` (`Frontier::WindEditor`), over the evaluator,
 mote field and canvas already in `WindPanelSurface.h`.
 
 ### The type was wrong everywhere, and is now right here
 
-ImGui bakes a face so that **ascent − descent** equals the size you ask for. CSS sizes the **em box**. DM Sans
+ImGui precomputes a face so that **ascent − descent** equals the size you ask for. CSS sizes the **em box**. DM Sans
 reports `hhea` ascent 992, descent −310, lineGap 0 per 1000 em, so the two differ by exactly **1.302** — a run
 drawn at `AddText(Face, 12, …)` is 23% narrower than the same run at `font-size: 12px` in Chrome. Measured, not
 assumed: `Pause preview` is **70.980 px** at 12 px per the font's own `hmtx` table, and ImGui returned 54.516.
@@ -468,7 +468,7 @@ assumed: `Pause preview` is **70.980 px** at 12 px per the font's own `hmtx` tab
 `WindCards::Grind(Size) = Size * EmScale` now sits inside `Measured`, `Inked`, `Boxed`, `Stacked` and `Flowed`,
 so every call site keeps passing CSS pixels and gets browser metrics back. Two consequences fall out for free:
 
-* 1.302 is also DM Sans's `normal` line-height, so one baked line of ImGui text is exactly one CSS line box
+* 1.302 is also DM Sans's `normal` line-height, so one precomputed line of ImGui text is exactly one CSS line box
   tall, and `Flowed` wraps and stacks like a block of copy.
 * The ascent share is 0.992, so a baseline — canvas `fillText`, or an SVG `<text y>` — sits `0.992 × size`
   below the top of the box ImGui draws. `BaselineShare` was 0.792; it is now `AscentShare`.
@@ -480,7 +480,7 @@ it does in the browser, and `RunNativeWindCards.py` went from 77 to **PASS 78** 
 the fog cards and the light panel each carry their own copies of these primitives and still draw CSS pixels at
 ImGui sizes. The same three-line change applies to each, and each needs its harness re-run.
 
-Two weights are baked, which no earlier surface needed: the dialog is DM Sans **Light 300** throughout —
+Two weights are precomputed, which no earlier surface needed: the dialog is DM Sans **Light 300** throughout —
 `body` sets it and `h1,h2,h3,h4` keep it — except `.wind-section-head h2/h3` and `.wind-dimensions h3`, which
 are **Regular 400**. `h3` is also `#cacaca` from `Editor.css`, not the dialog's `#d3d9d4`; `h2` inherits.
 
@@ -509,15 +509,15 @@ aside are 24 and 14, never 36 or 26. At 1600 × 950 the two view columns are **6
 `<svg viewBox="0 0 600 400" preserveAspectRatio="none">` inside a 649.5 × 330 border box, so the user space is
 stretched **1.079 across and 0.82 down** and the two axes genuinely disagree:
 
-* a `<circle r=13>` handle is drawn as an ellipse 14.03 × 10.66, and the selected `r=16` as 17.27 × 13.12;
+* a `<circle r=13>` identifier is drawn as an ellipse 14.03 × 10.66, and the selected `r=16` as 17.27 × 13.12;
 * `stroke-width: 1` is 1.079 px on a vertical rule and 0.82 px on a horizontal one;
 * `stroke-dasharray="4 5"` on the centre cross measures 4.32/5.40 across and 3.28/4.10 down;
-* `<text font-size="11">` is baked at 11 × 0.82 and walked at 11 × 1.079, so every glyph lands where the
+* `<text font-size="11">` is precomputed at 11 × 0.82 and walked at 11 × 1.079, so every glyph lands where the
   browser puts it. Only the outlines themselves are not widened — recorded as a deviation.
 
 Placement: directional components ignore X/Z and pin to `x = 30`, `z = 52 + 34 × index`; everything else maps
 `(X / Width + 0.5) × 600` and `(Z / Depth + 0.5) × 400`, and its radius draws as
-`(Radius / Width) × 600` by `(Radius / Depth) × 400`. `CheckWind.mjs` drags a handle to .36 / .62 and expects
+`(Radius / Width) × 600` by `(Radius / Depth) × 400`. `CheckWind.mjs` drags a identifier to .36 / .62 and expects
 −140 m and 120 m back on a 1000 m slice; the native check asserts the same inverse. A disabled component sets
 `opacity` on the whole `<g>`, so the fill, the stroke, the number and the caption all drop to 0.4 together.
 
@@ -619,7 +619,7 @@ graph: the `Cached.Side` density image over a fixed `0 … Ceiling` axis, labell
 and `Base` slider already matched and were left alone; the engine's extra "0 m world datum" note is kept.
 
 **Deviations.** The gradient is banded into 18 slices (an ImGui quad carries one colour). The canvas sets
-`8px sans-serif` rather than inheriting DM Sans; the port uses the baked DM Sans at 8 px, the only face the
+`8px sans-serif` rather than inheriting DM Sans; the port uses the precomputed DM Sans at 8 px, the only face the
 engine ships. `border-radius: 8` is faked with four `CornerNotch` wedges against the card's `#232323`, since
 an ImGui clip rectangle has square corners. The 0.3 px column overlap reads as a faint bright seam under the
 harness's ×3 supersampling, where the browser's analytic coverage makes it a faint dark one.
@@ -653,7 +653,7 @@ Frontier::WindInstrument` for text, so it inherits the 1.302 em scale). Proof
 | `MinimumSize` | 0.045 | 0.002 … 0.3 |
 | `X` / `Y` / `Z` | 0 | ±1000 |
 | `SdfResolution` | 64 | **falls back** to 64 — it is a list of 32/64/128, not a range |
-| `Mode` | `dynamic` | `baked` or `dynamic` |
+| `Mode` | `dynamic` | `precomputed` or `dynamic` |
 
 ### The card is a block flow
 
@@ -663,10 +663,10 @@ Four disclosure stages, and the heights are collapsed margins rather than sums �
 | --- | --- |
 | Disabled | 136.248 |
 | Enabled, dynamic, cube | 442.59 |
-| Baked, no per-piece SDF | 513.59 |
-| Baked with per-piece SDF | 635.912 |
+| Precomputed, no per-piece SDF | 513.59 |
+| Precomputed with per-piece SDF | 635.912 |
 
-`BAKE` sits **18 px** under the diagram, not 26: the diagram's 8 px bottom margin collapses into the heading's
+`PRECOMPUTE` sits **18 px** under the diagram, not 26: the diagram's 8 px bottom margin collapses into the heading's
 18 px top margin. `.fracture-sdf` has a border-top and padding-top, which *breaks* the collapse, so its first
 switch keeps its full 20 px. The header is 36.248 px — `Grind(15) + 5 + Grind(9)` — because the stacked title
 and eyebrow outgrow the 30 px button they sit beside.
@@ -767,7 +767,7 @@ JavaScript — dead CSS for a depot folder panel that is not mounted. The folder
 React `group` subject (`ScenePolicy.js:33`, `ReferencePanel.jsx:34`), which uses the ordinary inspector
 header. So apart from the missing note there is no separate folder panel to port.
 
-## Base meshes — the five the editor opens with, and the primitive it derives from them
+## Base geometries — the five the editor opens with, and the primitive it derives from them
 
 `Editor.jsx:46` seeds the outliner with one `Showcase` collection and five geometry subjects — Cube,
 Sphere, Cylinder, Torus, Cone — each carrying its own `editor-<primitive>` icon. Everything downstream
@@ -779,21 +779,21 @@ reads the **icon**, never the name: `FractureSpecification.js` computes
 over an 80 × 76 viewBox, on a `repeating-conic-gradient` checker — inside `.preview-placement`, a
 126 px minimum cell in an `auto-fill minmax(110px, 1fr)` grid.
 
-Ported to `Engine/Editor/BaseMeshSurface.h`: the roster, `PrimitiveOfIcon`, `Partitionable`, the
+Ported to `Engine/Editor/BaseGeometrySurface.h`: the roster, `PrimitiveOfIcon`, `Partitionable`, the
 transcribed marker artwork (cubics flattened to 16 segments), `PaintMarkerIn` / `PaintPlacement` /
-`PaintChecker` / `Columns` / `PaintPane`. Proof `Exhibits/Workbench/BaseMesh/NativeBaseMesh.cpp` —
-**PASS 66**, four captures in `Exhibits/Gallery/BaseMeshNative/`.
+`PaintChecker` / `Columns` / `PaintPane`. Proof `Exhibits/Workbench/BaseGeometry/NativeBaseGeometry.cpp` —
+**PASS 66**, four captures in `Exhibits/Gallery/BaseGeometryNative/`.
 
 ### The defect this found
 
 The five primitive SVGs ship in `EngineContent/Icons/` but were **absent from `IconSymbols.inc`**, so
-every geometry row in the native outliner collapsed to `IconSymbol::EditorMesh` and the fracture card
+every geometry row in the native outliner collapsed to `IconSymbol::EditorGeometry` and the fracture card
 recovered its primitive by sniffing `Picked.Label` — which gets "Cube 2" wrong in one direction and an
 imported "Cone bracket" wrong in the other. `EditorGlyph` mirrors `OutlinerIconCategory` 1:1 offset by
 `Auto`, so widening that enumeration is invasive; the fix rides on `EditorInstance::Artwork` instead.
 
-Identity now round-trips: `ConstructEntity` → `PlacementRecord::BaseMesh` → `ConstructArtwork` →
-`Row.Artwork` → `BaseMeshPrimitive` → the fracture card. Both baked icon manifests are name-keyed, so
+Identity now round-trips: `ConstructEntity` → `PlacementRecord::BaseGeometry` → `ConstructArtwork` →
+`Row.Artwork` → `BaseGeometryPrimitive` → the fracture card. Both precomputed icon manifests are name-keyed, so
 inserting the five enumerators in alphabetical position is safe. ⚠️ `ConstructKind` is
 Cube/Sphere/Cylinder/Cone/Plane/Torus and the roster is Cube/Sphere/Cylinder/Torus/Cone — the two orders
 disagree, so the crossing always goes through `ConstructArtwork` / `MarkerPrimitive`, never a cast.
@@ -814,7 +814,7 @@ Panels are `#1b1b1b` under a 39 px `#222` `.pane-heading`; the viewport is `#151
 toolbar, a title at 27 / 27, a centred help line and a four-column `#161616` metrics strip; cards are
 `#191919` on `#ffffff0b` at **radius 22**, padding 20 / 17.
 
-Five cards, in order: Material, Impact, Fragment quality, Bake, Geometry receipt. The material figures
+Five cards, in order: Material, Impact, Fragment quality, Precompute, Geometry receipt. The material figures
 are not inlined in the page — they come from `SourceDepot/Fragmentation/src/fracture/materials.ts`
 (Gc / density): concrete 140 / 2 350, rock 95 / 2 700, wood 320 / 520, glass 7 / 2 500, tempered
 7 / 2 500, plastic 460 / 1 050 — and are grouped as `toLocaleString` groups them.
@@ -835,7 +835,7 @@ Ported to `Engine/Editor/FractureEditorSurface.h`. Proof
   analytical marker for the same primitive. The overlay, toolbar, controls and metrics are as shipped.
 - Naming: the module keeps the sibling `*Surface.h` vocabulary (`Paint…`, `Settings`, `Mode`). The
   invented spellings that had no reference anchor were renamed to clear `SKILL-Naming.md` —
-  `Model` → `Subject`, `Kind` → `Solid` / `Shape`, `Bake` (the enumeration) → `Freshness`. `BaseMesh`
+  `Model` → `Subject`, `Kind` → `Solid` / `Shape`, `Precompute` (the enumeration) → `Freshness`. `BaseGeometry`
   is kept: it is the reference's own term for the five analytical primitives.
 
 ## The outliner row metadata
@@ -899,7 +899,7 @@ Proof `Exhibits/Workbench/OutlinerMetadata/NativeOutlinerMetadata.cpp` — **PAS
 
 | Was | Now |
 | --- | --- |
-| Composition footer without a count, and no "usage" | `{N} constructed preview markers · visibility includes ancestor folders. Counts are scene records, not render workload or memory usage.` |
+| Composition footer without a count, and no "usage" | `{N} constructed preview markers · visibility includes ancestor folders. Counts are scene records, not render workload or storage usage.` |
 | Nothing shown for an empty folder | `This folder is empty. Newly added children will appear here.` |
 | No-match state had no way out | A **Clear filters** button, which clears search, scope, type, visibility and the page |
 | Every entry read `Visible` or `Hidden` | A row hidden only by an ancestor reads `Hidden by ancestor` |

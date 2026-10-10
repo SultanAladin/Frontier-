@@ -16,8 +16,8 @@
 //    Threading contract:
 //      • Start()/Stop()/QueryMetrics() are called from the game thread (GT).
 //      • The StepCallback runs on the physics thread (PT). It must only touch PT-owned state + the conduits below.
-//      • Cross-thread data moves through DataChannel<T> (a single-slot mailbox) — GT Write / PT Read for input, the reverse
-//        for output. Small POD payloads only; the point is to hand off a snapshot, not to share memory.
+//      • Cross-thread record moves through PayloadChannel<T> (a single-slot mailbox) — GT Write / PT Read for input, the reverse
+//        for output. Small POD payloads only; the point is to hand off a snapshot, not to share storage.
 
 #pragma once
 
@@ -30,14 +30,14 @@
 namespace Frontier {
 
 //------------------------------------------------------------------------------------------------------------------------
-//                                          DATA CHANNEL  (single-slot GT↔PT mailbox)
+//                                          PAYLOAD CHANNEL  (single-slot GT↔PT mailbox)
 //------------------------------------------------------------------------------------------------------------------------
-// A minimal thread-safe hand-off of one value, mirroring GRIT's TDataChannel. Write overwrites the slot and marks it full;
+// A minimal thread-safe hand-off of one value, mirroring GRIT's TPayloadChannel. Write overwrites the slot and marks it full;
 //    Read consumes it (marks empty); Peek copies without consuming. Guarded by a mutex — the payloads are small snapshots
 //    swapped once per step, so contention is negligible and correctness beats cleverness here.
 
 template<typename T>
-class DataChannel
+class PayloadChannel
 {
 public:
     void Write(const T& Value) noexcept

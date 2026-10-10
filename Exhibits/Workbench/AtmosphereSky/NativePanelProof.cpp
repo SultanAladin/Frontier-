@@ -1,7 +1,7 @@
 #include "CelestialSequence.h"
 #include "InspectorPanel.h"
 #include "ControlPanel.h"
-#include "SkyBakePreview.h"
+#include "SkyPrecomputePreview.h"
 #include "CpuDraw.h"
 #include "PngWriteCounterpart.h"
 #include <imgui_internal.h>
@@ -37,8 +37,8 @@ int main(){
     auto Rest=[&](){for(int I=0;I<3;++I)Tick();};auto Click=[&](ImVec2 P){IO.AddMousePosEvent(P.x,P.y);Tick();IO.AddMouseButtonEvent(0,true);Tick();IO.AddMouseButtonEvent(0,false);Tick();IO.AddMousePosEvent(-100,-100);};
     auto Capture=[&](const char* Name){int PW=int(Width*Scale),PH=int(Height*Scale);std::vector<unsigned char> Pixels(size_t(PW)*PH*3,24);for(auto* L:ImGui::GetDrawData()->CmdLists)FrontierProof::Draw(L,Pixels.data(),PW,PH,{0,0},{Scale,Scale});char Path[200];std::snprintf(Path,sizeof(Path),"Exhibits/Gallery/AtmosphereSky/%s.png",Name);Check(stbi_write_png(Path,PW,PH,3,Pixels.data(),PW*3)!=0,"native capture");};
     Rest();Capture("Sky-Empty");auto* Props=Window("##sky-properties");ImVec2 O=Props->DC.CursorStartPos;O.x+=20;O.y+=20;
-    Click({O.x+270,O.y+193});Check(Sheet->SkyImage.Pending,"Bake button queues project action");Check(Scene->TakeSkyDomeBakeRequest(),"renderer consumes explicit bake request");Check(!Scene->TakeSkyDomeBakeRequest(),"request consumed once");
-    Scene->AssignSkyDomeSlot(9);Scene->BakeSkyDome(Halves);Check(Scene->SkyDomeSlot==CelestialSequence::kNoSkyDomeSlot,"new CPU bake never falsely keeps old GPU residency");Scene->BuildSheet(CelestialEntity::Atmosphere,*Sheet);Check(Halves.size()==256u*512u*4u,"real baked atlas dimensions");Check(Scene->SkyPreviewHalves==Halves,"preview owns exact baked/upload source bytes");Check(Sheet->SkyImage.Pixels==Scene->SkyPreviewHalves.data()&&!Sheet->SkyImage.Stale,"sheet borrows current baked pixels");
+    Click({O.x+270,O.y+193});Check(Sheet->SkyImage.Pending,"Precompute button queues project action");Check(Scene->TakeSkyDomePrecomputeRequest(),"renderer consumes explicit bake request");Check(!Scene->TakeSkyDomePrecomputeRequest(),"request consumed once");
+    Scene->AssignSkyDomeSlot(9);Scene->PrecomputeSkyDome(Halves);Check(Scene->SkyDomeSlot==CelestialSequence::kNoSkyDomeSlot,"new CPU bake never falsely keeps old GPU residency");Scene->BuildSheet(CelestialEntity::Atmosphere,*Sheet);Check(Halves.size()==256u*512u*4u,"real baked atlas dimensions");Check(Scene->SkyPreviewHalves==Halves,"preview owns exact baked/upload source bytes");Check(Sheet->SkyImage.Pixels==Scene->SkyPreviewHalves.data()&&!Sheet->SkyImage.Stale,"sheet borrows current baked pixels");
     std::array<uint16_t,32> SampleAtlas{};float TexelValues[]={0,.25f,.5f,1,1,1,1,1};for(int P=0;P<8;++P)for(int C=0;C<4;++C)SampleAtlas[P*4+C]=SkyDomeHalfFromFloat(C==3?1:TexelValues[P]);
     float Zenith[]={0,0,1},East[]={1,0,0};Check(std::abs(SkyPreviewSample(SampleAtlas.data(),2,Zenith)[0]-.4375f)<.000001f,"known bilinear four-texel interpolation");Check(SkyPreviewSample(SampleAtlas.data(),2,Zenith,true)[0]==1,"transmission selects lower atlas half");Check(SkyPreviewSample(SampleAtlas.data(),2,East)[0]==.625f,"oct edge clamps without cross-layer bleed");
     float SunDirection[]={1,0,0};auto ProfileDirection=SkyAtmosphereProfileDirection(.5f,SunDirection);Check(ProfileDirection[0]<0&&ProfileDirection[2]>0,"overview samples an above-horizon altitude opposite the baked Sun");

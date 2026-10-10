@@ -6,7 +6,7 @@
 //
 //    Two things are proved here that a screenshot cannot. The diagram is a real Voronoi diagram, so its
 //    nine cells must tile the perimeter exactly — the areas are summed and compared with the 36-gon's own.
-//    And the card is a CSS block flow, so the checks pin the collapsed margins: BAKE sits 18 px under the
+//    And the card is a CSS block flow, so the checks pin the collapsed margins: PRECOMPUTE sits 18 px under the
 //    diagram, not the 26 that adding the two margins would give.
 
 #include "FractureCardSurface.h"
@@ -137,11 +137,11 @@ int main()
         }
         Check(Supported("cube") && Supported("sphere") && Supported("cylinder") && Supported("cone"),
               "four primitives carry a convex preview");
-        Check(!Supported("torus") && !Supported("mesh"), "a torus and an imported mesh do not");
+        Check(!Supported("torus") && !Supported("topology"), "a torus and an imported topology do not");
     }
 
     //-----------------------------------------------------------------------------------------------------
-    // The status line the component assembles. Dynamic says one thing; baked adds a second clause that
+    // The status line the component assembles. Dynamic says one thing; precomputed adds a second clause that
     //    depends on whether the stored signature still matches.
     //-----------------------------------------------------------------------------------------------------
     {
@@ -149,7 +149,7 @@ int main()
         Settings One;
         StatusLine(One, Text, sizeof(Text));
         Check(std::strcmp(Text, "Generate fragments on demand.") == 0, "dynamic has no second clause");
-        One.Run = Mode::Baked;
+        One.Run = Mode::Precomputed;
         StatusLine(One, Text, sizeof(Text));
         Check(std::strcmp(Text, "Reuse stored geometry for this object. Open the editor to bake or refresh geometry.") == 0,
               "a stale bake sends you to the editor");
@@ -166,8 +166,8 @@ int main()
         UnsupportedLine(Torus, Text, sizeof(Text));
         Check(std::strcmp(Text, "Fracture settings are available. Concave preview needs decomposition.") == 0,
               "a torus is called out as concave");
-        Owner Mesh { "Rock", "mesh" };
-        UnsupportedLine(Mesh, Text, sizeof(Text));
+        Owner Hull { "Rock", "topology" };
+        UnsupportedLine(Hull, Text, sizeof(Text));
         Check(std::strcmp(Text, "Fracture settings are available. Source geometry preview is pending.") == 0,
               "anything else is simply pending");
     }
@@ -236,9 +236,9 @@ int main()
         Settings On; On.Enabled = true;
         const Plan Live = Measure(Light, Regular, CardWide, On, Cube);
         Check(std::fabs(Live.DiagramTop - 118.248f) < 1e-3f, "enabling it opens the diagram under the switch");
-        Check(std::fabs(Live.BakeTop - Live.DiagramTop - 134.0f - 18.0f) < 1e-3f,
-              "BAKE sits 18 px under the diagram: the 8 px below it collapses into the 18 above BAKE");
-        Check(std::fabs(Live.ModeTop - 293.268f) < 1e-3f, "the mode pair follows BAKE's 10 px margin");
+        Check(std::fabs(Live.PrecomputeTop - Live.DiagramTop - 134.0f - 18.0f) < 1e-3f,
+              "PRECOMPUTE sits 18 px under the diagram: the 8 px below it collapses into the 18 above PRECOMPUTE");
+        Check(std::fabs(Live.ModeTop - 293.268f) < 1e-3f, "the mode pair follows PRECOMPUTE's 10 px margin");
         Check(std::fabs(Live.StatusTop - 345.268f) < 1e-3f, "and the status line the track's 14");
         Check(NoteLines(Light, Live.Inner, "Generate fragments on demand.") == 1,
               "the dynamic status fits one line in the column");
@@ -246,11 +246,11 @@ int main()
         Check(std::fabs(Live.Tall - 442.59f) < 1e-3f, "an enabled dynamic card is 442.59 px tall");
         Check(!Live.HasPending, "and a cube needs no apology");
 
-        Settings Baked; Baked.Enabled = true; Baked.Run = Mode::Baked; Baked.PieceSdf = true; Baked.Ready = true;
-        const Plan Deep = Measure(Light, Regular, CardWide, Baked, Cube);
+        Settings Precomputed; Precomputed.Enabled = true; Precomputed.Run = Mode::Precomputed; Precomputed.PieceSdf = true; Precomputed.Ready = true;
+        const Plan Deep = Measure(Light, Regular, CardWide, Precomputed, Cube);
         Check(Deep.HasSdf && Deep.HasField, "baked with per-piece SDF grows both extra blocks");
         char Deepest[256];
-        StatusLine(Normalise(Baked), Deepest, sizeof(Deepest));
+        StatusLine(Normalise(Precomputed), Deepest, sizeof(Deepest));
         Check(NoteLines(Light, Deep.Inner, Deepest) == 2,
               "the longest status wraps onto a second line, pushing everything under it down by 17");
         Check(std::fabs(Deep.SdfTop - 395.268f) < 1e-3f,
@@ -263,7 +263,7 @@ int main()
               "the field's 20 px margin collapses into the switch's own 20, not onto it");
         Check(std::fabs(Deep.Tall - 635.912f) < 1e-3f, "the deepest card is 635.91 px tall");
 
-        Settings Shallow = Baked; Shallow.PieceSdf = false;
+        Settings Shallow = Precomputed; Shallow.PieceSdf = false;
         const Plan Mid = Measure(Light, Regular, CardWide, Shallow, Cube);
         Check(Mid.HasSdf && !Mid.HasField, "turning per-piece SDF off drops the resolution field");
         Check(std::fabs(Mid.Tall - 513.59f) < 1e-3f,
@@ -282,8 +282,8 @@ int main()
     Who = Owner{ "Cube", "cube" };
     S = Settings{};                                             Capture("CardClosed");
     S.Enabled = true;                                           Capture("CardDynamic");
-    S.Run = Mode::Baked; S.Ready = true;                        Capture("CardBaked");
-    S.PieceSdf = true; S.SdfResolution = 128;                   Capture("CardBakedSdf");
+    S.Run = Mode::Precomputed; S.Ready = true;                        Capture("CardPrecomputed");
+    S.PieceSdf = true; S.SdfResolution = 128;                   Capture("CardPrecomputedSdf");
     Who = Owner{ "Ring", "torus" };
     S = Settings{}; S.Enabled = true;                           Capture("CardTorus");
 

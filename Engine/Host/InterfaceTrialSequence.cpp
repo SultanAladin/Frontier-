@@ -88,7 +88,7 @@ void InterfaceTrialSequence::ConstructTrialLayout(InterfaceStructure& Structure)
     //      information is always legible, but their light is informational: they contribute NOTHING to the room.
     //    · TYPE 2, HMI elements (LightRole Illuminant, the default) — the telltale lamp, the toggle knob's LED, the
     //      meter's lit arc, the bar's fill. Like an LED in a car dashboard: the emission is physically real, feeds
-    //      the panel's scene luminaire (InterfaceLightProjection), pools on the plinth and shows in the chrome.
+    //      the panel's scene luminaire (InterfaceLightProjection), slots on the plinth and shows in the chrome.
 
     // ── Housing ──────────────────────────────────────────────────────────────────────────────────────────────────
     {

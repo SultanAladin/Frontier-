@@ -11,7 +11,7 @@
 //    Three jobs, and the split matters:
 //        · HOLD the state. One struct per entity, named as the reference panel names them, so the eventual
 //          panel is a projection of this rather than a translation of it.
-//        · ADVANCE it. One Tick that moves the clock, the wind phase and the precipitation pool, and re-solves
+//        · ADVANCE it. One Tick that moves the clock, the wind phase and the precipitation slots, and re-solves
 //          the ephemeris. Everything time-dependent happens in one place and in a fixed order.
 //        · PROJECT it. Rows for the outliner and sheets for the inspector, built from the same state the
 //          renderer reads — so what the editor shows is what the frame drew, not a parallel description of it.
@@ -124,27 +124,27 @@ public:
     //    so the GI-on and GI-off skies cannot be handed different suns. One call, so a caller cannot pack half of it.
     [[nodiscard]] SkyConstantRecord PackSkyRecord() const noexcept;
 
-    // The baked sky dome (roadmap #26 stage A) — the boolean and its guardrails. AssignSkyDomeSlot names the
+    // The precomputed sky dome (roadmap #26 stage A) — the boolean and its guardrails. AssignSkyDomeSlot names the
     //    bindless slot whose RGBA16F sheet carries the pre-integrated dome (radiance over transmittance,
-    //    SkyDomeSheet.h's own layout); AssignSkyDomeBaked flips the boolean. PackSkyRecord seats the slot into
+    //    SkyDomeSheet.h's own layout); AssignSkyDomePrecomputed flips the boolean. PackSkyRecord seats the slot into
     //    SkyControl.w ONLY while three things hold at once: the boolean is on, a slot is assigned, and the
-    //    CURRENT packed staging still matches the staging the bake was taken from (SkyDomeStagingMatches) —
+    //    CURRENT packed staging still matches the staging the precompute was taken from (SkyDomeStagingMatches) —
     //    so a re-staged sun quietly falls back to the analytic march rather than rendering yesterday's air.
     //    The editor stays analytic always (the owner's rule): the boolean defaults OFF and nothing in the
     //    development build flips it except the deliberate A/B toggle.
     void AssignSkyDomeSlot(uint32_t BindlessSlot) noexcept;
-    void AssignSkyDomeBaked(bool Baked) noexcept { SkyDomeBaked = Baked; }
-    [[nodiscard]] bool  QuerySkyDomeBaked() const noexcept { return SkyDomeBaked; }
+    void AssignSkyDomePrecomputed(bool Precomputed) noexcept { SkyDomePrecomputed = Precomputed; }
+    [[nodiscard]] bool  QuerySkyDomeBaked() const noexcept { return SkyDomePrecomputed; }
     [[nodiscard]] bool  QuerySkyDomeLive()  const noexcept;   // true only when the slot will actually pack this frame
-    // Bakes the dome for the CURRENT staging into RGBA16F halves (256 x 512 x 4) and remembers that staging as
-    //    the bake's own. The caller owns residency: seat the halves into a texture, then AssignSkyDomeSlot.
-    void BakeSkyDome(std::vector<uint16_t>& OutHalves) noexcept;
-    bool TakeSkyDomeBakeRequest() noexcept { const bool Requested=SkyPreviewBakeRequested; SkyPreviewBakeRequested=false; return Requested; }
-    // #26c the persisted bake: the dome ships as an `.environment` container (ENVR row + PROB blob carrying
-    //    the staging record and the halves), so a project loads the sheet instead of paying the ~2 s bake.
-    //    Save writes the CURRENT resident bake; Load seats the file's bake ONLY when its recorded staging
+    // Precomputes the dome for the CURRENT staging into RGBA16F halves (256 x 512 x 4) and remembers that staging as
+    //    the precompute's own. The caller owns residency: seat the halves into a texture, then AssignSkyDomeSlot.
+    void PrecomputeSkyDome(std::vector<uint16_t>& OutHalves) noexcept;
+    bool TakeSkyDomePrecomputeRequest() noexcept { const bool Requested=SkyPreviewPrecomputeRequested; SkyPreviewPrecomputeRequested=false; return Requested; }
+    // #26c the persisted precompute: the dome ships as an `.environment` container (ENVR row + PROB blob carrying
+    //    the staging record and the halves), so a project loads the sheet instead of paying the ~2 s precompute.
+    //    Save writes the CURRENT resident precompute; Load seats the file's precompute ONLY when its recorded staging
     //    still matches this staging (SkyDomeStagingMatches — the same rule the per-frame pack applies), so a
-    //    stale file quietly yields to the lazy runtime bake rather than rendering yesterday's air.
+    //    stale file quietly yields to the lazy runtime precompute rather than rendering yesterday's air.
     [[nodiscard]] bool SaveSkyDome(const std::string& Path, const std::vector<uint16_t>& Halves) const noexcept;
     [[nodiscard]] bool LoadSkyDome(const std::string& Path, std::vector<uint16_t>& OutHalves) noexcept;
 
@@ -237,10 +237,10 @@ public:
     CloudShadowStaging ShadowStaging = kCloudShadowPanelKm;  // GPU shadow weather (level owner overrides)
     float ShadowTimeSeconds = kCloudShadowPanelKm.TimeSeconds; // [s] frozen weather instant (see above)
     RainbowSettings      Rainbow{};
-    // Retain precisely the baked/uploaded half image for authoring, not a second procedural bake.
+    // Retain precisely the precomputed/uploaded half image for authoring, not a second procedural precompute.
     std::vector<uint16_t> SkyPreviewHalves;
     uint64_t SkyPreviewRevision=0;
-    bool SkyPreviewBakeRequested=false;
+    bool SkyPreviewPrecomputeRequested=false;
     AtmosphericOptics::LensFlareSettings Flare{};
     float FlarePreviewX=0.28f, FlarePreviewY=0.43f; // authoring preview pose, never camera direction
     MoonSlotState        MoonSlots[kMoonDrawCount]{};   // the roster: up to four bodies, panel's MAXM
@@ -273,14 +273,14 @@ public:
     //    can show the budget the frame is actually spending rather than a default.
     CelestialBudget Budget{};
 
-    // The baked sky dome's seat (roadmap #26 stage A). The slot is a bindless sampler2D[] index; the record is
-    //    the staging the bake was taken from, compared by PackSkyRecord every pack so a re-staged sun falls
+    // The precomputed sky dome's seat (roadmap #26 stage A). The slot is a bindless sampler2D[] index; the record is
+    //    the staging the precompute was taken from, compared by PackSkyRecord every pack so a re-staged sun falls
     //    back to the march. kNoSkyDomeSlot = nothing resident.
     static constexpr uint32_t kNoSkyDomeSlot = 0xFFFFFFFFu;
     uint32_t          SkyDomeSlot   = kNoSkyDomeSlot;
-    bool              SkyDomeBaked  = false;   // the boolean: OFF = analytic march (the editor's resting rule)
-    SkyConstantRecord SkyDomeRecord{};         // the staging the resident bake belongs to
-    bool              SkyDomeSeated = false;   // a bake has run and SkyDomeRecord is meaningful
+    bool              SkyDomePrecomputed  = false;   // the boolean: OFF = analytic march (the editor's resting rule)
+    SkyConstantRecord SkyDomeRecord{};         // the staging the resident precompute belongs to
+    bool              SkyDomeSeated = false;   // a precompute has run and SkyDomeRecord is meaningful
 
     [[nodiscard]] const CelestialFrame& Frame() const noexcept { return Solved; }
     [[nodiscard]] const PrecipitationSystem& Weather() const noexcept { return Rain; }

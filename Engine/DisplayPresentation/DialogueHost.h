@@ -14,7 +14,7 @@
 
 namespace Frontier {
 
-enum class DialogueToneCategory : uint32_t { Danger = 0, Success = 1, Info = 2, Warning = 3, Caution = 4 };
+enum class DialogueToneCategory : uint32_t { Danger = 0, Success = 1, Facts = 2, Warning = 3, Caution = 4 };
 
 enum class DialoguePresetCategory : uint32_t
 {
@@ -23,7 +23,7 @@ enum class DialoguePresetCategory : uint32_t
     ConfirmApply    = 2,   // green   "Apply changes?"              Cancel · Apply
     UnsavedChanges  = 3,   // orange  "Unsaved changes"             Discard · Keep editing · Apply
     ResetDefaults   = 4,   // orange  "Reset to defaults?"          Cancel · Reset
-    Info            = 5,   // blue    notice                        OK
+    Facts            = 5,   // blue    notice                        OK
     Success         = 6,   // green   notice                        OK
     Warning         = 7,   // orange  notice                        OK
     Caution         = 8,   // amber   notice                        OK

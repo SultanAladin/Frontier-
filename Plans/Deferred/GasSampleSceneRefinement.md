@@ -6,7 +6,7 @@ eight scenes is held.
 
 ## Why this is safe to defer
 
-The scenes are data, not code. `Experimental/Fluid/src/SampleScenes.js` holds eight definitions, each a preset
+The scenes are record, not code. `Experimental/Fluid/src/SampleScenes.js` holds eight definitions, each a preset
 identity plus a handful of overridden settings, a camera framing and four object names. Changing one is an
 edit to that file and nothing else:
 

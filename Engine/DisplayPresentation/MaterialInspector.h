@@ -5,7 +5,7 @@
 //    selection + complexity + slab counts, all 20 Sultan channels (value / source / texture), per-row constant
 //    editors, the cutout-threshold + shaderball-preview header controls, and the fold-report lines attributed to it.
 //
-// Data model: Rebuild() snapshots ONE material from a MaterialIndex every frame (the feeder — GameExecution or a
+// Packet model: Rebuild() snapshots ONE material from a MaterialIndex every frame (the feeder — GameExecution or a
 //    harness — calls it; the layout only reads the snapshot, so the F-panel summary stays fresh without opening the
 //    page) and retains the index as the Apply target (never owned). Rows read the RESOLVED slab — Flatten(descriptor,
 //    limit).front(), the slab the Tier A kernel samples and DeriveReflectance derives the selection from — never the
@@ -19,7 +19,7 @@
 //    drafts from the descriptors. Drafts survive selection switches (switching never touches them) and are keyed by
 //    (index pointer, material names) — a scene swap resets them. Sliders bind the draft (authoring top slab), so on
 //    a folded material the knob can disagree with the row's resolved value: the knob is what you edit, the row is
-//    what renders. Rows 05/13 (orientation: map-or-mesh-frame) and 20 (no carrier) have no editor.
+//    what renders. Rows 05/13 (orientation: map-or-topology-frame) and 20 (no carrier) have no editor.
 //
 // Revisions: Revision = selection (persisted [material] selected); CommitRevision = applied generation (every Apply
 //    with ≥1 change; the feeder edge-detects it to restart the accumulation); PreviewRevision = preview-toggle
@@ -63,7 +63,7 @@ static constexpr uint32_t kMaterialChannelRowCount = 20u;
 
 // What constant editor a channel row carries (structural — the layout and the proof share this table). Scalar = one
 //    slider on the row's primary carrier (row 06 edits the occlusion binding's Scalar); Rgb = three stacked sliders
-//    on the row's colour carrier; None = rows 05/13 (map-or-mesh-frame, no scalar primary) and 20 (no carrier).
+//    on the row's colour carrier; None = rows 05/13 (map-or-topology-frame, no scalar primary) and 20 (no carrier).
 enum class MaterialEditKind : uint8_t { None = 0u, Scalar = 1u, Rgb = 2u };
 
 [[nodiscard]] MaterialEditKind MaterialRowEditKind(uint32_t Row) noexcept;

@@ -26,7 +26,7 @@
 //    approximation, documented at SssChord). Interior hits skip both NEE strata, as before.
 //
 //    Kept harness: this file without SHADERBALL_PREVIEW_LIB, driven by RunShaderballExhibit.sh (NOT part of the
-//    materials gate — the full sheet is a ~5 min render). Mesh + sheet live in Exhibits/Gallery/Materials/.
+//    materials gate — the full sheet is a ~5 min render). Hull + sheet live in Exhibits/Gallery/Materials/.
 //    Build: g++ -std=c++20 -O2 -DFRONTIER_CPU_PORT -I Engine/DisplayPresentation
 //               -I Engine/Shaders Engine/ContentInterchange/ShaderballPreview.cpp
 //               Engine/DisplayPresentation/ShadingTableCodec.cpp -o /tmp/sb-exhibit
@@ -346,7 +346,7 @@ bool LoadObj(const char* Path, int Mat)
         }
     }
     std::fclose(F);
-    std::printf("[exhibit] mesh: %d tris from %s\n", Added, Path);
+    std::printf("[exhibit] topology: %d tris from %s\n", Added, Path);
     return Added > 0;
 }
 
@@ -590,7 +590,7 @@ vec3 Radiance(vec3 O, vec3 D, Rng& R, float SpectralWavelengthNm = 0.0f)
         bool prevNeeSkipped = NeeSkipped; NeeSkipped = false;
         if (!H.Valid)
         {
-            if (Inside)   // open mesh / numeric leak: nominal-Beer fallback, then out (closed meshes never land here)
+            if (Inside)   // open topology / numeric leak: nominal-Beer fallback, then out (closed geometries never land here)
             {
                 Beta = Beta * exp(-EntrySigma * g_Mats[EntryMat].TransmissionThickness);
                 Inside = false;
@@ -741,9 +741,9 @@ void RenderPanel(const Camera& C, int Panel, int Size, int Spp, std::vector<floa
     if (Threads == 0u) Threads = 2u;
     for (int Frame = 0; Frame < Spp; ++Frame)
     {
-        std::vector<std::thread> Pool;
+        std::vector<std::thread> Bank;
         for (unsigned Th = 0u; Th < Threads; ++Th)
-            Pool.emplace_back([&, Th]()
+            Bank.emplace_back([&, Th]()
             {
                 for (int Y = static_cast<int>(Th); Y < Size; Y += static_cast<int>(Threads))
                     for (int X = 0; X < Size; ++X)
@@ -760,7 +760,7 @@ void RenderPanel(const Camera& C, int Panel, int Size, int Spp, std::vector<floa
                         S[0] += Lc.x; S[1] += Lc.y; S[2] += Lc.z;
                     }
             });
-        for (auto& Th : Pool) Th.join();
+        for (auto& Th : Bank) Th.join();
     }
     float Inv = 1.0f / static_cast<float>(Spp);
     for (float& V : Film) V *= Inv;
@@ -780,11 +780,11 @@ float Aces(float X)
 
 struct StageStats { int Tris = 0; int Nodes = 0; int Lights = 0; };
 
-// The full stage rig main() has always built (mesh + ground + 3 softboxes, + tungsten when SssRig),
+// The full stage rig main() has always built (topology + ground + 3 softboxes, + tungsten when SssRig),
 // including the BVH build, the always-on audit, and the [exhibit] progress lines.
-bool SetupStage(const char* MeshPath, bool SssRig, StageStats& Out)
+bool SetupStage(const char* GeometryPath, bool SssRig, StageStats& Out)
 {
-    if (!LoadObj(MeshPath, 0)) { std::printf("[exhibit] cannot open %s\n", MeshPath); return false; }
+    if (!LoadObj(GeometryPath, 0)) { std::printf("[exhibit] cannot open %s\n", GeometryPath); return false; }
     AddGround(-0.865f, 15.0f, 1);
     vec3 Subject(0.0f, 0.0f, 0.0f);
     AddSoftbox(vec3(-2.6f, -1.4f, 2.6f), Subject - vec3(-2.6f, -1.4f, 2.6f), vec3(0.0f, 0.0f, 1.0f),
@@ -856,7 +856,7 @@ void BlitFilm(std::vector<unsigned char>& Sheet, int SheetW, int X0,
 #ifndef SHADERBALL_PREVIEW_LIB
 int main(int Argc, char** Argv)
 {
-    const char* MeshPath = "Exhibits/Gallery/Materials/shaderball.obj";
+    const char* GeometryPath = "Exhibits/Gallery/Materials/shaderball.obj";
     const char* OutPath = "Exhibits/Gallery/Materials/ShaderballSheet_GlassClothCoat.png";
     int Size = 400, Spp = 128;
     bool SolidSheet = false;   // --solid: thin-vs-solid diptych (same clear glass, traversal isolated)
@@ -866,7 +866,7 @@ int main(int Argc, char** Argv)
     for (int I = 1; I < Argc; ++I)
     {
         std::string A = Argv[I];
-        if (A == "--mesh" && I + 1 < Argc) MeshPath = Argv[++I];
+        if (A == "--topology" && I + 1 < Argc) GeometryPath = Argv[++I];
         else if (A == "--out" && I + 1 < Argc) { OutPath = Argv[++I]; OutGiven = true; }
         else if (A == "--size" && I + 1 < Argc) Size = std::atoi(Argv[++I]);
         else if (A == "--spp" && I + 1 < Argc) Spp = std::atoi(Argv[++I]);
@@ -875,12 +875,12 @@ int main(int Argc, char** Argv)
         else if (A == "--sss") { SssSheet = true; if (!OutGiven) OutPath = "Exhibits/Gallery/Materials/ShaderballSheet_Subsurface.png"; }
     }
 
-    Frontier::ShadingTableSet Tables = Frontier::ShadingTableCodec::Bake(1024u);
+    Frontier::ShadingTableSet Tables = Frontier::ShadingTableCodec::Precompute(1024u);
     g_Tables = &Tables;
     std::printf("[exhibit] tables baked\n");
 
     StageStats Stats;
-    if (!SetupStage(MeshPath, SssSheet, Stats)) return 1;
+    if (!SetupStage(GeometryPath, SssSheet, Stats)) return 1;
 
     Camera C;
     SetupCamera(C);
@@ -925,7 +925,7 @@ int main(int Argc, char** Argv)
 // mapped from an engine descriptor instead of a film record, so preview pixels are comparable with the
 // Gallery sheets by construction. Not part of the exhibit binary (the guard selects it).
 //
-// Fidelity limits (see ShaderballPreview.h): constants only (no texture pipeline), no cutout (the record
+// Fidelity limits (see ShaderballPreview.h): constants only (no texture chain), no cutout (the record
 // carries no alpha — the ball renders opaque), Slabs[0] only, standard rig, exposure 1.
 //====================================================================================================================
 namespace Frontier {
@@ -945,19 +945,19 @@ static_assert(static_cast<uint>(MaterialReflectance::Unlit) == kReflectanceUnlit
 bool RenderShaderballPreview(const ShaderballPreviewRequest& Req, ShaderballPreviewResult& Out) noexcept
 {
     Out = ShaderballPreviewResult{};
-    if (!Req.Material || Req.Material->Slabs.empty() || !Req.MeshPath || !Req.OutPath) return false;
+    if (!Req.Material || Req.Material->Slabs.empty() || !Req.GeometryPath || !Req.OutPath) return false;
     if (Req.Size <= 0 || Req.Spp <= 0) return false;
     const MaterialSlabDescriptor& S = Req.Material->Slabs[0];
     const uint32_t F = Req.Material->Flags;
 
     g_Tris.clear(); g_Nodes.clear(); g_Order.clear(); g_Lights.clear();   // the entry may run many times per process
 
-    Frontier::ShadingTableSet Tables = Frontier::ShadingTableCodec::Bake(1024u);
+    Frontier::ShadingTableSet Tables = Frontier::ShadingTableCodec::Precompute(1024u);
     g_Tables = &Tables;
     std::printf("[preview] tables baked\n");
 
     StageStats Stats;
-    if (!SetupStage(Req.MeshPath, false, Stats)) return false;   // the standard rig (tungsten is SSS-sheet-only)
+    if (!SetupStage(Req.GeometryPath, false, Stats)) return false;   // the standard rig (tungsten is SSS-sheet-only)
 
     // Descriptor -> record: StandardMaterial seeds every field (CoatTangent/Normal identity, SssThickness 0 with
     // the tracer filling it per hit, exactly like the film records); the fold below overwrites from the slab.

@@ -80,7 +80,7 @@ void RayTracingSolver::ConstructCornellBoxScene() noexcept
     //    sun shaft to land on and enough height for the shaft to read as a shaft rather than a bright patch.
     //
     //    ⚠️ The emissive quad MUST remain the last geometry appended — the shader addresses light
-    //       triangles as the trailing LightTriangleCount entries of the triangle buffer.
+    //       triangles as the trailing LightTriangleCount entries of the triangle store.
 
     // Room and aperture bounds. Named rather than inlined because the ceiling is built as four strips around the
     //    hole and every strip has to agree with the others on where the opening is.

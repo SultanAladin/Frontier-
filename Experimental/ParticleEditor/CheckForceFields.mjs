@@ -171,15 +171,15 @@ Banner("What can be baked into the lattice, and what cannot");
     BaseField("attract"),
     { ...BaseField("current"), Acts: ["water"] },
   ];
-  const { Baked, Live } = Bakeable(Fields);
-  Check(Baked.length === 2 && Baked.every((One) => KindById(One.Kind).Give === Contribution.Flow),
+  const { Precomputed, Live } = Bakeable(Fields);
+  Check(Precomputed.length === 2 && Precomputed.every((One) => KindById(One.Kind).Give === Contribution.Flow),
         "the unselective flow fields sum into one velocity lattice, however many there are");
   Check(Live.some((One) => One.Kind === "gravity") && Live.some((One) => One.Kind === "attract"),
         "the acceleration fields stay live, because a bounded texture cannot hold an unbounded pull");
   Check(Live.some((One) => One.Kind === "current"),
         "💡 and a flow field that names channels also stays live -- one shared texture cannot both "
         + "include and exclude the same receiver, which is the real reason selectivity costs something");
-  Check(Baked.length + Live.length === Fields.length, "every field lands in exactly one of the two");
+  Check(Precomputed.length + Live.length === Fields.length, "every field lands in exactly one of the two");
 }
 
 //---------------------------------------------------------------------------------------------------------
@@ -231,7 +231,7 @@ console.log("\nPASS " + Checks);
 //
 // Wind components and force fields were two arrays with two shapes edited in two panels. They are one
 // list now. The only way that is a refactor rather than a rewrite is if the payloads the GPU receives are
-// the same ones it received before, so this asserts the new list against the original hand-written data
+// the same ones it received before, so this asserts the new list against the original hand-written record
 // still sitting in presets.js, field by field, rather than against a description of it.
 //---------------------------------------------------------------------------------------------------------
 import { PE } from "./js/pe.js";

@@ -5,10 +5,10 @@ if(CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
 endif()
 get_filename_component(FRONTIER_SOURCE_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/../.." ABSOLUTE)
 add_library(ProjectFluidCore STATIC
-    Source/GpuSurfaceData.cpp Source/GpuSurfaceData.h
+    Source/GpuSurfacePayload.cpp Source/GpuSurfacePayload.h
     Source/PbfFluid.cpp Source/PbfFluid.h
     Source/SurfaceReconstruction.cpp Source/SurfaceReconstruction.h
-    Source/AnisotropicSurfaceMesh.cpp Source/AnisotropicSurfaceMesh.h
+    Source/AnisotropicSurfaceGeometry.cpp Source/AnisotropicSurfaceGeometry.h
     Source/PondWave.cpp Source/PondWave.h
     Source/PondBody.cpp Source/PondBody.h
     Source/MarchingCubesTables.h)
@@ -22,7 +22,7 @@ endif()
 
 add_executable(Project-Fluid-CPU Source/CpuProofMain.cpp)
 target_link_libraries(Project-Fluid-CPU PRIVATE ProjectFluidCore)
-add_executable(Project-Fluid-Surface-Test Source/SurfaceMeshTest.cpp)
+add_executable(Project-Fluid-Surface-Test Source/SurfaceGeometryTest.cpp)
 target_link_libraries(Project-Fluid-Surface-Test PRIVATE ProjectFluidCore)
 add_executable(Project-Fluid-Pond-CPU Source/PondProofMain.cpp)
 target_link_libraries(Project-Fluid-Pond-CPU PRIVATE ProjectFluidCore)

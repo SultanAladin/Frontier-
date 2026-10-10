@@ -30,8 +30,8 @@ def load_slate_icons(root):
         scene=next(e for e in svg if e.tag=='g')
         badge=list(scene)[-1]
         if badge.tag!='g' or 'filter' not in badge.attrib:raise ValueError(f'Unexpected badge: {key}')
-        main=ET.Element('g',{'data-slate-layout':'main','transform':'matrix('+ ' '.join(map(str,layout['mainTransform'])) +')'})
-        corner=ET.Element('g',{'data-slate-layout':'badge','data-corner':layout['side'],'transform':'matrix('+ ' '.join(map(str,layout['badgeTransform'])) +')'})
+        main=ET.Element('g',{'record-slate-layout':'main','transform':'matrix('+ ' '.join(map(str,layout['mainTransform'])) +')'})
+        corner=ET.Element('g',{'record-slate-layout':'badge','record-corner':layout['side'],'transform':'matrix('+ ' '.join(map(str,layout['badgeTransform'])) +')'})
         for child in list(scene):
             scene.remove(child)
             (corner if child is badge else main).append(child)

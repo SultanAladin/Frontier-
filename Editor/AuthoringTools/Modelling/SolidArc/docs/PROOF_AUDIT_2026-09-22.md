@@ -1569,7 +1569,7 @@ The bounded plan is `docs/PLAN_Batch63_RectangularSlotHoledAndSlotProfileBoredFa
 ## Batch 64 — exact circular-bored rounded-rectangular and rounded-rectangular-holed prism upper-cap face offsets (2026-09-29)
 
 This consolidated batch covers the first filleted-rectangle domains, where a profile or
-through-hole is an exact analytic tangent line/arc composite (degree-two rational closed curve,
+through-hole is an exact analytic tangent line/arc combined (degree-two rational closed curve,
 seventeen poles):
 
 - `CircularBoredRoundedRectangularAndRoundedRectangularHoledFaceOffsetVerification` constructs a
@@ -1584,7 +1584,7 @@ seventeen poles):
   `OffsetCircularBoredRoundedRectangularPrism` and `OffsetExtrudedRoundedRectangularHoledPrism`
   recognize only the strict canonical sources through their two-loop +Z planar caps, verify bore
   containment inside the fillet-inscribed central rectangle and full edge/face censuses, and
-  rebuild fresh exact extrusions while retaining planar, linear, circular, and filleted-composite
+  rebuild fresh exact extrusions while retaining planar, linear, circular, and filleted-combined
   extrusion supports without healing, tessellation, or source mutation.
 - The verifier checks distances 0.5, 1.5, and 3.0, exact topology, caps, face and support
   censuses, the volume identities `4ab − (4−π)r² − πρ²` and `4AB − (4ab − (4−π)r²)` times the

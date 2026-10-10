@@ -84,7 +84,7 @@ try {
     }).getAttribute("aria-checked"),
     "true",
   );
-  await Editor.locator('[data-card="Fracture"]').scrollIntoViewIfNeeded();
+  await Editor.locator('[record-card="Fracture"]').scrollIntoViewIfNeeded();
   await Capture(Editor, "ObjectInspector");
   const Wait = Context.waitForEvent("page");
   await Editor.getByRole("button", {
@@ -97,7 +97,7 @@ try {
   assert.equal((await Snapshot(Sphere)).Owner.Id, "sphere");
   assert.equal((await Snapshot(Sphere)).Owner.Primitive, "sphere");
   assert.equal((await Snapshot(Sphere)).Linked, true);
-  assert.equal(await Sphere.locator("[data-material]").count(), 6);
+  assert.equal(await Sphere.locator("[record-material]").count(), 6);
   assert(
     !(await Sphere.locator("body").innerText())
       .toLowerCase()
@@ -157,9 +157,9 @@ try {
     "Explanatory blocks removed; shaded fracture illustrations replace wire diagrams and respond to both quality controls",
   );
   const SourceGeometry = await ShapeSignature(Sphere);
-  await Sphere.locator('[data-material="wood"]').click();
+  await Sphere.locator('[record-material="wood"]').click();
   assert.equal(await ShapeSignature(Sphere), SourceGeometry);
-  await Sphere.locator('[data-material="concrete"]').click();
+  await Sphere.locator('[record-material="concrete"]').click();
   const Dynamic = await Generate(Sphere);
   assert(Dynamic.Result.Count > 10);
   await Capture(Sphere, "Sphere");
@@ -184,13 +184,13 @@ try {
   await Sphere.locator("#bake").click();
   await Sphere.waitForFunction(
     () =>
-      window.FrontierFracture.snapshot().Baked &&
+      window.FrontierFracture.snapshot().Precomputed &&
       !window.FrontierFracture.snapshot().Busy,
   );
   const StoredGeometry = await ShapeSignature(Sphere),
     Signature = (await Snapshot(Sphere)).Signature;
   await Sphere.locator(".bake-card").scrollIntoViewIfNeeded();
-  await Capture(Sphere, "Baked");
+  await Capture(Sphere, "Precomputed");
   await Generate(Sphere);
   assert((await Snapshot(Sphere)).Result.Replay);
   assert.equal(await ShapeSignature(Sphere), StoredGeometry);
@@ -203,10 +203,10 @@ try {
   assert(Content.Geometry.length > 1);
   assert.equal(Content.Signature, Signature);
   Checks.push(
-    "Baked mode refuses missing geometry; IndexedDB bake/replay and actual JSON download agree",
+    "Precomputed mode refuses missing geometry; IndexedDB bake/replay and actual JSON download agree",
   );
   await Sphere.reload();
-  await Sphere.waitForFunction(() => window.FrontierFracture?.snapshot().Baked);
+  await Sphere.waitForFunction(() => window.FrontierFracture?.snapshot().Precomputed);
   await Generate(Sphere);
   assert.equal(await ShapeSignature(Sphere), StoredGeometry);
   await Editor.waitForFunction(() =>
@@ -223,7 +223,7 @@ try {
   await Sphere.waitForFunction(
     () => window.FrontierFracture.snapshot().Owner.Scale[0] === 1.4,
   );
-  assert(!(await Snapshot(Sphere)).Baked);
+  assert(!(await Snapshot(Sphere)).Precomputed);
   assert(await Sphere.locator("#fracture").isDisabled());
   assert.deepEqual((await Snapshot(Sphere)).Bounds, [1.4, 1, 1]);
   assert(
@@ -232,14 +232,14 @@ try {
   await Editor.getByRole("spinbutton", { name: "Scale X", exact: true }).fill(
     "1",
   );
-  await Sphere.waitForFunction(() => window.FrontierFracture.snapshot().Baked);
+  await Sphere.waitForFunction(() => window.FrontierFracture.snapshot().Precomputed);
   Checks.push(
     "Object scale is applied; changing source geometry invalidates baked replay",
   );
-  await Sphere.locator('[data-setting="Seed"][type="number"]').fill("93");
-  assert(!(await Snapshot(Sphere)).Baked);
+  await Sphere.locator('[record-setting="Seed"][type="number"]').fill("93");
+  assert(!(await Snapshot(Sphere)).Precomputed);
   await Sphere.locator("#dynamic-mode").click();
-  await Sphere.locator('[data-material="wood"]').click();
+  await Sphere.locator('[record-material="wood"]').click();
   await Editor.waitForFunction(
     () =>
       JSON.parse(localStorage.getItem("Frontier.Fracture.v2:sphere")).Settings
@@ -260,8 +260,8 @@ try {
   await Ready(Cube);
   assert.equal((await Snapshot(Cube)).Owner.Id, "cube");
   assert.equal((await Snapshot(Cube)).Settings.Material, "concrete");
-  assert.equal((await Snapshot(Cube)).Baked, false);
-  await Cube.locator('[data-material="glass"]').click();
+  assert.equal((await Snapshot(Cube)).Precomputed, false);
+  await Cube.locator('[record-material="glass"]').click();
   assert.equal((await Snapshot(Sphere)).Settings.Material, "wood");
   assert.equal((await Snapshot(Sphere)).Settings.Seed, 93);
   await Generate(Cube);
@@ -278,12 +278,12 @@ try {
   );
   assert(await Cube.locator("#fracture").isDisabled());
   assert(await Cube.locator("#bake").isDisabled());
-  assert(await Cube.locator('[data-material="wood"]').isDisabled());
+  assert(await Cube.locator('[record-material="wood"]').isDisabled());
   Checks.push(
     "Disabling fracture in the inspector disables its already-open editor",
   );
   await Editor.close();
-  await Sphere.locator('[data-material="rock"]').click();
+  await Sphere.locator('[record-material="rock"]').click();
   const Reopened = await Context.newPage();
   await Reopened.goto(EditorUrl);
   await Reopened.getByRole("switch", {
@@ -315,7 +315,7 @@ try {
   Checks.push(
     "Reopening the main editor preserves edits made while it was closed",
   );
-  // Duplicates own a new scene ID and cannot inherit another ID's baked receipt.
+  // Duplicates own a new scene ID and cannot inherit another ID's precomputed receipt.
   await Reopened.locator(".outliner-row.selected").click({ button: "right" });
   await Reopened.getByRole("button", {
     name: "Duplicate",
@@ -332,8 +332,8 @@ try {
   assert.notEqual((await Snapshot(Duplicate)).Owner.Id, "sphere");
   assert.equal((await Snapshot(Duplicate)).Owner.Primitive, "sphere");
   assert.equal((await Snapshot(Duplicate)).Settings.Material, "rock");
-  assert.equal((await Snapshot(Duplicate)).Settings.Baked, undefined);
-  assert.equal((await Snapshot(Duplicate)).Baked, false);
+  assert.equal((await Snapshot(Duplicate)).Settings.Precomputed, undefined);
+  assert.equal((await Snapshot(Duplicate)).Precomputed, false);
   await Reopened.locator(".outliner-row.selected").click({ button: "right" });
   await Reopened.getByRole("button", {
     name: "Disable fracture",
@@ -369,7 +369,7 @@ try {
       !window.FrontierFracture.snapshot().Receipt &&
       !window.FrontierFracture.snapshot().Busy,
   );
-  assert.equal((await Snapshot(Cube)).Baked, false);
+  assert.equal((await Snapshot(Cube)).Precomputed, false);
   Checks.push("Clearing a bake only removes that object’s fragment receipt");
   await Reopened.getByRole("button", {
     name: "Outliner menu",
@@ -405,7 +405,7 @@ try {
     ["cube", "plastic", "Plastic"],
   ]) {
     await Specimen.locator("#primitive").selectOption(Primitive);
-    await Specimen.locator('[data-material="' + Material + '"]').click();
+    await Specimen.locator('[record-material="' + Material + '"]').click();
     await Specimen.locator("#separation").fill("18");
     const Reading = await Generate(Specimen);
     assert(Reading.Result.Count > 1);
@@ -422,7 +422,7 @@ try {
     );
   }
   await Specimen.locator("#primitive").selectOption("sphere");
-  await Specimen.locator('[data-material="glass"]').click();
+  await Specimen.locator('[record-material="glass"]').click();
   await Specimen.locator("#viewport canvas").click({
     position: { x: 440, y: 330 },
     modifiers: ["Shift"],

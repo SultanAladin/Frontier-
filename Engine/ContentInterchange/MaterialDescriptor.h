@@ -103,7 +103,7 @@ struct MaterialSlabDescriptor
     // Geometry
     float GeometryOpacity                = 1.0f;
     //    geometry_normal / geometry_tangent / geometry_coat_normal / geometry_coat_tangent are the texture channels below
-    //    (constant vectors are the mesh frame by definition).
+    //    (constant vectors are the topology frame by definition).
 
     // `slate_` extensions (MaterialSystemResearch-2026.md §7 decision 2) — serialised as glTF extras.slate_*
     float SlateHazinessWeight            = 0.0f;                  // second specular lobe weight

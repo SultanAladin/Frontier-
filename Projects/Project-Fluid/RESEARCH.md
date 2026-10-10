@@ -28,7 +28,7 @@ The floating duck remains the source's lightweight kinematic/buoyant coupling,
 not a rigid-body pressure solve. It uses bounded 1/120 s substeps, surface-slope
 drift, spring/damper heave, wet-mask containment, smooth heading, and finite bow
 mound/stern depression disturbances. Thus wakes are solver state rather than
-painted trails. The CPU proof samples the real adaptive mesh and its normals,
+painted trails. The CPU proof samples the real adaptive topology and its normals,
 uses the five source-style optical presets, and visibly draws the domain and rock
 obstacles. Limitations are explicit: a height field cannot overturn, break,
 represent vertical jets, or provide the localized 3D behavior of Flux.
@@ -65,7 +65,7 @@ commit. `Project-Fluid-CPU` is the deterministic headless path used for proof.
 - The authoritative CPU proof now evaluates the sum of all bounded,
   volume-normalized PCA kernels on a 3D field. Only dirty 8³-cell bricks are
   reevaluated. Indexed Marching Cubes chunks are rebuilt for those bricks and
-  welded by global grid-edge identity. Recorded proof meshes have zero open and
+  welded by global grid-edge identity. Recorded proof geometries have zero open and
   zero non-manifold edges. The previous depth/thickness projection remains only
   as the interactive Vulkan fallback.
 - Vulkan kernels use Frontier's `.slang` file convention and lower to SPIR-V.
@@ -83,12 +83,12 @@ commit. `Project-Fluid-CPU` is the deterministic headless path used for proof.
 - Native capillarity now evaluates the complete Flux/Akinci pair model: weighted
   color-field normals, the piecewise cohesion kernel, equal/opposite pair
   scattering, density-deficiency correction, and sampled-solid adhesion.
-- Mesh normals are finite differences of the summed density field, not
+- Hull normals are finite differences of the summed density field, not
   screen-space depth gradients. One positive and one negative Laplacian pass
-  provide mild Taubin smoothing; the mesh is then uniformly rescaled around its
+  provide mild Taubin smoothing; the topology is then uniformly rescaled around its
   centroid to restore its exact pre-smoothing signed volume. The OBJ exporter
   writes this same indexed surface. This implements the requested Yu–Turk field
-  and mesh stage but does not claim the paper's exact parameter calibration.
+  and topology stage but does not claim the paper's exact parameter calibration.
 - The WebGL anisotropic screen-space reconstruction is not falsely relabeled as
   ReSTIR. Future ReSTIR integration consumes an immutable particle/surface
   snapshot after the fixed step, writes fluid motion vectors, and rejects
@@ -100,7 +100,7 @@ commit. `Project-Fluid-CPU` is the deterministic headless path used for proof.
 
 # CPU fluid research notes — Flux 0.3
 
-Flux is a browser-scale adaptation of published ideas, not a reproduction of the papers' complete pipelines or reported results. All simulation, surface-neighborhood analysis, and material-response evaluation run on the CPU. WebGL 2 renders the output.
+Flux is a browser-scale adaptation of published ideas, not a reproduction of the papers' complete chains or reported results. All simulation, surface-neighborhood analysis, and material-response evaluation run on the CPU. WebGL 2 renders the output.
 
 ## 1. Surface tension and wetting
 
@@ -145,7 +145,7 @@ This weights its contribution according to local solid-sample density. The sampl
 
 The fluid/solid neighbor graphs use spatial hashing and are rebuilt during projection, rather than retaining an arbitrarily stale graph for the entire solve. A box projection and sphere signed-distance constraint provide a geometric nonpenetration safety net. The collider's 0.0785 center-clearance represents half a rest particle spacing.
 
-The basin samples end at the visible rim, but the box safety bounds still confine particles above it; **spill-out over the rim is not modeled**. Solids are stationary and infinitely massive: forces are not integrated into rigid-body motion. This is **one-way static coupling**, not the complete two-way method in the paper or support for arbitrary meshes.
+The basin samples end at the visible rim, but the box safety bounds still confine particles above it; **spill-out over the rim is not modeled**. Solids are stationary and infinitely massive: forces are not integrated into rigid-body motion. This is **one-way static coupling**, not the complete two-way method in the paper or support for arbitrary geometries.
 
 ### Pressure accuracy
 
@@ -197,7 +197,7 @@ The temperature exponent is limited to [-3, 3] and apparent viscosity to at most
 | Honey | 25°C | 6,500 K | 0 |
 | Chocolate | 40°C | 5,000 K | 0.8 |
 
-**These parameters are illustrative, not measured values for the named materials.** Temperature is prescribed uniformly throughout the liquid. There is no heat transport, latent heat, melting, tempering, crystallization, thermal expansion, yield-stress threshold, or thixotropic memory. Cold chocolate still remains a fluid in this model. Carreau describes continuous thinning, not a true solid-to-liquid transition.
+**These parameters are illustrative, not measured values for the named materials.** Temperature is prescribed uniformly throughout the liquid. There is no heat transport, latent heat, melting, tempering, crystallization, thermal expansion, yield-stress threshold, or thixotropic storage. Cold chocolate still remains a fluid in this model. Carreau describes continuous thinning, not a true solid-to-liquid transition.
 
 The effective viscosity field is evaluated before each implicit viscosity solve and frozen during that linear solve. Fluid-pair coefficients use the symmetric harmonic mean of the two apparent viscosities. Boundary coupling uses the local fluid coefficient. Changing temperature or thinning while paused refreshes the diagnostic field without advancing particle motion.
 

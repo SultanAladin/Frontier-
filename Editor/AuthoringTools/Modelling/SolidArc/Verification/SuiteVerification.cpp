@@ -2,7 +2,7 @@
 // 📦 Editor/EditorTools/ParametricSketcher/Verification/SuiteVerification.cpp — Phase 10: end-to-end chain run by every per-phase script, plus the contact sheet
 //============================================================================================================================================
 // Verifies that every per-phase .arc script (Phases 2-9b) runs cleanly and produces its expected proof, and that the new
-//    Phase 10 contact sheet is a valid 2x2 composite of four tiles. The check set is intentionally different from the kernel
+//    Phase 10 contact sheet is a valid 2x2 combined of four tiles. The check set is intentionally different from the kernel
 //    verifications: where those exercise the math against closed forms, this one exercises the console / scene / render path
 //    end to end — the same path a user would hit in a REPL session.
 #include "Console/ConsoleHost.h"
@@ -23,10 +23,10 @@ namespace
 {
     // Read the first few PNG chunks and report width / height / bit depth / colour type. Returns true on a valid PNG.
     // The writer in Presentation/SoftwareRaster.cpp emits: 8-byte signature, IHDR, IDAT(s), IEND. We only inspect the IHDR.
-    struct PngInfo { uint32_t Width = 0; uint32_t Height = 0; uint32_t BitDepth = 0; uint32_t ColourType = 0; uint64_t FileSize = 0; };
-    bool ReadPngInfo(const std::filesystem::path& Path, PngInfo& Out)
+    struct PngDetails { uint32_t Width = 0; uint32_t Height = 0; uint32_t BitDepth = 0; uint32_t ColourType = 0; uint64_t FileSize = 0; };
+    bool ReadPngDetails(const std::filesystem::path& Path, PngDetails& Out)
     {
-        Out = PngInfo{};
+        Out = PngDetails{};
         std::ifstream In(Path, std::ios::binary);
         if (!In) return false;
         In.seekg(0, std::ios::end); Out.FileSize = uint64_t(In.tellg()); In.seekg(0, std::ios::beg);
@@ -43,12 +43,12 @@ namespace
             char Type[5] = { char(Header[4]), char(Header[5]), char(Header[6]), char(Header[7]), 0 };
             if (std::strcmp(Type, "IHDR") == 0)
             {
-                unsigned char Data[13] = {};
-                In.read(reinterpret_cast<char*>(Data), 13);
+                unsigned char Packet[13] = {};
+                In.read(reinterpret_cast<char*>(Packet), 13);
                 if (In.gcount() != 13) return false;
-                Out.Width = (uint32_t(Data[0]) << 24) | (uint32_t(Data[1]) << 16) | (uint32_t(Data[2]) << 8) | Data[3];
-                Out.Height = (uint32_t(Data[4]) << 24) | (uint32_t(Data[5]) << 16) | (uint32_t(Data[6]) << 8) | Data[7];
-                Out.BitDepth = Data[8]; Out.ColourType = Data[9];
+                Out.Width = (uint32_t(Packet[0]) << 24) | (uint32_t(Packet[1]) << 16) | (uint32_t(Packet[2]) << 8) | Packet[3];
+                Out.Height = (uint32_t(Packet[4]) << 24) | (uint32_t(Packet[5]) << 16) | (uint32_t(Packet[6]) << 8) | Packet[7];
+                Out.BitDepth = Packet[8]; Out.ColourType = Packet[9];
                 return true;
             }
             In.seekg(int64_t(Length) + 4, std::ios::cur);
@@ -69,7 +69,7 @@ namespace
 
 int main()
 {
-    VerificationPanel Panel("SolidArc · Phase 10 · Suite Verification — every per-phase script runs cleanly; the contact sheet is a valid 2x2 composite");
+    VerificationPanel Panel("SolidArc · Phase 10 · Suite Verification — every per-phase script runs cleanly; the contact sheet is a valid 2x2 combined");
 
     // CMake bakes the source root into the binary at build time (see CMakeLists.txt target_compile_definitions).
     //    Using a compile-time path means the verification works regardless of cwd — ctest, the user, or a
@@ -147,17 +147,17 @@ int main()
         std::string Error; int Code = RunScript(SolidArc, Scripts / "Phase10_Suite.arc", SourceRoot, Error);
         Panel.Expect("Phase10_Suite.arc runs without refusal", Code == 0);
         std::filesystem::path Proof = Proofs / "Phase10_Suite.png";
-        PngInfo Info; bool Ok = ReadPngInfo(Proof, Info);
-        Panel.Expect("Phase10_Suite.png exists, valid PNG, 1280 × 800", Ok && Info.Width == 1280 && Info.Height == 800 && Info.BitDepth == 8 && Info.ColourType == 6);
-        Panel.Within("Phase10_Suite.png is non-trivial (size > 200 KB)", double(Info.FileSize), 1e18);
+        PngDetails Facts; bool Ok = ReadPngDetails(Proof, Facts);
+        Panel.Expect("Phase10_Suite.png exists, valid PNG, 1280 × 800", Ok && Facts.Width == 1280 && Facts.Height == 800 && Facts.BitDepth == 8 && Facts.ColourType == 6);
+        Panel.Within("Phase10_Suite.png is non-trivial (size > 200 KB)", double(Facts.FileSize), 1e18);
     }
     {
         std::string Error; int Code = RunScript(SolidArc, Scripts / "Phase10_ContactSheet.arc", SourceRoot, Error);
         Panel.Expect("Phase10_ContactSheet.arc runs without refusal", Code == 0);
         std::filesystem::path Proof = Proofs / "Phase10_ContactSheet.png";
-        PngInfo Info; bool Ok = ReadPngInfo(Proof, Info);
-        Panel.Expect("Phase10_ContactSheet.png exists, valid PNG, 2560 × 1600 (2x2 of 1280×800)", Ok && Info.Width == 2560 && Info.Height == 1600 && Info.BitDepth == 8 && Info.ColourType == 6);
-        Panel.Within("Phase10_ContactSheet.png is non-trivial (size > 600 KB)", double(Info.FileSize), 1e18);
+        PngDetails Facts; bool Ok = ReadPngDetails(Proof, Facts);
+        Panel.Expect("Phase10_ContactSheet.png exists, valid PNG, 2560 × 1600 (2x2 of 1280×800)", Ok && Facts.Width == 2560 && Facts.Height == 1600 && Facts.BitDepth == 8 && Facts.ColourType == 6);
+        Panel.Within("Phase10_ContactSheet.png is non-trivial (size > 600 KB)", double(Facts.FileSize), 1e18);
     }
 
     // ─── 3) Spot-check that the contact sheet has four non-empty tiles ────────────────────────────────────
@@ -191,7 +191,7 @@ int main()
             { "view dolly 0.5",                                  true,  "dolly is a no-op on the default view"  },
             { "render Phase10_Suite_Smoke",                      true,  "an out-of-tree render lands"           },
             { "render sheet 0",                                  true,  "contact sheet tile 0 capture"          },
-            { "render sheet finalize Phase10_Sheet_Smoke",       true,  "contact sheet composite (1 tile)"      },
+            { "render sheet finalize Phase10_Sheet_Smoke",       true,  "contact sheet combined (1 tile)"      },
             { "reset",                                           true,  "scene + undo reset"                    },
         };
         for (const Cmd& C : Sanity)

@@ -6,7 +6,7 @@
 //    stay C++-only. Nothing else in the engine may define MINIAUDIO_IMPLEMENTATION; AudioExchange.cpp includes the header
 //    for declarations only.
 //
-//    Feature knobs — Phase A uses miniaudio for one thing: a low-level playback device with a realtime data callback.
+//    Feature knobs — Phase A uses miniaudio for one thing: a low-level playback device with a realtime record callback.
 //    Everything the engine does not need is compiled out so the TU stays small and no hidden threads or decoders exist:
 //        MA_NO_ENGINE            high-level engine / sound graph  (the powertrain synth is its own integrator)
 //        MA_NO_RESOURCE_MANAGER  async file loading + its worker thread

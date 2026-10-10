@@ -28,7 +28,7 @@ TransportKind Active = TransportKind::None;
 TransportPhase Phase = TransportPhase::Idle;
 char Reading[256]{};
 bool FellBack = false;
-char CatalogBuffer[1024]{};
+char CatalogStore[1024]{};
 const char* CatalogPtrs[8]{};
 unsigned CatalogParsed = 0;
 char IdentityToken[8192]{};
@@ -46,8 +46,8 @@ unsigned ParseCatalogIds() noexcept
     const char* Env = std::getenv("EOS_CATALOG_ITEM_IDS");
     if (!Env || !*Env)
         return 0;
-    std::snprintf(CatalogBuffer, sizeof(CatalogBuffer), "%s", Env);
-    char* Cursor = CatalogBuffer;
+    std::snprintf(CatalogStore, sizeof(CatalogStore), "%s", Env);
+    char* Cursor = CatalogStore;
     while (*Cursor && CatalogParsed < 8)
     {
         while (*Cursor == ' ' || *Cursor == '\t' || *Cursor == ',')
@@ -119,9 +119,9 @@ bool BeginPhotonConnect() noexcept
 
 void WipeTokens() noexcept
 {
-    for (auto* Buffer : {IdentityToken, OwnershipToken})
+    for (auto* Block : {IdentityToken, OwnershipToken})
     {
-        volatile char* Bytes = Buffer;
+        volatile char* Bytes = Block;
         for (std::size_t Index = 0; Index < 8192; ++Index)
             Bytes[Index] = 0;
     }

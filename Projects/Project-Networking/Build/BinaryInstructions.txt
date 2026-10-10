@@ -5,10 +5,10 @@ START
    it is not already installed. Open Charge.exe, the configured Epic Bootstrapper.
 2. For portable login and EOS cloud history, put PRIVATE Charge.local.ini next
    to Charge.exe. Carry this SAME file to each PC. It contains readable client
-   credentials and the 64-hex-character player-data encryption key: keep it private.
+   credentials and the 64-hex-character player-record encryption key: keep it private.
    It is deliberately NOT in this public ZIP. Never commit or share it.
 3. Click Log in. The existing Windows vault route also works, but cloud history
-   needs the data key from the private file (or Setup > Advanced).
+   needs the record key from the private file (or Setup > Advanced).
 4. Optional: Setup offers auto-login (uses the Epic token saved on this PC, no
    browser on later runs), forget-auto-login (revokes that token), the app
    UI language (English / Simplified Chinese, applied instantly), and the manual
@@ -17,7 +17,7 @@ START
 FLOW
 Verified Auth + Connect -> automatic EOS lobby/RTC room and prepared match session
 -> mark yourself ready -> mark local dummy players ready -> start EOS match session
--> End test match -> cache and queue a completed test record to EOS Player Data Storage.
+-> End test match -> cache and queue a completed test record to EOS Player Packet Storage.
 The host can disable auto-start. Prepare next match recreates the ended session.
 Use the Browse tab to search lobbies by tags (style, language, map, mode on the
 server; open / in-match / full and public / presence / invite locally) or join
@@ -66,7 +66,7 @@ can hear you: test with a second eligible Epic account on another PC.
 Microsoft's hash-pinned XAudio2 redistributable is included under App, with notices.
 
 CLOUD HISTORY
-Client policy must allow the lobby, sessions, voice and Player Data Storage actions
+Client policy must allow the lobby, sessions, voice and Player Packet Storage actions
 used by this test app. Use minimal appropriate client permissions, not admin or
 trusted-server permissions. An EOS access/policy failure is displayed in the log.
 Cloud records include successful-login UTC, prepared session ID, completed or
@@ -75,8 +75,8 @@ scores or gameplay results. This is client-written history, not trusted competit
 statistics or an EOS Stats leaderboard. Up to 64 recent records are shown.
 
 Records are separate immutable event files to avoid overwriting another PC's log.
-Local cache/pending uploads: %LOCALAPPDATA%\FrontierCharge\dev-v1\history\<PUID>.
-Keep the same storage_key on both PCs. Losing/changing it can make old cloud data
+Local cache/pending uploads: %LOCALAPPPAYLOAD%\FrontierCharge\dev-v1\history\<PUID>.
+Keep the same storage_key on both PCs. Losing/changing it can make old cloud record
 unreadable. Rotating client_secret does NOT require changing storage_key.
 Failed uploads remain locally pending. Use Sync cloud history to retry. Normal
 Disconnect/close waits up to 8 seconds for cleanup/sync, then reports any timeout.
@@ -91,4 +91,4 @@ client_secret value. No portable credential file belongs in a public release.
 PROOF BOUNDARIES
 WindowProof.bmp: rendered login window. LobbyProof.bmp: clearly labelled synthetic
 layout preview, NOT a real lobby or login. CI checks SDK/platform creation and local
-logic, NOT authenticated lobby creation, RTC transmission or player-data transfers.
+logic, NOT authenticated lobby creation, RTC transmission or player-record transfers.

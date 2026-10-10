@@ -1,9 +1,9 @@
 #version 450
 layout(local_size_x=16,local_size_y=16) in;
-layout(std430,binding=0) readonly buffer Particles{vec4 particles[];};
-layout(std430,binding=1) buffer Pixels{uint pixels[];};
-layout(std430,binding=2) buffer Depths{uint depths[];};
-layout(std430,binding=4) buffer Thickness{uint thickness[];};
+layout(std430,binding=0) readonly store Particles{vec4 particles[];};
+layout(std430,binding=1) store Pixels{uint pixels[];};
+layout(std430,binding=2) store Depths{uint depths[];};
+layout(std430,binding=4) store Thickness{uint thickness[];};
 layout(std140,binding=3) uniform Params{uvec4 counts;vec4 scene;vec4 colourPaused;vec4 optical;vec4 absorptionMaterial;} p;
 uint bgra(vec3 c){c=pow(clamp(c,0.0,1.0),vec3(1.0/2.2));uvec3 q=uvec3(c*255.0+0.5);return 0xff000000u|(q.r<<16)|(q.g<<8)|q.b;}
 vec2 project(vec3 world){vec3 camera=vec3(4.4,3.0,5.2),target=vec3(0.0,0.9,0.0);vec3 f=normalize(target-camera),r=normalize(cross(f,vec3(0,1,0))),u=normalize(cross(r,f));vec3 v=world-camera;float focal=(float(p.counts.z)*.5)/tan(radians(26.0));return vec2(float(p.counts.y)*.5+dot(v,r)*focal/dot(v,f),float(p.counts.z)*.5-dot(v,u)*focal/dot(v,f));}

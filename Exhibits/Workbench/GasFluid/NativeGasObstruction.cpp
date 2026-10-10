@@ -3,7 +3,7 @@
 //==============================================================================================================================================
 // 📦 Executed proof for all three collision levels: the primitive, the engine's own distance field, and the two-way switch that stays off.
 //
-// Level ② is bound to the real Engine/GeometricRaster/GlobalDistanceFieldSpace here — an L-shaped wall is baked
+// Level ② is bound to the real Engine/GeometricRaster/GlobalDistanceFieldSpace here — an L-shaped wall is precomputed
 //    into a DistanceFieldSpace, registered, rasterised, and then obstructs the gas with no primitive anywhere.
 //    That is the claim the seam makes, and a mock distance function would not have tested it.
 //
@@ -228,7 +228,7 @@ int main()
         Check(ObstructsByPrimitive(Crate) && !ObstructsByDistanceReading(Crate),
               "a crate is a box, and a box is level ① - 32768 clipmap samples to rediscover six planes is the wrong answer");
 
-        // Terrain is not any of the five shapes, so it goes to the field the raster already baked.
+        // Terrain is not any of the five shapes, so it goes to the field the raster already precomputed.
         GasObstructionConsent Terrain;
         Terrain.Obstructs = true;
         AssignObstructionLevel(Terrain, GasColliderShape::None);
@@ -247,7 +247,7 @@ int main()
         Check(!ObstructsByPrimitive(Unasked),
               "① routing an object is not consenting for it: it still obstructs nothing until somebody ticks the box");
 
-        // ⚠️ The caveat the table cannot state: a fast mesh is better off approximated.
+        // ⚠️ The caveat the table cannot state: a fast topology is better off approximated.
         GasObstructionConsent Car;
         Car.Obstructs = true;
         AssignObstructionLevel(Car, GasColliderShape::None);
@@ -481,7 +481,7 @@ int main()
 
     CoarseGasField Walled;
     {
-        // An L-shaped wall, baked as a signed distance into the raster's own structure. Nothing about this
+        // An L-shaped wall, precomputed as a signed distance into the raster's own structure. Nothing about this
         //    shape could be expressed as one of the five primitives, which is the entire point of level ②.
         DistanceFieldSpace Wall(32u, 32u, 32u, Vector3{ 0.0f, 0.0f, 0.0f }, Vector3{ 4.0f, 4.0f, 4.0f });
         for (uint32_t Z = 0u; Z < 32u; ++Z)
@@ -565,7 +565,7 @@ int main()
     //---------------------------------------------------------------------------------------------------------
     Banner("🔴 A moving body is asked in its own space, never restaged - and so it may also turn");
     {
-        // A plank: long in local X, short in local Y. Baked ONCE, in its own space, centred on its origin.
+        // A plank: long in local X, short in local Y. Precomputed ONCE, in its own space, centred on its origin.
         //    Nothing below ever touches it again, however the body moves.
         DistanceFieldSpace Plank(32u, 32u, 32u, Vector3{ -1.0f, -1.0f, -1.0f }, Vector3{ 1.0f, 1.0f, 1.0f });
         for (uint32_t Z = 0u; Z < 32u; ++Z)

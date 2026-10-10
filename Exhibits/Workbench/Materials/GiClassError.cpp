@@ -34,15 +34,15 @@ std::vector<unsigned char> ReadRaw(const std::string& Path, size_t Expected, con
 {
     FILE* F = std::fopen(Path.c_str(), "rb");
     if (F == nullptr) { std::printf("GiClassError: cannot open %s (%s)\n", Path.c_str(), What); std::exit(2); }
-    std::vector<unsigned char> Data(Expected);
-    const size_t Got = std::fread(Data.data(), 1, Expected, F);
+    std::vector<unsigned char> Packet(Expected);
+    const size_t Got = std::fread(Packet.data(), 1, Expected, F);
     std::fclose(F);
     if (Got != Expected)
     {
         std::printf("GiClassError: %s is %zu bytes, expected %zu (%s)\n", Path.c_str(), Got, Expected, What);
         std::exit(2);
     }
-    return Data;
+    return Packet;
 }
 }   // namespace
 

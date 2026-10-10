@@ -3,7 +3,7 @@
 //============================================================================================================================================
 //
 //    Project-Drive's headless CPU reference for the RENDER half. It is the same split the engine uses on the GTX path and
-//    the standalone SurfelGI/ reference proved: a visibility pass builds the G-buffer, DIRECT light stays sharp (sun NEE +
+//    the standalone SurfelGI/ reference proved: a visibility pass builds the G-store, DIRECT light stays sharp (sun NEE +
 //    sky), and a persistent field of world-space SURFELS carries only the INDIRECT (bounced) light, temporally averaged
 //    through a world-space hash grid so it converges and holds still (no boil).
 //
@@ -23,7 +23,7 @@
 #include "GeometricRaster/VisibilityRaster.h"
 #include "DisplayPresentation/AtmosphereModel.h"
 #include "DisplayPresentation/CelestialTier.h"
-#include "ControlVehicleMesh.inl"
+#include "ControlVehicleGeometry.inl"
 
 #include <algorithm>
 #include <chrono>
@@ -116,13 +116,13 @@ static V MaterialEmission(uint32_t m)
 }
 
 //------------------------------------------------------------------------------------------------------------------------ scene build
-// The per-face family arrives with the mesh: ControlVehicleMesh.inl carries kTriangleFamily, recovered from the
+// The per-face family arrives with the topology: ControlVehicleGeometry.inl carries kTriangleFamily, recovered from the
 // .blend `material_index` attribute.  The positional classifier that used to stand here is deleted, exactly as it
 // was in DriveSceneAuthor -- two independent copies of the same guess is how the raster and the GI reference came
 // to disagree about which faces were glass.
 static void EmitCar(std::vector<Tri>& tris, V offset)
 {
-    using namespace Frontier::Drive::ControlVehicleMesh;
+    using namespace Frontier::Drive::ControlVehicleGeometry;
     auto Raw=[&](uint32_t i){ return V{kPositions[i*3+0],kPositions[i*3+1],kPositions[i*3+2]}; };
     for(uint32_t t=0;t<kTriangleCount;++t){ V a=Raw(kTriangles[t*3+0]),b=Raw(kTriangles[t*3+1]),c=Raw(kTriangles[t*3+2]);
         Tri T; T.a=a+offset; T.b=b+offset; T.c=c+offset; T.n=norm(cross(T.b-T.a,T.c-T.a));
@@ -230,7 +230,7 @@ struct BVH{
 // standing instruction for this project is explicit that Project-Drive must not have a flat sky.
 static V   SUN_DIR = norm(V{-0.496f, 0.868f, 0.012f});   // replaced at startup by the solved direction
 static V   SUN_COL = V{1.0f,0.95f,0.85f}*3.0f;           // replaced at startup by the solved radiance
-// ── the engine's own sky, baked into a dome LUT ────────────────────────────────────────────────────────────
+// ── the engine's own sky, precomputed into a dome LUT ────────────────────────────────────────────────────────────
 // Previously an analytic two-colour gradient. The engine integrates a real atmosphere -- Rayleigh, Mie, ozone,
 //    planet shadow -- through AtmosphereModel::Integrate, and that is a plain static function, so nothing had
 //    to be extracted: the only thing the surfel path was missing was the Medium/Light parameters. Those come
@@ -238,10 +238,10 @@ static V   SUN_COL = V{1.0f,0.95f,0.85f}*3.0f;           // replaced at startup 
 //    so both paths now march the SAME air.
 //
 //    Marching per ray would be ruinous here (29k surfels x 8 rays x 64 frames, each a nested
-//    sample x light-sample integral), so it is baked once into a lat-long dome and sampled bilinearly. That
-//    is exactly the trade the engine itself offers as its baked sky dome.
+//    sample x light-sample integral), so it is precomputed once into a lat-long dome and sampled bilinearly. That
+//    is exactly the trade the engine itself offers as its precomputed sky dome.
 static Frontier::VisibilityRaster::CelestialSettings g_Sky;
-static bool g_SkyBaked = false;
+static bool g_SkyPrecomputed = false;
 static constexpr int kDomeU = 128, kDomeV = 64;
 static std::vector<V> g_Dome;
 
@@ -257,7 +257,7 @@ static V DomeFetch(V d){
     return (a*(1-tu)+b*tu)*(1-tv) + (c*(1-tu)+e*tu)*tv;
 }
 
-static void BakeDome(){
+static void PrecomputeDome(){
     g_Dome.assign((size_t)kDomeU*kDomeV, V{0,0,0});
     for(int iv=0; iv<kDomeV; ++iv) for(int iu=0; iu<kDomeU; ++iu){
         const float phi = (iu/(float)(kDomeU-1))*2.0f*PI - PI;
@@ -268,11 +268,11 @@ static void BakeDome(){
             g_Sky.Medium, g_Sky.Light, g_Sky.CameraHeight, dir, g_Sky.SampleCount, g_Sky.LightSampleCount);
         g_Dome[(size_t)iv*kDomeU+iu] = V{S.Radiance[0], S.Radiance[1], S.Radiance[2]};
     }
-    g_SkyBaked = true;
+    g_SkyPrecomputed = true;
 }
 
 static V SkyColour(V d){
-    if (g_SkyBaked) return DomeFetch(norm(d));
+    if (g_SkyPrecomputed) return DomeFetch(norm(d));
     const float t = std::max(0.0f, d.z);                 // fallback only if the sky never came up
     return V{0.35f,0.5f,0.85f}*t + V{0.7f,0.75f,0.8f}*(1.0f-t);
 }
@@ -432,15 +432,15 @@ int main(int argc,char**argv){
         const V Rad{R.SunDirect[0], R.SunDirect[1], R.SunDirect[2]};
         if (len(Rad) > 1e-6f) SUN_COL = Rad;
 
-        // The same atmosphere the raster is handed, read back through the public accessor and baked.
+        // The same atmosphere the raster is handed, read back through the public accessor and precomputed.
         Frontier::VisibilityRaster Probe;
         Frontier::CelestialBudget Budget;
         Budget.AtmosphereSamples = 16u; Budget.AtmosphereLightSamples = 6u;
         Sky.ApplyTo(Probe, Budget);
         g_Sky = Probe.QueryCelestial();
-        if (g_Sky.Enabled) BakeDome();
+        if (g_Sky.Enabled) PrecomputeDome();
         std::printf("SurfelReference: sky %s (%dx%d dome, %u/%u atmosphere samples)\n",
-                    g_SkyBaked ? "from AtmosphereModel" : "FALLBACK gradient",
+                    g_SkyPrecomputed ? "from AtmosphereModel" : "FALLBACK gradient",
                     kDomeU, kDomeV, g_Sky.SampleCount, g_Sky.LightSampleCount);
         std::printf("SurfelReference: sun hour %.2f -> dir (%.3f %.3f %.3f), radiance (%.2f %.2f %.2f)\n",
                     sunHour, SUN_DIR.x, SUN_DIR.y, SUN_DIR.z, SUN_COL.x, SUN_COL.y, SUN_COL.z);
@@ -462,7 +462,7 @@ int main(int argc,char**argv){
     cam.up=cross(cam.right,cam.fwd);
     cam.tanHalf=std::tan(fovDeg*PI/180.0f/2); cam.aspect=(float)W/H; cam.W=W; cam.H=H;
 
-    // G-buffer
+    // G-store
     std::vector<V> gP(W*H),gN(W*H),gA(W*H); std::vector<uint8_t> gV(W*H,0); std::vector<uint32_t> gM(W*H,0u);
     par(W*H,[&](int i){ int x=i%W,y=i/W; V rd=rayDir(cam,(float)x,(float)y); int ti; float t;
         if(bvh.closest(cam.eye,rd,1e5f,ti,t)){ V P=cam.eye+rd*t; V N=tris[ti].n; if(dot(N,rd)>0)N=N*-1.0f;

@@ -1915,7 +1915,7 @@ CelestialIntegrator::GroundSample CelestialIntegrator::SampleGround(const Vector
     return Result;
 }
 
-Vector3 CelestialIntegrator::CompositeGround(const Vector3& Radiance, const Vector3& Direction, float Distance,
+Vector3 CelestialIntegrator::CombinedGround(const Vector3& Radiance, const Vector3& Direction, float Distance,
                                              const ObserverFrame& Observer,
                                              uint32_t PixelX, uint32_t PixelY) const noexcept
 {

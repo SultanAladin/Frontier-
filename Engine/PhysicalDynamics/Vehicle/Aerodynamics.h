@@ -42,7 +42,7 @@ namespace Frontier::Vehicle {
 // ---------------------------------------------------------------------------------------------------------------------
 // Component configuration structs. Fields + defaults mirror the `*_GT` structs in
 // GRIT Components/AerodynamicSpecifications.h; `ForceApplicationPoint_COM` is the body-local force point
-// (GRIT resolves it from mesh sockets — headless we set it directly). `Enabled` mirrors "socket exists".
+// (GRIT resolves it from topology sockets — headless we set it directly). `Enabled` mirrors "socket exists".
 // ---------------------------------------------------------------------------------------------------------------------
 
 // --- Rear wing / spoiler --- (defaults = GRIT GT3 factory kit, InitializeAerodynamicsPackage())

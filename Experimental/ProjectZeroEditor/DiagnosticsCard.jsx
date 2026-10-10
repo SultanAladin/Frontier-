@@ -72,9 +72,9 @@ export default function DiagnosticsCard({
     };
   }
   const Box = Fit(Prefs),
-    Data = Frozen || Timing,
-    Last = Data.Live,
-    Samples = Data.Samples.filter(
+    Packet = Frozen || Timing,
+    Last = Packet.Live,
+    Samples = Packet.Samples.filter(
       (S) => Last && Last.Time - S.Time <= Prefs.Seconds * 1000,
     ),
     Numeric = Prefs.Metric === "FPS" || Prefs.Metric === "Frame",
@@ -229,8 +229,8 @@ export default function DiagnosticsCard({
       className="diagnostic-overlay debug-card workspace-card"
       aria-label="Viewport performance diagnostics"
       style={{ left: Box.X, top: Box.Y, width: Box.Width, height: Box.Height }}
-      data-metric={Prefs.Metric}
-      data-paused={!!Frozen}
+      record-metric={Prefs.Metric}
+      record-paused={!!Frozen}
       onPointerMove={Move}
       onPointerUp={() => (Drag.current = null)}
       onPointerCancel={() => (Drag.current = null)}
@@ -471,7 +471,7 @@ export default function DiagnosticsCard({
         )}
         <details className="debug-native">
           <summary>Debug View · {DebugName}</summary>
-          <p>Native buffer selection only · not connected</p>
+          <p>Native store selection only · not connected</p>
           <p>
             HiZ {HiZ ? "on" : "off"} · Alias {Alias ? "on" : "off"} · Patch
             error {PatchError} px

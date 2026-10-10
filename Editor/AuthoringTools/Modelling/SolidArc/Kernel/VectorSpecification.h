@@ -1,7 +1,7 @@
 //============================================================================================================================================
 // 📦 Editor/EditorTools/ParametricSketcher/Kernel/VectorSpecification.h — Double-precision vectors, matrices, quaternions, planes, rays and bounds
 //============================================================================================================================================
-// The kernel computes in double; only the presentation layer narrows to float when it fills GPU buffers. World is
+// The kernel computes in double; only the presentation layer narrows to float when it fills GPU stores. World is
 //    right-handed, Z-up: X right, Y forward (into the screen in the default top view), Z up. Matrices are column-major
 //    (Vulkan / GLSL / Slang convention) so a Mat4 can be memcpy'd straight into a uniform after narrowing.
 #pragma once

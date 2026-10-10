@@ -2,7 +2,7 @@
 
 > Historical repair record for `0eb8a0b`. The later [outliner/wind component change](OutlinerWindBindings.md) expands Weather to **21 rows / 336 bytes** and PostConstants to **544 bytes**. The 19-row/512-byte validation results below and in `WeatherEvidence` describe the earlier revision.
 
-The missing **view-ray cloud/fog rendering** identified in [the audit](CloudFogViewportAudit.md) is now implemented. This is production renderer code, not an outliner-only change or a baked sky image.
+The missing **view-ray cloud/fog rendering** identified in [the audit](CloudFogViewportAudit.md) is now implemented. This is production renderer code, not an outliner-only change or a precomputed sky image.
 
 ## What changed
 
@@ -52,7 +52,7 @@ From the repository root, rebuild both executable and shaders together (old shad
 .\Build\Project-Zero.exe
 ```
 
-Add `-FluidOpenMP` if that is part of your usual build. Use the normal shaded viewport, not a diagnostic buffer view.
+Add `-FluidOpenMP` if that is part of your usual build. Use the normal shaded viewport, not a diagnostic store view.
 
 1. Look above the horizon: global clouds should be present. Change coverage/density; hide/show the cloud row.
 2. Enable Local Cloud, put its bounds in front of the camera, and vary density. Hide global clouds to confirm local cloud independence.

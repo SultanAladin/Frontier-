@@ -77,7 +77,7 @@ struct SceneFigure
         Line, Circle, Arc, Ellipse, Polyline, Spline, Rectangle,  // curves
         Extrude, Revolve, Loft, Sweep, Pipe, Boolean,             // derived (Phase 16: live-edit for the rest)
         ChamferEdge,                                              // modifier
-        Empty,                                                    // Phase 19: transform handle, no geometry
+        Empty,                                                    // Phase 19: transform identifier, no geometry
     };
     struct ParametricBlueprint
     {

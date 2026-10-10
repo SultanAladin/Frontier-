@@ -32,8 +32,8 @@ void TelemetryMetrics::RecordFrame(float DeltaSeconds) noexcept
     Samples[Cursor] = DeltaSeconds;
     Cursor = (Cursor + 1u) % SampleCount;
     if (Filled < SampleCount) ++Filled;
-    MemorySampleAge += DeltaSeconds;
-    if (ExtraRows.ShowMemory && MemorySampleAge >= 0.5f) { ResidentMebibytes = SampleResidentMebibytes(); MemorySampleAge = 0.0f; }
+    StorageSampleAge += DeltaSeconds;
+    if (ExtraRows.ShowStorage && StorageSampleAge >= 0.5f) { ResidentMebibytes = SampleResidentMebibytes(); StorageSampleAge = 0.0f; }
 }
 
 float TelemetryMetrics::SampleResidentMebibytes() noexcept
@@ -89,8 +89,8 @@ void TelemetryMetrics::ConstructTelemetryLayout(PixelSpace& Surface, float TopIn
                   static_cast<double>(QueryAverageFrameSeconds() * 1000.0f));
 
     // Optional rows beneath the readout: RAM ("Show RAM Usage"), GPU Stages, and the project's scene line ("Scene Metadata").
-    char MemoryLine[48] = {};
-    if (ExtraRows.ShowMemory) std::snprintf(MemoryLine, sizeof(MemoryLine), "RAM %.0f MiB", static_cast<double>(ResidentMebibytes));
+    char StorageLine[48] = {};
+    if (ExtraRows.ShowStorage) std::snprintf(StorageLine, sizeof(StorageLine), "RAM %.0f MiB", static_cast<double>(ResidentMebibytes));
     char GpuLine[80] = {};
     if (ExtraRows.ShowGpuStages && GpuTimings.FrameTotalMs > 0.0f)
     {
@@ -104,7 +104,7 @@ void TelemetryMetrics::ConstructTelemetryLayout(PixelSpace& Surface, float TopIn
 
     const PlanePoint TextSize = Surface.MeasureText(Readout, FontSize);
     float RowsHeight = 0.0f, RowsWidth = 0.0f;
-    if (ExtraRows.ShowMemory) { const PlanePoint M = Surface.MeasureText(MemoryLine, FontSize); RowsHeight += M.Y + 4.0f; RowsWidth = std::max(RowsWidth, M.X); }
+    if (ExtraRows.ShowStorage) { const PlanePoint M = Surface.MeasureText(StorageLine, FontSize); RowsHeight += M.Y + 4.0f; RowsWidth = std::max(RowsWidth, M.X); }
     if (GpuLine[0] != '\0')   { const PlanePoint M = Surface.MeasureText(GpuLine,    FontSize); RowsHeight += M.Y + 4.0f; RowsWidth = std::max(RowsWidth, M.X); }
     if (SceneLine)            { const PlanePoint M = Surface.MeasureText(SceneLine,  FontSize); RowsHeight += M.Y + 4.0f; RowsWidth = std::max(RowsWidth, M.X); }
     const float Width  = Padding * 2.0f + std::max({ TextSize.X, GraphWidth, RowsWidth });
@@ -116,7 +116,7 @@ void TelemetryMetrics::ConstructTelemetryLayout(PixelSpace& Surface, float TopIn
     {
         constexpr ColorQuad InkDim{ 1.0f, 1.0f, 1.0f, 0.60f };
         float RowY = Extent.MinimumY + Padding + TextSize.Y + 6.0f + GraphHeight + 4.0f;
-        if (ExtraRows.ShowMemory) { Surface.Text(Extent.MinimumX + Padding, RowY, InkDim, MemoryLine, FontSize); RowY += TextSize.Y + 4.0f; }
+        if (ExtraRows.ShowStorage) { Surface.Text(Extent.MinimumX + Padding, RowY, InkDim, StorageLine, FontSize); RowY += TextSize.Y + 4.0f; }
         if (GpuLine[0] != '\0')   { Surface.Text(Extent.MinimumX + Padding, RowY, InkDim, GpuLine,    FontSize); RowY += TextSize.Y + 4.0f; }
         if (SceneLine)            { Surface.Text(Extent.MinimumX + Padding, RowY, InkDim, SceneLine,  FontSize); }
     }

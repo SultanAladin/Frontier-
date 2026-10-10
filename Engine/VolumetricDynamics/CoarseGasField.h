@@ -15,7 +15,7 @@
 //
 // 💡 THE SPLIT IS WHAT MAKES TWO-WAY COUPLING AFFORDABLE AND REPRODUCIBLE AT THE SAME TIME.
 //    Pushing rigid bodies from the displayed volume would mean reading a 128-cubed velocity image back off the
-//    device every frame — roughly 16 MB, a pipeline stall, and a result that differs between two vendors. This
+//    device every frame — roughly 16 MB, a chain stall, and a result that differs between two vendors. This
 //    field is already on the CPU where Jolt is, so there is no readback at all: not a smaller one, none. And
 //    because its step, its sweep count and its noise are all fixed, the forces it produces are identical on
 //    every machine, which is the entire multiplayer story. See GasWindContribution.h for the force itself.

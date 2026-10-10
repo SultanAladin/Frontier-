@@ -6,7 +6,7 @@ Planned tool families:
 
 - `Modelling/` — CAD/NURBS/B-rep modelling tools. `SolidArc` lives here.
 - `TexturePainting/` — future paint/clone/projection tools.
-- `Baking/` — future texture/light/geometry bake tools.
+- `Precomputing/` — future texture/light/geometry precompute tools.
 - `Terrain/` — future terrain sculpting, erosion, stamping, and landscape authoring tools.
 
 Tools here can be built and tested standalone before they are wired into the live Project-Zero editor UI.

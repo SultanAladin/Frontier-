@@ -16,7 +16,7 @@ Implemented in this change:
   existing live recipe/dimension/constraint systems;
 - round-trip and deliberately-invalid-document regression coverage.
 
-The architecture follows the important distinction between native procedural data and neutral B-rep exchange: the NIST
+The architecture follows the important distinction between native procedural record and neutral B-rep exchange: the NIST
 work on ISO 10303 explains why a parametric model needs construction history, parameters, constraints, and a secondary
 B-rep validation representation rather than only its final boundary shape. [NISTIR 7433](https://tsapps.nist.gov/publication/get_pdf.cfm?pub_id=822720)
 
@@ -37,7 +37,7 @@ Implemented and verified in this change:
   remains within 0.001 mm of its requested 0.2 mm normal distance.
 
 The contact semantics are intentional. A coincident curve portion is a continuum, so the point-only `CurveCrossing` API
-emits no fabricated isolated crossing for it; Boolean classification still handles coincident profiles and shared edges.
+emits no fabricated isolated crossing for it; Boolean classification still identifiers coincident profiles and shared edges.
 An external circle tangency emits one tangent contact, but its intersection profile is empty (zero area) and its union
 keeps two simple touching components rather than constructing one self-touching loop.
 
@@ -616,13 +616,13 @@ source immutability, default refusal of an in-plane rotation that would warp adj
 fixed topology and positive numerical volume, curved-rim refusal, and both console commands. It also writes the visible
 `Proofs/Phase34e_TransformTweaks.png` proof (1600 × 800).
 
-#### Phase 34f: bounded same-body face loft handles ✅
+#### Phase 34f: bounded same-body face loft identifiers ✅
 
 `SkinSolver::LoftFaces` and the `loft A:fN B:fM` console route now accept two distinct faces owned by one B-rep
 when that B-rep contains two disconnected, valid hulls. The selected rims are removed exactly once and one ruled skin
 bridges them into a single positive-volume solid; coincident faces, connected same-body selections that collapse to a
 zero-volume duplicate shell, faces with holes, seam-bearing faces, and non-facing selections still refuse transactionally.
-This is an explicit multi-hull handle bridge, not unrestricted same-solid face surgery.
+This is an explicit multi-hull identifier bridge, not unrestricted same-solid face surgery.
 
 `FaceLoftVerification` now covers the two-hull source, V16/E25/F11 genus-zero bridge, volume 224, console `--keep`
 integration, source preservation, and the visible `Proofs/Phase34f_SameBodyFaceLoft.png` proof.
@@ -645,7 +645,7 @@ analytic route instead of expecting the old blanket curved-edge refusal.
 `BlendSolver::ChamferEdges` now recognizes a simple prismatic network: every selected edge is a straight parallel edge
 running through the same planar cap profile, and the complete cap perimeter is a single simple polygon. All selected
 reflex corners are inset in one 2D outline operation and the profile is extruded again, producing one transactional
-solid with exact planar bevels. The route is deterministic for multiple U/L-handle corners and avoids sequential cutter
+solid with exact planar bevels. The route is deterministic for multiple U/L-identifier corners and avoids sequential cutter
 order and coincident Boolean caps. Analytic profile-area × extrusion-length volume checks and the V/E/F counts guard the
 rebuild; over-large setbacks, curved/non-prismatic members, self-intersections and arbitrary non-convex solids still
 refuse.
@@ -959,7 +959,7 @@ A separate quintic non-rolling corner profile now has support-aligned tangents a
 curvature. Its extrusion joins the two planar support faces with measured G2 position/tangent/
 curvature continuity, while retaining one-hull `V10/E15/C30/L7/F7` topology and an exact
 Green's-theorem profile-area volume. The verifier compares this G2 profile against the circular
-rolling route and refuses degenerate handles, consuming radii, and invalid frames.
+rolling route and refuses degenerate identifiers, consuming radii, and invalid frames.
 
 This is explicitly **not** a rolling-ball or nonlinear-radius G2 fillet. Rolling-ball G2 joins,
 nonlinear setbacks, partial edges, unequal support setbacks, apexes, freeform supports, and
@@ -2219,7 +2219,7 @@ planar caps, five extrusion walls, thirteen seam lines and two slot curves — a
 and radius, height 6) with one concentric circular bore (radius 0.8) — closed genus-one `V4/E6/C12/L6/F4` with two two-loop caps,
 two extrusion walls, two seam lines, two slot curves and two circles. Each extends only its +Z cap by 0.5, 1.5, and 3.0.
 
-Because the extrusion pipeline flattens slot classifications, `ExactAxisAlignedSlot` recognises slots structurally and by sampling:
+Because the extrusion chain flattens slot classifications, `ExactAxisAlignedSlot` recognises slots structurally and by sampling:
 closed, rational, degree two, thirteen poles, Z axis, `SpanY = 2·Radius`, `SpanX = 2·(HalfSpan + Radius)`, planar, and 49 samples
 within `1e-6` of a freshly built `NurbsCurve::Slot`. `FaceEditSolver::OffsetExtrudedRectangularSlotHoledPrism` and
 `OffsetExtrudedSlotProfileCircularBoredPrism` then require exact canonical bounds, vertex levels, cap loop structure, canonical
@@ -2244,7 +2244,7 @@ slot prisms, inward or lower/side offsets, healing, or general multi-loop face e
 #### Batch 64: exact circular-bored rounded-rectangular and rounded-rectangular-holed prism upper-cap face offsets ✅
 
 This consolidated batch adds the first filleted-rectangle domains, where a profile or through-hole is an exact analytic tangent
-line/arc composite built by `NurbsCurve::Rectangle` with a corner radius (stored as a degree-two rational closed curve with
+line/arc combined built by `NurbsCurve::Rectangle` with a corner radius (stored as a degree-two rational closed curve with
 seventeen poles). `CircularBoredRoundedRectangularAndRoundedRectangularHoledFaceOffsetVerification` constructs a canonical
 rounded-rectangular prism (half-extents 6 and 4, corner radius 1.5, height 6) with one deliberately eccentric circular bore
 (radius 1.2 at `(2,0)`) — closed genus-one `V4/E6/C12/L6/F4` with two two-loop planar caps, two extrusion walls, two seam lines,
@@ -2253,7 +2253,7 @@ rounded-rectangular through-hole (half-extents 4 and 2.5, corner radius 1.0) —
 two-loop caps, five extrusion walls, thirteen seam lines and two filleted-rectangle curves. Each extends only its +Z cap by
 0.5, 1.5, and 3.0.
 
-Because the extrusion pipeline flattens filleted-rectangle classifications, `ExactAxisAlignedRoundedRectangle` recognises them
+Because the extrusion chain flattens filleted-rectangle classifications, `ExactAxisAlignedRoundedRectangle` recognises them
 structurally and by sampling: closed, rational, degree two, seventeen poles, Z axis, planar, `SpanX = 2·HalfX`, `SpanY = 2·HalfY`,
 `SpanX > SpanY`, corner radius below both half-extents, and 65 samples within `1e-6` of a freshly built canonical curve. The
 seventeen-pole signature separates the family from nine-pole conics and thirteen-pole slots, while the sampled comparison
@@ -2261,7 +2261,7 @@ separates corner radii that share identical spans. `FaceEditSolver::OffsetCircul
 `OffsetExtrudedRoundedRectangularHoledPrism` then require exact canonical bounds, vertex levels, cap loop structure, filleted
 outer profile or canonical rectangle corners, bore radius/centre/plane with containment inside the fillet-inscribed central
 rectangle, full edge and face censuses, and rebuild fresh exact extrusions — retaining planar, linear, circular, and
-filleted-composite extrusion supports without healing, tessellation, or source mutation. The earlier circular-holed rectangular,
+filleted-combined extrusion supports without healing, tessellation, or source mutation. The earlier circular-holed rectangular,
 slot-holed rectangular, circular-bored elliptical, and slot-profile bored routes remain separate and still dispatch exactly.
 
 The verifier checks exact topology, caps, face censuses, support censuses, the volume identities `4ab − (4−π)r² − πρ²` and

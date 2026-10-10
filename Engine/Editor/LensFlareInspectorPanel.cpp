@@ -16,7 +16,7 @@ namespace Frontier {
 namespace {
 constexpr ImU32 Ink=IM_COL32(233,233,233,255),Muted=IM_COL32(145,145,145,255),Accent=IM_COL32(214,184,128,255);
 using namespace SunReference;
-enum class Mark {Sun,Orbit,Sparkles,Bake,Upload,Reset,Arrow};
+enum class Mark {Sun,Orbit,Sparkles,Precompute,Upload,Reset,Arrow};
 void Icon(ImDrawList* D,ImVec2 At,Mark M,ImU32 Tint,float Size=16) {
     Canvas C{D,At,Size/24};
     auto Line=[&](float X,float Y,float XX,float YY){C.Line({X,Y},{XX,YY},Tint,1.5f);};
@@ -32,7 +32,7 @@ void Icon(ImDrawList* D,ImVec2 At,Mark M,ImU32 Tint,float Size=16) {
         const ImVec2 P[]={{12,2},{14.1f,8.5f},{15.5f,9.9f},{22,12},{15.5f,14.1f},{14.1f,15.5f},{12,22},{9.9f,15.5f},{8.5f,14.1f},{2,12},{8.5f,9.9f},{9.9f,8.5f},{12,2}};
         for(unsigned I=1;I<13;++I)C.Line(P[I-1],P[I],Tint,1.5f);
         Line(20,3,20,7);Line(18,5,22,5);Line(4,17,4,19);Line(3,18,5,18);
-    } else if(M==Mark::Bake) {
+    } else if(M==Mark::Precompute) {
         Line(12,5,19,5);Line(19,5,21,7);Line(21,7,21,19);Line(21,19,19,21);Line(19,21,7,21);Line(7,21,5,19);Line(5,19,5,13);
         Line(2,9,13,9);Line(9,5,13,9);Line(13,9,9,13);Line(3,2,3,5);Line(1.5f,3.5f,4.5f,3.5f);
         D->AddRect(C.P(14,14),C.P(17,17),Tint,0,0,1.5f*C.Scale);
@@ -46,7 +46,7 @@ struct Cache {
     ImTextureData Texture;
     std::vector<float> Linear;
     std::array<float,32> Key{};
-    uint64_t Revision=0,Baked=0;
+    uint64_t Revision=0,Precomputed=0;
     bool ExportFailed=false;
     Cache(){Texture.Create(ImTextureFormat_RGBA32,640,280);Texture.UseColors=true;ImGui::RegisterUserTexture(&Texture);Linear.resize(640*280*3);}
 };
@@ -80,10 +80,10 @@ struct Panel {
     void Text(float X,float Y,const char* T,float Size=12,ImU32 C=Ink){D->AddText(Font,Size,At(X,Y),C,T);}
     void Wrap(float X,float Y,float W,const char* T){D->AddText(Font,11,At(X,Y),Muted,T,nullptr,W);}
     void Card(float X,float Y,float W,float H,const char* Title){
-        int Start=D->VtxBuffer.Size;D->AddRectFilled(At(X,Y),At(X+W,Y+H),IM_COL32_WHITE,22);
-        ImGui::ShadeVertsLinearColorGradientKeepAlpha(D,Start,D->VtxBuffer.Size,At(X,Y),At(X+W,Y+H),IM_COL32(37,37,37,255),IM_COL32(32,32,32,255));
+        int Start=D->VtxStore.Size;D->AddRectFilled(At(X,Y),At(X+W,Y+H),IM_COL32_WHITE,22);
+        ImGui::ShadeVertsLinearColorGradientKeepAlpha(D,Start,D->VtxStore.Size,At(X,Y),At(X+W,Y+H),IM_COL32(37,37,37,255),IM_COL32(32,32,32,255));
         D->AddRect(At(X,Y),At(X+W,Y+H),IM_COL32(52,52,52,255),22);
-        Mark M=std::strcmp(Title,"Flare composite")==0?Mark::Sun:std::strcmp(Title,"Flare layers")==0?Mark::Sparkles:std::strcmp(Title,"Lens flare image")==0?Mark::Bake:Mark::Orbit;
+        Mark M=std::strcmp(Title,"Flare composite")==0?Mark::Sun:std::strcmp(Title,"Flare layers")==0?Mark::Sparkles:std::strcmp(Title,"Lens flare image")==0?Mark::Precompute:Mark::Orbit;
         Icon(D,At(X+23,Y+21),M,Accent,17);
         Text(X+48,Y+23,Title);
     }
@@ -107,14 +107,14 @@ struct Panel {
     void Select(float X,float Y,float W,const char* Label){auto* P=Find(Sheet,Label);Text(X,Y,Label,11,Muted);ImGui::SetCursorScreenPos(At(X,Y+22));ImGui::BeginChild(Label,{W,32},ImGuiChildFlags_None,ImGuiWindowFlags_NoScrollbar|ImGuiWindowFlags_NoScrollWithMouse);Controls.DropDown("##select",&P->Picked,P->Options,P->OptionCount);ImGui::EndChild();}
 };
 }
-LensFlarePreviewInfo QueryLensFlarePreview() noexcept {if(auto* C=Existing())return {&C->Texture,C->Revision,C->Baked,640,280};return {};}
+LensFlarePreviewDetails QueryLensFlarePreview() noexcept {if(auto* C=Existing())return {&C->Texture,C->Revision,C->Precomputed,640,280};return {};}
 bool ExportLensFlarePreview(const char* Path) noexcept {
     auto* C=Existing();if(!C||!C->Revision||!Path)return false;
     try{
         std::filesystem::path P(Path);if(P.has_parent_path())std::filesystem::create_directories(P.parent_path());
         std::ofstream File(P,std::ios::binary|std::ios::trunc);File<<"PF\n640 280\n"<<(std::endian::native==std::endian::little?"-1.0\n":"1.0\n");
         for(int Y=279;Y>=0;--Y)File.write(reinterpret_cast<const char*>(&C->Linear[Y*640*3]),640*3*sizeof(float));
-        File.close();if(!File){C->ExportFailed=true;return false;}C->Baked=C->Revision;C->ExportFailed=false;return true;
+        File.close();if(!File){C->ExportFailed=true;return false;}C->Precomputed=C->Revision;C->ExportFailed=false;return true;
     }catch(...){C->ExportFailed=true;return false;}
 }
 void RecordLensFlareInspector(ControlPanel& Controls,EditorInstance& Row,EditorSheet& Sheet) noexcept {
@@ -126,13 +126,13 @@ void RecordLensFlareInspector(ControlPanel& Controls,EditorInstance& Row,EditorS
     const float HeaderShift=W<360?44:0;
     U.Text(0,0,"Inspector / Environment / Optics",10,Muted);U.Text(0,44,"Lens Flare",32);
     if(U.Button(W-94,44+HeaderShift,94,"##flare-enabled",Find(Sheet,"Enabled")->On?"Enabled":"Disabled",Find(Sheet,"Enabled")->On))Find(Sheet,"Enabled")->On=!Find(Sheet,"Enabled")->On;
-    auto RecordBaking=[&](float AtY) {
+    auto RecordPrecomputing=[&](float AtY) {
         const ImVec2 Saved=U.O;U.O.y+=AtY-98-HeaderShift;
-    U.Text(0,98+HeaderShift,"BAKING",10,Muted);
+    U.Text(0,98+HeaderShift,"PRECOMPUTING",10,Muted);
     U.Card(0,121+HeaderShift,W,162,"Lens flare image");
     U.D->AddImageRounded(Cache.Texture.GetTexRef(),U.At(24,185+HeaderShift),U.At(132,232.25f+HeaderShift),{0,0},{1,1},IM_COL32_WHITE,12);
     U.Button(148,174+HeaderShift,Wide?170:W-172,"##use-baked",W<360?"Use image":"Use baked image",false,true);
-    if(Wide){if(U.Button(330,174+HeaderShift,158,"##bake-flare","Bake / export HDR"))ExportLensFlarePreview("Exports/LensFlare.pfm");U.Wrap(148,222+HeaderShift,W-172,"One cached image feeds this thumbnail and the composite. Scene baked-image playback is not wired yet.");}
+    if(Wide){if(U.Button(330,174+HeaderShift,158,"##bake-flare","Precompute / export HDR"))ExportLensFlarePreview("Exports/LensFlare.pfm");U.Wrap(148,222+HeaderShift,W-172,"One cached image feeds this thumbnail and the composite. Scene baked-image playback is not wired yet.");}
     else {if(U.Button(148,214+HeaderShift,W-172,"##bake-flare","Export HDR"))ExportLensFlarePreview("Exports/LensFlare.pfm");}
         U.O=Saved;
     };
@@ -157,7 +157,7 @@ void RecordLensFlareInspector(ControlPanel& Controls,EditorInstance& Row,EditorS
     U.Slider(24,ControlsY,Wide?(W-72)/2:W-48,"Intensity");
     U.Slider(Wide?(W+24)/2:24,ControlsY+(Wide?0:68),Wide?(W-72)/2:W-48,"Spread",true);
     float ActualEnd=ControlsY+(Wide?72:140);
-    U.Wrap(24,ActualEnd,W-48,Cache.ExportFailed?"Export failed. Check the output directory.":Cache.Baked==Cache.Revision?"HDR image exported · Exports/LensFlare.pfm":Cache.Baked?"Settings changed · exported bake is out of date":"Live procedural preview · HDR export uses these same cached linear pixels.");
+    U.Wrap(24,ActualEnd,W-48,Cache.ExportFailed?"Export failed. Check the output directory.":Cache.Precomputed==Cache.Revision?"HDR image exported · Exports/LensFlare.pfm":Cache.Precomputed?"Settings changed · exported bake is out of date":"Live procedural preview · HDR export uses these same cached linear pixels.");
     float LY=std::max(CY+CH,ActualEnd+50)+Gap;
     U.Card(0,LY,Col,565,"Flare layers");U.Wrap(24,LY+55,Col-48,"Combine layers instead of choosing just one. Editing a layer selects Custom layers.");
     U.Select(24,LY+98,Col-48,"Type");
@@ -211,10 +211,10 @@ void RecordLensFlareInspector(ControlPanel& Controls,EditorInstance& Row,EditorS
     U.Slider(HX,HY+62+HO,Wide?(W-72)/2:W-48,"Halo brightness",true);U.Slider(HX,HY+143+HO,Wide?(W-72)/2:W-48,"Streak gain");
     float End=HY+(Wide?264:481),LegacyH=W<360?178:146;U.Card(0,End,W,LegacyH,"Legacy preset settings");
     U.Slider(24,End+57,W-48,"Aperture Blades");U.Wrap(24,End+119,W-48,"Aperture blades affect legacy presets; Custom layers uses Ray pairs.");
-    const float BakeY=End+LegacyH+22;
-    RecordBaking(BakeY);
+    const float PrecomputeY=End+LegacyH+22;
+    RecordPrecomputing(PrecomputeY);
     Update(Cache,Sheet); // image command references the same texture, including edits made below it this frame.
-    ImGui::SetCursorScreenPos(U.At(0,BakeY+205));ImGui::TextDisabled("Preview pose is authoring-only. Scene flare follows the camera and Sun visibility.");ImGui::Dummy({0,20});ImGui::PopFont();
+    ImGui::SetCursorScreenPos(U.At(0,PrecomputeY+205));ImGui::TextDisabled("Preview pose is authoring-only. Scene flare follows the camera and Sun visibility.");ImGui::Dummy({0,20});ImGui::PopFont();
     (void)Row;
 }
 }

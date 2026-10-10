@@ -62,7 +62,7 @@ PowertrainRecord InterfaceAudioSequence::ComposeDemand(double Fill, double Sweep
     Record.Gear          = Engaged ? 1 : 0;
 
     // Load follows throttle here. A real cell derives it from the dyno brake; there is no brake in this scene,
-    //    so pretending otherwise would be inventing data rather than reporting it.
+    //    so pretending otherwise would be inventing record rather than reporting it.
     Record.Load = Record.Throttle;
     return Record;
 }

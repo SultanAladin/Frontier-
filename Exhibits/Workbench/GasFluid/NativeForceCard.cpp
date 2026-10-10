@@ -15,7 +15,7 @@
 //       hand-written list, so a kind added to the taxonomy cannot go missing from the panel. The proof
 //       walks every kind in the enum and demands a home for each.
 //    ③ EVERYWHERE HAS NO CENTRE AND NO RADIUS. 🔴 Not greyed out — absent. A radius control on gravity is
-//       a lie with a handle on it, and the row planner is what makes that structural.
+//       a lie with a identifier on it, and the row planner is what makes that structural.
 //    ④ A KIND WITH NO SHADER PATH SAYS SO. Drag and Current are authored, listed, and carry a plain line
 //       admitting they move nothing yet.
 
@@ -308,7 +308,7 @@ int main()
         Scene.Fields[Scene.Count++] = Make(ForceFieldKind::Attract, "Attractor", 6.0f);
 
         ForceCost Cost = ResolveCost(Scene);
-        Check(Cost.Baked == 2u, "two flow fields sum into the one lattice");
+        Check(Cost.Precomputed == 2u, "two flow fields sum into the one lattice");
         Check(Cost.Live == 2u, "the two acceleration fields are evaluated per receiver");
 
         // 🔴 Adding a third wind does not add a sample. Adding a third attractor does. That is the whole

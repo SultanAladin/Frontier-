@@ -2,16 +2,16 @@
 // 📦 Editor/AuthoringTools/Modelling/SolidArc/Presentation/Shaders/SolidArcVulkanEntries.slang — Vulkan entry points for the SolidArc raster
 //============================================================================================================================================
 // The bodies live in the sibling files (ShadingRecords, LatticeProjection, SurfaceRaster, LineRaster, PointRaster, MatcapStudio). This
-//    file only adds what a Vulkan pipeline needs on top of them: entry points, descriptor bindings, the pick output, and the
+//    file only adds what a Vulkan chain needs on top of them: entry points, descriptor bindings, the pick output, and the
 //    matcap glue. The SAME bodies are compiled as C++ by SoftwareRaster (SlangMirror.h), so the CPU mirror and the SPIR-V share text.
 //
-// Bindings (one descriptor set, the same layout for every pipeline):
-//    set 0, binding 0  ViewRecord  (dynamic uniform buffer, offset per BindView)
-//    set 0, binding 1  DrawRecord  (dynamic uniform buffer, offset per draw)
-//    set 0, binding 2  baked matcap sheet, Texture2DArray (12 layers, 128x128, RGBA32F)
+// Bindings (one descriptor set, the same layout for every chain):
+//    set 0, binding 0  ViewRecord  (dynamic uniform store, offset per BindView)
+//    set 0, binding 1  DrawRecord  (dynamic uniform store, offset per draw)
+//    set 0, binding 2  precomputed matcap sheet, Texture2DArray (12 layers, 128x128, RGBA32F)
 //    set 0, binding 3  matcap sampler (linear, clamp-to-edge)
 //
-// Outputs: colour0 = straight-alpha RGBA8 (blended); colour1 = pick identity (R32_UINT, written only by pickable pipelines).
+// Outputs: colour0 = straight-alpha RGBA8 (blended); colour1 = pick identity (R32_UINT, written only by pickable chains).
 //    Pick identity travels in DrawRecord.Selection.y as float bits; the line dashing flag travels in DrawRecord.Surface.w.
 //
 // Lattice: the mirror's 4-tap supersampling (SoftwareRaster::DrawLattice) is reproduced here so both paths average the same taps.
@@ -25,7 +25,7 @@
 [[vk::binding(0, 0)]] ConstantBuffer<ViewRecord> gView;
 [[vk::binding(1, 0)]] ConstantBuffer<DrawRecord> gDraw;
 
-// Matcap lookup: the baked studio sheet (same texels the CPU mirror bakes, SoftwareRaster.cpp), bilinear, clamp-to-edge.
+// Matcap lookup: the precomputed studio sheet (same texels the CPU mirror precomputes, SoftwareRaster.cpp), bilinear, clamp-to-edge.
 //    UV convention matches the mirror: texel centres at (i + 0.5) / 128, u from the view normal's x, v from its y (down).
 [[vk::binding(2, 0)]] Texture2DArray<float4> gMatcap;
 [[vk::binding(3, 0)]] SamplerState gMatcapSampler;

@@ -47,7 +47,7 @@ struct TreadDepthField
 /// in    Height         [px]  rows across the moulded surface; width follows from the aspect
 /// in    SkipNoise      [-]   leave the micro texture off, which the preset thumbnails want
 /// out   TreadDepthField      the field, already wear-subtracted
-/// note  📐 Layers composite by darken, not by painting over: a shallow layer crossing a deep one must not
+/// note  📐 Layers combined by darken, not by painting over: a shallow layer crossing a deep one must not
 ///       fill the deep groove back in. Each cut is drawn at grey 1 − DepthFraction and the darker of the two
 ///       wins, so the deepest layer touching a texel owns it however late the shallow one was authored.
 /// note  ⚠️ Every layer is drawn three times, at −circumference, 0 and +circumference. A groove leaning at

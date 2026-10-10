@@ -18,7 +18,7 @@ Three dedicated C++/ImGui inspector routes replace the generic Height Fog, Atmos
 
 The audit found that local fog already reached `VolumetricMedia::March`, while height/aerial settings were not passed to the main CPU raster. This change adds that missing settings transfer and consumption. Authored enabled state, outliner visibility and the global celestial enable gate remain independent. The project owns settings and applies edits; the editor consumes the sheet and its optical metadata. Sheet reuse resets preview metadata.
 
-- Finite geometry receives height then aerial composition after the existing cloud/local-volume composite and before colour encoding. Distance and endpoint altitude come from the camera and reconstructed world-space triangle hit.
+- Finite geometry receives height then aerial composition after the existing cloud/local-volume combined and before colour encoding. Distance and endpoint altitude come from the camera and reconstructed world-space triangle hit.
 - CPU sky/planet misses receive height fog only. Aerial is intentionally omitted there: the physical sky already integrates atmosphere.
 - Height transmission preserves the legacy reference's `exp(-opticalDepth²)` law, with an exponential altitude profile. This is an artistic layer, not a claim of a unified physically coupled transport solver.
 - Aerial attenuation integrates the remaining segment after start distance, using separate exponential Rayleigh/Mie columns and per-channel Beer transmission. Mie blend interpolates spectral Rayleigh versus grey Mie extinction.
@@ -26,7 +26,7 @@ The audit found that local fog already reached `VolumetricMedia::March`, while h
 - Tint and sun scatter change height in-scattering, not extinction. Aerial uses sky ambient for its source term.
 - Local extinction, scattering, anisotropy and shadow marches use the existing shared CPU volumetric path.
 
-No GPU fog-volume integration, GPU execution, image baking/playback or Windows runtime certification is claimed. The unchanged shader table is compiled only as a regression gate.
+No GPU fog-volume integration, GPU execution, image precomputing/playback or Windows runtime certification is claimed. The unchanged shader table is compiled only as a regression gate.
 
 ## Diagnostic contract
 
@@ -49,7 +49,7 @@ Commands, outputs, hashes and measured frames are under `Exhibits/Gallery/FogNat
 | GPU shader compilation | 18/18 lowered to SPIR-V; compilation only |
 | Source/capture manifests | 12 Moon/Stars/Clouds/Fog manifests matched |
 
-The Fog proof assembles an actual emissive mesh with `GeometryStructure` and `SceneStructure`, finalises it and calls `VisibilityRaster::Render` at 8×8. It checks height and aerial attenuation in rendered output, aerial start distance beyond geometry, local-volume changes and disabled-state recovery. This is actual geometry-pixel testing, not just settings staging or helper math. It does not certify every camera direction, sky-miss path or GPU backend.
+The Fog proof assembles an actual emissive topology with `GeometryStructure` and `SceneStructure`, finalises it and calls `VisibilityRaster::Render` at 8×8. It checks height and aerial attenuation in rendered output, aerial start distance beyond geometry, local-volume changes and disabled-state recovery. This is actual geometry-pixel testing, not just settings staging or helper math. It does not certify every camera direction, sky-miss path or GPU backend.
 
 Additional assertions cover scalar round trips, finite-value rejection and bounds, optical laws, altitude response, spectral versus grey extinction, shared local marches, independent visibility staging, native slider/vector interactions, probe input isolation, narrow scrolling, 2× capture and teardown. Captures were inspected for the height and local layouts.
 

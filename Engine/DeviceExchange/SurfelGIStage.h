@@ -2,15 +2,15 @@
 // 📦 Engine/DeviceExchange/SurfelGIStage.h — host owner of the surfel-GI compute stage (Thread E, RenderPath == 1)
 //============================================================================================================================================
 // Self-contained companion to SwapchainExchange. It owns:
-//    • three storage buffers (SSBOs) — the surfel field, the grid head table, the per-surfel next-links;
-//    • the CPU mirror of the surfel field + the HOST-SIDE hash-grid build that fills the two link buffers;
-//    • three compute pipelines built from the delivered SPIR-V — SurfelIrradianceUpdate, SurfelCommit, SurfelGIResolve;
+//    • three storage stores (SSBOs) — the surfel field, the grid head table, the per-surfel next-links;
+//    • the CPU mirror of the surfel field + the HOST-SIDE hash-grid build that fills the two link stores;
+//    • three compute chains built from the delivered SPIR-V — SurfelIrradianceUpdate, SurfelCommit, SurfelGIResolve;
 //    • the recording of the three vkCmdDispatch calls (update → commit → resolve) with the barriers between them;
 //    • per-frame surfel logging (spawned / live / recycled / coverage), as the task requires.
 //
 // Everything device-specific is passed in through SurfelStageInit so this file compiles against the engine's existing
-//    Vulkan objects without reaching into SwapchainExchange internals. The stage owns its short-lived descriptor pool:
-//    it must never consume the ReSTIR pool's one descriptor set or leave dangling CWBVH bindings after a scene reload.
+//    Vulkan objects without reaching into SwapchainExchange internals. The stage owns its short-lived descriptor slots:
+//    it must never consume the ReSTIR slots's one descriptor set or leave dangling CWBVH bindings after a scene reload.
 //
 // The binding contract MUST match the shaders in ../Shaders:
 //    Update  : b0 Surfels(rw)  b1 GridHead(ro)  b2 GridNext(ro)  b8 CwbvhNodes  b9 CwbvhTris   push SurfelUpdateConstants
@@ -52,11 +52,11 @@ namespace Frontier
         VkDevice                         Device            = VK_NULL_HANDLE;
         VkPhysicalDeviceMemoryProperties MemoryProperties  {};
 
-        // Shared acceleration structure blobs — the SAME buffers the ReSTIR kernel binds at 8/9.
-        VkBuffer                         CwbvhNodeBuffer   = VK_NULL_HANDLE;
-        VkBuffer                         CwbvhLeafBuffer   = VK_NULL_HANDLE;
+        // Shared acceleration structure blobs — the SAME stores the ReSTIR kernel binds at 8/9.
+        VkBuffer                         CwbvhNodeStore   = VK_NULL_HANDLE;
+        VkBuffer                         CwbvhLeafStore   = VK_NULL_HANDLE;
 
-        // G-buffer + present views (GENERAL layout storage images produced by VisibilityRaster/SurfaceResolve).
+        // G-store + present views (GENERAL layout storage images produced by VisibilityRaster/SurfaceResolve).
         VkImageView                      OutputImageView   = VK_NULL_HANDLE;   // rgba8   (present target)
         VkImageView                      SurfaceImageView  = VK_NULL_HANDLE;   // rgba32f (world pos + vis id)
         VkImageView                      NormalImageView   = VK_NULL_HANDLE;   // rgba16f
@@ -64,14 +64,14 @@ namespace Frontier
         // ── The scene, as the ReSTIR kernel sees it ─────────────────────────────────────────────────────────────
         // Both surfel passes now decode the real hit triangle and evaluate the real OpenPBR slab, so they need the
         //    same six scene SSBOs, the same two shading LUTs and the same bindless texture table the kernel binds.
-        //    These are BORROWED handles — SwapchainExchange owns them and rebinds the stage whenever they change.
+        //    These are BORROWED identifiers — SwapchainExchange owns them and rebinds the stage whenever they change.
         //    Before this they were absent, and the passes approximated the material instead of reading it.
-        VkBuffer                         TriangleBuffer    = VK_NULL_HANDLE;   // GpuTriangle[]     — flat primitives
-        VkBuffer                         MaterialBuffer    = VK_NULL_HANDLE;   // GpuMaterial[]     — slab headers
-        VkBuffer                         InstanceBuffer    = VK_NULL_HANDLE;   // GpuInstance[]     — transforms + slab index
-        VkBuffer                         SlabBuffer        = VK_NULL_HANDLE;   // GpuMaterialSlab[] — the OpenPBR parameters
-        VkBuffer                         VertexBuffer      = VK_NULL_HANDLE;   // GpuVertex[]       — normals, tangents, UVs
-        VkBuffer                         IndexBuffer       = VK_NULL_HANDLE;   // uint[]            — per-instance indices
+        VkBuffer                         TriangleStore    = VK_NULL_HANDLE;   // GpuTriangle[]     — flat primitives
+        VkBuffer                         MaterialStore    = VK_NULL_HANDLE;   // GpuMaterial[]     — slab headers
+        VkBuffer                         InstanceStore    = VK_NULL_HANDLE;   // GpuInstance[]     — transforms + slab index
+        VkBuffer                         SlabStore        = VK_NULL_HANDLE;   // GpuMaterialSlab[] — the OpenPBR parameters
+        VkBuffer                         VertexStore      = VK_NULL_HANDLE;   // GpuVertex[]       — normals, tangents, UVs
+        VkBuffer                         IndexStore       = VK_NULL_HANDLE;   // uint[]            — per-instance indices
         VkSampler                        TableSampler      = VK_NULL_HANDLE;   // clamped bilinear for the two LUTs
         VkImageView                      EnergyLutView     = VK_NULL_HANDLE;   // binding 13 — Kulla–Conty E(μ,α)
         VkImageView                      SheenLutView      = VK_NULL_HANDLE;   // binding 14 — LTC sheen table
@@ -80,7 +80,7 @@ namespace Frontier
         uint32_t                         TextureCount      = 0u;               // [-] entries in TextureViews
         uint32_t                         TextureCapacity   = 0u;               // [-] 0 ⇒ no descriptor indexing on this device
 
-        uint32_t                         MaxSurfels        = 262144u;          // pool ceiling (SPAWN_BUDGET grows toward it)
+        uint32_t                         MaxSurfels        = 262144u;          // slots ceiling (SPAWN_BUDGET grows toward it)
         uint32_t                         GridHashSize      = 131072u;          // hash table cells (prime-ish, > live surfels)
         float                            GridCellSize      = 0.09f;            // world cell size (≈ RMAX; scene-scaled by caller)
         std::string                      SpirvDirectory    = "Engine/Shaders"; // where SurfelIrradianceUpdate.spv etc. live
@@ -109,7 +109,7 @@ namespace Frontier
     class SurfelGIStage
     {
     public:
-        bool Bring(const SurfelStageInit& Init) noexcept;               // allocate SSBOs + build pipelines/sets
+        bool Bring(const SurfelStageInit& Init) noexcept;               // allocate SSBOs + build chains/sets
         void Destroy() noexcept;
 
         // Host-side topology maintenance: spawn/recycle from supplied surface samples up to the budget and rebuild
@@ -117,25 +117,25 @@ namespace Frontier
         //    seed field or reset its running mean. Logs spawned/live/recycled/coverage; call before RecordFrame().
         void UpdateField(const std::vector<SurfaceSample>& Samples, const SurfelFrameParams& Params) noexcept;
 
-        // Record update → commit → resolve into an already-begun command buffer, with the two compute→compute
+        // Record update → commit → resolve into an already-begun command store, with the two compute→compute
         //    barriers. Bind order and push blocks match the shaders. Returns false without writing when the field
         //    has no live samples, so the caller can retain its normal renderer as a safe fallback.
         [[nodiscard]] bool RecordFrame(VkCommandBuffer Command, const SurfelFrameParams& Params) noexcept;
 
-        [[nodiscard]] bool IsReady() const noexcept { return I.Device != VK_NULL_HANDLE && UpdatePipeline != VK_NULL_HANDLE && ResolvePipeline != VK_NULL_HANDLE; }
+        [[nodiscard]] bool IsReady() const noexcept { return I.Device != VK_NULL_HANDLE && UpdatePipeline != VK_NULL_HANDLE && ResolveChain != VK_NULL_HANDLE; }
         uint32_t LiveSurfelCount() const noexcept { return LiveCount; }
 
     private:
         bool CreateBuffers() noexcept;
         bool CreatePipelines() noexcept;
         bool WriteDescriptors() noexcept;
-        void UploadBuffers() noexcept;                                  // CPU topology mirror → staging SSBOs, only after a spawn/recycle
+        void UploadStores() noexcept;                                  // CPU topology mirror → staging SSBOs, only after a spawn/recycle
 
         SurfelStageInit          I{};
         // SSBOs (device local) + host-visible staging mirrors.
-        VkBuffer                 SurfelBuffer = VK_NULL_HANDLE, SurfelStage = VK_NULL_HANDLE;
-        VkBuffer                 HeadBuffer   = VK_NULL_HANDLE, HeadStage   = VK_NULL_HANDLE;
-        VkBuffer                 NextBuffer   = VK_NULL_HANDLE, NextStage   = VK_NULL_HANDLE;
+        VkBuffer                 SurfelStore = VK_NULL_HANDLE, SurfelStage = VK_NULL_HANDLE;
+        VkBuffer                 HeadStore   = VK_NULL_HANDLE, HeadStage   = VK_NULL_HANDLE;
+        VkBuffer                 NextStore   = VK_NULL_HANDLE, NextStage   = VK_NULL_HANDLE;
         VkDeviceMemory           SurfelMem = VK_NULL_HANDLE, SurfelStageMem = VK_NULL_HANDLE;
         VkDeviceMemory           HeadMem   = VK_NULL_HANDLE, HeadStageMem   = VK_NULL_HANDLE;
         VkDeviceMemory           NextMem   = VK_NULL_HANDLE, NextStageMem   = VK_NULL_HANDLE;
@@ -143,7 +143,7 @@ namespace Frontier
         VkDescriptorPool         DescriptorPool = VK_NULL_HANDLE;             // private: 3 sets / 11 SSBO / 5 storage-image descriptors
         VkDescriptorSetLayout    UpdateLayout = VK_NULL_HANDLE, CommitLayout = VK_NULL_HANDLE, ResolveLayout = VK_NULL_HANDLE;
         VkPipelineLayout         UpdatePipeLayout = VK_NULL_HANDLE, CommitPipeLayout = VK_NULL_HANDLE, ResolvePipeLayout = VK_NULL_HANDLE;
-        VkPipeline               UpdatePipeline = VK_NULL_HANDLE, CommitPipeline = VK_NULL_HANDLE, ResolvePipeline = VK_NULL_HANDLE;
+        VkPipeline               UpdatePipeline = VK_NULL_HANDLE, CommitChain = VK_NULL_HANDLE, ResolveChain = VK_NULL_HANDLE;
         VkDescriptorSet          UpdateSet = VK_NULL_HANDLE, CommitSet = VK_NULL_HANDLE, ResolveSet = VK_NULL_HANDLE;
 
         // CPU mirror of the field + grid.

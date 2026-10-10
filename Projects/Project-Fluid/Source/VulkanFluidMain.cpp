@@ -47,9 +47,9 @@ std::vector<std::uint32_t> ReadSpirv(const char* path) {
     return words;
 }
 
-struct Buffer {
-    VkBuffer Handle{VK_NULL_HANDLE};
-    VkDeviceMemory Memory{VK_NULL_HANDLE};
+struct Block {
+    VkBuffer Tag{VK_NULL_HANDLE};
+    VkDeviceMemory Store{VK_NULL_HANDLE};
     VkDeviceSize Size{};
     void* Mapped{};
 };
@@ -97,7 +97,7 @@ public:
             const auto now = std::chrono::steady_clock::now();
             const float dt = std::min(0.05f, std::chrono::duration<float>(now - previous).count());
             previous = now;
-            // Mapped uniforms and mode data are single-buffered in this proof;
+            // Mapped uniforms and mode record are single-buffered in this proof;
             // do not mutate them until the preceding dispatch has retired.
             vkWaitForFences(Device_, 1, &FrameFence_, VK_TRUE, UINT64_MAX);
             Update(dt);
@@ -118,7 +118,7 @@ private:
     VkFormat SwapFormat_{VK_FORMAT_UNDEFINED};
     VkExtent2D Extent_{};
     std::vector<VkImage> Images_;
-    VkCommandPool CommandPool_{VK_NULL_HANDLE};
+    VkCommandPool CommandSlots_{VK_NULL_HANDLE};
     VkCommandBuffer Command_{VK_NULL_HANDLE};
     VkDescriptorSetLayout SetLayout_{VK_NULL_HANDLE};
     VkDescriptorPool DescriptorPool_{VK_NULL_HANDLE};
@@ -128,17 +128,17 @@ private:
     VkPipelineLayout ClearLayout_{VK_NULL_HANDLE};
     VkPipelineLayout SplatLayout_{VK_NULL_HANDLE};
     VkPipelineLayout ResolveLayout_{VK_NULL_HANDLE};
-    VkPipeline ClearPipeline_{VK_NULL_HANDLE};
-    VkPipeline SplatPipeline_{VK_NULL_HANDLE};
-    VkPipeline ResolvePipeline_{VK_NULL_HANDLE};
+    VkPipeline ClearChain_{VK_NULL_HANDLE};
+    VkPipeline SplatChain_{VK_NULL_HANDLE};
+    VkPipeline ResolveChain_{VK_NULL_HANDLE};
     VkSemaphore Acquired_{VK_NULL_HANDLE};
     VkSemaphore Rendered_{VK_NULL_HANDLE};
     VkFence FrameFence_{VK_NULL_HANDLE};
-    Buffer ParticleBuffer_;
-    Buffer DepthBuffer_;
-    Buffer ThicknessBuffer_;
-    Buffer PixelBuffer_;
-    Buffer UniformBuffer_;
+    Block ParticleStore_;
+    Block DepthStore_;
+    Block ThicknessStore_;
+    Block PixelStore_;
+    Block UniformStore_;
 #ifdef PROJECT_FLUID_EMBEDDED
     std::unique_ptr<PF::GpuSurfaceExtractor> Extractor_;
     std::ofstream Perf_;
@@ -157,7 +157,7 @@ private:
     bool Pouring_{true};
     std::uint64_t FrameNumber_{};
 
-    std::uint32_t FindMemory(std::uint32_t mask, VkMemoryPropertyFlags wanted) const {
+    std::uint32_t FindStorage(std::uint32_t mask, VkMemoryPropertyFlags wanted) const {
         VkPhysicalDeviceMemoryProperties properties{};
         vkGetPhysicalDeviceMemoryProperties(Physical_, &properties);
         for (std::uint32_t i = 0; i < properties.memoryTypeCount; ++i)
@@ -165,34 +165,34 @@ private:
         Fail("No compatible Vulkan memory type");
     }
 
-    Buffer MakeBuffer(VkDeviceSize size, VkBufferUsageFlags usage, bool hostVisible) {
-        Buffer buffer{};
-        buffer.Size = size;
-        VkBufferCreateInfo info{VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO};
-        info.size = size;
-        info.usage = usage;
-        info.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
-        VkCheck(vkCreateBuffer(Device_, &info, nullptr, &buffer.Handle), "vkCreateBuffer");
+    Block MakeStore(VkDeviceSize size, VkBufferUsageFlags usage, bool hostVisible) {
+        Block store{};
+        store.Size = size;
+        VkBufferCreateInfo facts{VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO};
+        facts.size = size;
+        facts.usage = usage;
+        facts.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+        VkCheck(vkCreateBuffer(Device_, &facts, nullptr, &store.Tag), "vkCreateBuffer");
         VkMemoryRequirements requirement{};
-        vkGetBufferMemoryRequirements(Device_, buffer.Handle, &requirement);
+        vkGetBufferMemoryRequirements(Device_, store.Tag, &requirement);
         VkMemoryAllocateInfo allocation{VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO};
         allocation.allocationSize = requirement.size;
         const VkMemoryPropertyFlags flags = hostVisible
             ? VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT
             : VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
-        allocation.memoryTypeIndex = FindMemory(requirement.memoryTypeBits, flags);
-        VkCheck(vkAllocateMemory(Device_, &allocation, nullptr, &buffer.Memory), "vkAllocateMemory");
-        VkCheck(vkBindBufferMemory(Device_, buffer.Handle, buffer.Memory, 0), "vkBindBufferMemory");
-        if (hostVisible) VkCheck(vkMapMemory(Device_, buffer.Memory, 0, size, 0, &buffer.Mapped), "vkMapMemory");
-        return buffer;
+        allocation.memoryTypeIndex = FindStorage(requirement.memoryTypeBits, flags);
+        VkCheck(vkAllocateMemory(Device_, &allocation, nullptr, &store.Store), "vkAllocateMemory");
+        VkCheck(vkBindBufferMemory(Device_, store.Tag, store.Store, 0), "vkBindBufferMemory");
+        if (hostVisible) VkCheck(vkMapMemory(Device_, store.Store, 0, size, 0, &store.Mapped), "vkMapMemory");
+        return store;
     }
 
-    void DestroyBuffer(Buffer& buffer) {
+    void DestroyBuffer(Block& store) {
         if (!Device_) return;
-        if (buffer.Mapped) vkUnmapMemory(Device_, buffer.Memory);
-        if (buffer.Handle) vkDestroyBuffer(Device_, buffer.Handle, nullptr);
-        if (buffer.Memory) vkFreeMemory(Device_, buffer.Memory, nullptr);
-        buffer = {};
+        if (store.Mapped) vkUnmapMemory(Device_, store.Store);
+        if (store.Tag) vkDestroyBuffer(Device_, store.Tag, nullptr);
+        if (store.Store) vkFreeMemory(Device_, store.Store, nullptr);
+        store = {};
     }
 
     void Initialize() {
@@ -232,7 +232,7 @@ private:
         Perf_.open(log);if(!Perf_)Fail("Cannot create fluid preview performance log");
         Perf_<<"frame,particles,sim_steps,physics_wall_ms,pca_ms,prepare_ms,extract_wall_ms,update_wall_ms,gpu_field_ms,gpu_edges_ms,gpu_triangles_ms,indices,overflow\n";
         VkPhysicalDeviceProperties properties;vkGetPhysicalDeviceProperties(Physical_,&properties);
-        std::cerr<<"[FluidPreview] GPU="<<properties.deviceName<<" allocation_bytes="<<Extractor_->AllocatedBytes()<<" CSV="<<log<<"\nCPU physics/PCA; GPU raw mesh extraction. Display uses particle optics, NOT the extracted mesh.\n";
+        std::cerr<<"[FluidPreview] GPU="<<properties.deviceName<<" allocation_bytes="<<Extractor_->AllocatedBytes()<<" CSV="<<log<<"\nCPU physics/PCA; GPU raw topology extraction. Display uses particle optics, NOT the extracted topology.\n";
 #endif
         UploadParticles();
         std::cout << "Project Fluid / Flux controls: Space pause, R reset, S stir, P toggle pour, 1-4 materials, Esc quit\n";
@@ -297,27 +297,27 @@ private:
             ? capabilities.currentExtent : VkExtent2D{InitialWidth, InitialHeight};
         const std::uint32_t imageCount = std::clamp(capabilities.minImageCount + 1, capabilities.minImageCount,
             capabilities.maxImageCount ? capabilities.maxImageCount : capabilities.minImageCount + 1);
-        VkSwapchainCreateInfoKHR info{VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR};
-        info.surface = WindowSurface_;
-        info.minImageCount = imageCount;
-        info.imageFormat = selected.format;
-        info.imageColorSpace = selected.colorSpace;
-        info.imageExtent = Extent_;
-        info.imageArrayLayers = 1;
-        info.imageUsage = VK_IMAGE_USAGE_TRANSFER_DST_BIT;
-        info.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE;
-        info.preTransform = capabilities.currentTransform;
-        info.compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
-        info.presentMode = VK_PRESENT_MODE_FIFO_KHR;
-        info.clipped = VK_TRUE;
-        VkCheck(vkCreateSwapchainKHR(Device_, &info, nullptr, &Swapchain_), "vkCreateSwapchainKHR");
+        VkSwapchainCreateInfoKHR facts{VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR};
+        facts.surface = WindowSurface_;
+        facts.minImageCount = imageCount;
+        facts.imageFormat = selected.format;
+        facts.imageColorSpace = selected.colorSpace;
+        facts.imageExtent = Extent_;
+        facts.imageArrayLayers = 1;
+        facts.imageUsage = VK_IMAGE_USAGE_TRANSFER_DST_BIT;
+        facts.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE;
+        facts.preTransform = capabilities.currentTransform;
+        facts.compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
+        facts.presentMode = VK_PRESENT_MODE_FIFO_KHR;
+        facts.clipped = VK_TRUE;
+        VkCheck(vkCreateSwapchainKHR(Device_, &facts, nullptr, &Swapchain_), "vkCreateSwapchainKHR");
         std::uint32_t actual = 0;
         vkGetSwapchainImagesKHR(Device_, Swapchain_, &actual, nullptr);
         Images_.resize(actual);
         vkGetSwapchainImagesKHR(Device_, Swapchain_, &actual, Images_.data());
     }
 
-    VkPipeline MakePipeline(const char* path, VkPipelineLayout layout) {
+    VkPipeline MakeChain(const char* path, VkPipelineLayout layout) {
         const auto code = ReadSpirv(path);
         VkShaderModuleCreateInfo moduleInfo{VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO};
         moduleInfo.codeSize = code.size() * sizeof(std::uint32_t);
@@ -331,19 +331,19 @@ private:
         VkComputePipelineCreateInfo pipelineInfo{VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO};
         pipelineInfo.stage = stage;
         pipelineInfo.layout = layout;
-        VkPipeline pipeline{};
-        VkCheck(vkCreateComputePipelines(Device_, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &pipeline), "vkCreateComputePipelines");
+        VkPipeline chain{};
+        VkCheck(vkCreateComputePipelines(Device_, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &chain), "vkCreateComputePipelines");
         vkDestroyShaderModule(Device_, module, nullptr);
-        return pipeline;
+        return chain;
     }
 
     void CreateComputeState() {
-        ParticleBuffer_ = MakeBuffer(PF::PbfFluid::MaxParticles * sizeof(GpuParticle), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, true);
+        ParticleStore_ = MakeStore(PF::PbfFluid::MaxParticles * sizeof(GpuParticle), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, true);
         const VkDeviceSize pixelBytes = static_cast<VkDeviceSize>(Extent_.width) * Extent_.height * 4;
-        DepthBuffer_ = MakeBuffer(pixelBytes, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, false);
-        ThicknessBuffer_ = MakeBuffer(pixelBytes, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, false);
-        PixelBuffer_ = MakeBuffer(pixelBytes, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_SRC_BIT, false);
-        UniformBuffer_ = MakeBuffer(sizeof(Parameters), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, true);
+        DepthStore_ = MakeStore(pixelBytes, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, false);
+        ThicknessStore_ = MakeStore(pixelBytes, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, false);
+        PixelStore_ = MakeStore(pixelBytes, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_SRC_BIT, false);
+        UniformStore_ = MakeStore(sizeof(Parameters), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, true);
 
         std::array<VkDescriptorSetLayoutBinding, 5> bindings{};
         bindings[0] = {0, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_COMPUTE_BIT, nullptr};
@@ -362,17 +362,17 @@ private:
         VkCheck(vkCreatePipelineLayout(Device_, &surfaceLayout, nullptr, &ClearLayout_), "vkCreatePipelineLayout");
         VkCheck(vkCreatePipelineLayout(Device_, &surfaceLayout, nullptr, &SplatLayout_), "vkCreatePipelineLayout");
         VkCheck(vkCreatePipelineLayout(Device_, &surfaceLayout, nullptr, &ResolveLayout_), "vkCreatePipelineLayout");
-        ClearPipeline_ = MakePipeline(PROJECT_FLUID_CLEAR_SPV, ClearLayout_);
-        SplatPipeline_ = MakePipeline(PROJECT_FLUID_SPLAT_SPV, SplatLayout_);
-        ResolvePipeline_ = MakePipeline(PROJECT_FLUID_RESOLVE_SPV, ResolveLayout_);
+        ClearChain_ = MakeChain(PROJECT_FLUID_CLEAR_SPV, ClearLayout_);
+        SplatChain_ = MakeChain(PROJECT_FLUID_SPLAT_SPV, SplatLayout_);
+        ResolveChain_ = MakeChain(PROJECT_FLUID_RESOLVE_SPV, ResolveLayout_);
 
         std::array<VkDescriptorPoolSize, 2> sizes{{
             {VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 12}, {VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 3}}};
-        VkDescriptorPoolCreateInfo pool{VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO};
-        pool.maxSets = 3;
-        pool.poolSizeCount = static_cast<std::uint32_t>(sizes.size());
-        pool.pPoolSizes = sizes.data();
-        VkCheck(vkCreateDescriptorPool(Device_, &pool, nullptr, &DescriptorPool_), "vkCreateDescriptorPool");
+        VkDescriptorPoolCreateInfo slots{VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO};
+        slots.maxSets = 3;
+        slots.poolSizeCount = static_cast<std::uint32_t>(sizes.size());
+        slots.pPoolSizes = sizes.data();
+        VkCheck(vkCreateDescriptorPool(Device_, &slots, nullptr, &DescriptorPool_), "vkCreateDescriptorPool");
         std::array<VkDescriptorSetLayout, 3> layouts{SetLayout_, SetLayout_, SetLayout_};
         VkDescriptorSetAllocateInfo allocate{VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO};
         allocate.descriptorPool = DescriptorPool_;
@@ -386,9 +386,9 @@ private:
         VkCommandPoolCreateInfo commandPool{VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO};
         commandPool.queueFamilyIndex = QueueFamily_;
         commandPool.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
-        VkCheck(vkCreateCommandPool(Device_, &commandPool, nullptr, &CommandPool_), "vkCreateCommandPool");
+        VkCheck(vkCreateCommandPool(Device_, &commandPool, nullptr, &CommandSlots_), "vkCreateCommandPool");
         VkCommandBufferAllocateInfo command{VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO};
-        command.commandPool = CommandPool_;
+        command.commandPool = CommandSlots_;
         command.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
         command.commandBufferCount = 1;
         VkCheck(vkAllocateCommandBuffers(Device_, &command, &Command_), "vkAllocateCommandBuffers");
@@ -401,11 +401,11 @@ private:
     }
 
     void WriteSet(VkDescriptorSet set) {
-        VkDescriptorBufferInfo particles{ParticleBuffer_.Handle, 0, ParticleBuffer_.Size};
-        VkDescriptorBufferInfo pixels{PixelBuffer_.Handle, 0, PixelBuffer_.Size};
-        VkDescriptorBufferInfo depths{DepthBuffer_.Handle, 0, DepthBuffer_.Size};
-        VkDescriptorBufferInfo uniform{UniformBuffer_.Handle, 0, UniformBuffer_.Size};
-        VkDescriptorBufferInfo thickness{ThicknessBuffer_.Handle, 0, ThicknessBuffer_.Size};
+        VkDescriptorBufferInfo particles{ParticleStore_.Tag, 0, ParticleStore_.Size};
+        VkDescriptorBufferInfo pixels{PixelStore_.Tag, 0, PixelStore_.Size};
+        VkDescriptorBufferInfo depths{DepthStore_.Tag, 0, DepthStore_.Size};
+        VkDescriptorBufferInfo uniform{UniformStore_.Tag, 0, UniformStore_.Size};
+        VkDescriptorBufferInfo thickness{ThicknessStore_.Tag, 0, ThicknessStore_.Size};
         std::array<VkDescriptorBufferInfo*, 5> infos{&particles, &pixels, &depths, &uniform, &thickness};
         std::array<VkWriteDescriptorSet, 5> writes{};
         for (std::uint32_t i = 0; i < writes.size(); ++i) {
@@ -429,7 +429,7 @@ private:
                 k.AxisA.x,k.AxisA.y,k.AxisA.z,0.0f,k.AxisB.x,k.AxisB.y,k.AxisB.z,0.0f,
                 k.AxisC.x,k.AxisC.y,k.AxisC.z,0.0f};
         }
-        std::memcpy(ParticleBuffer_.Mapped, GpuParticles_.data(), positions.size() * sizeof(GpuParticle));
+        std::memcpy(ParticleStore_.Mapped, GpuParticles_.data(), positions.size() * sizeof(GpuParticle));
         Params_.ParticleCount = static_cast<std::uint32_t>(positions.size());
         Params_.Time = Fluid_.Time();
         Params_.ObstacleEnabled = Fluid_.ObstacleEnabled() ? 1u : 0u;
@@ -478,14 +478,14 @@ private:
         const auto extractStart=std::chrono::steady_clock::now();
         const auto timing=Extractor_->Update(prepared);
         const auto extractMs=std::chrono::duration<double,std::milli>(std::chrono::steady_clock::now()-extractStart).count();
-        if(timing.Overflow)Fail("Fluid GPU mesh capacity exceeded");
+        if(timing.Overflow)Fail("Fluid GPU topology capacity exceeded");
         const auto ms=std::chrono::duration<double,std::milli>(std::chrono::steady_clock::now()-updateStart).count();
         Perf_<<PerfFrame_++<<','<<Fluid_.Positions().size()<<','<<simulationSteps<<','<<physicsMs<<','<<LastPcaMs_<<','<<prepareMs<<','<<extractMs<<','<<ms<<',';
         if(timing.Timestamps)Perf_<<timing.FieldMs<<','<<timing.EdgesMs<<','<<timing.TrianglesMs;else Perf_<<"NA,NA,NA";
         Perf_<<','<<timing.Indices<<','<<timing.Overflow<<'\n';
         if(PerfFrame_%60==0){Perf_.flush();std::cerr<<"[FluidPreview] update_ms="<<ms<<" triangles="<<timing.Indices/3<<'\n';}
 #endif
-        std::memcpy(UniformBuffer_.Mapped, &Params_, sizeof(Params_));
+        std::memcpy(UniformStore_.Mapped, &Params_, sizeof(Params_));
         const auto& d = Fluid_.Diagnostics();
         std::string title = "Project Fluid | Flux PBF | " + std::string(Fluid_.ActiveMaterial().Name) +
             " | particles " + std::to_string(Fluid_.Positions().size()) +
@@ -502,7 +502,7 @@ private:
         vkResetCommandBuffer(Command_, 0);
         VkCommandBufferBeginInfo begin{VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO};
         VkCheck(vkBeginCommandBuffer(Command_, &begin), "vkBeginCommandBuffer");
-        vkCmdBindPipeline(Command_, VK_PIPELINE_BIND_POINT_COMPUTE, ClearPipeline_);
+        vkCmdBindPipeline(Command_, VK_PIPELINE_BIND_POINT_COMPUTE, ClearChain_);
         vkCmdBindDescriptorSets(Command_, VK_PIPELINE_BIND_POINT_COMPUTE, ClearLayout_, 0, 1, &ClearSet_, 0, nullptr);
         vkCmdDispatch(Command_, (Extent_.width + 15) / 16, (Extent_.height + 15) / 16, 1);
         VkMemoryBarrier computeBarrier{VK_STRUCTURE_TYPE_MEMORY_BARRIER};
@@ -510,7 +510,7 @@ private:
         computeBarrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT;
         vkCmdPipelineBarrier(Command_, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 0,
                              1, &computeBarrier, 0, nullptr, 0, nullptr);
-        vkCmdBindPipeline(Command_, VK_PIPELINE_BIND_POINT_COMPUTE, SplatPipeline_);
+        vkCmdBindPipeline(Command_, VK_PIPELINE_BIND_POINT_COMPUTE, SplatChain_);
         vkCmdBindDescriptorSets(Command_, VK_PIPELINE_BIND_POINT_COMPUTE, SplatLayout_, 0, 1, &SplatSet_, 0, nullptr);
         vkCmdDispatch(Command_, (Params_.ParticleCount + 63u) / 64u, 1, 1);
         VkMemoryBarrier splatBarrier{VK_STRUCTURE_TYPE_MEMORY_BARRIER};
@@ -518,7 +518,7 @@ private:
         splatBarrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT;
         vkCmdPipelineBarrier(Command_, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 0,
                              1, &splatBarrier, 0, nullptr, 0, nullptr);
-        vkCmdBindPipeline(Command_, VK_PIPELINE_BIND_POINT_COMPUTE, ResolvePipeline_);
+        vkCmdBindPipeline(Command_, VK_PIPELINE_BIND_POINT_COMPUTE, ResolveChain_);
         vkCmdBindDescriptorSets(Command_, VK_PIPELINE_BIND_POINT_COMPUTE, ResolveLayout_, 0, 1, &ResolveSet_, 0, nullptr);
         vkCmdDispatch(Command_, (Extent_.width + 15) / 16, (Extent_.height + 15) / 16, 1);
         VkBufferMemoryBarrier pixelBarrier{VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER};
@@ -526,7 +526,7 @@ private:
         pixelBarrier.dstAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
         pixelBarrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
         pixelBarrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-        pixelBarrier.buffer = PixelBuffer_.Handle;
+        pixelBarrier.buffer = PixelStore_.Tag;
         pixelBarrier.size = VK_WHOLE_SIZE;
         vkCmdPipelineBarrier(Command_, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT, 0,
                              0, nullptr, 1, &pixelBarrier, 0, nullptr);
@@ -546,7 +546,7 @@ private:
         VkBufferImageCopy copy{};
         copy.imageSubresource = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1};
         copy.imageExtent = {Extent_.width, Extent_.height, 1};
-        vkCmdCopyBufferToImage(Command_, PixelBuffer_.Handle, Images_[imageIndex], VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &copy);
+        vkCmdCopyBufferToImage(Command_, PixelStore_.Tag, Images_[imageIndex], VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &copy);
         VkImageMemoryBarrier toPresent = toTransfer;
         toPresent.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
         toPresent.dstAccessMask = 0;
@@ -583,16 +583,16 @@ private:
             if (FrameFence_) vkDestroyFence(Device_, FrameFence_, nullptr);
             if (Acquired_) vkDestroySemaphore(Device_, Acquired_, nullptr);
             if (Rendered_) vkDestroySemaphore(Device_, Rendered_, nullptr);
-            if (CommandPool_) vkDestroyCommandPool(Device_, CommandPool_, nullptr);
-            if (ClearPipeline_) vkDestroyPipeline(Device_, ClearPipeline_, nullptr);
-            if (SplatPipeline_) vkDestroyPipeline(Device_, SplatPipeline_, nullptr);
-            if (ResolvePipeline_) vkDestroyPipeline(Device_, ResolvePipeline_, nullptr);
+            if (CommandSlots_) vkDestroyCommandPool(Device_, CommandSlots_, nullptr);
+            if (ClearChain_) vkDestroyPipeline(Device_, ClearChain_, nullptr);
+            if (SplatChain_) vkDestroyPipeline(Device_, SplatChain_, nullptr);
+            if (ResolveChain_) vkDestroyPipeline(Device_, ResolveChain_, nullptr);
             if (ClearLayout_) vkDestroyPipelineLayout(Device_, ClearLayout_, nullptr);
             if (SplatLayout_) vkDestroyPipelineLayout(Device_, SplatLayout_, nullptr);
             if (ResolveLayout_) vkDestroyPipelineLayout(Device_, ResolveLayout_, nullptr);
             if (DescriptorPool_) vkDestroyDescriptorPool(Device_, DescriptorPool_, nullptr);
             if (SetLayout_) vkDestroyDescriptorSetLayout(Device_, SetLayout_, nullptr);
-            DestroyBuffer(ParticleBuffer_); DestroyBuffer(DepthBuffer_); DestroyBuffer(ThicknessBuffer_); DestroyBuffer(PixelBuffer_); DestroyBuffer(UniformBuffer_);
+            DestroyBuffer(ParticleStore_); DestroyBuffer(DepthStore_); DestroyBuffer(ThicknessStore_); DestroyBuffer(PixelStore_); DestroyBuffer(UniformStore_);
             if (Swapchain_) vkDestroySwapchainKHR(Device_, Swapchain_, nullptr);
 #ifdef PROJECT_FLUID_EMBEDDED
             Extractor_.reset();

@@ -56,10 +56,10 @@ int main(){
     auto Tick=[&](){IO.DisplaySize={float(Width),float(Height)};IO.DisplayFramebufferScale={Scale,Scale};ImGui::NewFrame();ImGui::SetNextWindowPos({0,0});ImGui::SetNextWindowSize(IO.DisplaySize);Inspector->Record(Row.get(),0,Sheet.get());Apply();ImGui::Render();FrontierProof::AcknowledgeTextures();};
     auto Rest=[&](){for(int I=0;I<3;++I)Tick();};
     auto Click=[&](ImVec2 P){IO.AddMousePosEvent(P.x,P.y);Tick();IO.AddMouseButtonEvent(0,true);Tick();IO.AddMouseButtonEvent(0,false);Tick();IO.AddMousePosEvent(-100,-100);};
-    Rest();auto Info=QueryLensFlarePreview();Check(Info.Texture&&Info.Revision==1,"one managed image generated initially");Rest();Check(QueryLensFlarePreview().Revision==Info.Revision,"unchanged frames reuse cached image");
-    unsigned Images=0;for(auto* L:ImGui::GetDrawData()->CmdLists)for(auto& C:L->CmdBuffer)if(C.TexRef._TexData==Info.Texture)++Images;Check(Images>=2,"thumbnail and composite reference same image resource");
+    Rest();auto Facts=QueryLensFlarePreview();Check(Facts.Texture&&Facts.Revision==1,"one managed image generated initially");Rest();Check(QueryLensFlarePreview().Revision==Facts.Revision,"unchanged frames reuse cached image");
+    unsigned Images=0;for(auto* L:ImGui::GetDrawData()->CmdLists)for(auto& C:L->CmdBuffer)if(C.TexRef._TexData==Facts.Texture)++Images;Check(Images>=2,"thumbnail and composite reference same image resource");
     for(const char* Label:{"Intensity","Halo Radius","Halo width","Ghosts","Rotation"}){char Needle[64];std::snprintf(Needle,sizeof(Needle),"/%s_",Label);auto* W=Window(Needle);float Old=Find(*Sheet,Label).Figure;Click({W->Pos.x+W->Size.x*.82f,W->Pos.y+15});Check(Find(*Sheet,Label).Figure!=Old,"native slider pointer write-back");}
-    Check(QueryLensFlarePreview().Revision>Info.Revision,"sliders invalidate shared preview image");
+    Check(QueryLensFlarePreview().Revision>Facts.Revision,"sliders invalidate shared preview image");
     Scene->Flare=Defaults;Scene->BuildSheet(CelestialEntity::LensFlare,*Sheet);Rest();
     auto* Props=Window("##flare-properties");ImVec2 O=Props->DC.CursorStartPos;O.x+=20;O.y+=20;float W=Props->WorkRect.GetWidth()-40;
     float CH=141+(W-48)*280/640+14+44+72+50,LY=110+CH+16;
@@ -71,12 +71,12 @@ int main(){
     float Col=(W-16)/2,GX=Col+16;float GhostBefore=Find(*Sheet,"Ghosts").Figure;
     Click({O.x+GX+Col-41,O.y+LY+81});Check(Find(*Sheet,"Ghosts").Figure==GhostBefore+1,"ghost plus pointer input");
     float BW=(Col-64)/3;Click({O.x+GX+24+BW/2,O.y+LY+183});Check(Find(*Sheet,"Ghost shape").Picked==0,"round shape pointer input");
-    Rest();Check(ExportLensFlarePreview(".cache/lens-flare-export.pfm"),"HDR bake export succeeds");Info=QueryLensFlarePreview();Check(Info.BakedRevision==Info.Revision,"export records exact resource revision");
+    Rest();Check(ExportLensFlarePreview(".cache/lens-flare-export.pfm"),"HDR bake export succeeds");Facts=QueryLensFlarePreview();Check(Facts.PrecomputedRevision==Facts.Revision,"export records exact resource revision");
     std::ifstream File(".cache/lens-flare-export.pfm",std::ios::binary);std::string Line;std::getline(File,Line);Check(Line=="PF","linear RGB PFM export");std::getline(File,Line);Check(Line=="640 280","bake dimensions match preview");std::getline(File,Line);
     std::vector<float> Image(640*280*3);File.read(reinterpret_cast<char*>(Image.data()),Image.size()*sizeof(float));Check(File.good(),"complete HDR pixel payload");
     auto F=Scene->Flare;const float UV[]={320.5f/640,140.5f/280},Sun[]={Scene->FlarePreviewX,Scene->FlarePreviewY};float RGB[3];AtmosphericOptics::LensFlare(F,UV,Sun,1,640.f/280,RGB);
     for(int C=0;C<3;++C)Check(std::abs(Image[((279-140)*640+320)*3+C]-RGB[C])<.000001f,"export pixels are actual algorithm output");
-    Find(*Sheet,"Halo width").Figure=.1f;Apply();Rest();Check(QueryLensFlarePreview().BakedRevision!=QueryLensFlarePreview().Revision,"edits mark exported bake stale");
+    Find(*Sheet,"Halo width").Figure=.1f;Apply();Rest();Check(QueryLensFlarePreview().PrecomputedRevision!=QueryLensFlarePreview().Revision,"edits mark exported bake stale");
     auto Capture=[&](const char* Name){int PW=int(Width*Scale),PH=int(Height*Scale);std::vector<unsigned char> Pixels(size_t(PW)*PH*3,24);for(auto* L:ImGui::GetDrawData()->CmdLists)FrontierProof::Draw(L,Pixels.data(),PW,PH,{0,0},{Scale,Scale});char Path[200];std::snprintf(Path,sizeof(Path),"Exhibits/Gallery/LensFlareNative/%s.png",Name);Check(stbi_write_png(Path,PW,PH,3,Pixels.data(),PW*3)!=0,"native capture");};
     Scene->Flare=Defaults;Scene->FlarePreviewX=.28f;Scene->FlarePreviewY=.43f;Scene->BuildSheet(CelestialEntity::LensFlare,*Sheet);Rest();Capture("Lens-Flare-Full");
     Find(*Sheet,"Streaks").On=true;Find(*Sheet,"Rotation").Figure=35;Find(*Sheet,"Ghost shape").Picked=2;Find(*Sheet,"Halo brightness").Figure=2;Apply();Rest();Capture("Lens-Flare-Mixed");

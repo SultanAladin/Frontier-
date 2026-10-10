@@ -283,17 +283,17 @@ bool ScanVerdict(const char* Body, bool& Premium, int& Coins) noexcept
 #endif
 
 #if defined(_WIN32)
-struct WinHttpHandle
+struct WinHttpIdentifier
 {
     HINTERNET Raw = nullptr;
-    ~WinHttpHandle() noexcept
+    ~WinHttpIdentifier() noexcept
     {
         if (Raw)
-            WinHttpCloseHandle(Raw);
+            WinHttpCloseIdentifier(Raw);
     }
-    WinHttpHandle() noexcept = default;
-    WinHttpHandle(const WinHttpHandle&) = delete;
-    WinHttpHandle& operator=(const WinHttpHandle&) = delete;
+    WinHttpIdentifier() noexcept = default;
+    WinHttpIdentifier(const WinHttpIdentifier&) = delete;
+    WinHttpIdentifier& operator=(const WinHttpIdentifier&) = delete;
 };
 
 bool WidenAscii(const char* In, wchar_t* Out, std::size_t Cap) noexcept
@@ -335,7 +335,7 @@ bool WinHttpGetPremium(const SplitUrl& Url, const char* Key, const char* EpicId,
     wchar_t HeaderWide[256]{};
     if (!WidenAscii(Header, HeaderWide, sizeof(HeaderWide) / sizeof(HeaderWide[0])))
         return false;
-    WinHttpHandle Session, Connect, Request;
+    WinHttpIdentifier Session, Connect, Request;
     Session.Raw = WinHttpOpen(L"FrontierCharge/1.0",
         WINHTTP_ACCESS_TYPE_AUTOMATIC_PROXY, WINHTTP_NO_PROXY_NAME,
         WINHTTP_NO_PROXY_BYPASS, 0);
@@ -371,14 +371,14 @@ bool WinHttpGetPremium(const SplitUrl& Url, const char* Key, const char* EpicId,
     for (;;)
     {
         DWORD Available = 0;
-        if (!WinHttpQueryDataAvailable(Request.Raw, &Available))
+        if (!WinHttpQueryPayloadAvailable(Request.Raw, &Available))
             return false;
         if (Available == 0)
             break;
         if (Used + Available + 1 > BodyCap)
             return false;
         DWORD Read = 0;
-        if (!WinHttpReadData(Request.Raw, Body + Used, Available, &Read))
+        if (!WinHttpReadPayload(Request.Raw, Body + Used, Available, &Read))
             return false;
         Used += Read;
         if (Read == 0)

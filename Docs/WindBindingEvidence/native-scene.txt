@@ -85,44 +85,44 @@ PASS Markers toggle restores proxies
 PASS billboard or native control in view
 PASS billboard selects matching outliner row
 PASS billboard mounts real matching inspector
-PASS billboard click consumed before mesh picker
-PASS billboard cancels older asynchronous mesh selection
+PASS billboard click consumed before topology picker
+PASS billboard cancels older asynchronous topology selection
 PASS selection notification consumed once
 PASS billboard or native control in view
 PASS billboard selects matching outliner row
 PASS billboard mounts real matching inspector
-PASS billboard click consumed before mesh picker
-PASS billboard cancels older asynchronous mesh selection
+PASS billboard click consumed before topology picker
+PASS billboard cancels older asynchronous topology selection
 PASS selection notification consumed once
 PASS billboard or native control in view
 PASS billboard selects matching outliner row
 PASS billboard mounts real matching inspector
-PASS billboard click consumed before mesh picker
-PASS billboard cancels older asynchronous mesh selection
+PASS billboard click consumed before topology picker
+PASS billboard cancels older asynchronous topology selection
 PASS selection notification consumed once
 PASS billboard or native control in view
 PASS billboard selects matching outliner row
 PASS billboard mounts real matching inspector
-PASS billboard click consumed before mesh picker
-PASS billboard cancels older asynchronous mesh selection
+PASS billboard click consumed before topology picker
+PASS billboard cancels older asynchronous topology selection
 PASS selection notification consumed once
 PASS billboard or native control in view
 PASS billboard selects matching outliner row
 PASS billboard mounts real matching inspector
-PASS billboard click consumed before mesh picker
-PASS billboard cancels older asynchronous mesh selection
+PASS billboard click consumed before topology picker
+PASS billboard cancels older asynchronous topology selection
 PASS selection notification consumed once
 PASS billboard or native control in view
 PASS billboard selects matching outliner row
 PASS billboard mounts real matching inspector
-PASS billboard click consumed before mesh picker
-PASS billboard cancels older asynchronous mesh selection
+PASS billboard click consumed before topology picker
+PASS billboard cancels older asynchronous topology selection
 PASS selection notification consumed once
 PASS billboard or native control in view
 PASS billboard selects matching outliner row
 PASS billboard mounts real matching inspector
-PASS billboard click consumed before mesh picker
-PASS billboard cancels older asynchronous mesh selection
+PASS billboard click consumed before topology picker
+PASS billboard cancels older asynchronous topology selection
 PASS selection notification consumed once
 PASS billboard or native control in view
 PASS real native editor capture
@@ -152,7 +152,7 @@ PASS billboard or native control in view
 PASS real native editor capture
 PASS billboard or native control in view
 PASS modal blocks billboard selection
-PASS modal blocks mesh selection too
+PASS modal blocks topology selection too
 PASS billboard or native control in view
 PASS nearest overlapping local billboard wins
 PASS billboard or native control in view

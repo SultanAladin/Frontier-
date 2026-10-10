@@ -22,9 +22,9 @@ class World:
    self.process.terminate();self.process.wait()
   self.process=subprocess.Popen([str(ROOT/'.cache/construct/WorldHost')],stdin=subprocess.PIPE,stdout=subprocess.PIPE,text=True,bufsize=1)
   for command in self.history:self.rpc(command)
- def create(self,data):
-  if not isinstance(data,dict):raise ValueError('Expected an object')
-  kind=data.get('kind');size=data.get('size',1);position=data.get('position',[0,0,0]);name=data.get('name','')
+ def create(self,record):
+  if not isinstance(record,dict):raise ValueError('Expected an object')
+  kind=record.get('kind');size=record.get('size',1);position=record.get('position',[0,0,0]);name=record.get('name','')
   if not isinstance(name,str):raise ValueError('Name must be text')
   name=name.strip()
   if type(kind)!=int or not 0<=kind<9:raise ValueError('Unsupported entity type')
@@ -50,8 +50,8 @@ if __name__=='__main__':
  parser=argparse.ArgumentParser();parser.add_argument('--port',type=int,default=5191);parser.add_argument('--scene',type=Path,default=ROOT/'.frontier/construct-world.json');args=parser.parse_args()
  world=World(args.scene)
  class Handler(BaseHTTPRequestHandler):
-  def reply(self,code,data):
-   body=json.dumps(data).encode();self.send_response(code);self.send_header('Content-Type','application/json');self.send_header('Content-Length',str(len(body)));self.send_header('Cache-Control','no-store');self.end_headers();self.wfile.write(body)
+  def reply(self,code,record):
+   body=json.dumps(record).encode();self.send_response(code);self.send_header('Content-Type','application/json');self.send_header('Content-Length',str(len(body)));self.send_header('Cache-Control','no-store');self.end_headers();self.wfile.write(body)
   def do_GET(self):
    if self.path=='/':return self.reply(200,{'service':'Frontier native scene authoring','endpoint':'/api/construct','editorPort':5173,'renderer':'CPU authoring only; not a Vulkan game process'})
    if self.path!='/api/construct':return self.reply(404,{'error':'Not found'})
@@ -63,8 +63,8 @@ if __name__=='__main__':
    try:
     length=int(self.headers.get('Content-Length','0'))
     if not 0<length<=4096:raise ValueError('Invalid request length')
-    data=json.loads(self.rfile.read(length))
-    with world.lock:result=world.create(data)
+    record=json.loads(self.rfile.read(length))
+    with world.lock:result=world.create(record)
     self.reply(201,result)
    except (ValueError,TypeError,AttributeError) as error:self.reply(400,{'error':str(error)})
    except OSError:self.reply(503,{'error':'Could not persist native scene; creation was rolled back'})

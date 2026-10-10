@@ -13,7 +13,7 @@
 //    entire reason this architecture does not bog down the way per-figure render targets do.
 //
 // Sorting a few hundred keys costs microseconds on the CPU and buys correct transparency without a depth pre-pass,
-//    a stencil buffer, or order-independent blending machinery.
+//    a stencil store, or order-independent blending machinery.
 
 #pragma once
 

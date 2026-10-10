@@ -4,7 +4,7 @@ Target pin: `f6c99702c769ef9fd44c39ac8819e0ebeae35b9b`. Both existing outliner e
 
 ## Important renderer boundary
 
-The inspected target has a real **CPU volumetric march for global clouds, local clouds and local fog**, with shared sun-shadow sampling. Its GPU viewport shader has **cloud-shadow weather**, but not the corresponding full global/local cloud-volume march. This stage binds the native inspectors to the existing CPU volume settings and preserves the separate GPU shadow controls. It does **not** add or claim a GPU cloud-body renderer, scene-camera preview, cloud bake or GPU residency proof.
+The inspected target has a real **CPU volumetric march for global clouds, local clouds and local fog**, with shared sun-shadow sampling. Its GPU viewport shader has **cloud-shadow weather**, but not the corresponding full global/local cloud-volume march. This stage binds the native inspectors to the existing CPU volume settings and preserves the separate GPU shadow controls. It does **not** add or claim a GPU cloud-body renderer, scene-camera preview, cloud precompute or GPU residency proof.
 
 ## Coverage replacement selected by the user
 

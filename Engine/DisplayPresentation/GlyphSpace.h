@@ -1,7 +1,7 @@
 //============================================================================================================================================
 //                                                         GLYPHSPACE.H
 //============================================================================================================================================
-// 🧩 SVG path data (lucide 24 × 24 stroke glyphs) → flattened polylines in display pixels, drawn as strokes on a PixelSpace.
+// 🧩 SVG path record (lucide 24 × 24 stroke glyphs) → flattened polylines in display pixels, drawn as strokes on a PixelSpace.
 //
 //    Supports the full SVG path command set the glyph tables use: M m L l H h V v C c S s Q q T t A a Z z.
 //    Arcs are converted centre-parameterised (SVG F.6.5) and flattened with a fixed angular step; cubics and quadratics

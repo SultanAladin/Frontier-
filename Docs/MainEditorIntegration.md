@@ -1,6 +1,6 @@
 # Native main-editor integration — first verified pass
 
-Status: **binding integration implemented; full task not yet complete**. Sun and Moon artwork is now rendered using source-verified browser bakes (see `Docs/CelestialOutlinerIcons.md`). This is not a full application/GPU or Windows certification.
+Status: **binding integration implemented; full task not yet complete**. Sun and Moon artwork is now rendered using source-verified browser precomputes (see `Docs/CelestialOutlinerIcons.md`). This is not a full application/GPU or Windows certification.
 
 ## Implemented
 
@@ -39,7 +39,7 @@ Measured GCC stack records and exact commands/source hashes are in `Exhibits/Gal
 
 ## Remaining blockers — do not mark the request complete
 
-1. **Approved artwork compatibility:** runtime reports Camera, Environment folder, Stars, Sky scattering, Wind, umbrella Precipitation, Rainbow and Lens Flare ready. Clouds, Local Cloud and Local Fog are rejected by the strict SVG backend due to filter primitives including turbulence, displacement and compositing. These remain visibly diagnostic; no filter stripping or substitute artwork is being passed off as approved. A faithful native rendering/baking path is still required.
+1. **Approved artwork compatibility:** runtime reports Camera, Environment folder, Stars, Sky scattering, Wind, umbrella Precipitation, Rainbow and Lens Flare ready. Clouds, Local Cloud and Local Fog are rejected by the strict SVG backend due to filter primitives including turbulence, displacement and compositing. These remain visibly diagnostic; no filter stripping or substitute artwork is being passed off as approved. A faithful native rendering/precomputing path is still required.
 2. **Global fog artwork:** Height Fog and Atmospheric Fog retain their existing fallback glyphs. The rejected blurred-bank `fog.svg` was deliberately not installed. There is no approved global-fog replacement established by this work.
 3. **Remaining consumer visibility audit:** row/ancestor synchronization now works, but not every render consumer honors every eye. In particular, Wind's effective visibility is not yet used to mute its simulation field, and Atmosphere/Sky visibility needs consistent CPU/GPU consumer treatment. Do not infer that every downstream eye now works from the binding tests.
 4. **Full deployment/rendering:** GameExecution compiles in syntax-only checks. No whole-app link/launch, Vulkan execution, Windows execution, persistence, or exhaustive downstream property certification is claimed.

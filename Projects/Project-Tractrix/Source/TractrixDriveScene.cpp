@@ -7,14 +7,14 @@
 //        ramp       a wedge 9 m ahead (+X), 6 m run rising 1.35 m — the jump
 //        bumps      three rounded ridges behind the spawn (−X) for the suspension / soft-tyre sweep
 //        cones      a slalom line down the +X lane
-//        vehicle    the real ControlVehicle shell (ControlVehicleMesh.inl) in System-B flake clearcoat, four procedural wheels
+//        vehicle    the real ControlVehicle shell (ControlVehicleGeometry.inl) in System-B flake clearcoat, four procedural wheels
 //
 // Built once in world space and exported through SceneCodec::Encode to Content/Scenes/DriveScene.gltf — the same discipline
 //    ShowroomStructure / ShaderBallStructure follow. The chassis + 4 wheels each get their own material so the codec emits one
 //    InstanceRecord per part; the vehicle-instance sequence rewrites those World rows from the physics telemetry every frame.
 
 #include "TractrixDriveScene.h"
-#include "ControlVehicleMesh.inl"
+#include "ControlVehicleGeometry.inl"
 
 #include "../../../Engine/ContentInterchange/SceneCodec.h"
 #include "../../../Engine/DeviceExchange/OrientationClassifier.h"
@@ -120,7 +120,7 @@ void TractrixDriveScene::Construct(const Layout& InLayout) noexcept
     CornerNormals.clear();
     Materials.clear();
     Spans.clear();
-    LayoutData = InLayout;
+    LayoutPayload = InLayout;
 
     // Wheels rest on the pad (z = 0): lift the body-local shell by (tyre radius − hub height).
     ChassisSpawn = Vector3{ 0.0f, 0.0f, kTyreRadius - kHubZ };
@@ -194,7 +194,7 @@ void TractrixDriveScene::Construct(const Layout& InLayout) noexcept
             WheelMaterial[W] = MaterialTyreFL + W;
         }
 
-        D = MakeMaterial("tractrix_hub");                         // 12  shared hub trim (baked into each wheel span)
+        D = MakeMaterial("tractrix_hub");                         // 12  shared hub trim (precomputed into each wheel span)
         AssignColour(D.Slabs[0].BaseColor, 0.78f, 0.79f, 0.82f);
         D.Slabs[0].BaseMetalness     = 1.0f;
         D.Slabs[0].SpecularRoughness = 0.14f;
@@ -203,8 +203,8 @@ void TractrixDriveScene::Construct(const Layout& InLayout) noexcept
 
     // --- Static scenery ----------------------------------------------------------------------------------------------
     {
-        const float H = LayoutData.PadHalfExtent;
-        const float C = LayoutData.CheckerCell > 0.1f ? LayoutData.CheckerCell : 4.0f;
+        const float H = LayoutPayload.PadHalfExtent;
+        const float C = LayoutPayload.CheckerCell > 0.1f ? LayoutPayload.CheckerCell : 4.0f;
         const int   N = static_cast<int>((2.0f * H) / C);         // cells per side
 
         // A large plain surround under everything (so the world is not a hole beyond the checker).
@@ -230,20 +230,20 @@ void TractrixDriveScene::Construct(const Layout& InLayout) noexcept
         // Ramp ahead of the spawn.
         {
             const auto Ramp = OpenSpan("Ramp");
-            AppendWedge(LayoutData.RampNearX, LayoutData.RampNearX + LayoutData.RampRunX,
-                        LayoutData.RampRise, LayoutData.RampHalfWidth, MaterialRamp);
+            AppendWedge(LayoutPayload.RampNearX, LayoutPayload.RampNearX + LayoutPayload.RampRunX,
+                        LayoutPayload.RampRise, LayoutPayload.RampHalfWidth, MaterialRamp);
         }
         // Speed bumps behind the spawn.
-        for (uint32_t B = 0u; B < LayoutData.BumpCount; ++B)
+        for (uint32_t B = 0u; B < LayoutPayload.BumpCount; ++B)
         {
             char Name[24];
             std::snprintf(Name, sizeof(Name), "Speed Bump %u", B + 1u);
             const auto Bump = OpenSpan(Name);
-            const float x = LayoutData.BumpFirstX + static_cast<float>(B) * LayoutData.BumpSpacingX;
-            AppendBump(x, LayoutData.BumpHalfWidthY, LayoutData.BumpHeight, MaterialBump);
+            const float x = LayoutPayload.BumpFirstX + static_cast<float>(B) * LayoutPayload.BumpSpacingX;
+            AppendBump(x, LayoutPayload.BumpHalfWidthY, LayoutPayload.BumpHeight, MaterialBump);
         }
         // Slalom cones down the +X lane, alternating sides.
-        for (uint32_t K = 0u; K < LayoutData.ConeCount; ++K)
+        for (uint32_t K = 0u; K < LayoutPayload.ConeCount; ++K)
         {
             char Name[16];
             std::snprintf(Name, sizeof(Name), "Cone %u", K + 1u);
@@ -405,11 +405,11 @@ void TractrixDriveScene::AppendWheel(const Vector3& Centre, float Radius, float 
     }
 }
 
-// The real ControlVehicle shell (ControlVehicleMesh.inl), translated by Offset, smooth-shaded (per-vertex averaged
+// The real ControlVehicle shell (ControlVehicleGeometry.inl), translated by Offset, smooth-shaded (per-vertex averaged
 //    normals), one material → one instance the vehicle-instance sequence drives.
 void TractrixDriveScene::AppendBodyShell(const Vector3& Offset, uint32_t Material) noexcept
 {
-    using namespace ControlVehicleMesh;
+    using namespace ControlVehicleGeometry;
     const uint32_t V = kVertexCount;
     const uint32_t Tn = kTriangleCount;
 

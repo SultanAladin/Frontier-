@@ -12,7 +12,7 @@ This does NOT solve the review's broader whole-radiance demodulation/colored-var
 
 ### Immutable previous history
 
-Bindings 3, 18 and 19 are now fixed two-element storage-image arrays: element 0 is current output, element 1 is an immutable previous-frame snapshot. Binding 31 remains the highest, variable-count texture binding. The compute set needs **10 storage-image descriptors**, checked against the device limits at pipeline creation. Executable and shaders must be rebuilt together.
+Bindings 3, 18 and 19 are now fixed two-element storage-image arrays: element 0 is current output, element 1 is an immutable previous-frame snapshot. Binding 31 remains the highest, variable-count texture binding. The compute set needs **10 storage-image descriptors**, checked against the device limits at chain creation. Executable and shaders must be rebuilt together.
 
 Before a history-consuming compute dispatch, queue-ordered image copies snapshot mean, normal/depth and moments/identity. Source and destination barriers cover prior shader reads/writes, transfer accesses, subsequent snapshot reads and current-output writes. Every shader history read uses the snapshot; current images remain the outputs used by denoising/exposure. There are no per-frame history descriptor rewrites.
 
@@ -81,4 +81,4 @@ python3 Tools/Build/CompareDenoiseGpu.py baseline.csv candidate.csv --warmup 120
 
 The tool excludes invalid and non-compute frames, refuses too few usable samples, and reports median/p95. It cannot verify matched scene settings or image quality. It does not benchmark the map-only path, which needs a separate shadow-stage comparison.
 
-**Next decision depends on these measurements:** if copying dominates, evaluate immutable ping-pong histories; if early denoise levels dominate, test shared-memory tiling; if late levels dominate, test conservative adaptive work. Do not enable an extra Minimal-tier pass or history feedback solely because CPU gates passed.
+**Next decision depends on these measurements:** if copying dominates, evaluate immutable ping-pong histories; if early denoise levels dominate, test shared-storage tiling; if late levels dominate, test conservative adaptive work. Do not enable an extra Minimal-tier pass or history feedback solely because CPU gates passed.

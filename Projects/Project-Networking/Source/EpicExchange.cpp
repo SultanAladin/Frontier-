@@ -48,7 +48,7 @@ bool OverlayPending = false;
 EOS_NotificationId OverlayNotification = EOS_INVALID_NOTIFICATIONID;
 EOS_HFriends Friends = nullptr;
 EOS_HUI SocialOverlay = nullptr;
-EOS_HUserInfo UserInformation = nullptr;
+EOS_HUserDetails UserInformation = nullptr;
 EOS_EpicAccountId LocalAccount = nullptr;
 EOS_ProductUserId LocalProductUser = nullptr;
 EOS_EpicAccountId ProfileAccount = nullptr;
@@ -182,7 +182,7 @@ bool InitializeOnce(DiagnosticReception ActiveReception) noexcept
     return true;
 }
 
-void EOS_CALL ReceiveOverlayDisplay(const EOS_UI_OnDisplaySettingsUpdatedCallbackInfo* Completion)
+void EOS_CALL ReceiveOverlayDisplay(const EOS_UI_OnDisplaySettingsUpdatedCallbackDetails* Completion)
 {
     if (!Releasing)
         OverlayExclusive = Completion->bIsExclusiveInput == EOS_TRUE;
@@ -195,7 +195,7 @@ bool RefreshOverlayReadiness() noexcept
 #if defined(_WIN32)
     EOS_Platform_GetDesktopCrossplayStatusOptions Options{};
     Options.ApiVersion = EOS_PLATFORM_GETDESKTOPCROSSPLAYSTATUS_API_LATEST;
-    EOS_Platform_DesktopCrossplayStatusInfo Reading{};
+    EOS_Platform_DesktopCrossplayStatusDetails Reading{};
     const auto Result = EOS_Platform_GetDesktopCrossplayStatus(Platform, &Options, &Reading);
     if (Result != EOS_EResult::EOS_Success)
     {
@@ -224,34 +224,34 @@ bool RefreshOverlayReadiness() noexcept
 #endif
 }
 
-void EOS_CALL ReceiveFriendName(const EOS_UserInfo_QueryUserInfoCallbackInfo* Completion)
+void EOS_CALL ReceiveFriendName(const EOS_UserDetails_QueryUserDetailsCallbackDetails* Completion)
 {
     if (Releasing || !UserInformation || EOS_EResult_IsOperationComplete(Completion->ResultCode) != EOS_TRUE)
         return;
-    auto* Reading = static_cast<FriendReading*>(Completion->ClientData);
+    auto* Reading = static_cast<FriendReading*>(Completion->ClientPayload);
     if (!Reading || Reading->Account != Completion->TargetUserId)
         return;
     if (Completion->ResultCode == EOS_EResult::EOS_Success)
     {
-        EOS_UserInfo_CopyUserInfoOptions Options{};
+        EOS_UserDetails_CopyUserDetailsOptions Options{};
         Options.ApiVersion = EOS_USERINFO_COPYUSERINFO_API_LATEST;
         Options.LocalUserId = LocalAccount;
         Options.TargetUserId = Reading->Account;
-        EOS_UserInfo* Information = nullptr;
-        const auto Result = EOS_UserInfo_CopyUserInfo(UserInformation, &Options, &Information);
+        EOS_UserDetails* Information = nullptr;
+        const auto Result = EOS_UserDetails_CopyUserDetails(UserInformation, &Options, &Information);
         if (Result == EOS_EResult::EOS_Success && Information)
         {
             const char* Name = Information->DisplayNameSanitized;
             if (Name && *Name)
                 std::snprintf(Reading->Name, sizeof(Reading->Name), "%s", Name);
-            EOS_UserInfo_Release(Information);
+            EOS_UserDetails_Release(Information);
         }
     }
     if (NamesPending > 0)
         --NamesPending;
 }
 
-void EOS_CALL ReceiveFriends(const EOS_Friends_QueryFriendsCallbackInfo* Completion)
+void EOS_CALL ReceiveFriends(const EOS_Friends_QueryFriendsCallbackDetails* Completion)
 {
     if (Releasing || !Friends || EOS_EResult_IsOperationComplete(Completion->ResultCode) != EOS_TRUE)
         return;
@@ -290,18 +290,18 @@ void EOS_CALL ReceiveFriends(const EOS_Friends_QueryFriendsCallbackInfo* Complet
         case EOS_EFriendsStatus::EOS_FS_InviteReceived: Reading.Relationship = "Invite received"; break;
         default: Reading.Relationship = "Not friends"; break;
         }
-        EOS_UserInfo_QueryUserInfoOptions NameOptions{};
+        EOS_UserDetails_QueryUserDetailsOptions NameOptions{};
         NameOptions.ApiVersion = EOS_USERINFO_QUERYUSERINFO_API_LATEST;
         NameOptions.LocalUserId = LocalAccount;
         NameOptions.TargetUserId = Reading.Account;
         ++NamesPending;
-        EOS_UserInfo_QueryUserInfo(UserInformation, &NameOptions, &Reading, ReceiveFriendName);
+        EOS_UserDetails_QueryUserDetails(UserInformation, &NameOptions, &Reading, ReceiveFriendName);
     }
     std::snprintf(FriendsReading, sizeof(FriendsReading), "Showing %d of %d friends visible to this application.", FriendCount, Available);
     Emit("friends_query=success; names and account IDs are omitted from logs");
 }
 
-void EOS_CALL ReceiveOverlayShow(const EOS_UI_ShowFriendsCallbackInfo* Completion)
+void EOS_CALL ReceiveOverlayShow(const EOS_UI_ShowFriendsCallbackDetails* Completion)
 {
     if (!Releasing && EOS_EResult_IsOperationComplete(Completion->ResultCode) == EOS_TRUE)
     {
@@ -310,7 +310,7 @@ void EOS_CALL ReceiveOverlayShow(const EOS_UI_ShowFriendsCallbackInfo* Completio
     }
 }
 
-void EOS_CALL ReceiveOverlayHide(const EOS_UI_HideFriendsCallbackInfo* Completion)
+void EOS_CALL ReceiveOverlayHide(const EOS_UI_HideFriendsCallbackDetails* Completion)
 {
     if (!Releasing && EOS_EResult_IsOperationComplete(Completion->ResultCode) == EOS_TRUE)
     {
@@ -326,7 +326,7 @@ void ReleaseToken() noexcept
     IdentityToken = nullptr;
 }
 
-void EOS_CALL ReceiveOwnProfile(const EOS_UserInfo_QueryUserInfoCallbackInfo* Completion)
+void EOS_CALL ReceiveOwnProfile(const EOS_UserDetails_QueryUserDetailsCallbackDetails* Completion)
 {
     if (Releasing || !UserInformation || Login.Progress != LoginProgress::Connected ||
         Completion->LocalUserId != LocalAccount || Completion->TargetUserId != ProfileAccount ||
@@ -338,12 +338,12 @@ void EOS_CALL ReceiveOwnProfile(const EOS_UserInfo_QueryUserInfoCallbackInfo* Co
         Report("profile_query", Completion->ResultCode);
         return; // Profile lookup failure must never restart Auth or undo Connect.
     }
-    EOS_UserInfo_CopyUserInfoOptions Options{};
+    EOS_UserDetails_CopyUserDetailsOptions Options{};
     Options.ApiVersion = EOS_USERINFO_COPYUSERINFO_API_LATEST;
     Options.LocalUserId = LocalAccount;
     Options.TargetUserId = ProfileAccount;
-    EOS_UserInfo* Information = nullptr;
-    const auto Result = EOS_UserInfo_CopyUserInfo(UserInformation, &Options, &Information);
+    EOS_UserDetails* Information = nullptr;
+    const auto Result = EOS_UserDetails_CopyUserDetails(UserInformation, &Options, &Information);
     if (Result == EOS_EResult::EOS_Success && Information)
     {
         const char* Name = Information->DisplayNameSanitized ? Information->DisplayNameSanitized : Information->DisplayName;
@@ -355,7 +355,7 @@ void EOS_CALL ReceiveOwnProfile(const EOS_UserInfo_QueryUserInfoCallbackInfo* Co
         Emit("profile=loaded; personal details are displayed only in the account card, not saved to logs");
     }
     else Report("profile_copy", Result);
-    if (Information) EOS_UserInfo_Release(Information);
+    if (Information) EOS_UserDetails_Release(Information);
 }
 
 void AcceptProductUser(EOS_ProductUserId ProductUser) noexcept
@@ -378,7 +378,7 @@ void AcceptProductUser(EOS_ProductUserId ProductUser) noexcept
     }
 }
 
-void EOS_CALL ReceiveCreation(const EOS_Connect_CreateUserCallbackInfo* Completion)
+void EOS_CALL ReceiveCreation(const EOS_Connect_CreateUserCallbackDetails* Completion)
 {
     if (Releasing || Login.Finished() || EOS_EResult_IsOperationComplete(Completion->ResultCode) != EOS_TRUE)
         return;
@@ -390,7 +390,7 @@ void EOS_CALL ReceiveCreation(const EOS_Connect_CreateUserCallbackInfo* Completi
     AcceptProductUser(Completion->LocalUserId);
 }
 
-void EOS_CALL ReceiveConnect(const EOS_Connect_LoginCallbackInfo* Completion)
+void EOS_CALL ReceiveConnect(const EOS_Connect_LoginCallbackDetails* Completion)
 {
     if (Releasing || Login.Finished() || EOS_EResult_IsOperationComplete(Completion->ResultCode) != EOS_TRUE)
         return;
@@ -419,7 +419,7 @@ void EOS_CALL ReceiveConnect(const EOS_Connect_LoginCallbackInfo* Completion)
     AcceptProductUser(Completion->LocalUserId);
 }
 
-void EOS_CALL ReceiveAuth(const EOS_Auth_LoginCallbackInfo* Completion);
+void EOS_CALL ReceiveAuth(const EOS_Auth_LoginCallbackDetails* Completion);
 void IssueAuthLogin() noexcept
 {
     EOS_Auth_Credentials Credentials{};
@@ -451,7 +451,7 @@ void IssueAuthLogin() noexcept
     EOS_Auth_Login(Auth, &LoginOptions, nullptr, ReceiveAuth);
 }
 
-void EOS_CALL ReceiveAuth(const EOS_Auth_LoginCallbackInfo* Completion)
+void EOS_CALL ReceiveAuth(const EOS_Auth_LoginCallbackDetails* Completion)
 {
     if (Releasing || Login.Finished() || EOS_EResult_IsOperationComplete(Completion->ResultCode) != EOS_TRUE)
         return;
@@ -610,7 +610,7 @@ bool ConstructEpic(const LoginSpecification& Specification, DiagnosticReception 
     Connect = EOS_Platform_GetConnectInterface(Platform);
     Friends = EOS_Platform_GetFriendsInterface(Platform);
     SocialOverlay = EOS_Platform_GetUIInterface(Platform);
-    UserInformation = EOS_Platform_GetUserInfoInterface(Platform);
+    UserInformation = EOS_Platform_GetUserDetailsInterface(Platform);
     RefreshOverlayReadiness();
     if (SocialOverlay)
     {
@@ -660,7 +660,7 @@ bool ConstructEpic(const LoginSpecification& Specification, DiagnosticReception 
     return true;
 }
 
-void EOS_CALL ReceiveDeletePersistent(const EOS_Auth_DeletePersistentAuthCallbackInfo* Completion)
+void EOS_CALL ReceiveDeletePersistent(const EOS_Auth_DeletePersistentAuthCallbackDetails* Completion)
 {
     if (Releasing || !Completion ||
         EOS_EResult_IsOperationComplete(Completion->ResultCode) != EOS_TRUE)
@@ -766,11 +766,11 @@ bool QueryEpicProfile() noexcept
     if (!UserInformation || Login.Progress != LoginProgress::Connected || !ProfileAccount || Profile.Pending)
         return false;
     Profile.Pending = true;
-    EOS_UserInfo_QueryUserInfoOptions Options{};
+    EOS_UserDetails_QueryUserDetailsOptions Options{};
     Options.ApiVersion = EOS_USERINFO_QUERYUSERINFO_API_LATEST;
     Options.LocalUserId = LocalAccount;
     Options.TargetUserId = ProfileAccount;
-    EOS_UserInfo_QueryUserInfo(UserInformation, &Options, nullptr, ReceiveOwnProfile);
+    EOS_UserDetails_QueryUserDetails(UserInformation, &Options, nullptr, ReceiveOwnProfile);
     return true;
 }
 
@@ -891,6 +891,6 @@ bool CopyEpicIdentityToken(char* Out, std::size_t Capacity) noexcept
     return Copied;
 }
 
-void* InspectEpicPlatformHandle() noexcept { return Platform; }
-void* InspectEpicAccountHandle() noexcept { return LocalAccount; }
+void* InspectEpicPlatformIdentifier() noexcept { return Platform; }
+void* InspectEpicAccountIdentifier() noexcept { return LocalAccount; }
 }

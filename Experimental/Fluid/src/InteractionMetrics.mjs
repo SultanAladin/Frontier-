@@ -112,7 +112,7 @@ try {
     "Bounds toolbar / keyboard toggle preserves rendered pixels; front, side and top views stay nonblack",
   );
 
-  await Page.locator('[data-tab="rendering"]').click();
+  await Page.locator('[record-tab="rendering"]').click();
   await Page.locator("details")
     .filter({ has: Page.locator("#property-showBoundingBox") })
     .locator("summary")
@@ -153,7 +153,7 @@ try {
     "Inspector bounds, voxel/floor/active-cell overlays, all nine debug channels and all four atlas fields",
   );
 
-  await Page.locator('[data-tab="source"]').click();
+  await Page.locator('[record-tab="source"]').click();
   const Number = Page.locator("#property-emitterRate");
   await Number.fill("1");
   await Number.press("Tab");
@@ -214,25 +214,25 @@ try {
     true,
   );
   await Page.locator("#play-button").click();
-  await Page.locator('[data-document="2"]').dblclick();
-  const Rename = Page.locator('[data-document="2"] .document-rename');
+  await Page.locator('[record-document="2"]').dblclick();
+  const Rename = Page.locator('[record-document="2"] .document-rename');
   await Rename.fill("Smoke take");
   await Rename.press("Enter");
   Assert.equal(await Page.locator("#document-name").inputValue(), "Smoke take");
   await Page.locator("#property-emitterRate").fill("2");
   await Page.locator("#property-emitterRate").press("Tab");
-  await Page.locator('[data-document="1"]').click();
+  await Page.locator('[record-document="1"]').click();
   Assert.equal(
     await Page.evaluate(() => fluidEditor.Engine === OriginalFluidEngine),
     true,
   );
   Assert.equal((await Snapshot()).steps, First.steps);
   Assert.equal((await Snapshot()).parameters.emitterRate, 1.25);
-  await Page.locator('[data-document="2"]').click();
+  await Page.locator('[record-document="2"]').click();
   Assert.equal((await Snapshot()).parameters.emitterRate, 2);
   Assert.equal(await Page.locator("#document-name").inputValue(), "Smoke take");
   Page.once("dialog", (Dialog) => Dialog.accept());
-  await Page.locator('[data-close-document="2"]').click();
+  await Page.locator('[record-close-document="2"]').click();
   await Page.waitForFunction(() => fluidEditor.Documents.Slots.length === 1);
   Assert.equal(
     await Page.evaluate(() => fluidEditor.Engine === OriginalFluidEngine),
@@ -252,33 +252,33 @@ try {
   const LiveBefore = await Snapshot();
   await Page.locator("#bake-start").click();
   await Page.waitForFunction(
-    () => !fluidEditor.Baking && fluidEditor.Flipbook.Result,
+    () => !fluidEditor.Precomputing && fluidEditor.Flipbook.Result,
     null,
     { timeout: 180000 },
   );
-  const Bake = await Page.evaluate(() => {
+  const Precompute = await Page.evaluate(() => {
     const Result = fluidEditor.Flipbook.Result,
       Metadata = Result.Metadata;
-    const Data = Result.Sheet.getContext("2d").getImageData(
+    const Packet = Result.Sheet.getContext("2d").getImageData(
       0,
       0,
       Metadata.width,
       Metadata.height,
-    ).data;
+    ).record;
     let Clear = 0,
       Coverage = 0,
       Partial = 0,
       Difference = 0;
-    for (let Index = 3; Index < Data.length; Index += 4) {
-      if (!Data[Index]) Clear++;
+    for (let Index = 3; Index < Packet.length; Index += 4) {
+      if (!Packet[Index]) Clear++;
       else Coverage++;
-      if (Data[Index] > 0 && Data[Index] < 255) Partial++;
+      if (Packet[Index] > 0 && Packet[Index] < 255) Partial++;
     }
     for (let Row = 0; Row < 64; Row++)
       for (let Column = 0; Column < 64; Column++)
         Difference += Math.abs(
-          Data[(Row * 128 + Column) * 4] -
-            Data[((Row + 64) * 128 + Column + 64) * 4],
+          Packet[(Row * 128 + Column) * 4] -
+            Packet[((Row + 64) * 128 + Column + 64) * 4],
         );
     return {
       Metadata,
@@ -289,20 +289,20 @@ try {
       Bytes: Result.Blob.size,
     };
   });
-  Assert.equal(Bake.Metadata.width, 128);
-  Assert.equal(Bake.Metadata.frameCount, 4);
+  Assert.equal(Precompute.Metadata.width, 128);
+  Assert.equal(Precompute.Metadata.frameCount, 4);
   Assert.ok(
-    Bake.Clear > 0 &&
-      Bake.Coverage > 0 &&
-      Bake.Partial > 0 &&
-      Bake.Difference > 0 &&
-      Bake.Bytes > 100,
+    Precompute.Clear > 0 &&
+      Precompute.Coverage > 0 &&
+      Precompute.Partial > 0 &&
+      Precompute.Difference > 0 &&
+      Precompute.Bytes > 100,
   );
   Assert.ok(
-    Bake.Metadata.frames.every(
+    Precompute.Metadata.frames.every(
       (Frame, Index) =>
         Index === 0 ||
-        Frame.simulationTime > Bake.Metadata.frames[Index - 1].simulationTime,
+        Frame.simulationTime > Precompute.Metadata.frames[Index - 1].simulationTime,
     ),
   );
   Assert.deepEqual((await Snapshot()).parameters, LiveBefore.parameters);
@@ -328,9 +328,9 @@ try {
 
   await Page.locator("#bake-warmup").fill("3");
   await Page.locator("#bake-start").click();
-  await Page.waitForFunction(() => fluidEditor.Baking);
+  await Page.waitForFunction(() => fluidEditor.Precomputing);
   await Page.locator("#bake-cancel").click();
-  await Page.waitForFunction(() => !fluidEditor.Baking);
+  await Page.waitForFunction(() => !fluidEditor.Precomputing);
   Assert.match(
     await Page.locator("#bake-progress-label").textContent(),
     /cancelled/i,
@@ -348,7 +348,7 @@ try {
   await Page.locator("#bake-start").click();
   await Page.waitForFunction(
     () =>
-      !fluidEditor.Baking &&
+      !fluidEditor.Precomputing &&
       fluidEditor.Flipbook.Result.Metadata.alphaMode === "opaque",
     null,
     { timeout: 180000 },
@@ -361,7 +361,7 @@ try {
         0,
         128,
         128,
-      ).data;
+      ).record;
       return Bytes.every(
         (Channel, Index) => Index % 4 !== 3 || Channel === 255,
       );
@@ -397,7 +397,7 @@ try {
         .Fault,
   );
   Assert.equal(await Page.locator("#gpu-error").isVisible(), false);
-  await Page.locator('[data-document="3"]').click();
+  await Page.locator('[record-document="3"]').click();
   Assert.equal(await Page.locator("#gpu-error").isVisible(), true);
   await Page.locator("#retry-gpu").click();
   await Page.waitForFunction(
@@ -410,7 +410,7 @@ try {
   const ConfirmClose = (Dialog) => Dialog.accept();
   Page.on("dialog", ConfirmClose);
   for (const Identity of [3, 4, 5])
-    await Page.locator(`[data-close-document="${Identity}"]`).click();
+    await Page.locator(`[record-close-document="${Identity}"]`).click();
   Page.off("dialog", ConfirmClose);
   Assert.equal(
     await Page.evaluate(() => fluidEditor.Engine === OriginalFluidEngine),
@@ -435,7 +435,7 @@ try {
   await Page.locator("#speed-select").selectOption("0.5");
   Assert.equal((await Snapshot()).parameters.timeScale, 0.5);
   for (const Tool of ["flamethrower", "detonate", "orbit"]) {
-    await Page.locator(`[data-tool="${Tool}"]`).click();
+    await Page.locator(`[record-tool="${Tool}"]`).click();
     Assert.equal((await Snapshot()).parameters.interactionMode, Tool);
   }
   for (const Kind of ["shrapnel", "salvo", "collide", "mushroom"]) {

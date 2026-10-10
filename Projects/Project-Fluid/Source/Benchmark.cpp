@@ -1,6 +1,6 @@
 #include "PbfFluid.h"
 #include "SurfaceReconstruction.h"
-#include "AnisotropicSurfaceMesh.h"
+#include "AnisotropicSurfaceGeometry.h"
 #include "PondWave.h"
 #include <chrono>
 #include <iostream>
@@ -21,15 +21,15 @@ int main(){
  std::cout<<"last_step_neighbours_density_ms="<<S.NeighboursMs<<"\nlast_step_surface_tension_ms="<<S.SurfaceTensionMs<<"\nlast_step_pressure_ms="<<S.PressureMs<<"\nlast_step_viscosity_ms="<<S.ViscosityMs<<"\nlast_step_total_ms="<<S.TotalMs<<'\n';
  SurfaceReconstruction Reconstruction;
  std::cout<<"reconstruction_mean_ms="<<Ms([&]{for(int I=0;I<10;++I)Reconstruction.Update(Fluid.Positions());})/10<<'\n';
- AnisotropicSurfaceMesh Surface;
+ AnisotropicSurfaceGeometry Surface;
  std::cout<<"extraction_first_ms="<<Ms([&]{Surface.Update(Reconstruction.Kernels());})<<'\n';
  std::cout<<"extraction_unchanged_mean_ms="<<Ms([&]{for(int I=0;I<100;++I)Surface.Update(Reconstruction.Kernels());})/100<<'\n';
  Fluid.Step(1.f/60);Reconstruction.Update(Fluid.Positions());
  std::cout<<"extraction_changed_ms="<<Ms([&]{Surface.Update(Reconstruction.Kernels());})<<"\ndirty_bricks="<<Surface.DirtyBrickCount()<<'\n';
  const auto& T=Surface.LastTimings();
  std::cout<<"index_ms="<<T.IndexMs<<"\nfield_ms="<<T.FieldMs<<"\ntriangles_ms="<<T.TrianglesMs<<"\nassembly_smoothing_ms="<<T.AssemblyMs<<"\nsmoothing_subset_ms="<<T.SmoothingMs<<'\n';
- PbfFluid PipelineFluid;SurfaceReconstruction PipelinePca;AnisotropicSurfaceMesh PipelineMesh;
- auto frame=[&]{PipelineFluid.Step(1.f/60);PipelinePca.Update(PipelineFluid.Positions());PipelineMesh.Update(PipelinePca.Kernels());};
+ PbfFluid ChainFluid;SurfaceReconstruction ChainPca;AnisotropicSurfaceGeometry ChainGeometry;
+ auto frame=[&]{ChainFluid.Step(1.f/60);ChainPca.Update(ChainFluid.Positions());ChainGeometry.Update(ChainPca.Kernels());};
  for(int i=0;i<5;++i)frame();
  std::cout<<"pipeline_20_frame_mean_ms="<<Ms([&]{for(int i=0;i<20;++i)frame();})/20<<'\n';
  PondWave Pond;Pond.Disturb(0,0,.8f,.4f);

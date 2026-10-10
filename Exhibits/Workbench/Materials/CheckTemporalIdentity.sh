@@ -2,7 +2,7 @@
 # D10 — temporal integration for MOVING GEOMETRY: does the reuse follow the object, and does it stop following the
 #       wrong one?
 #
-#    The kernel reprojects every history read (the running mean in ResolveSurface, and both reservoir pools) through the
+#    The kernel reprojects every history read (the running mean in ResolveSurface, and both reservoir slots) through the
 #    R2 motion vectors and validates it on the surface's normal and depth. That rule is necessary and it is not enough:
 #    an object that slides across a coplanar neighbour, or two objects that exchange places, present the SAME normal and
 #    the SAME depth at the reprojected pixel — so the pixel inherits radiance that was shaded for something else, and

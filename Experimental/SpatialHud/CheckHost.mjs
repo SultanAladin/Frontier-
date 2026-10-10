@@ -7,9 +7,9 @@
 //    stills on the CPU, parsed cleanly as WGSL — and then shown the user a blank canvas with a
 //    red box on it. Every one of those was a HOST bug rather than a rendering bug:
 //
-//      · a uniform buffer referenced one line above the const that creates it, which is a
+//      · a uniform store referenced one line above the const that creates it, which is a
 //        temporal dead zone and therefore a hard ReferenceError, not an undefined
-//      · a bind group entry pointing at a binding the pipeline does not declare
+//      · a bind group entry pointing at a binding the chain does not declare
 //      · a stale module served out of the browser cache
 //
 //    None of those are visible to a syntax check. `node --check` parses the file and proves
@@ -39,9 +39,9 @@ function Claim(what, held) {
 
 const Record = {
     passes: [],            // one entry per render pass, in submission order
-    buffers: [],
+    stores: [],
     textures: [],
-    pipelines: [],
+    chains: [],
     bindGroups: [],
     writes: [],
     shader: '',
@@ -66,17 +66,17 @@ function StubPass(descriptor) {
         target: descriptor.colorAttachments[0].view,
         clear: descriptor.colorAttachments[0].clearValue,
         draws: [],
-        pipeline: null,
+        chain: null,
         bindGroup: null,
     };
     Record.passes.push(entry);
     return {
-        setPipeline(pipeline) { entry.pipeline = pipeline; },
+        setChain(chain) { entry.pipeline = chain; },
         setBindGroup(slot, group) { entry.bindGroup = group; },
         draw(count, instances, first, firstInstance) {
             entry.draws.push({
                 count, instances, first, firstInstance,
-                pipeline: entry.pipeline, bindGroup: entry.bindGroup,
+                chain: entry.pipeline, bindGroup: entry.bindGroup,
             });
         },
         end() {},
@@ -91,24 +91,24 @@ function StubDevice() {
             Record.shader = code;
             return { getCompilationInfo: async () => ({ messages: [] }) };
         },
-        createRenderPipeline(descriptor) {
-            // 🔴 Record what the pipeline actually DECLARES, so a bind group can be checked
+        createRenderChain(descriptor) {
+            // 🔴 Record what the chain actually DECLARES, so a bind group can be checked
             //    against it. A real device rejects an entry for a binding the shader never
             //    mentions, and that rejection only ever happens in the browser.
             const name = descriptor.fragment?.entryPoint ?? 'unknown';
-            const pipeline = {
+            const chain = {
                 name,
                 vertex: descriptor.vertex?.entryPoint,
                 format: descriptor.fragment?.targets?.[0]?.format,
                 blend: descriptor.fragment?.targets?.[0]?.blend ?? null,
                 getBindGroupLayout: (slot) => ({ __layout: name, slot }),
             };
-            Record.pipelines.push(pipeline);
-            return pipeline;
+            Record.pipelines.push(chain);
+            return chain;
         },
-        createBuffer(descriptor) {
+        createStore(descriptor) {
             Record.buffers.push(descriptor);
-            return { ...descriptor, __buffer: Record.buffers.length - 1, destroy() {} };
+            return { ...descriptor, __store: Record.buffers.length - 1, destroy() {} };
         },
         createTexture: StubTexture,
         createSampler: () => Stub('sampler'),
@@ -122,8 +122,8 @@ function StubDevice() {
             finish: () => Stub('commands'),
         }),
         queue: {
-            writeBuffer(buffer, offset, source) {
-                Record.writes.push({ buffer, offset, length: source.length ?? 0 });
+            writeStore(store, offset, source) {
+                Record.writes.push({ store, offset, length: source.length ?? 0 });
             },
             submit() {},
         },
@@ -190,7 +190,7 @@ export function InstallStubs(frameLimit = 2) {
     globalThis.devicePixelRatio = 1;
 
     // The usage enums are globals the browser provides, and they are plain bit flags. Without
-    // them every createBuffer call is a ReferenceError — which is itself the first thing this
+    // them every createStore call is a ReferenceError — which is itself the first thing this
     // harness found, so they are clearly worth having right.
     globalThis.GPUBufferUsage = {
         MAP_READ: 1, MAP_WRITE: 2, COPY_SRC: 4, COPY_DST: 8, INDEX: 16, VERTEX: 32,
@@ -300,7 +300,7 @@ if (import.meta.url === (await import('node:url')).pathToFileURL(process.argv[1]
           Record.pipelines.some((One) => One.name === 'fsRoom' && One.blend === null));
 
     // 🔴 Bind groups against the bindings their shader stage actually declares. A real device
-    //    rejects a group that carries an entry the pipeline never mentions.
+    //    rejects a group that carries an entry the chain never mentions.
     const glassGroup = Record.bindGroups.find((One) => One.layout.__layout === 'fsGlass');
     Claim('the glass is bound to the display, the sampler and the glow',
           glassGroup && [0, 3, 4, 5, 6].every((One) => glassGroup.bindings.includes(One)));
@@ -315,7 +315,7 @@ if (import.meta.url === (await import('node:url')).pathToFileURL(process.argv[1]
     const glassCamera = glassGroup.entries.find((One) => One.binding === 0).resource.buffer;
     const panelCamera = figureGroup.entries.find((One) => One.binding === 0).resource.buffer;
     Claim('the interface and the glass look through DIFFERENT cameras',
-          glassCamera.__buffer !== panelCamera.__buffer);
+          glassCamera.__store !== panelCamera.__store);
 
     Claim('both camera uniforms are written every frame',
           Record.writes.filter((One) => One.length === 32).length >= 2);
@@ -325,5 +325,5 @@ if (import.meta.url === (await import('node:url')).pathToFileURL(process.argv[1]
         process.exit(1);
     }
     process.stdout.write(`CheckHost: PASS ${Passed}  (${Record.frames} frames, `
-                       + `${Record.passes.length} passes, ${Record.pipelines.length} pipelines)\n`);
+                       + `${Record.passes.length} passes, ${Record.pipelines.length} chains)\n`);
 }

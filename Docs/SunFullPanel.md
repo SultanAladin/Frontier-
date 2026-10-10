@@ -5,7 +5,7 @@ The complete Sun composition is now drawn by `Engine/Editor/SunInspectorPanel.cp
 ## Included in the panel
 
 - Text-only Sun header, native row visibility control, and visible (unavailable) Reset action.
-- **Top baking area**, as requested: separate **Sun lighting bake** and **Sun disk bake** panels, each with Use baked image, Bake, Load image, source caption and status.
+- **Top precomputing area**, as requested: separate **Sun lighting precompute** and **Sun disk precompute** panels, each with Use precomputed image, Precompute, Load image, source caption and status.
 - **Quick controls** for Sunlight, Sun disc, Day cycle and Dynamic / Static.
 - Lens Flare optical-subcomponent row.
 - Reference composition: **Sun direction** spanning the Sunlight intensity and Temperature cards; **Daylight cycle** and **Sun disc** below.
@@ -15,7 +15,7 @@ The complete Sun composition is now drawn by `Engine/Editor/SunInspectorPanel.cp
 - A rounded, collapsible **Additional Sun settings** card containing Direct, Sun Tint, Day of Month and Month.
 - Narrow single-column layout, compact stacked direction controls, native scrolling, and high-DPI rendering.
 
-Both bake panels are above the properties. The original JSX currently places BakeQuickTiles after the cards, but the user's explicit request for top quick bake tiles takes precedence. The native app's existing viewport and outliner were not removed or redesigned.
+Both precompute panels are above the properties. The original JSX currently places PrecomputeQuickTiles after the cards, but the user's explicit request for top quick precompute tiles takes precedence. The native app's existing viewport and outliner were not removed or redesigned.
 
 ## Binding and availability
 
@@ -31,7 +31,7 @@ Both bake panels are above the properties. The original JSX currently places Bak
 | Sunlight / Sun disc quick flags | Drawn as unavailable; the existing sheet does not expose independent enable flags. They do not silently toggle the whole Sun. |
 | Sunlight intensity | Original Intensity property, 0–60×; actual Light.Intensity write-back. The reference curve now tracks normalized native gain. No calibrated lux or luminance is invented. |
 | Temperature | New 2000–10000 K property and RGB tint / Temperature source selector. Kelvin drives linear RGB Light.Colour; editing Kelvin activates temperature. RGB mode shows “RGB”, not a guessed Kelvin. |
-| Both bake panels | Complete controls are drawn but disabled, with explicit capability tooltips/status. No Sun-specific bake, file import or image binding is claimed, and neither target is aliased to Sky's existing dome bake. |
+| Both precompute panels | Complete controls are drawn but disabled, with explicit capability tooltips/status. No Sun-specific precompute, file import or image binding is claimed, and neither target is aliased to Sky's existing dome precompute. |
 | Reset / Lens Flare navigation | Shown but unavailable because those project actions are not exposed by this property-sheet interface. Lens Flare remains selectable through the native outliner. |
 
 All **15 original Sun properties** remain in the backend sheet/API: Angular Diameter, Sun Tint, Intensity, Direct, Local Hours, Animate, Speed, Latitude, Longitude, Day of Month, Month, Azimuth, Elevation, Declination and Equation of Time. **Temperature**, **Colour source** and **Day duration** are additions, giving **18 properties**. The visible supplementary card now keeps only Direct, Sun Tint, Day of Month and Month. Latitude/Longitude and the Declination/Equation of Time diagnostics are hidden from this inspector; Speed is also hidden because Day duration already controls it. The underlying values and solver are preserved, not deleted. Intensity is on the main card rather than duplicated there.
@@ -113,4 +113,4 @@ Proofs and hashes: `Exhibits/Gallery/SunFullPanel/`. The earlier rejected SunIns
 
 ## Lens Flare next step
 
-See [LensFlareNativeAudit.md](LensFlareNativeAudit.md) for the inspected renderer paths, four existing presets versus three HTML effect components, current halo binding, missing controls, and shared preview/bake design. The first native implementation is now available in [LensFlareNativePanel.md](LensFlareNativePanel.md), with captures on 5179. Sun remains unchanged visually; its runner also applies the Lens Flare integration for regression coverage.
+See [LensFlareNativeAudit.md](LensFlareNativeAudit.md) for the inspected renderer paths, four existing presets versus three HTML effect components, current halo binding, missing controls, and shared preview/precompute design. The first native implementation is now available in [LensFlareNativePanel.md](LensFlareNativePanel.md), with captures on 5179. Sun remains unchanged visually; its runner also applies the Lens Flare integration for regression coverage.

@@ -9,12 +9,12 @@ Added to the existing five-second `ProjectZero_TelemetryReport` reporting cadenc
 | CpuCelestialTickMeanMs | Complete CPU celestial tick, including ephemeris, wind and precipitation |
 | CpuSunMoonSolveMeanMs | CPU ephemeris solve only; a subset of the tick, not additive to it |
 | CpuSkyPackUploadMeanMs | CPU sky/sun record packing and RefreshSky host upload call |
-| CpuWeatherPostPackUploadMeanMs | CPU shared post/weather packing and RefreshPost staging; includes non-weather post data |
+| CpuWeatherPostPackUploadMeanMs | CPU shared post/weather packing and RefreshPost staging; includes non-weather post record |
 | SkySunUniformPayloadBytes | Current sky/sun UBO payload: 144 bytes |
 | CloudFogUniformPayloadBytes | Weather portion of the post UBO: 336 bytes |
 | PostUniformPayloadBytes | Complete shared post UBO: 544 bytes; includes the weather portion, do not add them |
-| CelestialBufferPayloadBytes | Current sky, moon, post and star buffer payloads |
-| CelestialBufferAllocationBytes | Sum of those buffers' Vulkan memory requirements, cached until their handles change |
+| CelestialStorePayloadBytes | Current sky, moon, post and star store payloads |
+| CelestialStoreAllocationBytes | Sum of those stores' Vulkan storage requirements, cached until their identifiers change |
 | WeatherDedicatedVolumeImageBytes | Zero: procedural cloud/fog density does not allocate its own 3D volume image |
 | CloudViewStepBudget / LocalVolumeStepBudget / CloudLightTapBudget | Configured budgets, not actual executed sample counts |
 | SunShown / SkyShown / CloudActive / LocalCloudActive / FogActive | Current feature/visibility switches |
@@ -38,9 +38,9 @@ Workload RenderPixels now uses actual rendered dimensions rather than full outpu
 
 ## Resource-accounting boundaries
 
-The buffer allocation figure is not full VRAM usage. These buffers can use host-visible/coherent memory. It excludes driver overhead, residency, sky/moon textures, sky-dome bakes, scene textures, shared render targets/history, shadow maps, and unrelated renderer resources. Existing allocation logs and process RSS still provide broader context. No bytes are invented for an isolated Sun or Cloud GPU allocation that does not exist.
+The store allocation figure is not full VRAM usage. These stores can use host-visible/coherent storage. It excludes driver overhead, residency, sky/moon textures, sky-dome precomputes, scene textures, shared render targets/history, shadow maps, and unrelated renderer resources. Existing allocation logs and process RSS still provide broader context. No bytes are invented for an isolated Sun or Cloud GPU allocation that does not exist.
 
-The cache is read from current Vulkan buffer memory requirements when resource handles change; it does not query those requirements on every stable frame. Runtime device values still need validation on the user's GPU.
+The cache is read from current Vulkan store storage requirements when resource identifiers change; it does not query those requirements on every stable frame. Runtime device values still need validation on the user's GPU.
 
 ## Validation
 

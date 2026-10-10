@@ -166,7 +166,7 @@ static int DirectMathSuite(VerificationPanel& Panel) noexcept
         S.AddConstraint(V);
         int DoF = S.DoF();
         Panel.Note("dof after 1 dist + 1 coincident + 1 vertical on 2 free pts = %d (vertical is linearly dependent on coincident.x)", DoF);
-        // Note: vertical (x_A = x_B) is the same as coincident.x, so it adds no new info. dof stays 2.
+        // Note: vertical (x_A = x_B) is the same as coincident.x, so it adds no new facts. dof stays 2.
         Panel.Expect("vertical is linearly dependent → dof stays 2", DoF == 2);
     }
 

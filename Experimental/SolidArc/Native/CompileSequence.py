@@ -22,8 +22,8 @@ def Compile(Path):
     Target = Scratch / (Path.stem + '.o')
     subprocess.run([Compiler, *Options, '-c', str(Path), '-o', str(Target)], check=True)
     return str(Target)
-with ThreadPoolExecutor(max_workers=2) as Pool:
-    Compiled = list(Pool.map(Compile, Files))
+with ThreadPoolExecutor(max_workers=2) as Bank:
+    Compiled = list(Bank.map(Compile, Files))
 subprocess.run([Compiler, *Options, *Compiled, '-o', str(Destination / 'GeometryModule.js'),
     '-sMODULARIZE=1', '-sEXPORT_ES6=1', '-sENVIRONMENT=web,worker,node', '-sALLOW_MEMORY_GROWTH=1',
     '-sSTACK_SIZE=4194304', '-sMAXIMUM_MEMORY=2147483648', '-sFORCE_FILESYSTEM=1',

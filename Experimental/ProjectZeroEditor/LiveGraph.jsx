@@ -61,7 +61,7 @@ export function Plot({
     if (Drag.current) Change?.(Next);
   };
   return (
-    <div className="live-plot" data-live-plot={Name}>
+    <div className="live-plot" record-live-plot={Name}>
       <div className="live-plot-value">
         <span>
           {Format(X)} <small>{XUnit}</small>
@@ -167,7 +167,7 @@ export function Plot({
                 />
               )}
               <path
-                data-series={Line.Name}
+                record-series={Line.Name}
                 d={Points}
                 stroke={Line.Colour || "#d9d5cb"}
                 strokeWidth="1.6"
@@ -270,7 +270,7 @@ export function PropertyGraph({ Children, Title }) {
     Pick(Index);
   };
   return (
-    <div className="property-graph" data-property-graph={Title}>
+    <div className="property-graph" record-property-graph={Title}>
       <button
         className="graph-disclosure"
         aria-expanded={Open}
@@ -779,9 +779,9 @@ export function CloudBounds({ V, Change }) {
         })}
       </svg>
       <p className="graph-note">
-        Drag the X / Y / Z handles to resize · arrow keys ±1 m · auto-fit, Z up.
+        Drag the X / Y / Z identifiers to resize · arrow keys ±1 m · auto-fit, Z up.
       </p>
-      <div className="cloud-bounds-data">
+      <div className="cloud-bounds-record">
         {["Min", "Max", "Size"].map((Name, I) => (
           <div key={Name}>
             <span>{Name} · m</span>

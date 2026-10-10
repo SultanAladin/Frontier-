@@ -72,8 +72,8 @@ for name,pair,binding in [('HistoryImage','HistoryPair',3),('HistorySurfaceImage
 assert 'VK_DESCRIPTOR_TYPE_STORAGE_IMAGE) == 10u' in h
 assert 'LayoutBindings[3].descriptorCount = 2u' in h
 assert '(B==18u || B==19u) ? 2u : 1u' in h
-assert 'Write.pImageInfo      = HistoryInfo;' in h
-assert 'WriteImage (18u, HistorySurfaceInfo[0])' in h and 'WriteImage (19u, MomentInfo[0])' in h
+assert 'Write.pImageInfo      = HistoryDetails;' in h
+assert 'WriteImage (18u, HistorySurfaceDetails[0])' in h and 'WriteImage (19u, MomentDetails[0])' in h
 assert 'Copy.extent={RenderWidth,RenderHeight,1}' in h
 assert 'VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT' in h
 assert 'VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT' in h
@@ -92,8 +92,8 @@ f=(R/'Engine/Shaders/AtrousDenoise.slang').read_text()
 assert 'layout(set = 0, binding = 4, rgba32f) uniform readonly image2D HistoryImage;' in f
 assert 'ProgressiveDenoiseStrength(imageLoad(HistoryImage, Pixel).a, StepSize)' in f
 assert 'imageLoad(HistoryImage, Pixel).rgb' not in f
-layout=h[h.index('bool SwapchainExchange::BringDenoisePipeline()'):h.index('bool SwapchainExchange::BringDenoisePipeline()')+3500]
-assert 'LayoutInfo.bindingCount = 5u' in layout
+layout=h[h.index('bool SwapchainExchange::BringDenoiseChain()'):h.index('bool SwapchainExchange::BringDenoiseChain()')+3500]
+assert 'LayoutDetails.bindingCount = 5u' in layout
 assert 'VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 5u * kDenoiseLevelCount' in layout
 writes=h[h.index('std::array<VkDescriptorImageInfo,  5u * kDenoiseLevelCount>'):]
 assert 'Views[5]' in writes and 'Binding < 5u' in writes

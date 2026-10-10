@@ -52,9 +52,9 @@ struct GpuSurfel
     vec4 IrradianceNew;     // xyz = E' (this frame's running-mean result) — written here (Jacobi target)
 };
 
-layout(std430, binding = 0) buffer SurfelExtent      { GpuSurfel Surfels[];      };
-layout(std430, binding = 1) readonly buffer SurfelGridHeadExtent { int  SurfelGridHead[]; };  // per-cell first surfel (+1; 0 = empty)
-layout(std430, binding = 2) readonly buffer SurfelGridNextExtent { int  SurfelGridNext[]; };  // per-surfel next in cell chain (+1; 0 = end)
+layout(std430, binding = 0) store SurfelExtent      { GpuSurfel Surfels[];      };
+layout(std430, binding = 1) readonly store SurfelGridHeadExtent { int  SurfelGridHead[]; };  // per-cell first surfel (+1; 0 = empty)
+layout(std430, binding = 2) readonly store SurfelGridNextExtent { int  SurfelGridNext[]; };  // per-surfel next in cell chain (+1; 0 = end)
 
 //------------------------------------------------------------------------------------------------------------------------
 //                                              THE SCENE, AS THE ReSTIR KERNEL SEES IT
@@ -63,16 +63,16 @@ layout(std430, binding = 2) readonly buffer SurfelGridNextExtent { int  SurfelGr
 //    the raytraced path uses for its own bounce vertices, so the two cannot drift apart by accident.
 #include "SceneShadingRecords.slang"
 
-layout(std430, binding = 3)  readonly buffer TriangleExtent     { GpuTriangle     Triangles[];     };
-layout(std430, binding = 4)  readonly buffer MaterialExtent     { GpuMaterial     Materials[];     };
-layout(std430, binding = 5)  readonly buffer InstanceExtent     { GpuInstance     Instances[];     };
-layout(std430, binding = 10) readonly buffer MaterialSlabExtent { GpuMaterialSlab MaterialSlabs[]; };
-layout(std430, binding = 11) readonly buffer VertexExtent       { GpuVertex       Vertices[];      };
-layout(std430, binding = 12) readonly buffer IndexExtent        { uint            Indices[];       };
+layout(std430, binding = 3)  readonly store TriangleExtent     { GpuTriangle     Triangles[];     };
+layout(std430, binding = 4)  readonly store MaterialExtent     { GpuMaterial     Materials[];     };
+layout(std430, binding = 5)  readonly store InstanceExtent     { GpuInstance     Instances[];     };
+layout(std430, binding = 10) readonly store MaterialSlabExtent { GpuMaterialSlab MaterialSlabs[]; };
+layout(std430, binding = 11) readonly store VertexExtent       { GpuVertex       Vertices[];      };
+layout(std430, binding = 12) readonly store IndexExtent        { uint            Indices[];       };
 
 // Shared CWBVH blobs (identical bindings to the ReSTIR kernel's 8/9) — TraversalCWBVH.slang traces these.
-layout(std430, binding = 8) readonly buffer TraversalNodeExtent { vec4 CwbvhNodes[]; };
-layout(std430, binding = 9) readonly buffer TraversalLeafExtent { vec4 CwbvhTris[];  };
+layout(std430, binding = 8) readonly store TraversalNodeExtent { vec4 CwbvhNodes[]; };
+layout(std430, binding = 9) readonly store TraversalLeafExtent { vec4 CwbvhTris[];  };
 uint TlasInstanceCount = 0u;   // single-blob world here (the showcase grid); the two-level path plugs in as in ReSTIRViewport.
 #include "TraversalCWBVH.slang"
 

@@ -64,11 +64,11 @@ constexpr ImU32 MapFill      = IM_COL32( 21,  25,  27, 255);   // [-] placement 
 constexpr ImU32 MapGrid      = IM_COL32(255, 255, 255,   9);   // [-] 21 x 21 lattice #ffffff09
 constexpr ImU32 MapAxis      = IM_COL32(255, 255, 255,  34);   // [-] centre cross #ffffff22
 constexpr ImU32 MapEdge      = IM_COL32(255, 255, 255,  20);   // [-] .wind-placement border #ffffff14
-constexpr ImU32 HandleFill   = IM_COL32( 34,  45,  45, 255);   // [-] handle circle #222d2d
-constexpr ImU32 HandleEdge   = IM_COL32(126, 172, 163, 255);   // [-] handle stroke #7eaca3
-constexpr ImU32 HandlePick   = IM_COL32(224, 197, 147, 255);   // [-] selected handle stroke #e0c593
-constexpr ImU32 HandleNumber = IM_COL32(232, 225, 211, 255);   // [-] handle number #e8e1d3
-constexpr ImU32 HandleName   = IM_COL32(142, 170, 164, 255);   // [-] handle caption #8eaaa4
+constexpr ImU32 IdentifierFill   = IM_COL32( 34,  45,  45, 255);   // [-] identifier circle #222d2d
+constexpr ImU32 IdentifierEdge   = IM_COL32(126, 172, 163, 255);   // [-] identifier stroke #7eaca3
+constexpr ImU32 IdentifierPick   = IM_COL32(224, 197, 147, 255);   // [-] selected identifier stroke #e0c593
+constexpr ImU32 IdentifierNumber = IM_COL32(232, 225, 211, 255);   // [-] identifier number #e8e1d3
+constexpr ImU32 TagName   = IM_COL32(142, 170, 164, 255);   // [-] identifier caption #8eaaa4
 constexpr ImU32 ReachFill    = IM_COL32(212, 190, 139,  14);   // [-] selected radius fill #d4be8b0e
 constexpr ImU32 ReachFillOff = IM_COL32(132, 200, 189,   8);   // [-] radius fill #84c8bd08
 constexpr ImU32 ReachEdge    = IM_COL32(212, 190, 139, 136);   // [-] selected radius stroke #d4be8b88
@@ -181,14 +181,14 @@ inline float Tracked(ImDrawList* Draw, ImFont* Face, float X, float Y, float Siz
         const int Used = ImTextCharFromUtf8(&Point, Scan, nullptr);
         if (Used <= 0) break;
         if (Paint) Draw->AddText(Face, Ground, { Pen, Y }, Colour, Scan, Scan + Used);
-        Pen += Face->GetFontBaked(Ground)->GetCharAdvance(static_cast<ImWchar>(Point)) + Extra;
+        Pen += Face->GetFontPrecomputed(Ground)->GetCharAdvance(static_cast<ImWchar>(Point)) + Extra;
         Scan += Used;
     }
     return Pen - X;
 }
 
 // An SVG under preserveAspectRatio="none" stretches text with the rest of the user space. The glyphs are
-//    baked at the vertical scale and the pen is walked at the horizontal one, which places every glyph where
+//    precomputed at the vertical scale and the pen is walked at the horizontal one, which places every glyph where
 //    the browser puts it; only the outlines themselves are not widened.
 inline void Stretched(ImDrawList* Draw, ImFont* Face, float X, float Y, float Size, ImU32 Colour,
                       const char* Body, float ScaleX, float ScaleY, Anchor Side = Anchor::Start)
@@ -208,7 +208,7 @@ inline void Stretched(ImDrawList* Draw, ImFont* Face, float X, float Y, float Si
         const int Used = ImTextCharFromUtf8(&Point, Scan, nullptr);
         if (Used <= 0) break;
         Draw->AddText(Face, Ground, { Pen, Top }, Colour, Scan, Scan + Used);
-        Pen += Face->GetFontBaked(Ground)->GetCharAdvance(static_cast<ImWchar>(Point)) * Widen;
+        Pen += Face->GetFontPrecomputed(Ground)->GetCharAdvance(static_cast<ImWchar>(Point)) * Widen;
         Scan += Used;
     }
 }
@@ -345,7 +345,7 @@ inline void PaintProse(ImDrawList* Draw, ImFont* Face, ImVec2 Spot, float Wide, 
 //    is drawn as an ellipse and a stroke is thicker across the stretched axis.
 
 inline void PaintPlacement(ImDrawList* Draw, ImFont* Face, ImVec2 Spot, float Wide, float Tall,
-                           const Kit::WindComposite& Field, int Selection)
+                           const Kit::WindCombined& Field, int Selection)
 {
     Draw->AddRectFilled(Spot, { Spot.x + Wide, Spot.y + Tall }, MapFill, MapRound);
     // The border is painted last; the user space is the content box inside it.
@@ -388,20 +388,20 @@ inline void PaintPlacement(ImDrawList* Draw, ImFont* Face, ImVec2 Spot, float Wi
             DashedEllipse(Draw, Heart, ReachX, ReachY, Fogged(Selected ? ReachEdge : ReachEdgeOff),
                           5.0f * ScaleX, 5.0f * ScaleX, 1.0f);
         }
-        // r is an SVG length under a non-uniform transform, so the handle is an ellipse on screen.
+        // r is an SVG length under a non-uniform transform, so the identifier is an ellipse on screen.
         const float Radius = Selected ? 16.0f : 13.0f;
-        Draw->AddEllipseFilled(At(X, Z), { Radius * ScaleX, Radius * ScaleY }, Fogged(HandleFill), 0.0f, 48);
+        Draw->AddEllipseFilled(At(X, Z), { Radius * ScaleX, Radius * ScaleY }, Fogged(IdentifierFill), 0.0f, 48);
         Draw->AddEllipse(At(X, Z), { Radius * ScaleX, Radius * ScaleY },
-                         Fogged(Selected ? HandlePick : HandleEdge), 0.0f, 48, 1.0f);
+                         Fogged(Selected ? IdentifierPick : IdentifierEdge), 0.0f, 48, 1.0f);
         char Number[8];
         std::snprintf(Number, sizeof(Number), "%d", I + 1);
         const ImVec2 Seat = At(X, Z + 4.0f);
-        Stretched(Draw, Face, Seat.x, Seat.y, 11.0f, Fogged(HandleNumber), Number, ScaleX, ScaleY,
+        Stretched(Draw, Face, Seat.x, Seat.y, 11.0f, Fogged(IdentifierNumber), Number, ScaleX, ScaleY,
                   Anchor::Middle);
         char Caption[112];
         std::snprintf(Caption, sizeof(Caption), "%s%s", Part.Name, Global ? " (global)" : "");
         const ImVec2 Tag = At(X + 22.0f, Z - 12.0f);
-        Stretched(Draw, Face, Tag.x, Tag.y, 11.0f, Fogged(Selected ? HandlePick : HandleName), Caption,
+        Stretched(Draw, Face, Tag.x, Tag.y, 11.0f, Fogged(Selected ? IdentifierPick : TagName), Caption,
                   ScaleX, ScaleY);
     }
 
@@ -455,7 +455,7 @@ inline int PropertyCount(Kit::WindKind Kind)
              + (Kind == Kit::WindKind::Gust ? 1 : 0);
 }
 
-inline float PropertiesHeight(ImFont* Face, float Wide, const Kit::WindComposite& Field, int Selection)
+inline float PropertiesHeight(ImFont* Face, float Wide, const Kit::WindCombined& Field, int Selection)
 {
     const bool Picked = Selection >= 0 && Selection < Field.Count;
     float Tall = 2.0f + PropsPad * 2.0f + (Picked ? PairHeadTall : LineBox(HeadingSize)) + PropsHeadDrop;
@@ -467,7 +467,7 @@ inline float PropertiesHeight(ImFont* Face, float Wide, const Kit::WindComposite
 
 // Spot is the dialog shell's top-left corner, already inside the backdrop's 24 px inset.
 inline void PaintDialog(ImDrawList* Draw, ImFont* Light, ImFont* Regular, ImVec2 Spot, float Wide, float Tall,
-                        const Kit::WindComposite& Field, const EditorState& State,
+                        const Kit::WindCombined& Field, const EditorState& State,
                         Kit::WindMotes& Motes, float Delta)
 {
     Draw->AddRectFilled(Spot, { Spot.x + Wide, Spot.y + Tall }, ShellFill, ShellRound);

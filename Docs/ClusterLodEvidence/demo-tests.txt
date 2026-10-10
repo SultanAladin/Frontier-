@@ -1,1 +1,1 @@
-PASS 34 cluster mesh / watertightness / DOM interaction checks. Software Canvas render; not a Chromium or GPU test.
+PASS 34 cluster topology / watertightness / DOM interaction checks. Software Canvas render; not a Chromium or GPU test.

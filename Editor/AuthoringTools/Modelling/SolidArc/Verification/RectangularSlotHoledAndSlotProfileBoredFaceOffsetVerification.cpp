@@ -100,7 +100,7 @@ constexpr double SlotArea = 2.0 * HalfSpan * 2.0 * SlotRadius + ScalarCriteria::
     return Planes2 == TwoLoopPlanes && Walls == Extrusions;
 }
 
-// The extrusion pipeline flattens a slot curve to a degree-two rational chain, so recognition is structural plus sampled.
+// The extrusion chain flattens a slot curve to a degree-two rational chain, so recognition is structural plus sampled.
 [[nodiscard]] bool ExactSlot(const NurbsCurve& Curve, double& Half, double& Radius, Vec3& Centre) noexcept
 {
     if (!Curve.Closed() || !Curve.Rational() || Curve.Degree != 2 || Curve.PoleCount() != 13 ||

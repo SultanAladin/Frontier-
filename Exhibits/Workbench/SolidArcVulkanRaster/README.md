@@ -1,7 +1,7 @@
-# SolidArc · Vulkan raster pipelines · CPU exact-mirror proof
+# SolidArc · Vulkan raster chains · CPU exact-mirror proof
 
-**What this is.** Visual and timing proof for the three SolidArc raster pipelines of the Vulkan path: **Surface**, **Line** and
-**Point**. Each pipeline is driven in isolation over one full 72-frame turntable orbit (5° per frame) at 480×300.
+**What this is.** Visual and timing proof for the three SolidArc raster chains of the Vulkan path: **Surface**, **Line** and
+**Point**. Each chain is driven in isolation over one full 72-frame turntable orbit (5° per frame) at 480×300.
 
 **What it is not.** No GPU was available when this was produced (no Vulkan ICD in the build sandbox). **These are CPU timings of the
 exact mirror, not GPU frame rates.** No GPU FPS is claimed or modelled here. The Vulkan path
@@ -12,20 +12,20 @@ on a device**. Its parity with this mirror is therefore unmeasured.
 
 | File | Content |
 |---|---|
-| `three_pipelines.png` | One still per pipeline (frame 18) |
-| `matcap_presets.png` | Twelve baked studio presets on a sphere (metal, plastic, rubber, clay, pearl, carbon) |
-| `matcap_sheet.png` | The baked 128×128 layers themselves |
+| `three_chains.png` | One still per chain (frame 18) |
+| `matcap_presets.png` | Twelve precomputed studio presets on a sphere (metal, plastic, rubber, clay, pearl, carbon) |
+| `matcap_sheet.png` | The precomputed 128×128 layers themselves |
 | `surface_orbit.gif`, `line_orbit.gif`, `point_orbit.gif` | 72-frame orbits, 80 ms per frame |
 | `surface_still.png`, `line_still.png`, `point_still.png` | Frame 0 of each orbit, full size |
-| `chart_frame_time.png` | Distribution of CPU frame time per pipeline |
-| `chart_cpu_fps.png` | Mean CPU-mirror frames per second per pipeline |
+| `chart_frame_time.png` | Distribution of CPU frame time per chain |
+| `chart_cpu_fps.png` | Mean CPU-mirror frames per second per chain |
 | `chart_workload.png` | Exact per-frame counts (triangles, segments, points, fragments) |
 | `timings_summary.tsv` | All numbers behind the charts |
 | `checks.txt` | Self-checks run by the harness |
 
 ## Timings (CPU exact mirror, one run, warm-up of 3 frames excluded)
 
-| Pipeline | Shader | Mean ms | Median ms | p95 ms | Mean CPU FPS | Triangles | Segments | Points | Fragments / frame (mean) |
+| Sequence | Shader | Mean ms | Median ms | p95 ms | Mean CPU FPS | Triangles | Segments | Points | Fragments / frame (mean) |
 |---|---|---|---|---|---|---|---|---|---|
 | Surface | `SurfaceVS / SurfaceFS` | 8.69 | 7.63 | 12.51 | 115.0 | 9,216 | 0 | 0 | 53,115 |
 | Line | `LineVS / LineFS` | 14.79 | 13.86 | 17.95 | 67.6 | 18,432 | 9,216 | 0 | 110,811 |
@@ -44,8 +44,8 @@ PASS  surface pick identity 42 is reported somewhere in the frame
 PASS  pick is 0 where nothing is drawn
 PASS  a plane behind the torus leaves the torus depth untouched
 PASS  a plane behind the torus leaves the torus colour untouched
-info  matcap studios baked: 12 x 128 x 128 RGB floats
-PASS  baked matcap sheet has layers x 128 x 128 x 3 texels
+facts  matcap studios precomputed: 12 x 128 x 128 RGB floats
+PASS  precomputed matcap sheet has layers x 128 x 128 x 3 texels
 PASS  twelve studio presets (metal, plastic, rubber, clay, pearl, carbon)
 ```
 

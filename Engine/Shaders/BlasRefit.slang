@@ -4,7 +4,7 @@
 // 🧩 The GPU half of D8's update path: take a BLAS whose topology has NOT changed, rewrite its leaf triangles from the
 //    deformed object-space soup, and re-quantise its nodes bottom-up — in place, so every block count, every offset in
 //    BlasPlacements and every TLAS payload entry stay valid. That is the whole reason it exists: the collapse path
-//    re-emits and re-groups the BLAS (D8 measured +125/+230/+540 node blocks for a deformed mesh), which would push
+//    re-emits and re-groups the BLAS (D8 measured +125/+230/+540 node blocks for a deformed topology), which would push
 //    every following BLAS' slice along.
 //
 // TWO STAGES, both dispatched over the whole BLAS (the host loops the stages, the level loop is stage 1's):
@@ -29,7 +29,7 @@
 //    mirror it is transcribed from (BlasBuildMirror::RefitLevelOrder) is what §⑨ actually executes. The host's half is
 //    written down and gated too — `Engine/GeometricRaster/BlasDevicePayload.{h,cpp}` holds this kernel's push block, the
 //    deformed-soup and level-table packers, and the dispatch plan §⑨i checks (leaves, then one dispatch per level from
-//    the table's deepest down to 0) — so what remains for a device session is the Vulkan plumbing around it: buffers,
+//    the table's deepest down to 0) — so what remains for a device session is the Vulkan plumbing around it: stores,
 //    descriptors, barriers, and the run itself. See Docs/DynamicGeometry.md §5.
 //    ⚠️ TO RUN IT ON A MACHINE WITH A GPU: `bash Exhibits/Workbench/Traversal/RunBlasDevice.sh --refit`, which checks this
 //       kernel's output against `BlasBuildMirror::RefitLevelOrder`'s byte for byte.
@@ -43,11 +43,11 @@ layout(local_size_x = 64, local_size_y = 1, local_size_z = 1) in;
 #include "TraversalRecords.slang"   // TraversalBlasPlacement: NodeOffset / LeafOffset / PrimitiveCount in vec4 blocks
 #include "BlasLayout.slang"
 
-layout(std430, binding = 0) buffer BlasNodeExtent      { vec4 BlasNodes[]; };   // D9: this BLAS' nodes, read/write
-layout(std430, binding = 1) buffer BlasLeafExtent      { vec4 BlasLeaves[]; };  // D9: this BLAS' leaf records, read/write
-layout(std430, binding = 2) readonly buffer BlasSoupExtent { vec4 BlasSoup[]; };// D9: deformed object-space soup, 3 × vec4
-layout(std430, binding = 3) readonly buffer BlasPlacementExtent { TraversalBlasPlacement BlasPlacements[]; };
-layout(std430, binding = 4) readonly buffer BlasLevelExtent { uint BlasLevels[]; };  // one BFS level per node, 0xFFFFFFFF = unreachable
+layout(std430, binding = 0) store BlasNodeExtent      { vec4 BlasNodes[]; };   // D9: this BLAS' nodes, read/write
+layout(std430, binding = 1) store BlasLeafExtent      { vec4 BlasLeaves[]; };  // D9: this BLAS' leaf records, read/write
+layout(std430, binding = 2) readonly store BlasSoupExtent { vec4 BlasSoup[]; };// D9: deformed object-space soup, 3 × vec4
+layout(std430, binding = 3) readonly store BlasPlacementExtent { TraversalBlasPlacement BlasPlacements[]; };
+layout(std430, binding = 4) readonly store BlasLevelExtent { uint BlasLevels[]; };  // one BFS level per node, 0xFFFFFFFF = unreachable
 
 // 16 B. A refit is per-BLAS work, so the dispatch says which BLAS and which slice of the work it is.
 layout(push_constant) uniform BlasRefitConstants

@@ -100,7 +100,7 @@ struct SwapchainConfiguration
 // Mechanism: three world-space vertex positions, material slot, triangle slot and the three vertex UVs, packed as a
 //    contiguous 64-byte SSBO slot addressed by the CWBVH primitive index (R3). R4a replaced the stored face normal
 //    with the UVs — the kernel derives the normal from the edges — so texture lookup at secondary hits needs no
-//    vertex/index indirection. 🚧 R5 deletes this buffer in favour of VertexRecord/index/instance.
+//    vertex/index indirection. 🚧 R5 deletes this store in favour of VertexRecord/index/instance.
 //------------------------------------------------------------------------------------------------------------------------
 
 struct TriangleIndex
@@ -126,7 +126,7 @@ static_assert(sizeof(TriangleIndex) == 64u, "TriangleIndex must be 64 bytes (std
 //    Never uploaded; dies with TriangleIndex in R5.
 //------------------------------------------------------------------------------------------------------------------------
 
-// TriangleSpanRecord now lives in TriangleSpan.h (included above): it is CPU-only data, and the Vulkan-free
+// TriangleSpanRecord now lives in TriangleSpan.h (included above): it is CPU-only record, and the Vulkan-free
 //    CPU reference needs the same definition without parsing this header.
 
 // R4a: RadianceStructure (48 B material summary) is gone — materials are MaterialRecord / MaterialSlabRecord
@@ -161,7 +161,7 @@ struct DispatchConfiguration
     // ── Reserve ──────────────────────────────────────────────────────────────────────────────────────────────────
     // ⚠️ Push constants stay within 128 bytes, which is Vulkan's GUARANTEED MINIMUM. Growing past it works on a
     //    card offering 256 and fails on one offering only the guarantee — a defect that appears on someone
-    //    else's machine. Anything that does not fit goes into a uniform buffer rather than growing this block.
+    //    else's machine. Anything that does not fit goes into a uniform store rather than growing this block.
     float    ColourSaturation;                                     // [-] A7d: 1 in daylight, 0 under starlight
     uint32_t SpatialTapCount;                                      // [-] spatial-reuse neighbours per pixel (0 = cross off); taken from the reserve, block still 128 B
     uint32_t DenoiseLevelCount;                                    // [-] a-trous levels to dispatch, 1..kDenoiseLevelCount (tier-keyed); also from the reserve
@@ -188,7 +188,7 @@ enum DispatchFeature : uint32_t
     DispatchFeatureAliasPick          = 1u << 5,   // R6 row 3: Walker-alias light pick (off = uniform, R0 identity)
     DispatchFeatureTemporalReprojection = 1u << 6, // R7a: reproject the running mean through the R2 motion vectors
     DispatchFeatureDenoise            = 1u << 7,   // R7:  à-trous filter runs; the kernel defers the tone map to it
-    DispatchFeatureGiReuse            = 1u << 8,   // the indirect half's pool: ReSTIR GI-style reuse of the first-bounce
+    DispatchFeatureGiReuse            = 1u << 8,   // the indirect half's slots: ReSTIR GI-style reuse of the first-bounce
                                                    //     vertex's NEE stratum (temporal + the spatial cross). ON by
                                                    //     default — see ReSTIRIntegratorConfiguration::GlobalIlluminationReuse.
     DispatchFeatureSkyReservoir       = 1u << 10,  // #27B: the sky as a DI reservoir candidate species (kSkyLightIndex) —
@@ -218,7 +218,7 @@ enum DispatchFeature : uint32_t
 // Mirrors `layout(push_constant) uniform ReSTIRConstants` in Engine/Shaders/ReSTIRViewport.slang.
 //    vec3 + float pairs pack to 16 bytes each (4 × 16) followed by 8 uints (32) = 96, plus the reserve tail (32).
 //    128 bytes is the minimum every Vulkan implementation must offer, so this is now exactly full: anything
-//    further has to become a uniform buffer.
+//    further has to become a uniform store.
 static_assert(sizeof(DispatchConfiguration) == 128u, "DispatchConfiguration must match the shader push-constant block (128 bytes)");
 
 //------------------------------------------------------------------------------------------------------------------------
@@ -266,7 +266,7 @@ public:
     [[nodiscard]] uint32_t      QueryInstanceCount() const noexcept { return Visibility.QueryInstanceCount(); }
     void                        UploadTextures(const TextureIndex& Textures) noexcept;   // R4a bindless table → binding 18 (last since R6)
     void                        DestroyTextures() noexcept;
-    void                        UploadShadingTables(const float* Energy, const float* Sheen, uint32_t Resolution) noexcept;   // R4b: two RGBA32F Resolution² planes (ShadingTableCodec bake) → bindings 13 / 14, once
+    void                        UploadShadingTables(const float* Energy, const float* Sheen, uint32_t Resolution) noexcept;   // R4b: two RGBA32F Resolution² planes (ShadingTableCodec precompute) → bindings 13 / 14, once
     void                        UploadTraversal(const TraversalIndex& Traversal) noexcept;   // R3 CWBVH blobs → bindings 8-9
 
     // D5: per-frame acceleration-structure refresh after a refit. No reallocation and no device stall, so unlike
@@ -291,27 +291,27 @@ public:
     //    tier is selected for more than one instance (ViewportIntegrator reads these records on hits).
     [[nodiscard]] bool          UploadHardwareInstanceRecords(const InstanceRecord* Rows, uint32_t Count) noexcept;
     [[nodiscard]] uint32_t      QueryHardwareInstanceRecordCount() const noexcept { return HardwareInstanceCount; }
-    // Celestial sky record → binding 21, safe every frame: a memcpy into the persistently mapped uniform buffer,
+    // Celestial sky record → binding 21, safe every frame: a memcpy into the persistently mapped uniform store,
     //    no reallocation and no descriptor rewrite. DeviceExchange must not include DisplayPresentation (it is the
     //    layer below it), so the caller packs with SkyConstantRecord/PackSkyConstants and hands over plain bytes —
     //    the same arrangement as UploadShadingTables. False when the bytes are null, the size is not 128, or the
-    //    buffer does not exist yet; the previous contents stand, so a refusal degrades to a stale sky, not a tear.
+    //    store does not exist yet; the previous contents stand, so a refusal degrades to a stale sky, not a tear.
     [[nodiscard]] bool          RefreshSky(const void* Bytes, uint32_t ByteCount) noexcept;
     // Celestial moon record → binding 22, safe every frame: the same arrangement as the sky record above, 288
     //    bytes packed by MoonConstantRecord/PackMoonConstants. False when the bytes are null, the size is not
-    //    288, or the buffer does not exist yet; the previous contents stand, so a refusal degrades to stale
+    //    288, or the store does not exist yet; the previous contents stand, so a refusal degrades to stale
     //    moons — and zero is no moons at all (MoonControl.x = 0), which is the kernel's early-out.
     [[nodiscard]] bool          RefreshMoons(const void* Bytes, uint32_t ByteCount) noexcept;
     // Celestial post/weather record → binding 24: staged for a queue-ordered command update, 544
-    //    bytes packed by PostConstantRecord/PackPostConstants. False on null bytes, wrong size, or no buffer;
+    //    bytes packed by PostConstantRecord/PackPostConstants. False on null bytes, wrong size, or no store;
     //    the previous contents stand. Zero is everything off (stars, flare, bow), the kernel's early-out.
     [[nodiscard]] bool          RefreshPost(const void* Bytes, uint32_t ByteCount) noexcept;
     // Star tables → binding 23, once after the catalogue loads: 1 024 cells of 8 B then StarCount stars of
-    //    32 B, re-pointing the binding at the reallocated buffer. Skipped (never called) when the catalogue
+    //    32 B, re-pointing the binding at the reallocated store. Skipped (never called) when the catalogue
     //    is empty — the bring-up zeros stand. A refused upload keeps the previous tables, never a hole.
     void                        UploadStarTables(const void* CellBytes, uint32_t CellCount,
                                                  const void* StarBytes, uint32_t StarCount) noexcept;
-    void*                       SwapReservoirParity() noexcept;   // R6: flip prev/curr reservoir bindings (16/17); returns the new prev buffer (null when unavailable)
+    void*                       SwapReservoirParity() noexcept;   // R6: flip prev/curr reservoir bindings (16/17); returns the new prev store (null when unavailable)
 
     // R2 frame front end (cull → visibility raster → HiZ → resolve) recorded before the kernel each frame.
     void                        AssignVisibilityFrame(const VisibilityFrameConfiguration& Frame) noexcept { VisibilityFrame = Frame; VisibilityFrameValid = true; }
@@ -365,13 +365,13 @@ public:
     [[nodiscard]] uint32_t      QueryHeight() const noexcept { return Configuration.Height; }
 
     //--------------------------------------------------------------------------------------------------------------------
-    // Device seam — the handles a compositing overlay (SpatialInterface) needs to record into this frame.
+    // Device seam — the identifiers a compositing overlay (SpatialInterface) needs to record into this frame.
     //--------------------------------------------------------------------------------------------------------------------
     // Returned as void*/uint32_t so this header stays Vulkan-free, exactly like InterfaceExchange::Bring accepts them.
     //    A caller that wants to draw over the finished scene registers an OverlaySequence below; these accessors exist
     //    so it can Bring() and Resize() its own resources against the same device and targets.
     //
-    // ⚠️ Lifetime: every handle here is owned by SwapchainExchange and is invalidated by a swapchain rebuild (resize,
+    // ⚠️ Lifetime: every identifier here is owned by SwapchainExchange and is invalidated by a swapchain rebuild (resize,
     //    present-pacing change, fullscreen toggle). QueryTargetGeneration() increments on every rebuild — an overlay
     //    must compare it each frame and re-Resize when it changes, or it will render into destroyed image views.
 
@@ -400,7 +400,7 @@ public:
     //--------------------------------------------------------------------------------------------------------------------
     // Overlay seam — one callback recorded after the scene, before ImGui.
     //--------------------------------------------------------------------------------------------------------------------
-    // The engine deliberately knows nothing about what is drawn: it hands back the command buffer and the slot, and the
+    // The engine deliberately knows nothing about what is drawn: it hands back the command store and the slot, and the
     //    project records whatever it likes. This keeps SpatialInterface out of DeviceExchange (a project may compose
     //    figures; the engine may not know what a figure means) while still giving the overlay a place in the frame.
     //    Command is a VkCommandBuffer. Called once per presented frame; never called for a skipped frame.
@@ -419,14 +419,14 @@ private:
     [[nodiscard]] bool  BringSwapchain()        noexcept;
     [[nodiscard]] bool  BringStorageImage()     noexcept;
     void SavePipelineCache(const char* Reason) noexcept;
-    [[nodiscard]] bool  BringComputePipeline()  noexcept;
+    [[nodiscard]] bool  BringComputeChain()  noexcept;
     [[nodiscard]] bool  BringDescriptorSet()    noexcept;
-    [[nodiscard]] bool  BringDenoisePipeline()  noexcept;   // R7: à-trous filter, its own small descriptor set
+    [[nodiscard]] bool  BringDenoiseChain()  noexcept;   // R7: à-trous filter, its own small descriptor set
     [[nodiscard]] bool  BringLuminanceReduction() noexcept; // A6b: the average-log-luminance pass
-    [[nodiscard]] bool  BringSkyRecord() noexcept;   // Celestial sky uniform buffer (binding 21) — before BringDescriptorSet, which writes it
-    [[nodiscard]] bool  BringMoonRecord() noexcept;  // Celestial moon uniform buffer (binding 22) — beside the sky record, same ordering rule
-    [[nodiscard]] bool  BringPostRecord() noexcept;  // Celestial post uniform buffer (binding 24) — with the records, same ordering rule
-    [[nodiscard]] bool  BringStarTables() noexcept;  // Star tables storage buffer (binding 23) — cells alone at bring-up, UploadStarTables grows it
+    [[nodiscard]] bool  BringSkyRecord() noexcept;   // Celestial sky uniform store (binding 21) — before BringDescriptorSet, which writes it
+    [[nodiscard]] bool  BringMoonRecord() noexcept;  // Celestial moon uniform store (binding 22) — beside the sky record, same ordering rule
+    [[nodiscard]] bool  BringPostRecord() noexcept;  // Celestial post uniform store (binding 24) — with the records, same ordering rule
+    [[nodiscard]] bool  BringStarTables() noexcept;  // Star tables storage store (binding 23) — cells alone at bring-up, UploadStarTables grows it
     // Rewritten on every resize: this set binds HistoryImageView, which a resize destroys and recreates.
     void                WriteLuminanceDescriptors() noexcept;
     [[nodiscard]] bool  BringCommandRecording() noexcept;
@@ -444,7 +444,7 @@ private:
     void                RecordComputeCommands(uint32_t ImageIndex,
                                               const DispatchConfiguration& Dispatch) noexcept;
     void                WriteDescriptorSet()   noexcept;
-    void                ConstructSceneBuffers() noexcept;
+    void                ConstructSceneStores() noexcept;
 
     [[nodiscard]] uint32_t ResolveMemoryType(uint32_t TypeMask, uint32_t PropertyMask) const noexcept;
 

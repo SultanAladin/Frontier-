@@ -35,7 +35,7 @@ struct ufbx_material;
 namespace Frontier {
 
 // Returns the TextureIndex slot for a glTF texture (by index into cgltf_data::textures) or kMaterialTextureNone.
-//    `Linear` tells the resolver whether the image holds data (normals, roughness) or colour (sRGB-encoded).
+//    `Linear` tells the resolver whether the image holds record (normals, roughness) or colour (sRGB-encoded).
 using GltfTextureResolver = std::function<uint32_t(const cgltf_texture_view& View, bool Linear)>;
 // Same for ufbx textures (pointer identity) and OBJ texture paths.
 using FbxTextureResolver  = std::function<uint32_t(const void* UfbxTexture, bool Linear)>;

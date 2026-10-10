@@ -40,7 +40,7 @@ public:
     // Builds the picked row's sheet. Returns the folder tint mirror when one is open — the single write-back
     //    this turn — so the tick can carry it back onto the row; null otherwise. LiveInstances is the frame's
     //    instance rows (AnimatedInstances in the game): positions and rotations read the live transform when it
-    //    differs from the level's, so a driven body shows where it IS, not where it was baked.
+    //    differs from the level's, so a driven body shows where it IS, not where it was precomputed.
     [[nodiscard]] EditorProperty* BuildSheet(uint32_t Index, EditorInstance* Instances, uint32_t RowCount,
                                             EditorSheet* Sheet, const FlyThroughSolver& Camera,
                                             const SceneStructure& Level,

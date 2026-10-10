@@ -9,7 +9,7 @@
 //
 //    Gates (every number is printed; CheckTwoLevelBvh.sh turns them into PASS/FAIL):
 //      ① blob identity      one prototype, identity row → the BLAS blobs must be BYTE-IDENTICAL to the world-space
-//                           tree's blobs (the D1 property BuildBottomLevel's comment pins), the shared-buffer
+//                           tree's blobs (the D1 property BuildBottomLevel's comment pins), the shared-store
 //                           addressing must slice them back out unchanged, and a 20 000-ray census must agree with the
 //                           world tree COMPLETELY — same hit, same triangle, same t bit-for-bit. That last one is the
 //                           real D6 statement: with an identity transform, the object-space path is the old path.
@@ -32,7 +32,7 @@
 //                           be compiled here: no shader compiler, no Vulkan device on the proof host).
 //
 //    ③b/③c were added after ⑦'s first pass and matter as much as the gates they follow: ③b checks the RELATIVE transform
-//    convention (the flat soup is a baked world soup, so a row carries World_now · World_rest⁻¹, not World) and ③c
+//    convention (the flat soup is a precomputed world soup, so a row carries World_now · World_rest⁻¹, not World) and ③c
 //    transcribes the shader's object-space arithmetic and compares it with the CPU mirror. ③c is what caught the
 //    kernel applying the stored inverse TRANSPOSED — a defect no layout pin can see, invisible for identity and
 //    translate-only instances, and visible the moment an instance rotates.
@@ -78,7 +78,7 @@ using Frontier::BlasPlacement;
 using Frontier::BlasRecord;
 using Frontier::InstanceAcceleration;
 using Frontier::InstanceRow;
-using Frontier::MeshPrototype;
+using Frontier::GeometryPrototype;
 using Frontier::TlasInstanceRecord;
 using Frontier::TraversalIndex;
 using Frontier::TriangleIndex;
@@ -90,7 +90,7 @@ namespace
 
     void Pass(const char* Format, ...)  { std::printf("  PASS  "); va_list A; va_start(A, Format); std::vprintf(Format, A); va_end(A); std::printf("\n"); ++g_Passes; }
     void Fail(const char* Format, ...)  { std::printf("  FAIL  "); va_list A; va_start(A, Format); std::vprintf(Format, A); va_end(A); std::printf("\n"); ++g_Failures; }
-    void Info(const char* Format, ...)  { std::printf("        "); va_list A; va_start(A, Format); std::vprintf(Format, A); va_end(A); std::printf("\n"); }
+    void Facts(const char* Format, ...)  { std::printf("        "); va_list A; va_start(A, Format); std::vprintf(Format, A); va_end(A); std::printf("\n"); }
 
     uint64_t Fnv1a(const void* Bytes, size_t Count)
     {
@@ -398,7 +398,7 @@ namespace
     void ReportCases(const Case* Cases, int CaseCount)
     {
         for (int I = 0; I < CaseCount; ++I)
-            Info("ray %d: t %.6f vs %.6f · point gap %.3e m · vertex gap %.3e m · triangle %u vs %u", Cases[I].Ray,
+            Facts("ray %d: t %.6f vs %.6f · point gap %.3e m · vertex gap %.3e m · triangle %u vs %u", Cases[I].Ray,
                  static_cast<double>(Cases[I].TA), static_cast<double>(Cases[I].TB), static_cast<double>(Cases[I].Gap),
                  static_cast<double>(Cases[I].VertexGap), Cases[I].KeyA, Cases[I].KeyB);
     }
@@ -417,15 +417,15 @@ namespace Audit
 {
     bool ReadFile(const char* Path, std::string& Out)
     {
-        std::FILE* Handle = std::fopen(Path, "rb");
-        if (!Handle) return false;
-        std::fseek(Handle, 0, SEEK_END);
-        const long Size = std::ftell(Handle);
-        std::fseek(Handle, 0, SEEK_SET);
+        std::FILE* Tag = std::fopen(Path, "rb");
+        if (!Tag) return false;
+        std::fseek(Tag, 0, SEEK_END);
+        const long Size = std::ftell(Tag);
+        std::fseek(Tag, 0, SEEK_SET);
         Out.resize(static_cast<size_t>(Size > 0 ? Size : 0));
-        const size_t Read = Out.empty() ? 0u : std::fread(&Out[0], 1u, Out.size(), Handle);
+        const size_t Read = Out.empty() ? 0u : std::fread(&Out[0], 1u, Out.size(), Tag);
         Out.resize(Read);
-        std::fclose(Handle);
+        std::fclose(Tag);
         return true;
     }
 
@@ -497,10 +497,10 @@ static void RunKernelAudit()
         { "Kernel", "layout(binding = 31) uniform sampler2D Textures[];", 1u, "A8 the bindless table moved to 31 — still the highest binding" },
         { "ExchangeH", "static constexpr uint32_t kComputeBindingCount  = 32u;", 1u, "A9 the dispatcher's set matches (28 → 32)" },
         { "ExchangeCpp", "const uint32_t TextureBinding = kComputeBindingCount - 1u;", 1u, "A10 ...and derives the table's binding from it, so it cannot fall out of last place" },
-        { "ExchangeCpp", "if (Vulkan->TlasNodeBuffer)      WriteBuffer(27u, TlasNodeInfo);", 1u, "A11 the dispatcher writes binding 27 — and only once the buffer exists (a VK_NULL_HANDLE write is invalid, not merely useless)" },
-        { "ExchangeCpp", "if (Vulkan->TlasPrimitiveBuffer) WriteBuffer(28u, TlasPrimInfo);", 1u, "A12 ...28, guarded" },
-        { "ExchangeCpp", "if (Vulkan->TlasInstanceBuffer)  WriteBuffer(29u, TlasInstInfo);", 1u, "A13 ...29, guarded" },
-        { "ExchangeCpp", "if (Vulkan->BlasPlacementBuffer) WriteBuffer(30u, BlasPlaceInfo);", 1u, "A14 ...30, guarded" },
+        { "ExchangeCpp", "if (Vulkan->TlasNodeStore)      WriteStore(27u, TlasNodeDetails);", 1u, "A11 the dispatcher writes binding 27 — and only once the buffer exists (a VK_NULL_HANDLE write is invalid, not merely useless)" },
+        { "ExchangeCpp", "if (Vulkan->TlasPrimitiveStore) WriteStore(28u, TlasPrimDetails);", 1u, "A12 ...28, guarded" },
+        { "ExchangeCpp", "if (Vulkan->TlasInstanceStore)  WriteStore(29u, TlasInstDetails);", 1u, "A13 ...29, guarded" },
+        { "ExchangeCpp", "if (Vulkan->BlasPlacementStore) WriteStore(30u, BlasPlaceDetails);", 1u, "A14 ...30, guarded" },
         { "ExchangeCpp", "LayoutBindings[B].descriptorType  = ComputeBindingType(B);", 1u, "A15 the set layout asks one table for each binding's type" },
         { "ExchangeCpp", "PoolSizes[1].descriptorCount = ComputeBindingTypeCount(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER);", 1u, "A15b ...and so does the pool — 18 buffers, where the hand-kept 16 was two short (the GI reservoir pair)" },
         { "ExchangeCpp", "static_assert(ComputeBindingTypeCount(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER) == 18u,", 1u, "A15c ...and the count is proven at compile time, so a binding added without the pool fails the build" },
@@ -557,16 +557,16 @@ static void RunKernelAudit()
         { "AccelerationH", "uint32_t NodeOffset;      // [vec4 blocks] start of this BLAS\' nodes in CwbvhNodes[]", 1u, "A58 BlasPlacement::NodeOffset is in vec4 blocks — the same unit the shader indexes with" },
         { "AccelerationH", "uint32_t LeafOffset;      // [vec4 blocks] start of this BLAS\' triangles in CwbvhTris[]", 1u, "A59 ...and so is LeafOffset" },
 
-        // ── the buffers, their lifetimes and their capacities ───────────────────────────────────────────────────────
-        { "ExchangeCpp", "VkBuffer                 TlasNodeBuffer        = VK_NULL_HANDLE;", 1u, "A60 one buffer per new binding, owned by the dispatcher" },
-        { "ExchangeCpp", "VkBuffer                 BlasPlacementBuffer   = VK_NULL_HANDLE;", 1u, "A61 ...including the last" },
-        { "ExchangeCpp", "if (Vulkan->TlasNodeBuffer)      vkDestroyBuffer(Vulkan->Device, Vulkan->TlasNodeBuffer, nullptr);", 3u, "A62 destroyed at all three teardown sites (device loss, reset, re-upload)" },
+        // ── the stores, their lifetimes and their capacities ───────────────────────────────────────────────────────
+        { "ExchangeCpp", "VkBuffer                 TlasNodeStore        = VK_NULL_HANDLE;", 1u, "A60 one buffer per new binding, owned by the dispatcher" },
+        { "ExchangeCpp", "VkBuffer                 BlasPlacementStore   = VK_NULL_HANDLE;", 1u, "A61 ...including the last" },
+        { "ExchangeCpp", "if (Vulkan->TlasNodeStore)      vkDestroyBuffer(Vulkan->Device, Vulkan->TlasNodeStore, nullptr);", 3u, "A62 destroyed at all three teardown sites (device loss, reset, re-upload)" },
         { "ExchangeCpp", "TlasNodeCapacity      = static_cast<VkDeviceSize>(Nodes.size()) * sizeof(float);", 1u, "A63 the refresh bounds are recorded from what was allocated" },
-        { "ExchangeCpp", "if (!Refresh(Nodes.data(), Nodes.size(), sizeof(float), Vulkan->TlasNodeMemory, TlasNodeCapacity)) return false;", 1u, "A64 ...and every payload is checked against them on the way in" },
+        { "ExchangeCpp", "if (!Refresh(Nodes.data(), Nodes.size(), sizeof(float), Vulkan->TlasNodeStorage, TlasNodeCapacity)) return false;", 1u, "A64 ...and every payload is checked against them on the way in" },
 
         // ── what the project does with it ───────────────────────────────────────────────────────────────────────────
         { "Game", "InstanceStructure.Build(Prototypes, InstanceRows, false)", 1u, "A65 the project builds the two-level structure from the level\'s own instances" },
-        { "Game", "Prototypes.push_back(Frontier::MeshPrototype{ TracedFacets.data() + Row.FlatTriangleOffset, Row.TriangleCount });", 1u, "A66 one BLAS per instance over the REST-pose soup (nothing is rewritten per frame)" },
+        { "Game", "Prototypes.push_back(Frontier::GeometryPrototype{ TracedFacets.data() + Row.FlatTriangleOffset, Row.TriangleCount });", 1u, "A66 one BLAS per instance over the REST-pose soup (nothing is rewritten per frame)" },
         { "Game", "M.InstanceCount, M.BlasCount, M.PrimitiveCount, M.TlasNodeCount,", 1u, "A67 the build reports what it built" },
         { "IntegratorCpp", "Dispatch.TlasInstanceCount     = ResidentInstanceCount;", 1u, "A68 the dispatch carries it (A21 again, from the other end)" },
 
@@ -851,7 +851,7 @@ struct BlobWalker
     }
 
     // The walker's opposite number, deliberately: every triangle in the BLAS' leaf arena, tested with the same float
-    //    Möller–Trumbore the walker uses. Two readers that share the triangle data and the leaf arithmetic can only
+    //    Möller–Trumbore the walker uses. Two readers that share the triangle record and the leaf arithmetic can only
     //    disagree when the TREE — boxes, masks, child pointers — pruned something the arena contains, which is exactly
     //    what an in-place re-quantisation can break. (Comparing the walker against the library's binary-tree trace
     //    instead folds in a second intersection routine that resolves grazing rays differently; that difference is
@@ -899,14 +899,14 @@ static void RunBlasKernelPins()
 {
     std::printf("\n⑩ D9 — the GPU kernels, pinned to the mirror the §⑨ gates measure\n");
 
-    std::string Layout, Refit, Build, Mirror, MirrorH, Table, Traversal, Payload, PayloadCpp, Pipeline, Runner;
+    std::string Layout, Refit, Build, Mirror, MirrorH, Table, Traversal, Payload, PayloadCpp, Sequence, Runner;
     if (!Audit::ReadFile("Engine/Shaders/BlasLayout.slang", Layout)
      || !Audit::ReadFile("Engine/Shaders/BlasRefit.slang", Refit)
      || !Audit::ReadFile("Engine/Shaders/BlasBuild.slang", Build)
      || !Audit::ReadFile("Engine/GeometricRaster/BlasDevicePayload.h", Payload)
      || !Audit::ReadFile("Engine/GeometricRaster/BlasDevicePayload.cpp", PayloadCpp)
      || !Audit::ReadFile("Engine/GeometricRaster/BlasBuildMirror.h", MirrorH)
-     || !Audit::ReadFile("Engine/GeometricRaster/BlasBuildPipeline.cpp", Pipeline)
+     || !Audit::ReadFile("Engine/GeometricRaster/BlasBuildChain.cpp", Sequence)
      || !Audit::ReadFile("Exhibits/Workbench/Traversal/BlasDeviceRun.cpp", Runner)
      || !Audit::ReadFile("Engine/GeometricRaster/BlasBuildMirror.cpp", Mirror)
      || !Audit::ReadFile("Engine/GeometricRaster/BlasBuildMirror.h", MirrorH)
@@ -1025,7 +1025,7 @@ static void RunBlasKernelPins()
         { "Build", "BlasScratch[2u * ((Level + 1u) & 1u) + 1u] = Running;", 1u, "B91 (D9b) ...and its count, which is the level's total interior children: the tile's size" },
         { "Build", "const uint ChildBase = NodeBase + Nodes + BlasBlockSums[gl_WorkGroupID.x] + BlasScratch[At + 19u];", 1u, "B92 (D9b) the emit's childBase is the level's tile start plus the block prefix plus the within-block offset — the two halves the serial stage 2 used to compute in one pass" },
         { "Build", "if (Index < NodeCount) BlasScratch[BlasNodeSlotAt(Index) + 23u] = Inclusive - LeafTriangles;", 1u, "B93 (D9b) the run scan's within-block prefix, over the WHOLE arena in node order" },
-        { "Build", "BlasScratch[4u] = Running;", 1u, "B94 (D9b) stage 6 publishes the arena's leaf triangle count, which is what BlasBuildPipeline::Verify compares with the mirror's count — a run that wrote nothing cannot pass on bytes alone" },
+        { "Build", "BlasScratch[4u] = Running;", 1u, "B94 (D9b) stage 6 publishes the arena's leaf triangle count, which is what BlasBuildChain::Verify compares with the mirror's count — a run that wrote nothing cannot pass on bytes alone" },
         { "Build", "const uint Triangles = BlasBlockSums[gl_WorkGroupID.x] + BlasScratch[At + 23u];", 1u, "B95 (D9b) the run emit's triangleBase, assembled from the run scan the same way the childBase is assembled from the other one" },
         // ── ⑩c the Vulkan half and the run (D9b): text pins, because the plumbing cannot be executed here. The point of
         //    these is the CROSS-FILE binding — the stage numbers the plan emits have to be the stage numbers the shader
@@ -1036,12 +1036,12 @@ static void RunBlasKernelPins()
         { "Build", "if (Stage == 5u)", 1u, "B103 ...and the run path's three stages keep their numbers: 5 counts and scans within each block" },
         { "Build", "if (Stage == 6u)", 1u, "B104 ...6 turns the block totals into prefixes" },
         { "Build", "if (Stage == 7u)", 1u, "B105 ...and 7 writes triangleBase and the leaf records, one lane per node" },
-        { "Pipeline", "Constants.Stage = Entry.Stage;", 2u, "B106 (D9b) the pipeline dispatches the PLAN's stage number rather than a numbering of its own: the loop is data-driven, so this pin and the five above are what keep the two files' stage numbers the same numbers" },
-        { "Pipeline", "for (const BlasDispatch& Entry : Plan)", 2u, "B107 (D9b) ...and it iterates the plan both times (the build and the refit), never a hand-written sequence" },
-        { "Pipeline", "ComputeBarrier(Cmd, Api);", 2u, "B108 (D9b) a compute->compute barrier after every dispatch: a storage-buffer write is not visible to the next dispatch without it, and every stage here reads what the previous one wrote" },
-        { "Pipeline", "BuildRange.size       = static_cast<uint32_t>(sizeof(BlasBuildConstants));", 1u, "B109 (D9b) the push range is the payload struct's size, so the 48 B block cannot drift from the shader's without the static_assert above firing first" },
-        { "Pipeline", "RefitRange.size       = static_cast<uint32_t>(sizeof(BlasRefitConstants));", 1u, "B110 (D9b) ...and the refit's 16 B one" },
-        { "Pipeline", "Api.CreateComputePipelines(Device, VK_NULL_HANDLE, 1u,", 1u, "B111 (D9b) the pipelines come from the .spv files the compile gate lowers (BlasBuild.spv / BlasRefit.spv), not from anything embedded or checked in" },
+        { "Sequence", "Constants.Stage = Entry.Stage;", 2u, "B106 (D9b) the pipeline dispatches the PLAN's stage number rather than a numbering of its own: the loop is record-driven, so this pin and the five above are what keep the two files' stage numbers the same numbers" },
+        { "Sequence", "for (const BlasDispatch& Entry : Plan)", 2u, "B107 (D9b) ...and it iterates the plan both times (the build and the refit), never a hand-written sequence" },
+        { "Sequence", "ComputeBarrier(Cmd, Api);", 2u, "B108 (D9b) a compute->compute barrier after every dispatch: a storage-buffer write is not visible to the next dispatch without it, and every stage here reads what the previous one wrote" },
+        { "Sequence", "BuildRange.size       = static_cast<uint32_t>(sizeof(BlasBuildConstants));", 1u, "B109 (D9b) the push range is the payload struct's size, so the 48 B block cannot drift from the shader's without the static_assert above firing first" },
+        { "Sequence", "RefitRange.size       = static_cast<uint32_t>(sizeof(BlasRefitConstants));", 1u, "B110 (D9b) ...and the refit's 16 B one" },
+        { "Sequence", "Api.CreateComputePipelines(Device, VK_NULL_HANDLE, 1u,", 1u, "B111 (D9b) the pipelines come from the .spv files the compile gate lowers (BlasBuild.spv / BlasRefit.spv), not from anything embedded or checked in" },
         { "Runner", "\"libvulkan.so.1\", \"libvulkan.so\"", 1u, "B112 (D9b) the runner opens the loader at runtime — the reason nothing has to link -lvulkan, and the reason this file compiles where no loader exists" },
         { "Runner", "no Vulkan loader found", 1u, "B113 (D9b) a machine without a device is reported as SKIPPED (exit 2) rather than as a pass: an unattended run must not read 'no GPU' as 'verified'" },
         { "Runner", "--refit", 2u, "B114 (D9b) the refit path is opt-in on the command line and checked against a MIRROR refit of the same deformation, so 'the device wrote something' cannot pass for 'the device was right'" },
@@ -1065,7 +1065,7 @@ static void RunBlasKernelPins()
              : std::strcmp(Key, "Payload") == 0 ? Payload
              : std::strcmp(Key, "PayloadCpp") == 0 ? PayloadCpp
              : std::strcmp(Key, "MirrorH") == 0 ? MirrorH
-             : std::strcmp(Key, "Pipeline") == 0 ? Pipeline
+             : std::strcmp(Key, "Sequence") == 0 ? Sequence
              : std::strcmp(Key, "Runner") == 0 ? Runner : Traversal;
     };
     for (const Audit::TextPin& Pin : Pins)
@@ -1102,7 +1102,7 @@ int main()
     if (TriangleCount == 0u) { std::printf("[two-level] RED — the level builder produced no triangles\n"); return 1; }
 
     const float TieTolerance = 1.0e-4f * SceneDiagonal;   // 0.1 mm on a 14 m scene: a tessellation-edge tie
-    Info("tie tolerance %.3e m (a disagreement below this must still land on the same world point)", static_cast<double>(TieTolerance));
+    Facts("tie tolerance %.3e m (a disagreement below this must still land on the same world point)", static_cast<double>(TieTolerance));
 
     TraversalIndex World;
     if (!World.Build(Soup, false)) { Fail("the world-space build refused the level"); return 1; }
@@ -1194,17 +1194,17 @@ int main()
     {
         float Identity[16];
         IdentityMatrix(Identity);
-        const MeshPrototype Prototype{ Soup.data(), static_cast<uint32_t>(TriangleCount) };
+        const GeometryPrototype Prototype{ Soup.data(), static_cast<uint32_t>(TriangleCount) };
         InstanceRow Row{};
         std::memcpy(Row.Transform, Identity, sizeof(Row.Transform));
         InstanceAcceleration Two;
         if (!Two.Build({ Prototype }, { Row }, false)) { Fail("the two-level build refused the level"); return 1; }
 
         const uint64_t TwoNodeHash = BlobHash(Two.QueryNodeBlob()), TwoLeafHash = BlobHash(Two.QueryLeafBlob());
-        Info("world tree  nodes %016llx %8zu floats · leaves %016llx %zu floats",
+        Facts("world tree  nodes %016llx %8zu floats · leaves %016llx %zu floats",
              static_cast<unsigned long long>(WorldNodeHash), World.QueryNodeBlob().size(),
              static_cast<unsigned long long>(WorldLeafHash), World.QueryLeafBlob().size());
-        Info("two-level   nodes %016llx %8zu floats · leaves %016llx %zu floats",
+        Facts("two-level   nodes %016llx %8zu floats · leaves %016llx %zu floats",
              static_cast<unsigned long long>(TwoNodeHash), Two.QueryNodeBlob().size(),
              static_cast<unsigned long long>(TwoLeafHash), Two.QueryLeafBlob().size());
         if (WorldNodeHash == TwoNodeHash && WorldLeafHash == TwoLeafHash) Pass("BLAS blobs are byte-identical to the world-space tree");
@@ -1231,7 +1231,7 @@ int main()
         const int RayCount = 20000;
         long Snapped = 0, Unsnapped = 0; int WorstAttempts = 0;
         GenerateRays(Soup, Bounds, RayCount, 20260917ull, Origins, Directions, Snapped, Unsnapped, WorstAttempts);
-        Info("directions fitted to exactly unit length: %ld of %d (worst %d passes) · not fittable %ld",
+        Facts("directions fitted to exactly unit length: %ld of %d (worst %d passes) · not fittable %ld",
              Snapped, RayCount, WorstAttempts, Unsnapped);
 
         // Both sides report the flat triangle index of the same soup; the two-level instance is the only one, so its
@@ -1245,9 +1245,9 @@ int main()
         };
         Case Cases[8]; int CaseCount = 0;
         const Census C = Compare(WorldTrace, TwoTrace, Origins, Directions, RayCount, TieTolerance, Soup, Cases, 8, CaseCount);
-        Info("rays %ld · bit-identical hits %ld · identical misses %ld · differing %ld",
+        Facts("rays %ld · bit-identical hits %ld · identical misses %ld · differing %ld",
              C.Rays, C.AgreeExact, C.MissAgree, C.AgreeDistance + C.HitMismatches + C.CoincidentTies + C.NeighbourTies);
-        Info("max |Δt| %.3e m · max relative %.3e", static_cast<double>(C.MaxDelta), static_cast<double>(C.MaxRelative));
+        Facts("max |Δt| %.3e m · max relative %.3e", static_cast<double>(C.MaxDelta), static_cast<double>(C.MaxRelative));
         ReportCases(Cases, CaseCount);
         if (C.AgreeExact + C.MissAgree == C.Rays)
             Pass("all %ld rays bit-identical (%ld hits, %ld misses): an identity instance IS the old path", C.Rays,
@@ -1261,7 +1261,7 @@ int main()
     std::printf("\n② ray agreement — the soup split into 8 identity instances vs one world-space tree\n");
     {
         constexpr uint32_t K = 8u;
-        std::vector<MeshPrototype> Prototypes;
+        std::vector<GeometryPrototype> Prototypes;
         std::vector<InstanceRow>   Rows;
         const size_t Chunk = (TriangleCount + K - 1u) / K;
         float Identity[16];
@@ -1271,7 +1271,7 @@ int main()
             const size_t First = size_t(C) * Chunk;
             if (First >= TriangleCount) break;
             const size_t Count = std::min(Chunk, TriangleCount - First);
-            Prototypes.push_back(MeshPrototype{ Soup.data() + First, static_cast<uint32_t>(Count) });
+            Prototypes.push_back(GeometryPrototype{ Soup.data() + First, static_cast<uint32_t>(Count) });
             InstanceRow Row{};
             std::memcpy(Row.Transform, Identity, sizeof(Row.Transform));
             Row.BlasIndex = C;
@@ -1281,7 +1281,7 @@ int main()
 
         InstanceAcceleration Two;
         if (!Two.Build(Prototypes, Rows, false)) { Fail("the chunked two-level build refused the level"); return 1; }
-        Info("%u instances · %u BLASes · TLAS %u nodes · shared blobs %zu + %zu floats",
+        Facts("%u instances · %u BLASes · TLAS %u nodes · shared blobs %zu + %zu floats",
              Two.QueryMetrics().InstanceCount, Two.QueryMetrics().BlasCount, Two.QueryMetrics().TlasNodeCount,
              Two.QueryNodeBlob().size(), Two.QueryLeafBlob().size());
 
@@ -1300,9 +1300,9 @@ int main()
         };
         Case Cases[8]; int CaseCount = 0;
         const Census C = Compare(WorldTrace, TwoTrace, Origins, Directions, RayCount, TieTolerance, Soup, Cases, 8, CaseCount);
-        Info("rays %ld · bit-identical hits %ld · misses %ld · neighbouring-triangle ties %ld · coincident ties %ld",
+        Facts("rays %ld · bit-identical hits %ld · misses %ld · neighbouring-triangle ties %ld · coincident ties %ld",
              C.Rays, C.AgreeExact, C.MissAgree, C.NeighbourTies, C.CoincidentTies);
-        Info("max |Δt| %.3e m · max relative %.3e", static_cast<double>(C.MaxDelta), static_cast<double>(C.MaxRelative));
+        Facts("max |Δt| %.3e m · max relative %.3e", static_cast<double>(C.MaxDelta), static_cast<double>(C.MaxRelative));
         ReportCases(Cases, CaseCount);
         if (C.HitMismatches == 0 && C.PrimitiveMismatch == 0)
             Pass("%ld of %ld rays agree (%ld of the hits bit-identical, %ld landing on a neighbouring triangle of the same edge)",
@@ -1324,7 +1324,7 @@ int main()
         TraversalIndex Moved;
         if (!Moved.Build(Transformed, false)) { Fail("the world-space build refused the transformed soup"); return 1; }
 
-        const MeshPrototype Prototype{ Soup.data(), static_cast<uint32_t>(TriangleCount) };
+        const GeometryPrototype Prototype{ Soup.data(), static_cast<uint32_t>(TriangleCount) };
         InstanceRow Row{};
         std::memcpy(Row.Transform, M, sizeof(Row.Transform));
         InstanceAcceleration Two;
@@ -1335,7 +1335,7 @@ int main()
         const float MaxAabbError = std::max({ std::fabs(Rec.AabbMin[0] - WT.Min[0]), std::fabs(Rec.AabbMin[1] - WT.Min[1]),
                                               std::fabs(Rec.AabbMin[2] - WT.Min[2]), std::fabs(Rec.AabbMax[0] - WT.Max[0]),
                                               std::fabs(Rec.AabbMax[1] - WT.Max[1]), std::fabs(Rec.AabbMax[2] - WT.Max[2]) });
-        Info("instance world AABB vs transformed-soup AABB: max component error %.3e m", static_cast<double>(MaxAabbError));
+        Facts("instance world AABB vs transformed-soup AABB: max component error %.3e m", static_cast<double>(MaxAabbError));
         if (MaxAabbError == 0.0f) Pass("the per-frame AABB derivation reproduces the D5 rewrite exactly");
         else if (MaxAabbError < 1.0e-4f) Pass("the per-frame AABB derivation matches the D5 rewrite (%.3e m)", static_cast<double>(MaxAabbError));
         else Fail("the derived world AABB does not match the transformed soup");
@@ -1361,9 +1361,9 @@ int main()
         Case Cases[8]; int CaseCount = 0;
         const Census C = Compare(MovedTrace, TwoTrace, Origins, Directions, RayCount, TieTolerance, Transformed, Cases, 8, CaseCount);
         const long Hits = C.Rays - C.MissAgree;
-        Info("hits %ld · same triangle %ld (%ld of them bit-identical t) · neighbouring-triangle ties %ld · unrelated %ld",
+        Facts("hits %ld · same triangle %ld (%ld of them bit-identical t) · neighbouring-triangle ties %ld · unrelated %ld",
              Hits, C.AgreeExact + C.AgreeDistance, C.AgreeExact, C.NeighbourTies + C.CoincidentTies, C.PrimitiveMismatch);
-        Info("bit-exact t on %.2f %% of hits · max |Δt| among agreeing hits %.3e m · max relative %.3e · worst tie Δt %.3e m",
+        Facts("bit-exact t on %.2f %% of hits · max |Δt| among agreeing hits %.3e m · max relative %.3e · worst tie Δt %.3e m",
              Hits > 0 ? 100.0 * double(C.AgreeExact) / double(Hits) : 0.0,
              static_cast<double>(C.MaxDelta), static_cast<double>(C.MaxRelative), static_cast<double>(C.MaxTieDelta));
         ReportCases(Cases, CaseCount);
@@ -1375,28 +1375,28 @@ int main()
     }
 
 
-    // ── ③b the rest-bake convention: a prototype built from a BAKED world soup, moved by the relative transform ─────
-    // SceneStructure::Finalise bakes each instance's World into the flat soup, so a BLAS built over that soup is in the
-    //    BAKED frame and its row must carry World_now · World_rest⁻¹ rather than World_now. Getting this wrong places
+    // ── ③b the rest-precompute convention: a prototype built from a PRECOMPUTED world soup, moved by the relative transform ─────
+    // SceneStructure::Finalise precomputes each instance's World into the flat soup, so a BLAS built over that soup is in the
+    //    PRECOMPUTED frame and its row must carry World_now · World_rest⁻¹ rather than World_now. Getting this wrong places
     //    the geometry twice — invisible in the drop scene (whose rest World is identity) and wrong everywhere else, so
-    //    it is checked here against a non-identity rest bake.
-    std::printf("\n③b rest-bake convention — a prototype over a BAKED soup, moved by World_now · World_rest⁻¹\n");
+    //    it is checked here against a non-identity rest precompute.
+    std::printf("\n③b rest-bake convention — a prototype over a PRECOMPUTED soup, moved by World_now · World_rest⁻¹\n");
     {
         float Rest[16], Now[16];
         MakeTransform(0.6981317007977318f, 0.8f, -1.25f, 0.5f, 2.0f, Rest);    // 40 deg · x0.8 · translate
         MakeTransform(-0.4363323129985824f, 1.1f, 3.0f, 1.75f, -0.5f, Now);   // -25 deg · x1.1 · translate
 
-        std::vector<TriangleIndex> Baked(TriangleCount), Moved(TriangleCount);
+        std::vector<TriangleIndex> Precomputed(TriangleCount), Moved(TriangleCount);
         for (size_t I = 0; I < TriangleCount; ++I)
         {
-            TransformTriangle(Rest, Soup[I], Baked[I]);   // what Finalise writes
+            TransformTriangle(Rest, Soup[I], Precomputed[I]);   // what Finalise writes
             TransformTriangle(Now,  Soup[I], Moved[I]);   // what the instance's World should draw
         }
 
         TraversalIndex WorldTree;
         if (!WorldTree.Build(Moved, false)) { Fail("the world-space build refused the moved soup"); return 1; }
 
-        const MeshPrototype Prototype{ Baked.data(), static_cast<uint32_t>(TriangleCount) };
+        const GeometryPrototype Prototype{ Precomputed.data(), static_cast<uint32_t>(TriangleCount) };
         InstanceRow Row{};
         if (!Frontier::RelativeMatrix(Now, Rest, Row.Transform)) { Fail("the relative transform refused a singular rest matrix"); return 1; }
         InstanceAcceleration Two;
@@ -1408,20 +1408,20 @@ int main()
         //    soup, it is not its tight bound), so the check is containment with the slack reported, not equality.
         const float Slack = std::max({ MT.Min[0] - Rec.AabbMin[0], MT.Min[1] - Rec.AabbMin[1], MT.Min[2] - Rec.AabbMin[2],
                                        Rec.AabbMax[0] - MT.Max[0], Rec.AabbMax[1] - MT.Max[1], Rec.AabbMax[2] - MT.Max[2] });
-        // The arithmetic that matters: the relative matrix really does map the baked geometry onto the moved geometry.
+        // The arithmetic that matters: the relative matrix really does map the precomputed geometry onto the moved geometry.
         float WorstPoint = 0.0f;
         for (size_t I = 0; I < TriangleCount; ++I)
             for (int C = 0; C < 3; ++C)
             {
-                const float* Baked3 = C == 0 ? &Baked[I].VertexAlphaX : C == 1 ? &Baked[I].VertexBetaX : &Baked[I].VertexGammaX;
+                const float* Precomputed3 = C == 0 ? &Precomputed[I].VertexAlphaX : C == 1 ? &Precomputed[I].VertexBetaX : &Precomputed[I].VertexGammaX;
                 const float* Moved3 = C == 0 ? &Moved[I].VertexAlphaX : C == 1 ? &Moved[I].VertexBetaX : &Moved[I].VertexGammaX;
                 float P[3];
-                P[0] = Row.Transform[0] * Baked3[0] + Row.Transform[4] * Baked3[1] + Row.Transform[8]  * Baked3[2] + Row.Transform[12];
-                P[1] = Row.Transform[1] * Baked3[0] + Row.Transform[5] * Baked3[1] + Row.Transform[9]  * Baked3[2] + Row.Transform[13];
-                P[2] = Row.Transform[2] * Baked3[0] + Row.Transform[6] * Baked3[1] + Row.Transform[10] * Baked3[2] + Row.Transform[14];
+                P[0] = Row.Transform[0] * Precomputed3[0] + Row.Transform[4] * Precomputed3[1] + Row.Transform[8]  * Precomputed3[2] + Row.Transform[12];
+                P[1] = Row.Transform[1] * Precomputed3[0] + Row.Transform[5] * Precomputed3[1] + Row.Transform[9]  * Precomputed3[2] + Row.Transform[13];
+                P[2] = Row.Transform[2] * Precomputed3[0] + Row.Transform[6] * Precomputed3[1] + Row.Transform[10] * Precomputed3[2] + Row.Transform[14];
                 WorstPoint = std::max({ WorstPoint, std::fabs(P[0] - Moved3[0]), std::fabs(P[1] - Moved3[1]), std::fabs(P[2] - Moved3[2]) });
             }
-        Info("relative matrix on every baked vertex vs the moved soup: worst %.3e m · derived bound contains the soup by %.3e m",
+        Facts("relative matrix on every baked vertex vs the moved soup: worst %.3e m · derived bound contains the soup by %.3e m",
              static_cast<double>(WorstPoint), static_cast<double>(Slack));
         if (WorstPoint < 1.0e-4f && Slack >= -1.0e-4f)
             Pass("World_now · World_rest⁻¹ maps the baked soup onto the moved soup (%.1e m) and its bound contains it (slack %.1e m)",
@@ -1443,13 +1443,13 @@ int main()
         {
             uint32_t Instance = 0u, Local = 0u;
             if (!Two.TraceClosest(O, D, 1.0e30f, Instance, Local, T)) return false;
-            Key = Local;   // one prototype, one instance: the numbering is the baked list's own order
+            Key = Local;   // one prototype, one instance: the numbering is the precomputed list's own order
             return true;
         };
 
         Case Cases[8]; int CaseCount = 0;
         const Census C = Compare(WorldTrace, RelTrace, Origins, Directions, RayCount, TieTolerance, Moved, Cases, 8, CaseCount);
-        Info("rays %ld · bit-identical hits %ld · identical misses %ld · neighbouring ties %ld · unrelated %ld",
+        Facts("rays %ld · bit-identical hits %ld · identical misses %ld · neighbouring ties %ld · unrelated %ld",
              C.Rays, C.AgreeExact, C.MissAgree, C.NeighbourTies + C.CoincidentTies, C.PrimitiveMismatch);
         // Every disagreement, adjudicated by the oracle: a tree that returns a farther triangle has MISSED the nearer
         //    one, which is a traversal defect, not a tie. This is what separates "float rounding at a grazing edge" from
@@ -1472,7 +1472,7 @@ int main()
             float SingleT = 0.0f; uint32_t SingleKey = 0u;
             const bool SingleBuilt = One.Build(Single, false);
             const bool SingleHit = SingleBuilt && One.TraceClosest(O, D, SingleT, SingleKey);
-            Info("        |D| %.9f · one-triangle tree over the oracle's own triangle: %s",
+            Facts("        |D| %.9f · one-triangle tree over the oracle's own triangle: %s",
                  static_cast<double>(DirLength),
                  !SingleBuilt ? "refused to build"
                  : SingleHit ? "finds it"
@@ -1490,7 +1490,7 @@ int main()
             if (TwoIsNearest && WorldIsNearest) ++Resolved;              // both at the true nearest: a pure tie
             else if (TwoIsNearest) { ++Resolved; ++WorldMissed; ++TwoFoundNearest; }   // the two-level walk was the correct one
             else if (WorldIsNearest) { ++TwoMissed; ++WorldFoundNearest; }             // the two-level walk missed a nearer triangle
-            Info("oracle ray %d: truth t %.6f (triangle %u, barycentric margin %.2e, edge-on |det| %.2e) · two-level %.6f · world %.6f → %s",
+            Facts("oracle ray %d: truth t %.6f (triangle %u, barycentric margin %.2e, edge-on |det| %.2e) · two-level %.6f · world %.6f → %s",
                  Cases[I].Ray, static_cast<double>(Truth), Oracle, OracleMargin, OracleDet,
                  static_cast<double>(Cases[I].TA), static_cast<double>(Cases[I].TB),
                  TwoIsNearest && WorldIsNearest ? "both at the nearest (tie)"
@@ -1510,12 +1510,12 @@ int main()
                  CaseCount - KnifeEdge, CaseCount);
         ReportCases(Cases, CaseCount);
         // Same acceptance rule as ③: same hit/miss decisions, no unrelated surface, and t agreeing to float rounding.
-        //    (The transform here carries scale in both the bake and the move, so the object space the BLAS is quantised
+        //    (The transform here carries scale in both the precompute and the move, so the object space the BLAS is quantised
         //    in is scaled 1.375× relative to the world one — the tolerance is the ③ one, checked, not loosened.)
         // Acceptance: the two sides agree on every hit/miss decision, and every disagreement is adjudicated benign by the
         //    oracle above (a knife-edge graze, where neither tree is at the double-precision answer). The stricter rule
         //    gate ③ uses ("no unrelated surface at all") would fail here on that one adjudicated ray — reported rather
-        //    than hidden, because a rotated, scaled bake is a harder configuration than ③'s and the ray census is not the
+        //    than hidden, because a rotated, scaled precompute is a harder configuration than ③'s and the ray census is not the
         //    point of this gate: the point is the transform convention, which the arithmetic above settles.
         if (C.HitMismatches == 0 && TwoMissed == 0)
             Pass("the baked-soup prototype moved by the relative transform is the moved world tree: %ld bit-identical, %ld misses, "
@@ -1600,7 +1600,7 @@ int main()
             TransposedPoint(P, A); CpuPoint(P, B);
             for (int C = 0; C < 3; ++C) WorstTransposed = std::max(WorstTransposed, std::fabs(A[C] - B[C]));
         }
-        Info("over %zu soup points: corrected shader form differs from the CPU mirror by %.3e m · the transposed form by %.3e m",
+        Facts("over %zu soup points: corrected shader form differs from the CPU mirror by %.3e m · the transposed form by %.3e m",
              SampleCount, static_cast<double>(WorstShader), static_cast<double>(WorstTransposed));
 
         if (WorstShader <= 2.0e-6f) Pass("the shader's object-space transform is the CPU mirror's, to float rounding");
@@ -1640,7 +1640,7 @@ int main()
     std::printf("\n④ D7 frame budget — every instance moving every frame, TLAS rebuilt, BLAS never touched\n");
     {
         const size_t PrototypeTris = std::min<size_t>(TriangleCount, 8192u);
-        const MeshPrototype Prototype{ Soup.data(), static_cast<uint32_t>(PrototypeTris) };
+        const GeometryPrototype Prototype{ Soup.data(), static_cast<uint32_t>(PrototypeTris) };
         float Identity[16];
         IdentityMatrix(Identity);
 
@@ -1685,7 +1685,7 @@ int main()
             else
                 Fail("N=%u: the BLAS blobs changed during instance updates", N);
         }
-        Info("this sandbox has 2 cores; the numbers above are the frame-visible CPU cost of moving EVERY instance");
+        Facts("this sandbox has 2 cores; the numbers above are the frame-visible CPU cost of moving EVERY instance");
     }
 
     // ── ⑤ instancing cost ────────────────────────────────────────────────────────────────────────────────────────────
@@ -1694,17 +1694,17 @@ int main()
         const uint64_t OneBlas = uint64_t(World.QueryMetrics().NodeByteCount) + World.QueryMetrics().LeafByteCount;
         const uint64_t RowBytes = sizeof(TlasInstanceRecord) + sizeof(BlasRecord);
         const uint64_t WorldBytes = uint64_t(TriangleCount) * sizeof(TriangleIndex);
-        Info("shared blobs alone (one BLAS over the whole level): %.2f MB", double(OneBlas) / 1048576.0);
-        Info("one BLAS + 49 instance rows: %.2f MB · 49 world-space copies (today's path): %.2f MB",
+        Facts("shared blobs alone (one BLAS over the whole level): %.2f MB", double(OneBlas) / 1048576.0);
+        Facts("one BLAS + 49 instance rows: %.2f MB · 49 world-space copies (today's path): %.2f MB",
              double(OneBlas + 49u * RowBytes) / 1048576.0, double(WorldBytes * 49u) / 1048576.0);
-        Info("4096 rows = %.3f MB (112 B row + 48 B BLAS record each)", double(4096.0 * double(RowBytes)) / 1048576.0);
+        Facts("4096 rows = %.3f MB (112 B row + 48 B BLAS record each)", double(4096.0 * double(RowBytes)) / 1048576.0);
         if (OneBlas + 4096u * RowBytes < WorldBytes * 49u)
             Pass("instancing turns 49 whole-scene copies into one BLAS plus %zu B per instance", sizeof(TlasInstanceRecord));
         else
             Fail("instancing does not pay at this size");
     }
 
-    // ── ⑥ the kernel's payload: walk the uploaded buffers, not the builder's memory ───────────────────────────────
+    // ── ⑥ the kernel's payload: walk the uploaded stores, not the builder's storage ───────────────────────────────
     std::printf("\n⑥ kernel payload — the top level as it is uploaded (8 floats a node) walked against the builder's own tree\n");
     {
         TraversalIndex World2;
@@ -1712,7 +1712,7 @@ int main()
 
         // A real scene shape: the level split into 7 prototypes (one per swatch row plus the studio), transformed —
         //    so the payload has to carry nontrivial inverses and a top level with several leaves.
-        std::vector<MeshPrototype> Prototypes;
+        std::vector<GeometryPrototype> Prototypes;
         std::vector<InstanceRow>   Rows;
         const size_t Slice = (TriangleCount + 6u) / 7u;
         for (size_t C = 0u; C < 7u; ++C)
@@ -1720,7 +1720,7 @@ int main()
             const size_t First = C * Slice;
             if (First >= TriangleCount) break;
             const size_t Count = std::min(Slice, TriangleCount - First);
-            MeshPrototype Prototype{ Soup.data() + First, static_cast<uint32_t>(Count) };
+            GeometryPrototype Prototype{ Soup.data() + First, static_cast<uint32_t>(Count) };
             Prototypes.push_back(Prototype);
             InstanceRow Row{};
             MakeTransform(0.35f * float(C), 1.0f, float(C) * 0.05f, float(C) * -0.03f, 0.02f * float(C), Row.Transform);
@@ -1781,7 +1781,7 @@ int main()
 
         Case Cases[8]; int CaseCount = 0;
         const Census C = Compare(BuilderTrace, PayloadWalker, Origins, Directions, RayCount, TieTolerance, Soup, Cases, 8, CaseCount);
-        Info("rays %ld · bit-identical hits %ld · identical misses %ld · neighbouring ties %ld · unrelated %ld",
+        Facts("rays %ld · bit-identical hits %ld · identical misses %ld · neighbouring ties %ld · unrelated %ld",
              C.Rays, C.AgreeExact, C.MissAgree, C.NeighbourTies + C.CoincidentTies, C.PrimitiveMismatch);
         ReportCases(Cases, CaseCount);
         if (C.AgreeExact + C.MissAgree == C.Rays)
@@ -1798,7 +1798,7 @@ int main()
     std::printf("\n⑧ deformation — a deformed BLAS refitted in place, against the same geometry rebuilt from scratch\n");
     {
         // The scene: the level's soup as two prototypes so that "only this BLAS moved" is a real statement, with the
-        //    second prototype's copy displaced like a skinned mesh (a travelling wave across its own bounds — smooth,
+        //    second prototype's copy displaced like a skinned topology (a travelling wave across its own bounds — smooth,
         //    large-scale, and nothing like the rest pose).
         const size_t Split = TriangleCount / 2u;
         std::vector<TriangleIndex> Left(Soup.begin(), Soup.begin() + ptrdiff_t(Split));
@@ -1819,7 +1819,7 @@ int main()
         };
 
         // Two scales, and the difference matters. The gate proper runs at the magnitude the POLICY calls Refit — a
-        //    few percent of the mesh's own primitive size, which is what a skinned character actually does frame to
+        //    few percent of the topology's own primitive size, which is what a skinned character actually does frame to
         //    frame — because that is the regime a refit has to be right in. The whole-level scale below it is what the
         //    wave would be if it were sized by the level's bounding box; it is reported as information, because at
         //    that magnitude the comparison between two DIFFERENT tree shapes starts to disagree on rays that graze a
@@ -1828,7 +1828,7 @@ int main()
         Wave(0.15f * Diag, Extreme);
         float ExtremeDisplacement = 0.0f, PrimitiveSize = 0.0f;
         Frontier::MeasureDeformation(Right, Extreme, ExtremeDisplacement, PrimitiveSize);
-        Info("the level-scale wave (%.3f m) is %.0f %% of the mesh's own %.4f m mean edge; the gate runs at 5 %%",
+        Facts("the level-scale wave (%.3f m) is %.0f %% of the topology's own %.4f m mean edge; the gate runs at 5 %%",
               double(ExtremeDisplacement), 100.0 * double(ExtremeDisplacement) / std::max(1.0e-9, double(PrimitiveSize)),
               double(PrimitiveSize));
 
@@ -1836,8 +1836,8 @@ int main()
         float Displacement = 0.0f;
         Frontier::MeasureDeformation(Right, RightDeformed, Displacement, PrimitiveSize);
 
-        const std::vector<MeshPrototype> Prototypes = { MeshPrototype{ Left.data(),  uint32_t(Left.size())  },
-                                                       MeshPrototype{ Right.data(), uint32_t(Right.size()) } };
+        const std::vector<GeometryPrototype> Prototypes = { GeometryPrototype{ Left.data(),  uint32_t(Left.size())  },
+                                                       GeometryPrototype{ Right.data(), uint32_t(Right.size()) } };
         std::vector<InstanceRow> Rows(2);
         IdentityMatrix(Rows[0].Transform); Rows[0].BlasIndex = 0u; Rows[0].FirstTriangle = 0u;
         IdentityMatrix(Rows[1].Transform); Rows[1].BlasIndex = 1u; Rows[1].FirstTriangle = uint32_t(Split);
@@ -1846,7 +1846,7 @@ int main()
         if (!Reference.Build(Prototypes, Rows, false))
         { Fail("the deformation scene would not build"); return 1; }
 
-        // The untouched-BLAS question, asked before anything moves: hash both BLAS' slices of both shared buffers.
+        // The untouched-BLAS question, asked before anything moves: hash both BLAS' slices of both shared stores.
         const uint64_t LeftNodesBefore = Fnv1a(Reference.QueryNodeBlob().data(), size_t(Reference.QueryBlasRecords()[0].NodeBlocks) * 16u);
         const uint64_t LeftLeavesBefore = Fnv1a(Reference.QueryLeafBlob().data(), size_t(Reference.QueryBlasRecords()[0].LeafBlocks) * 16u);
         const uint64_t RightNodesBefore = Fnv1a(Reference.QueryNodeBlob().data() + size_t(Reference.QueryBlasRecords()[1].NodeOffset) * 4u,
@@ -1864,8 +1864,8 @@ int main()
 
         std::vector<TriangleIndex> DeformedSoup = Left;
         DeformedSoup.insert(DeformedSoup.end(), RightDeformed.begin(), RightDeformed.end());
-        const std::vector<MeshPrototype> RebuiltPrototypes = { MeshPrototype{ Left.data(), uint32_t(Left.size()) },
-                                                              MeshPrototype{ RightDeformed.data(), uint32_t(RightDeformed.size()) } };
+        const std::vector<GeometryPrototype> RebuiltPrototypes = { GeometryPrototype{ Left.data(), uint32_t(Left.size()) },
+                                                              GeometryPrototype{ RightDeformed.data(), uint32_t(RightDeformed.size()) } };
         const auto Start3 = std::chrono::steady_clock::now();
         const bool RebuildOk = Rebuilt.Build(RebuiltPrototypes, Rows, false);
         const float RebuildMs = std::chrono::duration<float, std::milli>(std::chrono::steady_clock::now() - Start3).count();
@@ -1875,11 +1875,11 @@ int main()
         else
             Fail("a deformation path refused valid input (refit %d, rebuild %d)", int(RefOk), int(RebuildOk));
 
-        Info("deformation: %.4f m of displacement against a %.4f m mean edge — %.2f %% of the mesh's own primitive size",
+        Facts("deformation: %.4f m of displacement against a %.4f m mean edge — %.2f %% of the topology's own primitive size",
               double(Displacement), double(PrimitiveSize), 100.0 * double(Displacement) / std::max(1.0e-9, double(PrimitiveSize)));
-        Info("cost: in-place refit %.2f ms · full rebuild %.2f ms (2 prototypes, %zu triangles; %u of them in the refitted BLAS)",
+        Facts("cost: in-place refit %.2f ms · full rebuild %.2f ms (2 prototypes, %zu triangles; %u of them in the refitted BLAS)",
               double(RefMs), double(RebuildMs), TriangleCount, Reference.QueryMetrics().LastRefitTriangleCount);
-        Info("       the refit re-quantised %u nodes in one descending sweep (largest child-index jump %u, sweepable %d) and rewrote every leaf entry in place",
+        Facts("       the refit re-quantised %u nodes in one descending sweep (largest child-index jump %u, sweepable %d) and rewrote every leaf entry in place",
               Reference.QueryMetrics().LastRefitNodeCount, Reference.QueryMetrics().MaxChildIndexJump,
               int(Reference.QueryMetrics().RefitSweepable));
 
@@ -1962,9 +1962,9 @@ int main()
                 if (!RestReference.TraceClosest(&RO[size_t(I) * 3u], &RD2[size_t(I) * 3u], 1.0e30f, Inst, Local, TT)) continue;
                 if (Inst == 1u) ++SameBlas; else ++OtherBlas;
             }
-            Info("control (walker over the UNTOUCHED rest blob vs the library's binary tree): %ld exact · %ld within rounding · %ld misses · %ld unrelated · %ld hit/miss (%d of the %d sampled not knife-edge)",
+            Facts("control (walker over the UNTOUCHED rest blob vs the library's binary tree): %ld exact · %ld within rounding · %ld misses · %ld unrelated · %ld hit/miss (%d of the %d sampled not knife-edge)",
                   Ctl.AgreeExact, Ctl.AgreeDistance, Ctl.MissAgree, Ctl.PrimitiveMismatch, Ctl.HitMismatches, CtlUnexplained, CtlCount);
-            Info("  of the rays the library resolves, %ld land inside this BLAS and %ld inside the other one — a single-BLAS walker cannot reach the latter, which is what the hit/miss count above is mostly made of",
+            Facts("  of the rays the library resolves, %ld land inside this BLAS and %ld inside the other one — a single-BLAS walker cannot reach the latter, which is what the hit/miss count above is mostly made of",
                   SameBlas, OtherBlas);
         }
 
@@ -2018,7 +2018,7 @@ int main()
         Case Cases[16]; int CaseCount = 0;
         const Census CC = Compare(Canonical(Reference), Canonical(Rebuilt), Origins, Directions, 20000, TieTolerance,
                                   DeformedSoup, Cases, 16, CaseCount);
-        Info("refit vs rebuild: %ld exact · %ld misses · %ld grazing ties · %ld unrelated · %ld hit/miss",
+        Facts("refit vs rebuild: %ld exact · %ld misses · %ld grazing ties · %ld unrelated · %ld hit/miss",
               CC.AgreeExact, CC.MissAgree, CC.NeighbourTies + CC.CoincidentTies, CC.PrimitiveMismatch, CC.HitMismatches);
         const int Unexplained = Adjudicate(Cases, CaseCount);
         if (CC.PrimitiveMismatch == 0 && CC.HitMismatches == Unexplained)
@@ -2076,7 +2076,7 @@ int main()
         const Census CB = Compare(Walk(Reference), Canonical(Rebuilt), Origins, Directions, 20000, TieTolerance,
                                   DeformedSoup, Cases2, 16, CaseCount2);
         const int UnexplainedBlob = Adjudicate(Cases2, CaseCount2);
-        Info("packed blob (independent walker) vs the library's tree over a rebuild: %ld exact · %ld agree within rounding · %ld misses · %ld grazing ties · %ld unrelated · %ld hit/miss (%d of the %d sampled not knife-edge)",
+        Facts("packed blob (independent walker) vs the library's tree over a rebuild: %ld exact · %ld agree within rounding · %ld misses · %ld grazing ties · %ld unrelated · %ld hit/miss (%d of the %d sampled not knife-edge)",
               CB.AgreeExact, CB.AgreeDistance, CB.MissAgree, CB.NeighbourTies + CB.CoincidentTies, CB.PrimitiveMismatch, CB.HitMismatches,
               UnexplainedBlob, CaseCount2);
 
@@ -2161,7 +2161,7 @@ int main()
                      Escapes, ParentEscapes, double(std::max(Worst, WorstParent)));
         }
 
-        // ⑧d — the BLAS that did not move must not have been written to. The slices share one buffer and every offset is
+        // ⑧d — the BLAS that did not move must not have been written to. The slices share one store and every offset is
         //    recorded, so this is the statement that makes per-BLAS updates safe in a scene with several of them.
         const uint64_t LeftNodesAfter  = Fnv1a(Reference.QueryNodeBlob().data(), size_t(Reference.QueryBlasRecords()[0].NodeBlocks) * 16u);
         const uint64_t LeftLeavesAfter = Fnv1a(Reference.QueryLeafBlob().data(), size_t(Reference.QueryBlasRecords()[0].LeafBlocks) * 16u);
@@ -2181,7 +2181,7 @@ int main()
 
         // ⑧e — the LAYOUT decision the refit rests on, measured on this very geometry: re-emitting the packed blob
         //    instead of re-quantising it (TraversalIndex::RefitBottomLevel, the path the whole-scene D5 refit uses)
-        //    re-runs the MBVH8 collapse, and the collapse's node count depends on the new bounds. In a shared buffer
+        //    re-runs the MBVH8 collapse, and the collapse's node count depends on the new bounds. In a shared store
         //    that would move every following BLAS' slice, so the two-level path cannot use it.
         {
             TraversalIndex Probe;
@@ -2194,13 +2194,13 @@ int main()
                 const float ReEmitMs = std::chrono::duration<float, std::milli>(std::chrono::steady_clock::now() - RStart).count();
                 const size_t BlocksAfter = Probe.QueryNodeBlob().size() / 4u;
                 const bool Fits = ProbeOk && BlocksAfter <= size_t(R.NodeBlocks);
-                Info("re-emitting the packed blob (refit + collapse + compress) takes %.2f ms and moves the node count %zu → %zu blocks against a recorded slice of %u",
+                Facts("re-emitting the packed blob (refit + collapse + compress) takes %.2f ms and moves the node count %zu → %zu blocks against a recorded slice of %u",
                       double(ReEmitMs), BlocksBefore, BlocksAfter, R.NodeBlocks);
                 if (ProbeOk && !Fits)
                     Pass("the re-emit path does NOT fit the BLAS' recorded slice (%+zd blocks) — which is why the refit re-quantises in place",
                           ptrdiff_t(BlocksAfter) - ptrdiff_t(BlocksBefore));
                 else
-                    Info("the re-emit happened to fit this geometry; the in-place path is still the one whose counts cannot change");
+                    Facts("the re-emit happened to fit this geometry; the in-place path is still the one whose counts cannot change");
             }
         }
 
@@ -2212,7 +2212,7 @@ int main()
                 { 0.0f,   0.05f, false, 999u, false, Frontier::BlasUpdateDecision::None,    "no movement" },
                 { 0.001f, 0.05f, false, 999u, false, Frontier::BlasUpdateDecision::Refit,   "2 % of a primitive" },
                 { 0.02f,  0.05f, false, 999u, false, Frontier::BlasUpdateDecision::Rebuild, "40 % of a primitive" },
-                { 0.0f,   0.0f,  false, 999u, false, Frontier::BlasUpdateDecision::Rebuild, "degenerate mesh" },
+                { 0.0f,   0.0f,  false, 999u, false, Frontier::BlasUpdateDecision::Rebuild, "degenerate topology" },
                 { 0.0f,   0.05f, true,  999u, false, Frontier::BlasUpdateDecision::Rebuild, "topology changed" },
                 { 0.02f,  0.05f, false, 0u,   false, Frontier::BlasUpdateDecision::Refit,   "big move, fresh rebuild" },
                 { 0.02f,  0.05f, false, 999u, true,  Frontier::BlasUpdateDecision::Refit,   "big move, rebuild in flight" },
@@ -2231,7 +2231,7 @@ int main()
                 Pass("this deformation (%.2f %% of a primitive) is classified Refit — and the refit above accepted it",
                      100.0 * double(Displacement) / std::max(1.0e-9, double(PrimitiveSize)));
             else
-                Info("this deformation is classified as a REBUILD by the policy; the refit above still had to be correct");
+                Facts("this deformation is classified as a REBUILD by the policy; the refit above still had to be correct");
 
             InstanceAcceleration NoTopology;
             if (!NoTopology.Build(Prototypes, Rows, false)) { Fail("the refusal scene would not build"); return 1; }
@@ -2255,7 +2255,7 @@ int main()
                     Fail("a spatial-split BLAS accepted a refit");
             }
             else
-                Info("the spatial-split build was refused by this host, so the un-refittable case could not be exercised");
+                Facts("the spatial-split build was refused by this host, so the un-refittable case could not be exercised");
         }
     }
 
@@ -2397,7 +2397,7 @@ int main()
                 else if (HW) ++TrapWalkerOnly;
             }
             if (TrapSame == TrapBoth && TrapWalkerOnly == 0 && TrapBruteOnly == 0)
-                Info("⑨d the permuted-rank variant agrees on this blob too (%ld/%ld) — this level's nodes are shallow "
+                Facts("⑨d the permuted-rank variant agrees on this blob too (%ld/%ld) — this level's nodes are shallow "
                      "enough that the trap does not show; it is pinned instead on the library's own blob in ⑧'s census",
                      TrapSame, TrapBoth);
             else
@@ -2421,8 +2421,8 @@ int main()
                     for (int A = 0; A < 3; ++A)
                         V[I][A] += 0.06f * std::sin(5.0f * (V[I][0] - V[I][2]) / Diag9);
             }
-            std::vector<MeshPrototype> Prototypes9 = { MeshPrototype{ Left9.data(), uint32_t(Left9.size()) },
-                                                       MeshPrototype{ Right9.data(), uint32_t(Right9.size()) } };
+            std::vector<GeometryPrototype> Prototypes9 = { GeometryPrototype{ Left9.data(), uint32_t(Left9.size()) },
+                                                       GeometryPrototype{ Right9.data(), uint32_t(Right9.size()) } };
             std::vector<InstanceRow> Rows9(2u, InstanceRow{});
             for (InstanceRow& Row : Rows9) Row.Transform[0] = Row.Transform[5] = Row.Transform[10] = Row.Transform[15] = 1.0f;
 
@@ -2583,7 +2583,7 @@ int main()
             }
 
             for (int C = 0; C < ConfigCount; ++C)
-                Info("⑨g %-28s nodes %5u (%6u blocks) · levels %2u · leaf slots %5u · empty slots %5u (%4.1f %%) · walk: "
+                Facts("⑨g %-28s nodes %5u (%6u blocks) · levels %2u · leaf slots %5u · empty slots %5u (%4.1f %%) · walk: "
                      "%7.2f ms (%9.0f visits, %9.0f slot tests, %8.0f descents, %9.0f triangle tests), build %6.2f ms — %ld hits",
                      Configs[C].Name, Nodes_[C], BuildBlocks_[C], Levels_[C], LeafSlots_[C], Empty_[C],
                      Nodes_[C] ? 100.0 * double(Empty_[C]) / double(8u * Nodes_[C]) : 0.0,
@@ -2653,7 +2653,7 @@ int main()
                      "ms against %.2f ms — the default in BlasBuildMirror.h has to be the measured winner, not the intended one",
                      WalkMs[Shipped], WalkMs[Fastest], Configs[Fastest].Name, Nodes_[Shipped], Nodes_[0],
                      BuildMs[Shipped], BuildMs[0]);
-            Info("⑨g counters are a model, the clock is the verdict: the clustered rule's %.0f triangle tests against the "
+            Facts("⑨g counters are a model, the clock is the verdict: the clustered rule's %.0f triangle tests against the "
                  "octant rule's %.0f are what its %.2f ms against %.2f ms is made of — merging equal-count bins into one "
                  "child buys fan-out with box tightness", Work[1][3], Work[2][3], WalkMs[1], WalkMs[2]);
         }
@@ -2703,7 +2703,7 @@ int main()
         }
 
         // ⑨i — the DISPATCH PLAN (BlasDevicePayload.h): which stage runs when, over how many groups. This is the last
-        //    part of the GPU path that can be checked without a device — the plan is the host's loop as data, so §⑨i
+        //    part of the GPU path that can be checked without a device — the plan is the host's loop as record, so §⑨i
         //    checks it against what §⑨g/⑨h actually built rather than against itself: the level cap must cover the tree
         //    that exists, the node stages must be dispatched over every slot the arena has, the single-workgroup stages
         //    must be one group, and the refit's levels must descend from the deepest one the level table names — in
@@ -2875,7 +2875,7 @@ int main()
         }
 
         // ⑨f — economics, so the plan's numbers are on the record rather than in the plan.
-        Info("⑨f CPU mirror economics: build %.2f ms for %u triangles (%u nodes, %u node blocks, %u leaf blocks, "
+        Facts("⑨f CPU mirror economics: build %.2f ms for %u triangles (%u nodes, %u node blocks, %u leaf blocks, "
              "%u empty slots) · a full rebuild was measured at %.2f ms in ⑧, and the in-place refit at 4.39 ms",
              double(BuildMetrics.BuildMilliseconds), TriangleCount, BuildMetrics.NodeCount, BuildMetrics.NodeBlocks,
              BuildMetrics.LeafBlocks, BuildMetrics.EmptySlots, 74.84);

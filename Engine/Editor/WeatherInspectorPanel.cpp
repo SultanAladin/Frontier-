@@ -17,7 +17,7 @@ struct Panel {
  ImVec2 At(float X,float Y){return {O.x+X,O.y+Y};}
  void Text(float X,float Y,const char* T,float Size=12,ImU32 C=Ink){D->AddText(Font,Size,At(X,Y),C,T);}
  void Wrap(float X,float Y,float W,const char* T){D->AddText(Font,11,At(X,Y),Muted,T,nullptr,W);}
- void Card(float X,float Y,float W,float H,const char* Title){int Start=D->VtxBuffer.Size;D->AddRectFilled(At(X,Y),At(X+W,Y+H),IM_COL32_WHITE,22);ImGui::ShadeVertsLinearColorGradientKeepAlpha(D,Start,D->VtxBuffer.Size,At(X,Y),At(X+W,Y+H),IM_COL32(37,37,37,255),IM_COL32(32,32,32,255));D->AddRect(At(X,Y),At(X+W,Y+H),IM_COL32(52,52,52,255),22);Text(X+24,Y+23,Title);}
+ void Card(float X,float Y,float W,float H,const char* Title){int Start=D->VtxStore.Size;D->AddRectFilled(At(X,Y),At(X+W,Y+H),IM_COL32_WHITE,22);ImGui::ShadeVertsLinearColorGradientKeepAlpha(D,Start,D->VtxStore.Size,At(X,Y),At(X+W,Y+H),IM_COL32(37,37,37,255),IM_COL32(32,32,32,255));D->AddRect(At(X,Y),At(X+W,Y+H),IM_COL32(52,52,52,255),22);Text(X+24,Y+23,Title);}
  void Slider(float X,float Y,float W,const char* N){auto& P=*Find(Sheet,N);Text(X,Y,N,11,Muted);ImGui::SetCursorScreenPos(At(X,Y+22));ImGui::PushID(N);ImGui::BeginChild(N,{W,30},ImGuiChildFlags_None,ImGuiWindowFlags_NoScrollbar|ImGuiWindowFlags_NoScrollWithMouse);Controls.SliderPill("##value",&P.Figure,P.Minimum,P.Maximum,P.Decimals,P.Unit,false,false,true);ImGui::EndChild();ImGui::PopID();}
  void Tile(float X,float Y,float W,const char* N,bool* Value){ImGui::SetCursorScreenPos(At(X,Y));ImGui::BeginDisabled(!Value);if(ImGui::InvisibleButton(N,{W,65})&&Value)*Value=!*Value;ImGui::EndDisabled();bool On=Value&&*Value;ImU32 C=!Value?Muted:On?IM_COL32(131,207,158,255):IM_COL32(221,137,137,255);D->AddRectFilled(At(X,Y),At(X+W,Y+65),IM_COL32(34,34,34,255),13);D->AddRect(At(X,Y),At(X+W,Y+65),IM_COL32(56,56,56,255),13);if(Value){D->AddCircle(At(X+W/2,Y+20),7,C,20,1.4f);D->AddLine(At(X+W/2,Y+10),At(X+W/2,Y+18),C,1.5f);}else{float M=X+W/2;D->AddRect(At(M-7,Y+15),At(M+7,Y+28),C,2);D->AddLine(At(M-11,Y+12),At(M+2,Y+12),C,1.4f);D->AddLine(At(M-2,Y+8),At(M+2,Y+12),C,1.4f);D->AddLine(At(M-2,Y+16),At(M+2,Y+12),C,1.4f);}float L=Font->CalcTextSizeA(10,10000,0,N).x;Text(X+(W-L)/2,Y+42,N,10,C);}
 };
@@ -32,7 +32,7 @@ void WindPanel(Panel& U,float W){
  auto& Speed=Find(U.Sheet,"Speed")->Figure;auto& Bearing=Find(U.Sheet,"Bearing")->Figure;auto A=WindOf(U,true);unsigned SummaryForce=WindField::BeaufortForce(Speed);
  U.Card(0,110,W,180,"Anemometer");std::snprintf(T,sizeof(T),"%.1f m/s",double(Speed));U.Text(24,169,T,36);std::snprintf(T,sizeof(T),"%.0f° · Beaufort %u · %s",double(Bearing),SummaryForce,WindField::BeaufortName(SummaryForce));U.Wrap(24,221,W-48,T);float Sample[3];WindField::SampleStep(A,10,Sample);std::snprintf(T,sizeof(T),"10 m vector  X %.1f / Y %.1f m/s",double(Sample[0]),double(Sample[1]));U.Wrap(24,254,W-48,T);
  bool Wide=W>=760;float CW=Wide?(W-16)/2:W,X2=Wide?CW+16:0,Base=306,Y2=Wide?Base:Base+546;
- U.Card(0,Base,CW,530,"Composite wind field");float R=std::min(142.f,(CW-76)*.5f),CX=CW*.5f,CY=Base+232;
+ U.Card(0,Base,CW,530,"Combined wind field");float R=std::min(142.f,(CW-76)*.5f),CX=CW*.5f,CY=Base+232;
  ImGui::SetCursorScreenPos(U.At(CX-R,CY-R));ImGui::InvisibleButton("##wind-vector",{2*R,2*R},ImGuiButtonFlags_EnableNav);
  if(ImGui::IsItemActive()&&ImGui::IsMouseDown(0)){float DX=ImGui::GetIO().MousePos.x-U.At(CX,CY).x,DY=U.At(CX,CY).y-ImGui::GetIO().MousePos.y;float Length=std::sqrt(DX*DX+DY*DY);Speed=std::clamp(Length/R*40,0.f,40.f);if(Length>1)Bearing=std::fmod(std::atan2(DX,DY)*180/Pi+360,360.f);}
  if(ImGui::IsItemFocused()){if(ImGui::IsKeyPressed(ImGuiKey_LeftArrow))Bearing=std::fmod(Bearing+359,360.f);if(ImGui::IsKeyPressed(ImGuiKey_RightArrow))Bearing=std::fmod(Bearing+1,360.f);if(ImGui::IsKeyPressed(ImGuiKey_UpArrow))Speed=std::min(40.f,Speed+.5f);if(ImGui::IsKeyPressed(ImGuiKey_DownArrow))Speed=std::max(0.f,Speed-.5f);if(ImGui::IsKeyPressed(ImGuiKey_Home))Speed=0;}
@@ -79,8 +79,8 @@ void RainbowPanel(Panel& U,float W){
  U.Wrap(24,Y+PH+77,W-48,"Shared spectral kernel · sun 10° behind viewer · rain visibility 1 · rain path 500 m. Fixed test conditions, not the scene camera.");
  Y+=PH+179;U.Card(0,Y,W,154,"Visibility");float BW=std::min(180.f,(W-58)/2);U.Tile(24,Y+54,BW,"Enabled",&Find(U.Sheet,"Enabled")->On);U.Tile(34+BW,Y+54,BW,"Alexander's Band",&Find(U.Sheet,"Alexander's Band")->On);
  Y+=170;U.Card(0,Y,W,458,"Bow response");float SW=std::min(540.f,W-48);const char* Fields[]={"Intensity","Width","Secondary","Minimum Path"};for(int I=0;I<4;++I)U.Slider(24,Y+66+I*78,SW,Fields[I]);std::snprintf(T,sizeof(T),"Current authored rain visibility: %.0f%%",double(U.Sheet.WeatherPreview.RainVisibility*100));U.Wrap(24,Y+391,W-48,T);
- Y+=474;U.Card(0,Y,W,190,"Baking / image");float TW=(W-56)/2;U.Tile(24,Y+54,TW,"Bake",nullptr);U.Tile(32+TW,Y+54,TW,"Use baked image",nullptr);U.Wrap(24,Y+136,W-48,"No Rainbow bake or image-playback path exists in this target.");
- End(U,W,Y+210,"Rain and drizzle feed the existing GPU Rainbow post record; snow, hail and sleet do not. CPU optical preview and shader compilation are verified separately from GPU execution. Bake stays unavailable.");
+ Y+=474;U.Card(0,Y,W,190,"Precomputing / image");float TW=(W-56)/2;U.Tile(24,Y+54,TW,"Precompute",nullptr);U.Tile(32+TW,Y+54,TW,"Use baked image",nullptr);U.Wrap(24,Y+136,W-48,"No Rainbow bake or image-playback path exists in this target.");
+ End(U,W,Y+210,"Rain and drizzle feed the existing GPU Rainbow post record; snow, hail and sleet do not. CPU optical preview and shader compilation are verified separately from GPU execution. Precompute stays unavailable.");
 }
 }
 void RecordWeatherInspector(ControlPanel& Controls,EditorInstance&,EditorSheet& Sheet){

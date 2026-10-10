@@ -52,6 +52,6 @@ for file in ['CelestialSequence.su','AtmosphereSkyInspectorPanel.su','Atmosphere
    fields=line.split('\t');size=int(fields[1]);report.append({'function':fields[0],'bytes':size,'classification':fields[2]})
    if not a.sanitize:assert size<=8192,'8KiB entry-point frame budget exceeded'
 (out/(mode+'Stack.json')).write_text(json.dumps(report,indent=2)+'\n')
-inputs=[R/'Engine/Editor/AtmosphereSkyInspectorPanel.cpp',R/'Engine/Editor/AtmosphereSkyInspectorPanel.h',R/'Engine/DisplayPresentation/SkyBakePreview.h',R/'Tools/Build/Patches/AtmosphereSkyInspector.patch',R/'Tools/Build/Patches/AtmosphereOverview.patch',R/'Exhibits/Workbench/AtmosphereSky/NativePanelProof.cpp',R/'Exhibits/Workbench/AtmosphereSky/RunNativePanel.py',*out.glob('*.png')]
+inputs=[R/'Engine/Editor/AtmosphereSkyInspectorPanel.cpp',R/'Engine/Editor/AtmosphereSkyInspectorPanel.h',R/'Engine/DisplayPresentation/SkyPrecomputePreview.h',R/'Tools/Build/Patches/AtmosphereSkyInspector.patch',R/'Tools/Build/Patches/AtmosphereOverview.patch',R/'Exhibits/Workbench/AtmosphereSky/NativePanelProof.cpp',R/'Exhibits/Workbench/AtmosphereSky/RunNativePanel.py',*out.glob('*.png')]
 (out/(mode+'Hashes.json')).write_text(json.dumps({str(x.relative_to(R)):hashlib.sha256(x.read_bytes()).hexdigest() for x in inputs},indent=2)+'\n')
 (out/(mode+'Commands.json')).write_text(json.dumps([compile,*extra_commands,link],indent=2)+'\n')

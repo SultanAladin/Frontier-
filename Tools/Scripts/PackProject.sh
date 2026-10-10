@@ -4,7 +4,7 @@
 #    usage: bash Tools/Scripts/PackProject.sh <file.projectspace> [more files…]
 #           bash Tools/Scripts/PackProject.sh --build-only        ← build the tool and stop (ExplodeProject.sh uses it)
 #
-# The plan (§7) names this script and `ExplodeProject.sh` as the two tools the pipeline exposes. Both are thin wrappers
+# The plan (§7) names this script and `ExplodeProject.sh` as the two tools the chain exposes. Both are thin wrappers
 #    over SpaceTool on purpose: a shell script that reimplements packing is a SECOND implementation of the format, and the
 #    only thing two implementations of a container format reliably do is disagree about a corner of it.
 #

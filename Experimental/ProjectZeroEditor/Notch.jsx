@@ -327,7 +327,7 @@ export default function Notch({
                 ))}
               </nav>
             )}
-            <div className="settings-body" data-drawer-scroll>
+            <div className="settings-body" record-drawer-scroll>
               {Page === "Render Settings" ? (
                 <>
                   <Card Title="Shadows">
@@ -657,7 +657,7 @@ export default function Notch({
                       {Field("Accent", "Colour", [], "#3b82f6")}
                     </Card>
                     <Card Title="Semantic Colors">
-                      {["Warning", "Success", "Info", "Caution"].map(
+                      {["Warning", "Success", "Facts", "Caution"].map(
                         (Label, Index) =>
                           Field(
                             Label,
@@ -720,7 +720,7 @@ export default function Notch({
                   </Card>
                   <Card Title="Alerts">
                     {[
-                      "Baking Complete",
+                      "Precomputing Complete",
                       "Render Finished",
                       "Autosave Errors",
                       "Frame-rate Drops",
@@ -782,7 +782,7 @@ export default function Notch({
                             }
                           />
                           <small>
-                            {Index === 4 ? "mesh frame" : "constant"}
+                            {Index === 4 ? "topology frame" : "constant"}
                           </small>
                         </div>
                       ))}

@@ -3,8 +3,8 @@
 //============================================================================================================================================
 // 🧩 Resident scene on the GPU + the R2 frame front end: two-phase cluster cull (frustum · cone · HiZ) → indirect
 //    visibility raster (D32 reverse-Z · R32_UINT visibility id · RG16F motion) → HiZ pyramid → surface resolve (thin
-//    G-buffer the path kernel reads instead of tracing primary rays). Owned and driven by SwapchainExchange; every
-//    Vulkan handle lives in the .cpp-only VulkanRecord so this header stays Vulkan-free for the presentation layer.
+//    G-store the path kernel reads instead of tracing primary rays). Owned and driven by SwapchainExchange; every
+//    Vulkan identifier lives in the .cpp-only VulkanRecord so this header stays Vulkan-free for the presentation layer.
 //
 // Frame order (RecordFrame):
 //    Cull(phase 1: last frame's visible set) → Raster(clear) → HiZ build → Cull(phase 2: all, HiZ tested) → Raster(load)
@@ -140,7 +140,7 @@ public:
     VisibilityExchange(const VisibilityExchange&)            = delete;
     VisibilityExchange& operator=(const VisibilityExchange&) = delete;
 
-    // Handles are opaque here (VkDevice, VkPhysicalDevice, VkQueue, VkCommandPool) so the header stays Vulkan-free.
+    // Identifiers are opaque here (VkDevice, VkPhysicalDevice, VkQueue, VkCommandPool) so the header stays Vulkan-free.
     // TextureSlotCapacity > 0 enables the bindless table in the raster set (descriptor indexing granted); 0 = alpha mask off.
     [[nodiscard]] bool  Bring(void* Device, void* PhysicalDevice, uint32_t CycleSlotCount, bool DrawIndirectCount, uint32_t TextureSlotCapacity = 0u) noexcept;
     void                Retire() noexcept;
@@ -148,21 +148,21 @@ public:
     // (Re)creates the render-size targets; PresentationView is the swapchain's rgba8 storage image view (debug views).
     [[nodiscard]] bool  Resize(uint32_t Width, uint32_t Height, void* PresentationView) noexcept;
 
-    // Uploads every SceneStructure buffer (host-visible; a staging path is R7 work). Safe to call again with a new scene.
+    // Uploads every SceneStructure store (host-visible; a staging path is R7 work). Safe to call again with a new scene.
     void                UploadScene(const SceneStructure& Scene) noexcept;
 
     // D3 — refresh instance transforms in place, once per frame, for moving bodies.
     //
-    //    UploadScene reallocates every scene buffer behind a vkDeviceWaitIdle. That is correct at load time and
+    //    UploadScene reallocates every scene store behind a vkDeviceWaitIdle. That is correct at load time and
     //    ruinous per frame: it stalls the whole device. This writes only the InstanceRecord rows into the existing
     //    host-visible, persistently-mapped allocation — no reallocation, no stall, no descriptor rewrite, because
-    //    the VkBuffer handle never changes.
+    //    the VkBuffer identifier never changes.
     //
     //    ⚠️ The count must match the resident scene. A caller that grows or shrinks the instance list has changed
     //    the scene, not moved it, and must go through UploadScene. Refusal (false) rather than a silent partial
     //    write, since a short write would leave stale transforms that look like physics glitches.
     //
-    //    Memory is HOST_COHERENT, so no explicit flush is needed; the write must still land before the frame that
+    //    Store is HOST_COHERENT, so no explicit flush is needed; the write must still land before the frame that
     //    reads it is submitted, which is why the caller does this before RecordAndPresent.
     [[nodiscard]] bool  RefreshInstances(const InstanceRecord* Rows, uint32_t Count) noexcept;
 
@@ -171,14 +171,14 @@ public:
 
     // R4b alpha mask in the raster: the kernel's slab SSBO (VkBuffer) and bindless table (VkSampler + VkImageView[]) are
     //    borrowed into raster bindings 6 / 7. Call after UploadScene / UploadTextures; the fragment stage reads them.
-    void                AssignRasterMaterials(void* SlabBuffer, void* Sampler, const void* const* Views, uint32_t ViewCount) noexcept;
+    void                AssignRasterMaterials(void* SlabStore, void* Sampler, const void* const* Views, uint32_t ViewCount) noexcept;
 
-    // R6 row 3: the kernel's prev-frame reservoir buffer (VkBuffer) borrowed into resolve binding 13 for the
-    //    M / W / Age debug views. Called once per frame with the same buffer the kernel reads as binding 16
+    // R6 row 3: the kernel's prev-frame reservoir store (VkBuffer) borrowed into resolve binding 13 for the
+    //    M / W / Age debug views. Called once per frame with the same store the kernel reads as binding 16
     //    (SwapchainExchange::RecordAndPresent, right after the parity swap); RecordFrame writes binding 13
     //    before the resolve dispatch. Null clears the binding (views then read zeros — never dispatched unbound
     //    because RecordFrame skips the write while null).
-    void                AssignReservoirView(void* PrevReservoirBuffer) noexcept;
+    void                AssignReservoirView(void* PrevReservoirStore) noexcept;
 
     // Records cull → raster → HiZ → cull → raster → resolve into Command (a VkCommandBuffer). Call once per frame after
     //    the slot's fence has been waited on; the same slot's previous telemetry is read back first.
@@ -222,17 +222,17 @@ public:
     // Records [ShadowRaster × TapCount] → ShadowResolve. The map side is taken from Shadow.MapSide, so the Control
     //    Centre's resolution dropdown takes effect on the next frame without a device idle: the array is only
     //    reallocated when the side actually changes. Returns false if the stage could not be recorded (no shadow
-    //    pipelines, no scene, or no live taps), in which case the caller must fall back rather than present a
+    //    chains, no scene, or no live taps), in which case the caller must fall back rather than present a
     //    never-written image.
     [[nodiscard]] bool  RecordShadowFrame(void* Command, uint32_t CycleSlot, const ShadowFrameConfiguration& Shadow, bool Resolve = true) noexcept;
     [[nodiscard]] void* QueryShadowDescriptorLayout() const noexcept;
     [[nodiscard]] void* QueryShadowDescriptors(uint32_t Slot) const noexcept;
 
-    // True once the shadow pipelines exist — Bring() reports but does not fail on a missing shadow SPIR-V, so an
+    // True once the shadow chains exist — Bring() reports but does not fail on a missing shadow SPIR-V, so an
     //    engine built before these shaders were compiled still runs everything else.
     [[nodiscard]] bool  IsShadowReady() const noexcept;
 
-    // Kernel timing bracket (timestamps written into this slot's query pool).
+    // Kernel timing bracket (timestamps written into this slot's query slots).
     void                RecordKernelBegin(void* Command, uint32_t CycleSlot) noexcept;
     void                RecordKernelEnd(void* Command, uint32_t CycleSlot) noexcept;
     // R10 ②: brackets the ReSTIR dispatch itself, so its cost is not conflated with denoise and luminance.
@@ -269,7 +269,7 @@ private:
     struct VulkanRecord;
     VulkanRecord*        Vulkan;
 
-    [[nodiscard]] bool   BringPipelines() noexcept;
+    [[nodiscard]] bool   BringChains() noexcept;
     [[nodiscard]] bool   BringDescriptorSets() noexcept;
     void                 RetireTargets() noexcept;
     void                 WriteDescriptorSets() noexcept;

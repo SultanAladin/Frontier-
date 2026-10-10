@@ -78,10 +78,10 @@ void DistanceFieldIntegrator::Resize(uint32_t InViewportWidth, uint32_t InViewpo
     ViewportHeight = std::max(16u, InViewportHeight);
 
     const size_t TotalPixels = static_cast<size_t>(ViewportWidth) * ViewportHeight;
-    TemporalReservoirBuffer.assign(TotalPixels, DistanceFieldReservoir{});
-    CurrentReservoirBuffer.assign(TotalPixels, DistanceFieldReservoir{});
-    DepthBuffer.assign(TotalPixels, 1e6f);
-    NormalBuffer.assign(TotalPixels, Vector3{ 0.0f, 0.0f, 1.0f });
+    TemporalReservoirStore.assign(TotalPixels, DistanceFieldReservoir{});
+    CurrentReservoirStore.assign(TotalPixels, DistanceFieldReservoir{});
+    DepthStore.assign(TotalPixels, 1e6f);
+    NormalStore.assign(TotalPixels, Vector3{ 0.0f, 0.0f, 1.0f });
 }
 
 //------------------------------------------------------------------------------------------------------------------------
@@ -214,10 +214,10 @@ void DistanceFieldIntegrator::ExecuteFrame(const GlobalDistanceFieldSpace& Dista
                                                                      Settings.StepRelaxationFactor);
             }
 
-            DepthBuffer[PixelIndex]  = PrimaryHit.HasHit ? PrimaryHit.TravelDistance : 1e6f;
-            NormalBuffer[PixelIndex] = PrimaryHit.HasHit ? PrimaryHit.SurfaceNormal : Vector3{ 0.0f, 0.0f, 1.0f };
+            DepthStore[PixelIndex]  = PrimaryHit.HasHit ? PrimaryHit.TravelDistance : 1e6f;
+            NormalStore[PixelIndex] = PrimaryHit.HasHit ? PrimaryHit.SurfaceNormal : Vector3{ 0.0f, 0.0f, 1.0f };
 
-            DistanceFieldReservoir& InitialReservoir = CurrentReservoirBuffer[PixelIndex];
+            DistanceFieldReservoir& InitialReservoir = CurrentReservoirStore[PixelIndex];
             InitialReservoir = DistanceFieldReservoir{};
 
             if (PrimaryHit.HasHit)
@@ -269,7 +269,7 @@ void DistanceFieldIntegrator::ExecuteFrame(const GlobalDistanceFieldSpace& Dista
     }
 
     // PASS 2: ReSTIR Spatio-Temporal Reuse
-    std::vector<DistanceFieldReservoir> FinalReservoirBuffer = CurrentReservoirBuffer;
+    std::vector<DistanceFieldReservoir> FinalReservoirStore = CurrentReservoirStore;
 
     if (Settings.EnableReSTIR)
     {
@@ -281,14 +281,14 @@ void DistanceFieldIntegrator::ExecuteFrame(const GlobalDistanceFieldSpace& Dista
             for (int32_t X = 0; X < static_cast<int32_t>(Width); ++X)
             {
                 const size_t PixelIndex = static_cast<size_t>(Y) * Width + static_cast<size_t>(X);
-                const float PixelDepth  = DepthBuffer[PixelIndex];
+                const float PixelDepth  = DepthStore[PixelIndex];
                 if (PixelDepth >= 1e5f) continue;
 
-                const Vector3 PixelNormal = NormalBuffer[PixelIndex];
-                DistanceFieldReservoir MergedReservoir = CurrentReservoirBuffer[PixelIndex];
+                const Vector3 PixelNormal = NormalStore[PixelIndex];
+                DistanceFieldReservoir MergedReservoir = CurrentReservoirStore[PixelIndex];
 
                 // Temporal reuse from previous frame
-                DistanceFieldReservoir TemporalSample = TemporalReservoirBuffer[PixelIndex];
+                DistanceFieldReservoir TemporalSample = TemporalReservoirStore[PixelIndex];
                 if (TemporalSample.SampleCountM > 0.0f)
                 {
                     TemporalSample.SampleCountM = std::min(TemporalSample.SampleCountM, Settings.ReSTIRHistoryCeiling);
@@ -308,22 +308,22 @@ void DistanceFieldIntegrator::ExecuteFrame(const GlobalDistanceFieldSpace& Dista
                     {
                         if (NX == X && NY == Y) continue;
                         const size_t NeighborIdx = static_cast<size_t>(NY) * Width + static_cast<size_t>(NX);
-                        const float NeighborDepth = DepthBuffer[NeighborIdx];
+                        const float NeighborDepth = DepthStore[NeighborIdx];
 
                         // Bilateral depth guard
                         if (std::abs(NeighborDepth - PixelDepth) > 0.15f * PixelDepth) continue;
 
                         // Bilateral normal guard
-                        const Vector3 NeighborNormal = NormalBuffer[NeighborIdx];
+                        const Vector3 NeighborNormal = NormalStore[NeighborIdx];
                         if (Dot(PixelNormal, NeighborNormal) < 0.85f) continue;
 
-                        const DistanceFieldReservoir& NeighborRes = CurrentReservoirBuffer[NeighborIdx];
+                        const DistanceFieldReservoir& NeighborRes = CurrentReservoirStore[NeighborIdx];
                         MergeReservoirs(MergedReservoir, NeighborRes, MergedReservoir.TargetProbability);
                     }
                 }
 
-                FinalReservoirBuffer[PixelIndex] = MergedReservoir;
-                TemporalReservoirBuffer[PixelIndex] = MergedReservoir;
+                FinalReservoirStore[PixelIndex] = MergedReservoir;
+                TemporalReservoirStore[PixelIndex] = MergedReservoir;
             }
         }
     }
@@ -337,7 +337,7 @@ void DistanceFieldIntegrator::ExecuteFrame(const GlobalDistanceFieldSpace& Dista
         for (int32_t X = 0; X < static_cast<int32_t>(Width); ++X)
         {
             const size_t PixelIndex = static_cast<size_t>(Y) * Width + static_cast<size_t>(X);
-            const float PixelDepth  = DepthBuffer[PixelIndex];
+            const float PixelDepth  = DepthStore[PixelIndex];
             const size_t OutOffset  = PixelIndex * 3u;
 
             if (PixelDepth >= 1e5f)
@@ -353,7 +353,7 @@ void DistanceFieldIntegrator::ExecuteFrame(const GlobalDistanceFieldSpace& Dista
             const float ScreenV = (1.0f - (static_cast<float>(Y) + 0.5f) / static_cast<float>(Height) * 2.0f) * HalfFovTan;
             const Vector3 PrimaryRayDir = (CamForward + CamRight * ScreenU + CamUp * ScreenV).Normalized();
             const Vector3 HitPosition   = CameraPosition + PrimaryRayDir * PixelDepth;
-            const Vector3 HitNormal     = NormalBuffer[PixelIndex];
+            const Vector3 HitNormal     = NormalStore[PixelIndex];
 
             // Distance field soft shadows toward sun
             const Vector3 ShadowOrigin = HitPosition + HitNormal * 0.015f;
@@ -368,7 +368,7 @@ void DistanceFieldIntegrator::ExecuteFrame(const GlobalDistanceFieldSpace& Dista
             const Vector3 DirectSun = SunRadiance * (NDotL * SoftShadowFactor);
 
             // ReSTIR indirect GI
-            const DistanceFieldReservoir& Res = FinalReservoirBuffer[PixelIndex];
+            const DistanceFieldReservoir& Res = FinalReservoirStore[PixelIndex];
             const Vector3 IndirectGI = Res.SampleRadiance * std::clamp(Res.UnbiasedWeightW, 0.0f, 3.0f);
 
             // Base material albedo: ShaderBall warm orange, ground neutral gray

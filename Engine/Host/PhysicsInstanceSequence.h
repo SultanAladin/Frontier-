@@ -9,11 +9,11 @@
 //    about physics. This class is the only place the two meet, and it lives in the PROJECT because deciding that
 //    "instance 11 is a falling ball" is game semantics.
 //
-//    The rest-pose subtraction is the part worth reading twice. Showroom geometry is baked in WORLD space at the
+//    The rest-pose subtraction is the part worth reading twice. Showroom geometry is precomputed in WORLD space at the
 //    body's rest position, but the renderer multiplies that geometry by World. Writing Jolt's absolute pose into
 //    World would therefore apply the position twice. So the matrix written is
 //        World = Translate(pose.Position) · Rotate(pose.Orientation) · Translate(−restOrigin)
-//    which moves the baked geometry to the origin, rotates it, then places it where physics says. At the rest
+//    which moves the precomputed geometry to the origin, rotates it, then places it where physics says. At the rest
 //    pose with identity orientation this collapses to the identity matrix, so frame zero renders exactly as the
 //    static showroom does — which is the D4 regression gate.
 
@@ -54,7 +54,7 @@ public:
     //    AdvancePhysics. The renderer's acceleration structure is built over these world-space triangles, so
     //    shadows and reflections only follow the bodies once this has run and the structure has been refitted.
     //
-    //    Rest is captured on the first call: the flat triangles arrive already baked at the rest pose, so the
+    //    Rest is captured on the first call: the flat triangles arrive already precomputed at the rest pose, so the
     //    body-local geometry is recovered once and then re-transformed each frame rather than accumulating error
     //    by transforming the previous frame's output.
     //
@@ -69,9 +69,9 @@ public:
 private:
     PhysicsInstanceConfiguration    Config;
     std::vector<RigidBodyIdentity>  Bodies;        // [-] one per drop instance, creation order
-    std::vector<Vector3>            RestOrigins;   // [m] where the geometry was baked, subtracted out each frame
+    std::vector<Vector3>            RestOrigins;   // [m] where the geometry was precomputed, subtracted out each frame
     std::vector<RigidBodyPose>      Poses;         // reused each frame; no per-frame allocation in the loop
-    std::vector<TriangleIndex>      RestFacets;    // body-local geometry, captured once from the baked rest pose
+    std::vector<TriangleIndex>      RestFacets;    // body-local geometry, captured once from the precomputed rest pose
     std::vector<uint32_t>           FacetFirst;    // [idx] first flat triangle of each body
     std::vector<uint32_t>           FacetCount;    // [cnt]
     bool                            RestCaptured = false;

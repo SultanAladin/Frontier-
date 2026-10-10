@@ -1,5 +1,5 @@
 #include "SpatialIndex.h"
-#include "AnisotropicSurfaceMesh.h"
+#include "AnisotropicSurfaceGeometry.h"
 #include <random>
 #include <iostream>
 #include <stdexcept>
@@ -18,7 +18,7 @@ int main(){try{
     PbfFluid toggled,reset;const auto before=toggled.BoundarySampleCount();toggled.SetObstacle(false);reset.SetObstacle(false);reset.SetReferenceNeighbourSearch(true);
     toggled.Step(1.f/60);reset.Step(1.f/60);Check(toggled.BoundarySampleCount()<before,"obstacle cache invalidation");
     for(size_t i=0;i<toggled.Positions().size();++i)Near(toggled.Positions()[i],reset.Positions()[i]);
-    // A copied solver must not retain references into another solver's buffers.
+    // A copied solver must not retain references into another solver's stores.
     PbfFluid copy=reset;reset.Reset();copy.Step(1.f/60);toggled.Step(1.f/60);
     for(size_t i=0;i<copy.Positions().size();++i)Near(copy.Positions()[i],toggled.Positions()[i]);
     PbfFluid fast,reference;reference.SetReferenceNeighbourSearch(true);
@@ -33,16 +33,16 @@ int main(){try{
     SurfaceReconstruction pca,oracle;oracle.SetReferenceNeighbourSearch(true);pca.Update(fast.Positions());oracle.Update(fast.Positions());
     for(size_t i=0;i<pca.Kernels().size();++i){const auto&a=pca.Kernels()[i];const auto&b=oracle.Kernels()[i];Near(a.Centre,b.Centre);Near(a.AxisA,b.AxisA);Near(a.AxisB,b.AxisB);Near(a.AxisC,b.AxisC);Check(std::abs(a.VolumeWeight-b.VolumeWeight)<1e-5f,"weight mismatch");}
     // Real solver-generated kernels: full build, incremental motion and removal.
-    AnisotropicSurfaceMesh mesh,full;full.SetReferenceEvaluation(true);
+    AnisotropicSurfaceGeometry topology,full;full.SetReferenceEvaluation(true);
     auto kernels=pca.Kernels();
     for(int state=0;state<3;++state){
         if(state==1)for(auto& k:kernels)k.Centre.x+=.001f;
         if(state==2)kernels.resize(20);
-        mesh.Update(kernels);full.Update(kernels);
-        Check(mesh.Mesh().Indices==full.Mesh().Indices,"mesh topology differs from exhaustive field");
-        Check(mesh.Mesh().Vertices.size()==full.Mesh().Vertices.size(),"vertex count mismatch");
-        for(size_t i=0;i<mesh.Mesh().Vertices.size();++i){Near(mesh.Mesh().Vertices[i].Position,full.Mesh().Vertices[i].Position,2e-4f);Near(mesh.Mesh().Vertices[i].Normal,full.Mesh().Vertices[i].Normal,2e-3f);}
-        Check(mesh.OpenEdgeCount()==full.OpenEdgeCount()&&mesh.NonManifoldEdgeCount()==full.NonManifoldEdgeCount(),"topology diagnostics mismatch");
+        topology.Update(kernels);full.Update(kernels);
+        Check(topology.Hull().Indices==full.Hull().Indices,"topology topology differs from exhaustive field");
+        Check(topology.Hull().Vertices.size()==full.Hull().Vertices.size(),"vertex count mismatch");
+        for(size_t i=0;i<topology.Hull().Vertices.size();++i){Near(topology.Hull().Vertices[i].Position,full.Hull().Vertices[i].Position,2e-4f);Near(topology.Hull().Vertices[i].Normal,full.Hull().Vertices[i].Normal,2e-3f);}
+        Check(topology.OpenEdgeCount()==full.OpenEdgeCount()&&topology.NonManifoldEdgeCount()==full.NonManifoldEdgeCount(),"topology diagnostics mismatch");
     }
     std::cout<<"PASS spatial query/order, 12 solver steps, PCA, full/incremental/removal meshes versus exhaustive references\n";
 }catch(const std::exception& e){std::cerr<<e.what()<<'\n';return 1;}}

@@ -56,7 +56,7 @@ export default function FolderInspector({
   return (
     <div
       className="folder-inspector"
-      data-panel="group"
+      record-panel="group"
       style={{ "--collection-tint": Values.Tint || "#9bacb4" }}
     >
       <header className="collection-heading">
@@ -96,7 +96,7 @@ export default function FolderInspector({
           <i />
           Collection contents
         </h2>
-        <div className="workspace-number" data-collection-total={Total}>
+        <div className="workspace-number" record-collection-total={Total}>
           {Count(Total)}
           <small>entries</small>
         </div>
@@ -191,7 +191,7 @@ export default function FolderInspector({
         <p>
           {Count(Inventory.Constructed)} constructed preview markers ·
           visibility includes ancestor folders. Counts are scene records, not
-          render workload or memory usage.
+          render workload or storage usage.
         </p>
       </section>
       <section className="workspace-card collection-browser">

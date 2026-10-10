@@ -13,7 +13,7 @@
 //    Scope, stated plainly: an analytic stroke font covering A–Z, 0–9 and the punctuation a cluster needs beside a
 //    number. It suits labels, units and readouts. It is not a body-text engine, it renders one case, and it cannot
 //    load a font you supply. A sampled distance sheet would be the answer to those, and it would cost a sampler
-//    binding and a bake step this panel does not otherwise need.
+//    binding and a precompute step this panel does not otherwise need.
 
 #pragma once
 

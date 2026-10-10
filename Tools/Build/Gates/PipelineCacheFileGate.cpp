@@ -2,7 +2,7 @@
 #include <cassert>
 #include <iostream>
 #include <iterator>
-using namespace Frontier::PipelineDiagnostics;
+using namespace Frontier::ChainDiagnostics;
 std::string Read(const std::filesystem::path& p){std::ifstream f(p,std::ios::binary);return {std::istreambuf_iterator<char>(f),{}};}
 int main(int argc,char** argv){
     assert(argc==2);const std::filesystem::path root=argv[1];std::filesystem::create_directories(root);

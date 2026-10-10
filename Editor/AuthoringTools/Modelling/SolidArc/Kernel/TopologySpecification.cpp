@@ -979,7 +979,7 @@ BodyReport BrepBody::Validate() const noexcept
     R.Closed = R.OpenEdges == 0 && !Faces.empty();
     R.Manifold = R.NonManifoldEdges == 0;
     R.Oriented = R.MisorientedEdges == 0;
-    R.EulerCharacteristic = R.Vertices - R.Edges + R.Faces - (R.Loops - R.Faces);       // inner loops (holes in faces) count as handles
+    R.EulerCharacteristic = R.Vertices - R.Edges + R.Faces - (R.Loops - R.Faces);       // inner loops (holes in faces) count as identifiers
     // Hulls: flood faces across shared edges.
     std::vector<int> Label(Faces.size(), -1);
     for (size_t Seed = 0; Seed < Faces.size(); ++Seed)

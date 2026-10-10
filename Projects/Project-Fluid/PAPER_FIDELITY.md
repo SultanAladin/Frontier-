@@ -35,8 +35,8 @@ Primary PDFs and adaptation notes are indexed in `RESEARCH.md`.
 - [x] Indexed Marching Cubes extraction with topology/volume validation
 - [x] Density-gradient vertex normals
 - [x] Mild Taubin smoothing followed by global volume restoration
-- [x] Dirty-brick field and mesh rebuild with unchanged-frame zero-work validation
-- [ ] Vulkan BLAS/TLAS construction for the extracted fluid mesh
+- [x] Dirty-brick field and topology rebuild with unchanged-frame zero-work validation
+- [ ] Vulkan BLAS/TLAS construction for the extracted fluid topology
 - [ ] `VK_KHR_ray_tracing_pipeline` closest-hit/any-hit/miss integration
 - [ ] Two-interface dielectric transport
 - [ ] Participating-medium multiple scattering

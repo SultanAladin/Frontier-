@@ -1,7 +1,7 @@
 //============================================================================================================================================
 //                                                     RESTIRINTEGRATOR.CPP
 //============================================================================================================================================
-// 📦 Accumulates ReSTIR DI+GI radiance by numerically integrating light transport paths on the GPU compute pipeline.
+// 📦 Accumulates ReSTIR DI+GI radiance by numerically integrating light transport paths on the GPU compute chain.
 
 #include "ReSTIRIntegrator.h"
 #include <algorithm>
@@ -112,7 +112,7 @@ DispatchConfiguration ReSTIRIntegrator::BuildDispatch(
                                    | (ActiveConfiguration.AmbientFloor       ? DispatchFeatureAmbientFloor       : 0u)
                                    | (ActiveConfiguration.RenderPath == 0u && ActiveConfiguration.TemporalReuse      ? DispatchFeatureTemporalReuse      : 0u)
                                    | (ActiveConfiguration.RenderPath == 0u && ActiveConfiguration.SpatialReuse       ? DispatchFeatureSpatialReuse       : 0u)
-                                   // ON by default (the configuration's initialiser), so the shipped pipeline reuses the
+                                   // ON by default (the configuration's initialiser), so the shipped chain reuses the
                                    //    indirect half unless something turns it off — the mirror's measured arm.
                                    | (ActiveConfiguration.RenderPath == 0u && ActiveConfiguration.GlobalIllumination && ActiveConfiguration.GlobalIlluminationReuse ? DispatchFeatureGiReuse        : 0u)
                                    | (ActiveConfiguration.RenderPath == 0u && ActiveConfiguration.AliasPick          ? DispatchFeatureAliasPick          : 0u)

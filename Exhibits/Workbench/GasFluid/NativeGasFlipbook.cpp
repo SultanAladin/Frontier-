@@ -1,20 +1,20 @@
 //==============================================================================================================================================
 //                                                         NATIVEGASFLIPBOOK.CPP
 //==============================================================================================================================================
-// 📦 Executed proof for the bottom rung: the sheet layout, the row flip, the straight alpha, the playback index, and one real bake of a camp fire.
+// 📦 Executed proof for the bottom rung: the sheet layout, the row flip, the straight alpha, the playback index, and one real precompute of a camp fire.
 //
 // Dependency-free and windowless. The sheet below is produced by the shipped solver and the shipped volume
-//    integration — nothing in this file paints smoke — so the capture is a bake, not an illustration.
+//    integration — nothing in this file paints smoke — so the capture is a precompute, not an illustration.
 //
-//    ① THE LAYOUT IS THE BROWSER'S. A sheet baked in the page and a sheet baked here must address the same
-//       way, or an artist's bake stops working the day it reaches the engine.
+//    ① THE LAYOUT IS THE BROWSER'S. A sheet precomputed in the page and a sheet precomputed here must address the same
+//       way, or an artist's precompute stops working the day it reaches the engine.
 //    ② THE ROWS ARE FLIPPED EXACTLY ONCE. A device readback is bottom-up and a sheet is top-down; getting it
 //       wrong gives a plume that falls, which every reviewer reads as a physics defect.
 //    ③ THE ALPHA IS STRAIGHT, NOT PREMULTIPLIED. A premultiplied sheet grows a black fringe when sampled
 //       bilinearly, and the fringe is blamed on the renderer for a week.
 //    ④ PLAYBACK IS ONE FLOAT IN AND ONE INDEX OUT. That is the entire per-instance cost of this rung, and it
 //       is why forty chimneys share one sheet.
-//    ⑤ THE BAKE IS REPRODUCIBLE. Two bakes of the same preset are the same bytes, or the sheet cannot be
+//    ⑤ THE PRECOMPUTE IS REPRODUCIBLE. Two precomputes of the same preset are the same bytes, or the sheet cannot be
 //       shipped as content.
 
 #include "CoarseGasField.h"
@@ -412,7 +412,7 @@ int main()
     Banner("Capture");
     {
         // Written RGBA, so the coverage survives the file. A viewer that shows it on white sees the plume; one
-        //    that shows it on black sees what the engine will composite.
+        //    that shows it on black sees what the engine will combined.
         const int Written = PngWriteCounterpart::WritePng("Exhibits/Gallery/GasFlipbook/CampFireSheet.png",
                                                           static_cast<int>(Layout.Width),
                                                           static_cast<int>(Layout.Height), 4,

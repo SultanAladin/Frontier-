@@ -83,7 +83,7 @@ Critical differences found:
 - Sun direction is astronomically solved/read-only in C++; the web permits manual dragging.
 - Cloud coverage needs %↔0–1 conversion, and altitude/thickness need km↔m conversion.
 - Local volumes use **half-extents and Z-up**, and currently only support boxes. Other primitive/custom shapes need real CPU/shader support.
-- Independent bake targets are not equivalent to the existing baked-sky-dome path.
+- Independent precompute targets are not equivalent to the existing precomputed-sky-dome path.
 - Mixed flare effects, twinkle, moon roll/pitch, unlimited size and reference collections need additional representation or binding.
 - The current sheet has fixed group/property/option limits; several richer web menus cannot be copied into it unchanged.
 

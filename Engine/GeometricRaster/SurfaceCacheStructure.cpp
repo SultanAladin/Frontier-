@@ -142,7 +142,7 @@ SurfaceCacheStructure::SurfaceCacheStructure(uint32_t InAtlasWidth, uint32_t InA
     , AtlasHeight(InAtlasHeight)
 {
     TexelAtlas.resize(static_cast<size_t>(AtlasWidth) * AtlasHeight);
-    BakeState.TotalTexels = AtlasWidth * AtlasHeight;
+    PrecomputeState.TotalTexels = AtlasWidth * AtlasHeight;
 }
 
 //------------------------------------------------------------------------------------------------------------------------
@@ -214,7 +214,7 @@ uint32_t SurfaceCacheStructure::RegisterShaderBallCard(uint32_t InstanceId,
             if (SinLat < -0.18f)
             {
                 RadialFactor *= 1.15f;
-                // Matte dark polymer / carbon composite
+                // Matte dark polymer / carbon combined
                 Texel.AlbedoColour = Vector3{ 0.12f, 0.13f, 0.15f };
                 Texel.Metallic = 0.0f;
                 Texel.SurfaceRoughness = 0.65f;
@@ -330,33 +330,33 @@ void SurfaceCacheStructure::ParameterizeShaderBall(Vector3 Center, float Radius,
 }
 
 //------------------------------------------------------------------------------------------------------------------------
-//                                         ASYNC / TIME-SLICED DIRECT BAKE
+//                                         ASYNC / TIME-SLICED DIRECT PRECOMPUTE
 //------------------------------------------------------------------------------------------------------------------------
 
-void SurfaceCacheStructure::QueueAsyncDirectBake(Vector3 IlluminantDirection,
+void SurfaceCacheStructure::QueueAsyncDirectPrecompute(Vector3 IlluminantDirection,
                                                  Vector3 IlluminantRadiance,
                                                  float LightAngularSize) noexcept
 {
-    BakeState.IlluminantDirection = IlluminantDirection.Normalized();
-    BakeState.IlluminantRadiance  = IlluminantRadiance;
-    BakeState.LightAngularSize    = LightAngularSize;
-    BakeState.CurrentTexelCursor  = 0u;
-    BakeState.TotalTexels         = static_cast<uint32_t>(TexelAtlas.size());
-    BakeState.IsBakingActive      = true;
-    BakeState.IsCompleted         = false;
+    PrecomputeState.IlluminantDirection = IlluminantDirection.Normalized();
+    PrecomputeState.IlluminantRadiance  = IlluminantRadiance;
+    PrecomputeState.LightAngularSize    = LightAngularSize;
+    PrecomputeState.CurrentTexelCursor  = 0u;
+    PrecomputeState.TotalTexels         = static_cast<uint32_t>(TexelAtlas.size());
+    PrecomputeState.IsPrecomputingActive      = true;
+    PrecomputeState.IsCompleted         = false;
 }
 
-bool SurfaceCacheStructure::StepAsyncDirectBake(const GlobalDistanceFieldSpace& DistanceField,
+bool SurfaceCacheStructure::StepAsyncDirectPrecompute(const GlobalDistanceFieldSpace& DistanceField,
                                                 uint32_t TexelBudget) noexcept
 {
-    if (!BakeState.IsBakingActive || BakeState.IsCompleted) return true;
+    if (!PrecomputeState.IsPrecomputingActive || PrecomputeState.IsCompleted) return true;
 
-    uint32_t StartIdx = BakeState.CurrentTexelCursor;
-    uint32_t EndIdx = std::min(StartIdx + TexelBudget, BakeState.TotalTexels);
+    uint32_t StartIdx = PrecomputeState.CurrentTexelCursor;
+    uint32_t EndIdx = std::min(StartIdx + TexelBudget, PrecomputeState.TotalTexels);
 
-    Vector3 SunDir = BakeState.IlluminantDirection;
-    Vector3 SunRad = BakeState.IlluminantRadiance;
-    float AngularSize = BakeState.LightAngularSize;
+    Vector3 SunDir = PrecomputeState.IlluminantDirection;
+    Vector3 SunRad = PrecomputeState.IlluminantRadiance;
+    float AngularSize = PrecomputeState.LightAngularSize;
 
 #if defined(_OPENMP)
     #pragma omp parallel for schedule(static)
@@ -390,22 +390,22 @@ bool SurfaceCacheStructure::StepAsyncDirectBake(const GlobalDistanceFieldSpace& 
         Texel.IsDirty = false;
     }
 
-    BakeState.CurrentTexelCursor = EndIdx;
-    if (BakeState.CurrentTexelCursor >= BakeState.TotalTexels)
+    PrecomputeState.CurrentTexelCursor = EndIdx;
+    if (PrecomputeState.CurrentTexelCursor >= PrecomputeState.TotalTexels)
     {
-        BakeState.IsCompleted = true;
-        BakeState.IsBakingActive = false;
-        BakeState.BakedPassCounter++;
+        PrecomputeState.IsCompleted = true;
+        PrecomputeState.IsPrecomputingActive = false;
+        PrecomputeState.PrecomputedPassCounter++;
         return true;
     }
     return false;
 }
 
 //------------------------------------------------------------------------------------------------------------------------
-//                                    MULTITHREADED SYNCHRONOUS DIRECT BAKE
+//                                    MULTITHREADED SYNCHRONOUS DIRECT PRECOMPUTE
 //------------------------------------------------------------------------------------------------------------------------
 
-void SurfaceCacheStructure::BakeDirectLightingMultithreaded(Vector3 IlluminantDirection,
+void SurfaceCacheStructure::PrecomputeDirectLightingMultithreaded(Vector3 IlluminantDirection,
                                                             Vector3 IlluminantRadiance,
                                                             const GlobalDistanceFieldSpace& DistanceField,
                                                             float LightAngularSize) noexcept
@@ -444,9 +444,9 @@ void SurfaceCacheStructure::BakeDirectLightingMultithreaded(Vector3 IlluminantDi
         Texel.IsDirty = false;
     }
 
-    BakeState.BakedPassCounter++;
-    BakeState.IsCompleted = true;
-    BakeState.IsBakingActive = false;
+    PrecomputeState.PrecomputedPassCounter++;
+    PrecomputeState.IsCompleted = true;
+    PrecomputeState.IsPrecomputingActive = false;
 }
 
 void SurfaceCacheStructure::UpdateDirectLighting(Vector3 IlluminantDirection,
@@ -454,7 +454,7 @@ void SurfaceCacheStructure::UpdateDirectLighting(Vector3 IlluminantDirection,
                                                  const GlobalDistanceFieldSpace& DistanceField,
                                                  float LightAngularSize) noexcept
 {
-    BakeDirectLightingMultithreaded(IlluminantDirection, IlluminantRadiance, DistanceField, LightAngularSize);
+    PrecomputeDirectLightingMultithreaded(IlluminantDirection, IlluminantRadiance, DistanceField, LightAngularSize);
 }
 
 //------------------------------------------------------------------------------------------------------------------------

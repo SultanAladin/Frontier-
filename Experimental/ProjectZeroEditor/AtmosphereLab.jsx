@@ -250,7 +250,7 @@ function Atlas({ V, Change }) {
   return (
     <section
       className="property-card atmosphere-atlas"
-      data-card="Atmosphere atlas"
+      record-card="Atmosphere atlas"
     >
       <h3>
         Atmosphere atlas <small>AUTHORING PALETTE</small>
@@ -299,7 +299,7 @@ function Atlas({ V, Change }) {
           }
         }}
         onPointerDown={(E) => {
-          if (E.button !== 0 || E.target.closest("[data-preset]")) return;
+          if (E.button !== 0 || E.target.closest("[record-preset]")) return;
           Drag.current = true;
           Root.current.focus();
           Root.current.setPointerCapture(E.pointerId);
@@ -358,7 +358,7 @@ function Atlas({ V, Change }) {
             key={P.Name}
             role="button"
             tabIndex={0}
-            data-preset={P.Name}
+            record-preset={P.Name}
             aria-label={"Apply " + P.Name}
             onClick={() => Apply(P)}
             onKeyDown={(E) => {
@@ -560,10 +560,10 @@ function Space({ V, Change, Expand, Turn, Orbit }) {
           }
           const Offset = (Y * W + X) * 4;
           for (let A = 0; A < 3; A++)
-            Image.data[Offset + A] = Math.round(
+            Image.record[Offset + A] = Math.round(
               255 * (1 - Math.exp(-Math.max(0, RGB[A]) * 1.8)) ** (1 / 2.2),
             );
-          Image.data[Offset + 3] = 255;
+          Image.record[Offset + 3] = 255;
         }
       Context.putImageData(Image, 0, 0);
       C.dataset.render = String(performance.now());
@@ -584,7 +584,7 @@ function Space({ V, Change, Expand, Turn, Orbit }) {
   return (
     <section
       className="property-card atmosphere-space"
-      data-card="Atmosphere from space"
+      record-card="Atmosphere from space"
     >
       <header>
         <h3>Atmosphere from space</h3>
@@ -667,7 +667,7 @@ function Space({ V, Change, Expand, Turn, Orbit }) {
       <p className="graph-note">
         Drag / arrow keys to orbit. Exaggerated shell thickness is a view aid,
         not planet scale. Procedural surface, simplified absorption and single
-        scattering; no native bake, measured planet imagery or multiple
+        scattering; no native precompute, measured planet imagery or multiple
         scattering.
       </p>
     </section>

@@ -1,19 +1,19 @@
 //============================================================================================================================================
-// 📦 Exhibits/Workbench/Sky/SkyProbeProof.cpp — The Sky Probe Bake Against The Analytic March (roadmap #26 stage A)
+// 📦 Exhibits/Workbench/Sky/SkyProbeProof.cpp — The Sky Probe Precompute Against The Analytic March (roadmap #26 stage A)
 //============================================================================================================================================
-// The question this proof answers with pictures: can a baked probe replace the per-ray atmosphere march
-//    WITHOUT the realism loss the owner saw in earlier bakes? The answer is engineered in, not hoped for:
+// The question this proof answers with pictures: can a precomputed probe replace the per-ray atmosphere march
+//    WITHOUT the realism loss the owner saw in earlier precomputes? The answer is engineered in, not hoped for:
 //
-//    1. The probe is HDR float, never quantised — an LDR bake crushes the circumsolar gradient first.
-//    2. POINT FEATURES NEVER BAKE. The sun's disc and aureole stay analytic (texels inside the solar cone
+//    1. The probe is HDR float, never quantised — an LDR precompute crushes the circumsolar gradient first.
+//    2. POINT FEATURES NEVER PRECOMPUTE. The sun's disc and aureole stay analytic (texels inside the solar cone
 //       are inpainted from the cone's boundary so no disc energy smears into the bilinear neighbourhood),
-//       and the stars and the moon are LEFT OUT of the bake entirely — the engine already draws them from
+//       and the stars and the moon are LEFT OUT of the precompute entirely — the engine already draws them from
 //       their own passes (the star catalogue at binding 23, the moon texture slots), so the probe only ever
 //       answers for the smooth dome, which is the part a bilinear fetch reproduces faithfully. This is the
-//       exact rule that preserves the realism earlier bakes lost: discs and stars are sub-texel features no
+//       exact rule that preserves the realism earlier precomputes lost: discs and stars are sub-texel features no
 //       256² sheet can hold, so they are never asked to.
 //    3. The A/B is same-exposure, same-tonemap, same-camera: each sheet stacks the analytic march (top)
-//       over the probe composite (bottom), so any difference the eye finds is the bake and nothing else.
+//       over the probe combined (bottom), so any difference the eye finds is the precompute and nothing else.
 //
 //    Six times of day render both ways — dawn, morning, noon, afternoon, the showcase's 17.93 h sunset,
 //    night — each staged through SkyFogIntegrator::AssignSunHour, the game build's own path. Per hour the
@@ -23,7 +23,7 @@
 //    Where this slots into the product (per the owner's call, unchanged here): the EDITOR stays analytic
 //    always; the GAME fetches the probe for escaped rays. These sheets are the evidence that split rests on.
 //
-// The proof compiles the game's own translation unit (SkyFogIntegrator.cpp) INTO this file: the bake staging
+// The proof compiles the game's own translation unit (SkyFogIntegrator.cpp) INTO this file: the precompute staging
 //    is the game's staging with the star and moon layers off — same solar solve, same atmosphere, same
 //    constants, nothing re-implemented and nothing in Projects/ touched.
 //============================================================================================================================================
@@ -175,7 +175,7 @@ Vector3 DomeRadiance(const SkyConfiguration& DomeSky, const Vector3& Dir)
     return ToVector3(SkyRadianceCompute(ToFloat3(Dir), DomeSky));
 }
 
-SkyDomeSheet BakeSkyDome(const SkyConfiguration& DomeSky, uint32_t Side)
+SkyDomeSheet PrecomputeSkyDome(const SkyConfiguration& DomeSky, uint32_t Side)
 {
     const Vector3 Sun = ToVector3(DomeSky.sunDir);
     const float ConeCos = std::cos(kSunConeRadians);
@@ -184,8 +184,8 @@ SkyDomeSheet BakeSkyDome(const SkyConfiguration& DomeSky, uint32_t Side)
     Sheet.Texels.resize(static_cast<size_t>(Side) * Side * 3u);
     Sheet.Upper.resize(static_cast<size_t>(Side) * Side);
     // Each texel is a 2×2 supersample CONFINED to the texel centre's hemisphere: the average smooths the
-    //    dome's gradients without ever mixing sky into ground — the horizon mix is what made earlier bakes
-    //    look wrong at dawn and dusk. Four marches per texel is bake-time cost, never render-time cost.
+    //    dome's gradients without ever mixing sky into ground — the horizon mix is what made earlier precomputes
+    //    look wrong at dawn and dusk. Four marches per texel is precompute-time cost, never render-time cost.
     for (uint32_t Y = 0u; Y < Side; ++Y)
         for (uint32_t X = 0u; X < Side; ++X)
         {
@@ -269,14 +269,14 @@ HourFigures RenderHourSheet(const SkyFogIntegrator& Sky, double Hour, const char
     SkyConfiguration DomeSky = CoreSky;
     DomeSky.starsOn = 0u;   // the star catalogue is its own pass in the engine (binding 23) — sub-texel points
     DomeSky.moonOn  = 0u;   // the moon rides its texture slots; its disc and glow stay analytic
-    DomeSky.cloudOn = 0u;   // the cirrus ANIMATES (timeSeconds drives it): a static bake would freeze it, and
+    DomeSky.cloudOn = 0u;   // the cirrus ANIMATES (timeSeconds drives it): a static precompute would freeze it, and
                             //    against a night sky its contrast spans four decades — the detail layer keeps it
 
     const Vector3 Sun = ToVector3(FullSky.sunDir);
     const float ConeCos = std::cos(kSunConeRadians);
 
-    // The bake — 256², HDR float, sun inpainted, stars and moon never present.
-    const SkyDomeSheet Dome = BakeSkyDome(DomeSky, 256u);
+    // The precompute — 256², HDR float, sun inpainted, stars and moon never present.
+    const SkyDomeSheet Dome = PrecomputeSkyDome(DomeSky, 256u);
 
     // The error census: 20 000 quasi-random directions, solar cone excluded (analytic there by the rule).
     //    The denominator floors at 1 % of the dome's mean luminance: a texel of black night sky that reads
@@ -382,10 +382,10 @@ HourFigures RenderHourSheet(const SkyFogIntegrator& Sky, double Hour, const char
                 FetchPanel[I] = Full;   // the rule: analytic inside the solar cone and the horizon band
             else
             {
-                // The game composite: one probe fetch for the dome, plus the detail layer — stars, the
+                // The game combined: one probe fetch for the dome, plus the detail layer — stars, the
                 //    moon's disc and glow, the animated cirrus — evaluated analytically, exactly as the
                 //    engine's own passes deliver them. The layer is SIGNED: a cloud can darken the sky it
-                //    covers, so the delta must be allowed to subtract, and only the composite floors at 0.
+                //    covers, so the delta must be allowed to subtract, and only the combined floors at 0.
                 const Vector3 Fetched  = Dome.Fetch(Dir);
                 const Vector3 DomePart = DomeRadiance(DomeSky, Dir);
                 FetchPanel[I] = Vector3{ std::max(0.0f, Fetched.x + Full.x - DomePart.x),
@@ -398,7 +398,7 @@ HourFigures RenderHourSheet(const SkyFogIntegrator& Sky, double Hour, const char
     const float MeanLuminance = static_cast<float>(LuminanceSum / static_cast<double>(MarchPanel.size()));
     const float Scale = 0.35f / std::max(1e-5f, MeanLuminance);
 
-    // The stacked sheet: analytic march on top, probe composite below, a dark rule between.
+    // The stacked sheet: analytic march on top, probe combined below, a dark rule between.
     constexpr uint32_t kRule = 4u;
     const uint32_t SheetH = kViewH * 2u + kRule;
     std::vector<unsigned char> Sheet(static_cast<size_t>(kViewW) * SheetH * 3u, 24u);
@@ -473,7 +473,7 @@ int main()
     }
 
     // The gates: the probe answers only for the smooth dome, so the figures must hold at EVERY hour — dawn
-    //    and night included, because the point features that once wrecked night bakes are no longer baked.
+    //    and night included, because the point features that once wrecked night precomputes are no longer precomputed.
     Expect(WorstMean < 0.02, "probe error: mean relative error under 2% at every hour of the six");
     Expect(WorstRmse < 3.0,  "pictures: tone-mapped panel RMSE under 3 of 255 outside the solar cone, every hour");
     Expect(WorstFetchSpeedup > 10.0, "the fetch beats the march more than tenfold at every hour");

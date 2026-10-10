@@ -1,7 +1,7 @@
 //============================================================================================================================================
 //                                                     MATERIALINSPECTOR.CPP
 //============================================================================================================================================
-// 🔍 M7b editable material inspector (see the header for the data + editing models). Rows read the
+// 🔍 M7b editable material inspector (see the header for the record + editing models). Rows read the
 //    RESOLVED slab; sliders write per-material drafts; layout is ControlKit-native with custom 20-row
 //    channel cards + editors.
 
@@ -35,7 +35,7 @@ const char* const kChannelNames[5]    = { "rgb", "R", "G", "B", "A" };
 [[nodiscard]] bool IsWhite(const float C[3]) noexcept { return C[0] == 1.0f && C[1] == 1.0f && C[2] == 1.0f; }
 [[nodiscard]] bool IsZero(const float C[3]) noexcept { return C[0] == 0.0f && C[1] == 0.0f && C[2] == 0.0f; }
 
-// Append a " · "-joined fragment to a detail buffer (snprintf-truncated, always NUL terminated).
+// Append a " · "-joined fragment to a detail store (snprintf-truncated, always NUL terminated).
 void AppendDetail(char* Out, size_t Capacity, const char* Fragment) noexcept
 {
     if (!Fragment || !*Fragment) return;
@@ -89,7 +89,7 @@ const char* MaterialTextureChannelName(TextureChannelSelection Channel) noexcept
     return kChannelNames[I < 5u ? I : 0u];
 }
 
-// M7b: None = rows 05/13 (map-or-mesh-frame) + 20 (no carrier); Rgb = colour carriers (01/14/16).
+// M7b: None = rows 05/13 (map-or-topology-frame) + 20 (no carrier); Rgb = colour carriers (01/14/16).
 MaterialEditKind MaterialRowEditKind(uint32_t Row) noexcept { return kEditKinds[Row < kMaterialChannelRowCount ? Row : 19u]; }
 
 //------------------------------------------------------------------------------------------------------------------------
@@ -383,12 +383,12 @@ void MaterialInspector::Discard() noexcept
 void MaterialInspector::NotifyPreviewRendered(bool Ok, const char* MaterialName, const char* Detail, double Seconds, uint32_t Commit) noexcept
 {
     const char* Name = (MaterialName && *MaterialName) ? MaterialName : "(unnamed)";
-    const char* Info = (Detail && *Detail) ? Detail : (Ok ? "?" : "failed");
+    const char* Facts = (Detail && *Detail) ? Detail : (Ok ? "?" : "failed");
     if (Ok)
         std::snprintf(PreviewStatus, sizeof(PreviewStatus), "%.64s \xC2\xB7 %.80s \xC2\xB7 %.1fs \xC2\xB7 commit #%u",
-                      Name, Info, Seconds, Commit);
+                      Name, Facts, Seconds, Commit);
     else
-        std::snprintf(PreviewStatus, sizeof(PreviewStatus), "%.64s \xC2\xB7 failed: %.96s", Name, Info);
+        std::snprintf(PreviewStatus, sizeof(PreviewStatus), "%.64s \xC2\xB7 failed: %.96s", Name, Facts);
 }
 
 //------------------------------------------------------------------------------------------------------------------------
@@ -454,9 +454,9 @@ void MaterialInspector::BuildRows(const MaterialDescriptor& D, const MaterialSla
         AppendDetail(Rows[3].Detail, sizeof(Rows[3].Detail), Frag);
     }
 
-    // 05 orientation — unbound = the mesh frame (a real constant, not an absence).
+    // 05 orientation — unbound = the topology frame (a real constant, not an absence).
     const TextureReference& Nrm = S.Texture(MaterialTextureChannel::GeometryNormal);
-    std::strcpy(Rows[4].Value, Nrm.IsBound() ? "map" : "mesh frame");
+    std::strcpy(Rows[4].Value, Nrm.IsBound() ? "map" : "topology frame");
     SetTexture(4, Nrm);
     Rows[4].Source = Nrm.IsBound() ? MaterialChannelSource::Imported : MaterialChannelSource::Constant;
     if (Nrm.Scalar != 1.0f) { std::snprintf(Frag, sizeof(Frag), "scale %.3g", static_cast<double>(Nrm.Scalar)); AppendDetail(Rows[4].Detail, sizeof(Rows[4].Detail), Frag); }
@@ -505,7 +505,7 @@ void MaterialInspector::BuildRows(const MaterialDescriptor& D, const MaterialSla
     Rows[11].Source = CoatActive ? MaterialChannelSource::Constant : MaterialChannelSource::Absent;
     if (S.CoatRoughnessAnisotropy != 0.0f) { std::snprintf(Frag, sizeof(Frag), "aniso %.3g", static_cast<double>(S.CoatRoughnessAnisotropy)); AppendDetail(Rows[11].Detail, sizeof(Rows[11].Detail), Frag); }
     const TextureReference& CoatNrm = S.Texture(MaterialTextureChannel::GeometryCoatNormal);
-    if (CoatActive) std::strcpy(Rows[12].Value, CoatNrm.IsBound() ? "map" : "mesh frame");
+    if (CoatActive) std::strcpy(Rows[12].Value, CoatNrm.IsBound() ? "map" : "topology frame");
     SetTexture(12, CoatNrm);
     Rows[12].Source = !CoatActive ? MaterialChannelSource::Absent
         : (CoatNrm.IsBound() ? MaterialChannelSource::Imported : MaterialChannelSource::Constant);
@@ -740,7 +740,7 @@ float MaterialInspector::ConstructMaterialsLayout(PixelSpace& Surface, const Pla
                                     ControlKit::Faded(P.TextDim, Opacity), Row.Name, 13.0f);
             ControlKit::TextLeading(Surface, Spanning(ValueX, R, ValueW, 24.0f), 0.0f,
                                     ControlKit::Faded(Dim ? P.TextFaint : P.Text, Opacity), Row.Value, 13.0f);
-            const ColorQuad SourceInk = Row.Source == MaterialChannelSource::Imported ? P.Info
+            const ColorQuad SourceInk = Row.Source == MaterialChannelSource::Imported ? P.Facts
                 : (Row.Source == MaterialChannelSource::Constant ? P.TextDim : P.TextFaint);
             ControlKit::TextLeading(Surface, Spanning(SourceX, R, SourceW, 24.0f), 0.0f,
                                     ControlKit::Faded(SourceInk, Opacity), MaterialChannelSourceName(Row.Source), 13.0f);

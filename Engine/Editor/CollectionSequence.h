@@ -84,9 +84,9 @@ struct CollectionSequence
                 Locked += Row.Locked || Row.Pinned;
                 Folders += Row.Category == EditorInstanceCategory::Folder;
                 MaximumDepth = std::max(MaximumDepth, Distance);
-                // Editor.jsx seats a preview marker on every row it constructed from a base mesh, and
+                // Editor.jsx seats a preview marker on every row it constructed from a base topology, and
                 //    FolderInventory counts exactly those.
-                Constructed += BaseMeshPrimitive(Row.Artwork) != nullptr;
+                Constructed += BaseGeometryPrimitive(Row.Artwork) != nullptr;
                 const unsigned Group = static_cast<unsigned>(Row.Category);
                 if (Group < static_cast<unsigned>(EditorInstanceCategory::Count)) ++Categories[Group];
                 const unsigned Glyph = static_cast<unsigned>(Row.Glyph);

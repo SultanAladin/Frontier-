@@ -1,7 +1,7 @@
 //============================================================================================================================================
 // 📦 Engine/Shaders/BlasBuild.slang — D9: a full wide build into the packed CWBVH layout, for topology changes
 //============================================================================================================================================
-// 🧩 A refit cannot cover a topology change (LOD swap, destruction, a mesh authored on the fly): the node count itself
+// 🧩 A refit cannot cover a topology change (LOD swap, destruction, a topology authored on the fly): the node count itself
 //    moves, so the blob has to be built rather than updated. This kernel builds the SAME layout the refit writes and the
 //    traversal reads — a second traversal path is the cost the plan named, and this avoids it.
 //
@@ -45,7 +45,7 @@
 //    Stage 4 — BLOCK SCAN  one workgroup: exclusive prefix of the block totals, and the next level's base/count. Still a
 //                          serial loop, but one iteration per BLOCK (nodes / 128) rather than per node.
 //    Stage 3 — EMIT        one lane per node: take each child's exact bounds from the geometry its range names,
-//                          assign the eight slots (octant preference, free-slot pool), write the node's p/exponents/
+//                          assign the eight slots (octant preference, free-slot slots), write the node's p/exponents/
 //                          qlo/qhi, its meta bytes, its imask and its childBase, hand each interior child its range, and
 //                          record its stored slot and level.
 //    Stage 5 — RUNS COUNT+SCAN   the run scan's first half: leaf triangles per node, scanned within the block.
@@ -74,19 +74,19 @@ layout(local_size_x = 128, local_size_y = 1, local_size_z = 1) in;
 
 #include "BlasLayout.slang"
 
-layout(std430, binding = 0) buffer BlasNodeExtent   { vec4 BlasNodes[]; };    // D9: the node arena being built
-layout(std430, binding = 1) buffer BlasLeafExtent   { vec4 BlasLeaves[]; };   // D9: the leaf arena being built
-layout(std430, binding = 2) readonly buffer BlasSoupExtent { vec4 BlasSoup[]; };// D9: object-space soup, 3 × vec4 per triangle
-layout(std430, binding = 3) buffer BlasSortedExtent    { uvec2 BlasSortedA[]; };   // ping (each level writes the other)
-layout(std430, binding = 4) buffer BlasSortedAltExtent { uvec2 BlasSortedB[]; };   // pong
-layout(std430, binding = 5) buffer BlasScratchExtent { uint BlasScratch[]; }; // one block per node slot + a header
-layout(std430, binding = 6) buffer BlasLevelExtent   { uint BlasLevels[]; };  // written here, read by the refit kernel
+layout(std430, binding = 0) store BlasNodeExtent   { vec4 BlasNodes[]; };    // D9: the node arena being built
+layout(std430, binding = 1) store BlasLeafExtent   { vec4 BlasLeaves[]; };   // D9: the leaf arena being built
+layout(std430, binding = 2) readonly store BlasSoupExtent { vec4 BlasSoup[]; };// D9: object-space soup, 3 × vec4 per triangle
+layout(std430, binding = 3) store BlasSortedExtent    { uvec2 BlasSortedA[]; };   // ping (each level writes the other)
+layout(std430, binding = 4) store BlasSortedAltExtent { uvec2 BlasSortedB[]; };   // pong
+layout(std430, binding = 5) store BlasScratchExtent { uint BlasScratch[]; }; // one block per node slot + a header
+layout(std430, binding = 6) store BlasLevelExtent   { uint BlasLevels[]; };  // written here, read by the refit kernel
 // D9b: the per-workgroup totals of a parallel scan (one entry per block of 128 node slots). Both scans use it, at
 //    different times: the childBase scan during each level, the run scan once at the end. ⚠️ It is a SCAN SCRATCH, not a
 //    result: after the block-scan stage it holds the exclusive prefix of the blocks, which is what the stages after it
 //    read. ⚠️ Sized ceil(NodeCount / 128) by the host — `BlasBlockSumsWords()` in BlasDevicePayload.h is the one place
 //    that expression lives.
-layout(std430, binding = 7) buffer BlasBlockSumExtent { uint BlasBlockSums[]; };
+layout(std430, binding = 7) store BlasBlockSumExtent { uint BlasBlockSums[]; };
 
 // ─── the scratch: one block per node slot, holding that node's children ──────────────────────────────────────────────
 // Header — ⚠️ the level's base/count is PING-PONGED BY LEVEL PARITY, because a level's block scan computes the NEXT
@@ -105,7 +105,7 @@ layout(std430, binding = 7) buffer BlasBlockSumExtent { uint BlasBlockSums[]; };
 //             emit, because a block-local scan cannot know where its block sits in the level.
 //    +20      how many entries stage 1 filled (informational; emptiness is lo == hi)
 //    +21      each entry's PREFERRED slot, three bits per entry (its first triangle's octant at this depth)
-//    +22      each entry's STORED slot, three bits per entry (stage 3, after the pool resolves the preferences)
+//    +22      each entry's STORED slot, three bits per entry (stage 3, after the slots resolves the preferences)
 //    +23      this node's slice of the RUN scan: its exclusive prefix of leaf triangles within its block (stage 5)
 //
 // ⚠️ The entries are what makes both halves of the rule expressible in one kernel: the octant case fills all eight (one
@@ -342,7 +342,7 @@ void main()
             }
             BlasScratch[At + 16u] = LeafTriangles;
             BlasScratch[At + 20u] = 8u;
-            // The entry's own index is the octant, so the preference is the identity here; the pool in stage 3 still
+            // The entry's own index is the octant, so the preference is the identity here; the slots in stage 3 still
             //    resolves it, which is what keeps the two rules' slot assignment identical in shape.
             BlasScratch[At + 21u] = (0u << 0u) | (1u << 3u) | (2u << 6u) | (3u << 9u) | (4u << 12u) | (5u << 15u) |
                                     (6u << 18u) | (7u << 21u);
@@ -445,7 +445,7 @@ void main()
             }
         }
 
-        // Slot assignment: the octant is a PREFERENCE, the free-slot pool is what keeps the children consecutive and
+        // Slot assignment: the octant is a PREFERENCE, the free-slot slots is what keeps the children consecutive and
         //    collision-free (BlasBuildMirror::BuildHploc — a slot decides a box lane and a meta byte, while the
         //    traversal's child index comes from the imask and the stored slot).
         uint EntryOfSlot[8];

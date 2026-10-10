@@ -15,7 +15,7 @@ Water Bodies / Fluids are untouched.
 
 ## Audit findings and explicit limitations
 
-The target's camera is **pinhole**. It has a real vertical FOV and aspect ratio, but no rendered depth-of-field path, physical-aperture exposure, autofocus or lens-image baking. The old Cine Camera sheet exposed constant placeholder focal/aperture/focus/ISO values with no write-back. Those placeholders are replaced, not presented as functioning renderer controls.
+The target's camera is **pinhole**. It has a real vertical FOV and aspect ratio, but no rendered depth-of-field path, physical-aperture exposure, autofocus or lens-image precomputing. The old Cine Camera sheet exposed constant placeholder focal/aperture/focus/ISO values with no write-back. Those placeholders are replaced, not presented as functioning renderer controls.
 
 Main Camera lens edits affect projection. Aperture and subject distance are project-owned, session-only **optical study settings**: they update diagnostics, not blur or exposure. The existing Cine Camera row is explicitly an independent, inactive lens study; editing it cannot change the live camera or switch the viewport. Unsupported ISO/shutter placeholders are not shown. Imported file-camera rows retain their existing transform-only inspection; file-camera activation/editing is outside this delivery.
 
@@ -31,7 +31,7 @@ No camera serialization, persistence across application launches, clipping-plane
 
 The application tick applies camera-sheet edits and refreshes readouts. Main FOV edits explicitly reset renderer accumulation: the existing `ObserveCamera` only checked position, direction and viewport size, not FOV. This avoids blending a changed lens with old converged samples. Aperture/focus-only edits do not reset projection or pretend to affect pinhole output.
 
-Ranges: focal 1–500 mm, sensor width 16–70 mm, aperture f/1.4–22, subject 1–100 m. Active vertical FOV is bounded to 1–175 degrees; at extreme lens/aspect combinations this projection bound is reflected in the focal readout. Sensor and ray diagrams are labelled schematic, not to scale. The aperture drawing now directly transcribes the HTML inspector’s eight-blade iris, 48 rim ticks and octagonal opening. The focus graphic includes its 17 sharp/blurred targets, dashed near/far limits, logarithmic metre labels and crosshair handle. The numeric pupil diameter and sharpness limits remain calculated from the actual optical-study values.
+Ranges: focal 1–500 mm, sensor width 16–70 mm, aperture f/1.4–22, subject 1–100 m. Active vertical FOV is bounded to 1–175 degrees; at extreme lens/aspect combinations this projection bound is reflected in the focal readout. Sensor and ray diagrams are labelled schematic, not to scale. The aperture drawing now directly transcribes the HTML inspector’s eight-blade iris, 48 rim ticks and octagonal opening. The focus graphic includes its 17 sharp/blurred targets, dashed near/far limits, logarithmic metre labels and crosshair identifier. The numeric pupil diameter and sharpness limits remain calculated from the actual optical-study values.
 
 ## Verification
 

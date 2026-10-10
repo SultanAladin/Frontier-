@@ -4,7 +4,7 @@
 // 📦 The bottom rung of the ladder: a gas effect advanced once into a sheet of tiles, and played back afterwards with no solver at all.
 //
 // GasQualityAllowance.h ends its ladder at Flipbook and says of it "no solver at all; a pre-advanced sheet
-//    shared by every instance". This file is what that rung actually reads. One bake, done offline or once at
+//    shared by every instance". This file is what that rung actually reads. One precompute, done offline or once at
 //    load, produces a square sheet of square tiles; at runtime a distant plume costs one textured quad and an
 //    index computed from elapsed seconds.
 //
@@ -19,10 +19,10 @@
 //    an instance — TileAtElapsed() takes a time and answers an index, and that is all an instance owns.
 //
 // 📐 THE LAYOUT IS THE BROWSER'S, DELIBERATELY NOT A BETTER ONE. Experimental/Fluid/src/FlipbookSequence.js
-//    bakes the same four tile counts, the same four tile sizes, the same four rates and the same 0–3 s warm-up,
+//    precomputes the same four tile counts, the same four tile sizes, the same four rates and the same 0–3 s warm-up,
 //    orders tiles left to right then top to bottom, and writes straight (unpremultiplied) alpha with the
 //    coverage in the alpha channel. A native sheet and a browser sheet are therefore interchangeable, which is
-//    what lets an artist bake in the page and ship the result without a conversion step that could differ.
+//    what lets an artist precompute in the page and ship the result without a conversion step that could differ.
 //
 // ⚠️ THE GL READBACK IS BOTTOM-UP AND A SHEET IS TOP-DOWN. AssignTile() flips. Getting that wrong produces a
 //    plume that falls instead of rising, which reads as a physics defect rather than a row order one.
@@ -80,7 +80,7 @@ inline bool OneOfFour(uint32_t Reading, const uint32_t Supported[4]) noexcept
 }
 
 
-/// 📦 The sheet a request implies, or an unadmitted layout saying the request was not one we bake.
+/// 📦 The sheet a request implies, or an unadmitted layout saying the request was not one we precompute.
 /// in    Count      [-]   tiles; 4, 16, 32 or 64
 /// in    Size       [px]  tile edge; 64, 128, 256 or 512
 /// in    Rate       [1/s] playback rate; 12, 24, 30 or 60
@@ -261,10 +261,10 @@ struct GasFlipbookDescriptor
 {
     std::string       Name  = "scene";           // [-] - what the sheet is of
     std::string       Image = "scene.flipbook.png";
-    std::string       Preset;                    // [-] - the preset key it was baked from, if any
+    std::string       Preset;                    // [-] - the preset key it was precomputed from, if any
     GasFlipbookLayout Layout;
     bool              Transparent = true;        // [-] - straight coverage in alpha, or an opaque tile
-    bool              StartBurst  = false;       // [-] - the bake began with the preset's detonation
+    bool              StartBurst  = false;       // [-] - the precompute began with the preset's detonation
 };
 
 
@@ -287,7 +287,7 @@ inline std::string SpellFlipbookFloat(float Reading) noexcept
 
 
 /// 📦 The descriptor as TOML, ready to sit beside the .png.
-/// in    Descriptor   [-]  what was baked
+/// in    Descriptor   [-]  what was precomputed
 /// out   string       [-]  the whole file, newline-terminated; empty when the layout was never admitted
 /// err   an unadmitted layout spells nothing, because a descriptor for a sheet that does not exist is worse
 ///       than no descriptor at all

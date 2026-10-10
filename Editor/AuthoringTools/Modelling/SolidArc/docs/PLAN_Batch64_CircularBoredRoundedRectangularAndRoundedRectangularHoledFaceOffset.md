@@ -3,7 +3,7 @@
 ## Scope
 
 Promote one consolidated batch covering the first **filleted-rectangle (rounded-rectangle)**
-domains, i.e. bodies whose profile or through-hole is an exact analytic tangent line/arc composite
+domains, i.e. bodies whose profile or through-hole is an exact analytic tangent line/arc combined
 built by `NurbsCurve::Rectangle` with a corner radius (stored as a degree-two rational closed
 curve with seventeen poles):
 
@@ -26,7 +26,7 @@ Both support only a finite positive +Z extension of their upper planar cap.
   Closed manifold topology `V10/E15/C30/L9/F7`, genus 1, two-loop caps, five extrusion walls,
   thirteen seam lines and two filleted-rectangle curves.
 
-Because the extrusion pipeline flattens a filleted rectangle's classification, recognition is
+Because the extrusion chain flattens a filleted rectangle's classification, recognition is
 structural plus sampled: closed, rational, degree two, seventeen poles, Z axis, planar,
 `SpanX = 2·HalfX`, `SpanY = 2·HalfY`, `SpanX > SpanY`, corner radius below both half-extents, and
 65 samples within `1e-6` of a freshly built `NurbsCurve::Rectangle` with the canonical corner

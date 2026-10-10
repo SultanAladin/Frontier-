@@ -117,7 +117,7 @@ bool ValidAppId(const char* Text) noexcept
 }
 
 const char* PickSetting(const char* Override, const char* Environment, const char* BuiltIn,
-    char* Buffer, std::size_t Capacity) noexcept
+    char* Block, std::size_t Capacity) noexcept
 {
     const char* Value = (Override && *Override) ? Override : BuiltIn;
     if (const char* Env = std::getenv(Environment))
@@ -125,8 +125,8 @@ const char* PickSetting(const char* Override, const char* Environment, const cha
         if (*Env)
             Value = Env;
     }
-    std::snprintf(Buffer, Capacity, "%s", Value);
-    return Buffer;
+    std::snprintf(Block, Capacity, "%s", Value);
+    return Block;
 }
 
 class TransportListener : public ExitGames::LoadBalancing::Listener
@@ -198,7 +198,7 @@ public:
             return;
         }
         ++Received;
-        // The replication sequence attends here. The payload points into Photon's own buffer, so the
+        // The replication sequence attends here. The payload points into Photon's own store, so the
         //    attendant copies anything it keeps; that is stated on AttendPhotonPackets.
         if (Attendant)
             Attendant(AttendantReader, PlayerNr, static_cast<std::uint8_t>(Kind), Payload, PayloadLength);

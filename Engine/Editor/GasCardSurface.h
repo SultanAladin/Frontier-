@@ -17,7 +17,7 @@
 //    shared because the stylesheet shares it.
 //
 // 📐 THREE THINGS THIS CARD SAYS OUT LOUD, AND THEY ARE THE REASON IT IS NOT JUST A LIST OF SLIDERS.
-//    ① Bounds occupy the transform's third row, where a mesh has Scale: a domain's extent IS its scale, in
+//    ① Bounds occupy the transform's third row, where a topology has Scale: a domain's extent IS its scale, in
 //       metres, and is not a child entity.
 //    ② Rotation orients the children and the authored framing, NOT the lattice. CoarseGasField is an
 //       axis-aligned cube, so the caption under the transform admits it rather than letting someone spend a
@@ -167,7 +167,7 @@ struct GasField
 };
 
 // Eleven inline readings, in card order. The lattice is deliberately absent: the quality ladder owns the
-//    extent at runtime, and a control the budget overrules every frame is a lie with a handle on it.
+//    extent at runtime, and a control the budget overrules every frame is a lie with a identifier on it.
 inline const GasField* GasSheet(uint32_t& Count) noexcept
 {
     static const GasField Fields[] = {
@@ -424,7 +424,7 @@ inline void PaintPreview(ImDrawList* Draw, ImFont* Light, ImVec2 Spot, float Wid
 //                                                     THE TRANSFORM
 //------------------------------------------------------------------------------------------------------------------------
 
-// ① Position, Rotation, Bounds. Bounds take the row Scale occupies on a mesh, in metres, because the
+// ① Position, Rotation, Bounds. Bounds take the row Scale occupies on a topology, in metres, because the
 //    domain's extent IS its scale — and a row you cannot move, delete or duplicate independently is not a
 //    child entity, it is a property wearing a row.
 inline float TransformHeight() noexcept

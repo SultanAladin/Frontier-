@@ -70,9 +70,9 @@ bool ReadFile(const char* Path, std::string& Out)
     Out.clear();
     FILE* F = std::fopen(Path, "rb");
     if (!F) return false;
-    char Buffer[8192];
+    char Block[8192];
     size_t Read = 0;
-    while ((Read = std::fread(Buffer, 1, sizeof(Buffer), F)) > 0) Out.append(Buffer, Read);
+    while ((Read = std::fread(Block, 1, sizeof(Block), F)) > 0) Out.append(Block, Read);
     std::fclose(F);
     return true;
 }
@@ -138,9 +138,9 @@ int main()
         HostRuntime::FlyThroughSolver Camera(Flight);
 
         const DispatchConfiguration Dispatch = Integrator.BuildDispatch(Camera, 1280u, 720u, 0u, 4u);
-        // kFeatureGiReuse (bit 8, the indirect half's pool) is ON by default since the kernel port landed, so the
+        // kFeatureGiReuse (bit 8, the indirect half's slots) is ON by default since the kernel port landed, so the
         //    default mask carries it too — the check names every bit rather than comparing against "the reuse bits",
-        //    which is exactly how this expectation went stale for one commit when the pool arrived.
+        //    which is exactly how this expectation went stale for one commit when the slots arrived.
         const uint32_t Expected = DispatchFeatureGlobalIllumination | DispatchFeatureAntiAliasing | DispatchFeatureTemporalReuse
                                 | DispatchFeatureSpatialReuse | DispatchFeatureAliasPick | DispatchFeatureTemporalReprojection
                                 | DispatchFeatureDenoise | DispatchFeatureGiReuse | DispatchFeatureSkyReservoir;
@@ -230,8 +230,8 @@ int main()
             { "ReSTIRViewport", "const uint kFeatureTemporalReprojection = 64u;", 1u, "B1 kernel bit 6 = reprojection (64)" },
             { "ReSTIRViewport", "const uint kFeatureDenoise            = 128u;", 1u, "B2 kernel bit 7 = denoise (128)" },
             { "ReSTIRViewport", "const bool reproject = depth > 0.0 && (FeatureFlags & kFeatureTemporalReprojection) != 0u;", 1u, "B3 reprojection gated by the feature bit and a surface" },
-            // Three sites since the GI pool landed: the running-mean accumulator, the DIRECT reservoir and the
-            //    indirect (GI) reservoir — the indirect pool reprojects by the same pixel motion the direct one does.
+            // Three sites since the GI slots landed: the running-mean accumulator, the DIRECT reservoir and the
+            //    indirect (GI) reservoir — the indirect slots reprojects by the same pixel motion the direct one does.
             { "ReSTIRViewport", "vec2 motion = texelFetch(MotionImage, ivec2(pixel), 0).rg;", 3u, "B4 motion vector read at all three reuse sites (accumulator + direct reservoir + GI reservoir)" },
             { "ReSTIRViewport", "ivec2 prevPx = ivec2(floor((cuv - motion) * extent));", 1u, "B5 back-projection rule (§D mirrors this line)" },
             { "ReSTIRViewport", "count      = count + 1.0;", 1u, "B6 running-mean sample count" },
@@ -630,9 +630,9 @@ int main()
 
         // A Monte-Carlo cross-check: the empirical spread of the filtered value over many independent trials must
         //    match the predicted variance, and be far below the unfiltered spread.
-        // The closed form assumes weights that do not depend on the data. The shader's luminance weight DOES depend on it
+        // The closed form assumes weights that do not depend on the record. The shader's luminance weight DOES depend on it
         //    (that is its whole point: a difference large relative to the noise is an edge), so the propagation check
-        //    makes it inert and the data-dependent case is left to §C5.3 and the §E A/B.
+        //    makes it inert and the record-dependent case is left to §C5.3 and the §E A/B.
         DenoiseMirror::RunConfiguration PropagationConfig = Config;
         PropagationConfig.LuminanceScale = 1.0e6f;
         constexpr uint32_t kTrials = 512u;
@@ -671,7 +671,7 @@ int main()
         const double Theory = SumW2 / (SumW * SumW);
         std::printf("[denoise] variance: unfiltered %.6g, filtered %.6g (ratio %.4f, theory %.4f)\n",
                     UnfilteredVariance, FilteredVariance, Ratio, Theory);
-        Check(std::fabs(Ratio - Theory) < 0.20 * Theory, "C6.3 Monte-Carlo: filtered/unfiltered spread = Σw²/(Σw)² with data-independent weights (±20 %, 512 trials)");
+        Check(std::fabs(Ratio - Theory) < 0.20 * Theory, "C6.3 Monte-Carlo: filtered/unfiltered spread = Σw²/(Σw)² with record-independent weights (±20 %, 512 trials)");
         Check(std::fabs(UnfilteredVariance - kNoiseVariance) < 0.20 * kNoiseVariance, "C6.4 Monte-Carlo: the unfiltered spread matches the input variance (±20 %)");
     }
 

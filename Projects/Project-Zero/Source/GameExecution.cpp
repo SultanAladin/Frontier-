@@ -158,7 +158,7 @@ int main(int argc, char** argv)
     // Showcase is the default level (the Cornell box stays one --scene path away, untouched as the reference).
     std::string ScenePath  = "Projects/Project-Zero/Content/Scenes/Showcase.gltf";
     float       SceneScale = 1.0f;
-    bool        WaterSnapshot = false; // opt-in load-time Ripple mesh, not live GPU simulation
+    bool        WaterSnapshot = false; // opt-in load-time Ripple topology, not live GPU simulation
     bool        AnimateInstances = false;   // D3: --animate drives instance transforms from a scripted path
     bool        SilentAudio      = false;   // --silent: open the null audio driver (no sound card, or CI)
     for (int I = 1; I < argc; ++I)
@@ -349,7 +349,7 @@ int main(int argc, char** argv)
                 const auto Water=Frontier::ProjectZero::AppendPondSnapshot(Level);
                 Level.Finalise(Decode.SlabLimit,nullptr);
                 std::cerr << "[Water] Ripple snapshot: " << Water.InstanceCount
-                          << " mesh instance(s), normal scene picking/materials; simulation is not live.\n";
+                          << " topology instance(s), normal scene picking/materials; simulation is not live.\n";
             } catch (const std::exception& E) {
                 std::cerr << "[Water] Cannot register water body: " << E.what() << "\n";
                 Logger.TerminateSink();return 1;
@@ -358,7 +358,7 @@ int main(int argc, char** argv)
 
         // Celestial moons — the six albedos join the shared index BEFORE Textures.Decode, so they ride the same
         //    decode/upload path as the scene and land in the bindless table the kernel samples. Colour, not
-        //    data (Linear=false): they upload SRGB and the shader reads linear albedos.
+        //    record (Linear=false): they upload SRGB and the shader reads linear albedos.
         for (uint32_t M = 0u; M < Frontier::kMoonAtlasCount; ++M)
         {
             char MoonPath[128];
@@ -625,7 +625,7 @@ int main(int argc, char** argv)
     }
 
     //──────────────────────────────────────────────────────────────────────────
-    // Swapchain exchange — GLFW window + Vulkan surface + compute pipeline
+    // Swapchain exchange — GLFW window + Vulkan surface + compute chain
     //──────────────────────────────────────────────────────────────────────────
     Frontier::SwapchainConfiguration SurfaceConfig
     {
@@ -659,13 +659,13 @@ int main(int argc, char** argv)
                          "Bootstrap", "Window and Vulkan swapchain ready.");
 
     {
-        FRONTIER_PROBE_PHASE_BEGIN("ShadingTableBake");
-        Startup.Mark("ShadingTableBake:begin"); const auto ShadingTableBakeStart=Frontier::ProjectZero::StartupLog::Now();
-        const Frontier::ShadingTableSet Tables = Frontier::ShadingTableCodec::Bake();   // R4b: GGX energy + LTC sheen LUTs
+        FRONTIER_PROBE_PHASE_BEGIN("ShadingTablePrecompute");
+        Startup.Mark("ShadingTablePrecompute:begin"); const auto ShadingTablePrecomputeStart=Frontier::ProjectZero::StartupLog::Now();
+        const Frontier::ShadingTableSet Tables = Frontier::ShadingTableCodec::Precompute();   // R4b: GGX energy + LTC sheen LUTs
         Startup.Mark("ShadingLutPayload",-1,(Tables.Energy.size()+Tables.Sheen.size())*sizeof(float));
         Surface.UploadShadingTables(Tables.Energy.data(), Tables.Sheen.data(), Frontier::ShadingTableSet::kResolution);
-        FRONTIER_PROBE_PHASE_END("ShadingTableBake");
-        Startup.Mark("ShadingTableBake:end",Frontier::ProjectZero::StartupLog::Elapsed(ShadingTableBakeStart));
+        FRONTIER_PROBE_PHASE_END("ShadingTablePrecompute");
+        Startup.Mark("ShadingTablePrecompute:end",Frontier::ProjectZero::StartupLog::Elapsed(ShadingTablePrecomputeStart));
     }
     if (TraversalBuildStarted && TraversalBuildFuture.valid())
     {
@@ -810,7 +810,7 @@ int main(int argc, char** argv)
     // D6/D7 — the two-level acceleration structure (object-space BLASes + an instance top level)
     //──────────────────────────────────────────────────────────────────────────
     // Built beside the world-space CWBVH, never instead of it. Each instance of the level becomes its own BLAS over
-    //    that instance's REST-pose triangles (the flat soup exactly as the scene builder baked it — nothing is
+    //    that instance's REST-pose triangles (the flat soup exactly as the scene builder precomputed it — nothing is
     //    rewritten per frame, which is the difference to D5), and the top level is a thin tree over the instances'
     //    world AABBs. The frame then writes one 112 B row per moved instance and rebuilds that top level; the measured
     //    cost of moving EVERY instance is in Exhibits/Workbench/Traversal (CheckTwoLevelBvh.sh): 0.07 ms at 256
@@ -820,9 +820,9 @@ int main(int argc, char** argv)
     //    a refusal (or a level with a single instance) leaves the single-blob path exactly as it was before D6.
     Frontier::InstanceAcceleration InstanceStructure;
     std::vector<Frontier::InstanceRow> InstanceRows;
-    // The REST world matrix of each instance — the transform its triangles were baked with (SceneStructure::Finalise
+    // The REST world matrix of each instance — the transform its triangles were precomputed with (SceneStructure::Finalise
     //    writes the flat soup through it). A row therefore carries the RELATIVE transform World_now · World_rest⁻¹,
-    //    not World: the BLAS is built from the baked soup, so re-applying the absolute matrix would place the geometry
+    //    not World: the BLAS is built from the precomputed soup, so re-applying the absolute matrix would place the geometry
     //    twice. A static instance's relative transform is EXACTLY identity (bit-compared below), which is what keeps
     //    the two-level path byte-identical to the single world-space tree for everything that does not move.
     struct RestTransform { float World[16]; };
@@ -830,7 +830,7 @@ int main(int argc, char** argv)
     bool InstancesResident = false;
     if (AnimatedInstances.size() > 1u)
     {
-        std::vector<Frontier::MeshPrototype> Prototypes;
+        std::vector<Frontier::GeometryPrototype> Prototypes;
         Prototypes.reserve(AnimatedInstances.size());
         InstanceRows.reserve(AnimatedInstances.size());
         bool RowsValid = true;
@@ -838,10 +838,10 @@ int main(int argc, char** argv)
         {
             const Frontier::InstanceRecord& Row = AnimatedInstances[I];
             if (Row.FlatTriangleOffset + Row.TriangleCount > TracedFacets.size()) { RowsValid = false; break; }
-            // One BLAS per instance. Two instances sharing a mesh could share a BLAS too, but the level's instances are
-            //    distinct placements with their own material and triangle range, so the shared-mesh case is a later
+            // One BLAS per instance. Two instances sharing a topology could share a BLAS too, but the level's instances are
+            //    distinct placements with their own material and triangle range, so the shared-topology case is a later
             //    optimisation rather than something the structure must assume. The prototypes read the REST soup.
-            Prototypes.push_back(Frontier::MeshPrototype{ TracedFacets.data() + Row.FlatTriangleOffset, Row.TriangleCount });
+            Prototypes.push_back(Frontier::GeometryPrototype{ TracedFacets.data() + Row.FlatTriangleOffset, Row.TriangleCount });
             RestTransform Rest{};
             std::memcpy(Rest.World, Row.World, sizeof(Rest.World));
             RestWorlds.push_back(Rest);
@@ -883,12 +883,12 @@ int main(int argc, char** argv)
     // The sky, the weather and everything that carries them. Prepared once; ticked with the frame.
     Frontier::ProjectZero::CelestialSequence Celestial;
     Celestial.Prepare();
-    // #26A the baked-dome boolean, seeded from [render] sky_dome_baked. OFF by default — the analytic march is
-    //    the resting rule (the editor's own), and identical bytes to the pre-bake build. When ON, ④d below
-    //    bakes lazily once the packed sky has stood still, seats the sheet into the bindless table and the
+    // #26A the precomputed-dome boolean, seeded from [render] sky_dome_baked. OFF by default — the analytic march is
+    //    the resting rule (the editor's own), and identical bytes to the pre-precompute build. When ON, ④d below
+    //    precomputes lazily once the packed sky has stood still, seats the sheet into the bindless table and the
     //    slot into SkyControl.w; the staleness compare in PackSkyRecord drops any scrubbed frame back to the
     //    march on its own. The Sky inspector sheet carries the same switch live.
-    Celestial.AssignSkyDomeBaked(Configuration.Query().Backend.SkyDomeBaked);
+    Celestial.AssignSkyDomePrecomputed(Configuration.Query().Backend.SkyDomePrecomputed);
     // Cloud-shadow weather by level, once at load: the 60 m showcase diorama stages the FIN3 diorama deck
     //    (visible broken shadow on its 46 m of ground), every other level the panel kilometre deck. Both
     //    instants are single-sourced in CloudShadowStaging.h; time stays frozen for accumulation parity.
@@ -922,7 +922,7 @@ int main(int argc, char** argv)
     // The star tables upload once, now the catalogue is loaded: cells then binned stars into binding 23.
     //    Skipped — never called — when the catalogue is empty, so the bring-up zeros stand and the packer's
     //    zero brightness keeps the kernel's star loop off. Static for the run: the sky's rotation is time, not
-    //    data, and it rides the per-frame record instead.
+    //    record, and it rides the per-frame record instead.
     {
         const Frontier::StarCatalogueIndex& Stars = Celestial.Stars();
         if (!Stars.Empty())
@@ -987,7 +987,7 @@ int main(int argc, char** argv)
     Frontier::NotificationQueue  Notifications;
     Frontier::TelemetryMetrics   Telemetry;
     {
-        // R1: announce the resolved ray-tracing backend once; a downgrade from an explicit request is an Info toast.
+        // R1: announce the resolved ray-tracing backend once; a downgrade from an explicit request is an Facts toast.
         const Frontier::RayTracingRequestCategory Req = Surface.QueryRayTracingRequest();
         const Frontier::RayTracingTierCategory    Use = Surface.QueryRayTracingTier();
         const bool Downgraded = Req != Frontier::RayTracingRequestCategory::Auto && static_cast<uint32_t>(Use) + 1u < static_cast<uint32_t>(Req);
@@ -1011,11 +1011,11 @@ int main(int argc, char** argv)
     uint32_t AppliedMaterialsCommit    = 0u;   // M7b: commit generation (Apply ran Finalise inside)
     uint32_t AppliedMaterialsPreview   = 0u;   // M7b: preview-toggle generation ([material] preview)
     Frontier::SkyConstantRecord  LastSky{};    // last sky bytes pushed (④d); a change restarts the accumulation
-    uint32_t SkyDomeQuietTicks         = 0u;   // #26A: ticks the packed sky stood still — the settled re-bake gate (④d)
+    uint32_t SkyDomeQuietTicks         = 0u;   // #26A: ticks the packed sky stood still — the settled re-precompute gate (④d)
     Frontier::MoonConstantRecord LastMoons{};  // last moon bytes pushed (④e); a change restarts the accumulation
     Frontier::PostConstantRecord LastPost{};   // last post bytes pushed (④f); a change restarts the accumulation
-    bool     BakeAnnounced             = false;  // "Baking Complete" = temporal accumulation reached BakeFrameCount
-    constexpr uint32_t BakeFrameCount  = 256u;
+    bool     PrecomputeAnnounced             = false;  // "Precomputing Complete" = temporal accumulation reached PrecomputeFrameCount
+    constexpr uint32_t PrecomputeFrameCount  = 256u;
     std::string LastSaveError;                   // de-duplicates the "Autosave Errors" toast
 
     // The tier-chosen shadow settings (technique, kernel width, map side), held so the per-frame sun refresh can
@@ -1048,7 +1048,7 @@ int main(int argc, char** argv)
         //    the Control Centre's "Shadow resolution" dropdown then OVERRIDES that side and stands regardless of
         //    which tier is selected (WithShadowResolution leaves the tier's value alone only for Auto). That
         //    separation is deliberate: resolution is the setting a user is most likely to want to pin against the
-        //    tier's judgement, on a machine whose memory or bandwidth the tier cannot know about.
+        //    tier's judgement, on a machine whose storage or bandwidth the tier cannot know about.
         {
             const Frontier::FidelityCriteria ShadowCriteria = Frontier::WithShadowResolution(Criteria, S.ShadowResolution);
             Frontier::ShadowFrameConfiguration Shadow{};
@@ -1128,7 +1128,7 @@ int main(int argc, char** argv)
     //──────────────────────────────────────────────────────────────────────────
     // The engine owns the draw (InterfaceExchange) and the shapes (InterfaceStructure); this project owns what the
     //    figures MEAN — the trial sequence composes them and normalises every value before writing it. The overlay
-    //    callback is the only place the two meet, and it hands the engine nothing but a command buffer.
+    //    callback is the only place the two meet, and it hands the engine nothing but a command store.
     Frontier::InterfaceExchange      Interface;
     Frontier::InterfaceStructure     InterfaceFigures;
     Frontier::InterfaceSequence      InterfaceCompose;
@@ -1390,7 +1390,7 @@ int main(int argc, char** argv)
     Frontier::ProjectZero::PerformanceTelemetrySequence PerformanceTelemetry{ 5.0f };
 
     Startup.Mark("FrameLoopReady"); uint32_t StartupFrames=0;
-    auto LastMemorySample = Frontier::ProjectZero::StartupLog::Now();
+    auto LastStorageSample = Frontier::ProjectZero::StartupLog::Now();
     while (!Surface.CloseRequested() && !Panel.Convert<bool>())
     {
         const auto  NowTime = Clock::now();
@@ -1424,7 +1424,7 @@ int main(int argc, char** argv)
         double CpuCelestialTickMs=0, CpuSkyPackUploadMs=0, CpuWeatherPostPackUploadMs=0;
         const auto CelestialTickStart=std::chrono::steady_clock::now();
         // ①a' The sky and the weather. Ticked here, beside the other per-frame advances, so the clock, the wind
-        //     phase and the precipitation pool all move exactly once and in a fixed order. The camera position
+        //     phase and the precipitation slots all move exactly once and in a fixed order. The camera position
         //     is what the precipitation emitter follows — it is a world-space cylinder about the viewer, with no
         //     view direction, which is what keeps rain from following where you look.
         {
@@ -1546,7 +1546,7 @@ int main(int argc, char** argv)
                 const Frontier::NotificationPreferences& P = N.QueryApplied();
                 Notifications.AssignHoldSeconds(P.HoldSeconds);
                 Frontier::TelemetryRowStructure Rows = Telemetry.QueryRows();
-                Rows.ShowMemory = P.ShowMemoryUsage;
+                Rows.ShowStorage = P.ShowMemoryUsage;
                 Rows.ShowScene  = P.ShowSceneMetadata;
                 Telemetry.AssignRows(Rows);
                 if (!First)
@@ -1645,7 +1645,7 @@ int main(int argc, char** argv)
         }
 
 
-        // ①g Alert gates: "Autosave Errors" (preference writes), "Baking Complete" (accumulation converged),
+        // ①g Alert gates: "Autosave Errors" (preference writes), "Precomputing Complete" (accumulation converged),
         //    "Frame-rate Drops" (2 s average under 30 fps, once per episode).
         {
             const Frontier::NotificationPreferences& P = ControlCentre.QueryNotifications().QueryApplied();
@@ -1654,11 +1654,11 @@ int main(int argc, char** argv)
                 LastSaveError = Configuration.QueryLastError();
                 Notifications.Push("Configuration could not be saved", LastSaveError);
             }
-            if (Integrator.QueryAccumulationIndex() < BakeFrameCount) BakeAnnounced = false;
-            else if (!BakeAnnounced)
+            if (Integrator.QueryAccumulationIndex() < PrecomputeFrameCount) PrecomputeAnnounced = false;
+            else if (!PrecomputeAnnounced)
             {
-                BakeAnnounced = true;
-                if (P.BakingComplete) { char Body[96]; std::snprintf(Body, sizeof(Body), "%u frames accumulated; refinement continues", BakeFrameCount); Notifications.Push("Initial accumulation ready", Body); }
+                PrecomputeAnnounced = true;
+                if (P.PrecomputingComplete) { char Body[96]; std::snprintf(Body, sizeof(Body), "%u frames accumulated; refinement continues", PrecomputeFrameCount); Notifications.Push("Initial accumulation ready", Body); }
             }
             if (Telemetry.ConsumeFrameRateDrop(30.0f) && P.FrameRateDrops)
             {
@@ -1684,7 +1684,7 @@ int main(int argc, char** argv)
             static_cast<float>(Surface.QueryWidth()) /
             static_cast<float>(Surface.QueryHeight()));
 
-        // ③ Build ImGui draw data (calls ImGui::NewFrame → ImGui::Render internally); the Control Centre records
+        // ③ Build ImGui draw record (calls ImGui::NewFrame → ImGui::Render internally); the Control Centre records
         //    itself onto the foreground list between NewFrame and Render via the overlay hook.
         // ②c Scene editor feed: the roster fills once, the sheet follows the pick, and the folder
         //    tint mirror carries back onto the row every tick. Development only: without the define the
@@ -1990,7 +1990,7 @@ int main(int argc, char** argv)
             }
             GizmoKeyGHeld = GHeld; GizmoKeyRHeld = RHeld; GizmoKeySHeld = SHeld;
 
-            // A marker owns its click. Also discard an older asynchronous mesh answer so it cannot
+            // A marker owns its click. Also discard an older asynchronous topology answer so it cannot
             // replace the freshly selected environment entity several frames later.
             if(Panel.TakeBillboardSelection())PickAwaited=false;
 
@@ -2355,7 +2355,7 @@ int main(int argc, char** argv)
         }
 
         // ④c D3 — advance instance transforms and refresh them in place. No reallocation and no device stall, so
-        //     unlike UploadScene this is safe every frame; the VkBuffer handle is unchanged so descriptors stand.
+        //     unlike UploadScene this is safe every frame; the VkBuffer identifier is unchanged so descriptors stand.
         if (PhysicsReady)
         {
             BodyBridge.AdvancePhysics(BodySolver, AnimatedInstances, Δτ);
@@ -2374,7 +2374,7 @@ int main(int argc, char** argv)
                 bool RowsComposed = true;
                 for (size_t I = 0u; I < InstanceRows.size() && RowsComposed; ++I)
                 {
-                    // Relative to the bake: World_now · World_rest⁻¹. Unchanged instances take the exact-identity
+                    // Relative to the precompute: World_now · World_rest⁻¹. Unchanged instances take the exact-identity
                     //    branch so that a scene at rest keeps the pre-D6 numbers bit for bit — the composed matrix,
                     //    though mathematically identity, is not bitwise identity and would move grazing hits by an ulp.
                     if (std::memcmp(AnimatedInstances[I].World, RestWorlds[I].World, sizeof(RestWorlds[I].World)) == 0)
@@ -2478,33 +2478,33 @@ int main(int argc, char** argv)
             {
                 LastSky = Sky;
                 Integrator.ResetAccumulation("sky record");
-                SkyDomeQuietTicks = 0u;   // #26A a moving sky is never worth baking — wait for it to settle
+                SkyDomeQuietTicks = 0u;   // #26A a moving sky is never worth precomputing — wait for it to settle
             }
             else if (SkyDomeQuietTicks < 0xFFFFFFFFu)
                 ++SkyDomeQuietTicks;
 
-            // #26A the lazy bake: the boolean is on, no live bake covers the CURRENT staging, and the sky has
-            //    stood still for a second — so the ~2 s CPU bake runs once per settled staging, never per
+            // #26A the lazy precompute: the boolean is on, no live precompute covers the CURRENT staging, and the sky has
+            //    stood still for a second — so the ~2 s CPU precompute runs once per settled staging, never per
             //    scrub tick. The sheet re-seats its SLOT in place (RegisterHalves), the bindless table
             //    re-uploads (one deliberate hitch, device-idle inside), and the very next PackSkyRecord seats
             //    SkyControl.w — which changes the packed bytes, so the compare above restarts the accumulation
             //    on its own. A toggled-off boolean packs 0 and the kernel marches — bytes identical to the
-            //    pre-bake build.
-            const bool ExplicitDomeBake=Celestial.TakeSkyDomeBakeRequest();
-            if (ExplicitDomeBake || (Celestial.QuerySkyDomeBaked() && !Celestial.QuerySkyDomeLive() && SkyDomeQuietTicks == 30u))
+            //    pre-precompute build.
+            const bool ExplicitDomePrecompute=Celestial.TakeSkyDomePrecomputeRequest();
+            if (ExplicitDomePrecompute || (Celestial.QuerySkyDomeBaked() && !Celestial.QuerySkyDomeLive() && SkyDomeQuietTicks == 30u))
             {
-                // #26c the persisted bake is tried FIRST: LoadSkyDome hands back the file's halves only when
+                // #26c the persisted precompute is tried FIRST: LoadSkyDome hands back the file's halves only when
                 //    its recorded staging still matches this staging (the staleness rule at the file
-                //    boundary), so a hit skips the ~2 s bake entirely and a stale or absent file falls
-                //    through to the bake — which then re-writes the file for the next launch. The path is
+                //    boundary), so a hit skips the ~2 s precompute entirely and a stale or absent file falls
+                //    through to the precompute — which then re-writes the file for the next launch. The path is
                 //    Build/Space (gitignored, the regenerable-artifact convention): 1.3 MB of bytes any
                 //    machine can re-derive never enters the repository; PackProject.sh ships them.
                 const char* DomePath = "Projects/Project-Zero/Build/Space/SkyDome.environment";
                 std::vector<uint16_t> DomeHalves;
-                const bool FromFile = !ExplicitDomeBake && Celestial.LoadSkyDome(DomePath, DomeHalves);
+                const bool FromFile = !ExplicitDomePrecompute && Celestial.LoadSkyDome(DomePath, DomeHalves);
                 if (!FromFile)
                 {
-                    Celestial.BakeSkyDome(DomeHalves);
+                    Celestial.PrecomputeSkyDome(DomeHalves);
                     std::error_code DirectoryTrouble;
                     std::filesystem::create_directories("Projects/Project-Zero/Build/Space", DirectoryTrouble);
                     if (!Celestial.SaveSkyDome(DomePath, DomeHalves))
@@ -2518,8 +2518,8 @@ int main(int argc, char** argv)
                     Surface.UploadTextures(Textures);
                     Celestial.AssignSkyDomeSlot(DomeSlot);
                     Logger.RecordMessage(Frontier::DiagnosticSeverity::Information, "Sky",
-                                         FromFile ? "Baked dome resident from SkyDome.environment - the bake was skipped; escaped rays fetch, the sun/stars/moons/horizon stay analytic."
-                                                  : "Baked dome resident: 256x512 RGBA16F in the bindless table (persisted for the next launch) - escaped rays fetch, the sun/stars/moons/horizon stay analytic.");
+                                         FromFile ? "Precomputed dome resident from SkyDome.environment - the bake was skipped; escaped rays fetch, the sun/stars/moons/horizon stay analytic."
+                                                  : "Precomputed dome resident: 256x512 RGBA16F in the bindless table (persisted for the next launch) - escaped rays fetch, the sun/stars/moons/horizon stay analytic.");
                 }
             }
 
@@ -2678,8 +2678,8 @@ int main(int argc, char** argv)
         if(StartupFrames==120)Startup.Mark("After120Frames");
         // Sample after presentation, not on a background thread: this measures the render-loop
         // process without pretending that a sample is attributable to one asynchronous job.
-        if (Frontier::ProjectZero::StartupLog::Elapsed(LastMemorySample) >= 10000.0)
-        { Startup.Mark("RuntimeMemory"); LastMemorySample = Frontier::ProjectZero::StartupLog::Now(); }
+        if (Frontier::ProjectZero::StartupLog::Elapsed(LastStorageSample) >= 10000.0)
+        { Startup.Mark("RuntimeStorage"); LastStorageSample = Frontier::ProjectZero::StartupLog::Now(); }
         FRONTIER_PROBE_LAP(RecordAndPresent);
 
         Integrator.IncrementAccumulationIndex();
@@ -2708,9 +2708,9 @@ int main(int argc, char** argv)
             Workload.CpuSunMoonSolveMs=Celestial.CpuSunMoonSolveMs;
             Workload.CpuSkyPackUploadMs=CpuSkyPackUploadMs;
             Workload.CpuWeatherPostPackUploadMs=CpuWeatherPostPackUploadMs;
-            const auto CelestialMemory=Surface.QueryCelestialBufferUsage();
-            Workload.CelestialBufferPayloadBytes=CelestialMemory.PayloadBytes;
-            Workload.CelestialBufferAllocationBytes=CelestialMemory.AllocationBytes;
+            const auto CelestialStore=Surface.QueryCelestialBufferUsage();
+            Workload.CelestialStorePayloadBytes=CelestialStore.PayloadBytes;
+            Workload.CelestialStoreAllocationBytes=CelestialStore.AllocationBytes;
             Workload.SkySunUniformBytes=sizeof(Frontier::SkyConstantRecord);
             Workload.CloudFogUniformBytes=sizeof(Frontier::WeatherConstantRecord);
             Workload.PostUniformBytes=sizeof(Frontier::PostConstantRecord);
@@ -2772,7 +2772,7 @@ int main(int argc, char** argv)
     FRONTIER_PROBE_EVENT("Shutdown");
     // The interface's Vulkan resources live on Surface's device, so they must go FIRST: Surface.Retire()
     //    destroys the VkDevice, and Interface is declared later in this scope, so its destructor would
-    //    otherwise run against a device that no longer exists — the render pass / framebuffer / buffer
+    //    otherwise run against a device that no longer exists — the render pass / framebuffer / store
     //    leaks the validation layer reported at vkDestroyDevice.
 #ifdef FRONTIER_DEVELOPMENT
     Gizmo.Retire();   // same rule as the interface: its resources live on Surface's device

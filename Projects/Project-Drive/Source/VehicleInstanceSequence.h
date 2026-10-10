@@ -16,7 +16,7 @@
 //
 //    Per frame the host calls AdvanceVehicle(): it steps the solver at a FIXED sub-step (240 Hz) accumulating
 //    the frame's wall time, then writes World rows —
-//        instance BodyInstance      = T(chassis) · R(chassis)                       (mesh baked object-local)
+//        instance BodyInstance      = T(chassis) · R(chassis)                       (topology precomputed object-local)
 //        instance WheelInstance[i]  = T(hub_i) · R(chassis) · R(steer_i,Z) · R(spin_i,Y)
 //    PreviousWorld is rolled first so motion vectors and ReSTIR reprojection stay valid, exactly as
 //    InstanceMotionSequence / PhysicsInstanceSequence do.

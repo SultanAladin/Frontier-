@@ -1,7 +1,7 @@
 //============================================================================================================================================
 //                                                 GLOBALDISTANCEFIELDSPACE.H
 //============================================================================================================================================
-// 📦 World-space composite distance field volume and cascading 3D clipmaps accelerating scene-wide ray marching and coarse visibility queries.
+// 📦 World-space combined distance field volume and cascading 3D clipmaps accelerating scene-wide ray marching and coarse visibility queries.
 
 #pragma once
 
@@ -145,8 +145,8 @@ public:
     [[nodiscard]] CascadedGlobalDistanceField& GetMutableCascadedGDF() noexcept { return Cascades; }
 
 private:
-    std::vector<DistanceFieldPlacement> Placements;             // [-] registered scene mesh placements
-    DistanceFieldSpace      GlobalVolume;                       // [m] world-space coarse composite volume
+    std::vector<DistanceFieldPlacement> Placements;             // [-] registered scene topology placements
+    DistanceFieldSpace      GlobalVolume;                       // [m] world-space coarse combined volume
     CascadedGlobalDistanceField Cascades;                       // [-] 3-level nested cascading clipmaps
     Vector3                 WorldBoundingMinimum = { -5.0f, -5.0f, -0.5f }; // [m] scene bounding minimum
     Vector3                 WorldBoundingMaximum = {  5.0f,  5.0f,  3.5f }; // [m] scene bounding maximum

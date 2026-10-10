@@ -59,7 +59,7 @@ int main()
     Specification.Length = 8.0;
     Specification.Width = 5.0;
     Specification.Radius = 1.5;
-    Specification.HandleFraction = 1.0 / 3.0;
+    Specification.IdentifierFraction = 1.0 / 3.0;
 
     const Deliver<NurbsCurve> Profile = BlendSolver::BuildG2CornerProfile(Specification);
     Panel.Expect("The G2 corner profile builds as a quintic", Profile && Profile.Payload.Degree == 5 && Profile.Payload.PoleCount() == 6);
@@ -72,7 +72,7 @@ int main()
         Panel.Within("The high support join has zero curvature", EndpointCurvature(Profile.Payload, 1.0), 1e-10);
         Panel.Expect("The interior transition has measurable positive curvature", EndpointCurvature(Profile.Payload, 0.5) > 0.0);
         Panel.Expect("The G2 removed-area identity is positive", BlendSolver::G2CornerRemovalArea(Specification.Radius,
-                     Specification.HandleFraction) > 0.0);
+                     Specification.IdentifierFraction) > 0.0);
     }
 
     Panel.Section("G2 profile reconstruction and analytic volume");
@@ -83,7 +83,7 @@ int main()
         const BodyReport Report = Result.Payload.Validate();
         const double ExpectedVolume = Specification.Length *
             (Specification.Width * Specification.Width - BlendSolver::G2CornerRemovalArea(Specification.Radius,
-                                                                                           Specification.HandleFraction));
+                                                                                           Specification.IdentifierFraction));
         Panel.Expect("The G2 result has capped V10/E15/C30/L7/F7 topology", Report.Hulls == 1 && Report.Genus == 0 &&
                      Report.OpenEdges == 0 && Report.NonManifoldEdges == 0 && Report.MisorientedEdges == 0 &&
                      Result.Payload.Vertices.size() == 10 && Result.Payload.Edges.size() == 15 &&
@@ -94,10 +94,10 @@ int main()
 
     Panel.Section("G2-specific refusal boundaries");
     G2PlanarCornerSpecification Bad = Specification;
-    Bad.HandleFraction = 0.5;
+    Bad.IdentifierFraction = 0.5;
     Panel.Expect("A degenerate half-radius handle refuses", !BlendSolver::BuildG2CornerProfile(Bad));
     Bad = Specification;
-    Bad.HandleFraction = 0.0;
+    Bad.IdentifierFraction = 0.0;
     Panel.Expect("A zero handle refuses", !BlendSolver::BuildG2CornerProfile(Bad));
     Bad = Specification;
     Bad.Radius = Specification.Width;

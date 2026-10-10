@@ -34,7 +34,7 @@ struct alignas(16) SurfaceCacheTexel
     float                   ClearCoatRough   = 0.05f;           // [-] clear coat layer roughness
     uint32_t                CardIndex        = 0u;              // [-] owning surface card index
     bool                    IsAllocated      = false;           // [-] occupancy flag in atlas layout
-    bool                    IsDirty          = true;            // [-] requires direct radiance baking
+    bool                    IsDirty          = true;            // [-] requires direct radiance precomputing
 };
 
 //------------------------------------------------------------------------------------------------------------------------
@@ -55,22 +55,22 @@ struct SurfaceCard
     uint32_t                AtlasOffsetY     = 0u;              // [texels] atlas Y origin
     uint32_t                TileWidth        = 256u;            // [texels] card width
     uint32_t                TileHeight       = 256u;            // [texels] card height
-    bool                    IsDirty          = true;            // [-] requires re-baking
+    bool                    IsDirty          = true;            // [-] requires re-precomputing
 };
 
 //------------------------------------------------------------------------------------------------------------------------
-//                                            ASYNC BAKE SCHEDULER STATE
+//                                            ASYNC PRECOMPUTE SCHEDULER STATE
 //------------------------------------------------------------------------------------------------------------------------
 
-struct SurfaceCacheBakeState
+struct SurfaceCachePrecomputeState
 {
     Vector3                 IlluminantDirection = { 0.5f, -0.5f, 0.7071f };
     Vector3                 IlluminantRadiance  = { 2.2f, 2.1f, 1.9f };
     float                   LightAngularSize    = 0.175f;
     uint32_t                CurrentTexelCursor  = 0u;
     uint32_t                TotalTexels         = 0u;
-    uint32_t                BakedPassCounter    = 0u;
-    bool                    IsBakingActive      = false;
+    uint32_t                PrecomputedPassCounter    = 0u;
+    bool                    IsPrecomputingActive      = false;
     bool                    IsCompleted         = true;
 };
 
@@ -94,25 +94,25 @@ public:
                                     float Roughness = 0.25f,
                                     float ClearCoat = 0.0f) noexcept;
 
-    // Updates a card's world position (marks texels dirty for incremental baking)
+    // Updates a card's world position (marks texels dirty for incremental precomputing)
     void UpdateCardTransform(uint32_t CardId, Vector3 NewCenter) noexcept;
 
     // Parameterizes a single hero ShaderBall occupying the whole atlas (legacy API)
     void ParameterizeShaderBall(Vector3 Center, float Radius = 0.55f, Vector3 BaseAlbedo = { 0.85f, 0.40f, 0.20f }) noexcept;
 
     // Synchronous full-atlas direct lighting update using multithreaded OpenMP execution
-    void BakeDirectLightingMultithreaded(Vector3 IlluminantDirection,
+    void PrecomputeDirectLightingMultithreaded(Vector3 IlluminantDirection,
                                          Vector3 IlluminantRadiance,
                                          const GlobalDistanceFieldSpace& DistanceField,
                                          float LightAngularSize = 0.175f) noexcept;
 
-    // Initiates an asynchronous / time-sliced direct lighting bake
-    void QueueAsyncDirectBake(Vector3 IlluminantDirection,
+    // Initiates an asynchronous / time-sliced direct lighting precompute
+    void QueueAsyncDirectPrecompute(Vector3 IlluminantDirection,
                               Vector3 IlluminantRadiance,
                               float LightAngularSize = 0.175f) noexcept;
 
-    // Steps the asynchronous background bake by a given texel budget (returns true when current pass finishes)
-    bool StepAsyncDirectBake(const GlobalDistanceFieldSpace& DistanceField,
+    // Steps the asynchronous background precompute by a given texel budget (returns true when current pass finishes)
+    bool StepAsyncDirectPrecompute(const GlobalDistanceFieldSpace& DistanceField,
                              uint32_t TexelBudget = 16384u) noexcept;
 
     // Evaluates direct sun illuminant across valid surface cache texels (legacy API)
@@ -140,7 +140,7 @@ public:
     [[nodiscard]] uint32_t GetAtlasWidth() const noexcept { return AtlasWidth; }
     [[nodiscard]] uint32_t GetAtlasHeight() const noexcept { return AtlasHeight; }
     [[nodiscard]] size_t GetTexelCount() const noexcept { return TexelAtlas.size(); }
-    [[nodiscard]] const SurfaceCacheBakeState& GetBakeState() const noexcept { return BakeState; }
+    [[nodiscard]] const SurfaceCachePrecomputeState& GetPrecomputeState() const noexcept { return PrecomputeState; }
     [[nodiscard]] const std::vector<SurfaceCard>& GetCards() const noexcept { return Cards; }
 
     [[nodiscard]] const SurfaceCacheTexel& GetTexel(uint32_t X, uint32_t Y) const noexcept
@@ -158,7 +158,7 @@ private:
     uint32_t                       AtlasHeight      = 512u;            // [-] atlas pixel height
     std::vector<SurfaceCacheTexel> TexelAtlas;                         // [-] contiguous surface cache texel storage
     std::vector<SurfaceCard>       Cards;                              // [-] registered surface cards
-    SurfaceCacheBakeState          BakeState;                          // [-] background baking progress & parameters
+    SurfaceCachePrecomputeState          PrecomputeState;                          // [-] background precomputing progress & parameters
 };
 
 } // namespace Frontier

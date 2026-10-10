@@ -73,7 +73,7 @@ Project-Zero integration gate.
 
 Implemented in the shared profile source and standalone preview:
 
-1. `Tri` carries per-vertex UVs, the OBJ loader preserves `vt` coordinates, and procedural sphere/torus/cylinder meshes
+1. `Tri` carries per-vertex UVs, the OBJ loader preserves `vt` coordinates, and procedural sphere/torus/cylinder geometries
    emit UVs that are barycentrically interpolated at the hit.
 2. `AutomotiveCarbonWeave` and `AutomotiveTireTread` are deterministic UV test fields shared by the CPU and GPU source;
    they modulate the base/roughness lobes and feed a bounded UV-frame normal detail pass.
@@ -102,7 +102,7 @@ Only after the standalone images are accepted:
 
 1. add material serialization fields and decode/build parity checks;
 2. map profiles into Project-Zero's material records;
-3. integrate car meshes and UV assets in a separate Project-Zero automotive scene;
+3. integrate car geometries and UV assets in a separate Project-Zero automotive scene;
 4. add UI controls and GPU SPIR-V captures;
 5. preserve existing ReSTIR, GI, reflection controls and the deferred sky reservoir.
 

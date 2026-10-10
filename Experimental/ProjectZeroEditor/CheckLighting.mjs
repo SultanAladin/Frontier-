@@ -120,7 +120,7 @@ try {
     await Square(Frame);
     const Controls =
       Id === "light"
-        ? Page.frameLocator('[data-reference-slice="details"] iframe')
+        ? Page.frameLocator('[record-reference-slice="details"] iframe')
         : Frame;
     assert.equal(
       await Frame.locator(".lighting-panel .lp-card").count(),
@@ -136,7 +136,7 @@ try {
       (Canvas) => Canvas.toDataURL(),
     );
     await Controls.locator(
-      'input[type=number][data-light-property="' + Property + '"]',
+      'input[type=number][record-light-property="' + Property + '"]',
     ).fill(String(Next));
     await Page.waitForFunction(
       ({ Id, Property, Next }) =>
@@ -155,17 +155,17 @@ try {
     await Open(Id);
     const Reopened =
       Id === "light"
-        ? Page.frameLocator('[data-reference-slice="details"] iframe')
+        ? Page.frameLocator('[record-reference-slice="details"] iframe')
         : Page.frameLocator('iframe[title^="Reference inspector"]').first();
     await Reopened.locator(".lp-shape").waitFor();
     assert.equal(
       await Reopened.locator(
-        'input[type=number][data-light-property="' + Property + '"]',
+        'input[type=number][record-light-property="' + Property + '"]',
       ).inputValue(),
       String(Next),
     );
     if (Id === "light") {
-      assert(await Page.locator('[data-panel="light"]').count());
+      assert(await Page.locator('[record-panel="light"]').count());
       assert(
         await Page.getByLabel("Intensity value", { exact: true }).count(),
         "Original native light control retained",
@@ -338,9 +338,9 @@ try {
   }
   await Open("height-fog");
   assert.equal(await Page.locator(".reference-inspector-copy").count(), 0);
-  assert.equal(await Page.locator('[data-card="Visibility through fog"]').count(), 1);
+  assert.equal(await Page.locator('[record-card="Visibility through fog"]').count(), 1);
   assert.equal(
-    await Page.locator('[data-card="Medium"] > .fog-shared-beam').count(),
+    await Page.locator('[record-card="Medium"] > .fog-shared-beam').count(),
     1,
   );
   await Page.screenshot({ path: path.join(Proof, "height-fog-tiles.png") });
@@ -376,9 +376,9 @@ try {
     });
     if ((await Enable.getAttribute("aria-checked")) !== "true")
       await Enable.click();
-    await Page.getByRole("button", { name: "Baked", exact: true }).click();
+    await Page.getByRole("button", { name: "Precomputed", exact: true }).click();
     await Page.getByRole("switch", {
-      name: "Bake SDF per piece",
+      name: "Precompute SDF per piece",
       exact: true,
     }).click();
     await Page.getByLabel("SDF resolution per piece", {
@@ -408,9 +408,9 @@ try {
     name: "Enable fracture",
     exact: true,
   }).click();
-  await Page.getByRole("button", { name: "Baked", exact: true }).click();
+  await Page.getByRole("button", { name: "Precomputed", exact: true }).click();
   await Page.getByRole("switch", {
-    name: "Bake SDF per piece",
+    name: "Precompute SDF per piece",
     exact: true,
   }).click();
   assert(
@@ -419,7 +419,7 @@ try {
     ),
   );
   Checks.push(
-    "Imported geometry entries can author settings without claiming an available mesh preview",
+    "Imported geometry entries can author settings without claiming an available topology preview",
   );
   await Open("sphere");
   await Page.locator(".fracture-card").scrollIntoViewIfNeeded();
@@ -437,7 +437,7 @@ try {
   await Fracture.locator("#bake").click();
   await Fracture.waitForFunction(
     () =>
-      window.FrontierFracture.snapshot().Baked &&
+      window.FrontierFracture.snapshot().Precomputed &&
       !window.FrontierFracture.snapshot().Busy,
   );
   assert(
@@ -456,7 +456,7 @@ try {
     BeforeSignature,
   );
   assert(
-    await Fracture.evaluate(() => window.FrontierFracture.snapshot().Baked),
+    await Fracture.evaluate(() => window.FrontierFracture.snapshot().Precomputed),
   );
   const Export = await Fracture.evaluate(() =>
     window.FrontierFracture.export(),

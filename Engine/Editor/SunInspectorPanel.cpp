@@ -23,7 +23,7 @@ EditorProperty* Find(EditorSheet& Sheet,const char* Name) noexcept {
         if(std::strcmp(Sheet.Groups[G].Properties[P].Label,Name)==0)return &Sheet.Groups[G].Properties[P];
     return nullptr;
 }
-enum class Mark {Sun,Orbit,Sparkles,Bake,Upload,Reset,Arrow};
+enum class Mark {Sun,Orbit,Sparkles,Precompute,Upload,Reset,Arrow};
 void Icon(ImDrawList* D,ImVec2 At,Mark M,ImU32 Tint,float Size=16) {
     Canvas C{D,At,Size/24};
     auto Line=[&](float X,float Y,float XX,float YY){C.Line({X,Y},{XX,YY},Tint,1.5f);};
@@ -39,7 +39,7 @@ void Icon(ImDrawList* D,ImVec2 At,Mark M,ImU32 Tint,float Size=16) {
         const ImVec2 P[]={{12,2},{14.1f,8.5f},{15.5f,9.9f},{22,12},{15.5f,14.1f},{14.1f,15.5f},{12,22},{9.9f,15.5f},{8.5f,14.1f},{2,12},{8.5f,9.9f},{9.9f,8.5f},{12,2}};
         for(unsigned I=1;I<13;++I)C.Line(P[I-1],P[I],Tint,1.5f);
         Line(20,3,20,7);Line(18,5,22,5);Line(4,17,4,19);Line(3,18,5,18);
-    } else if(M==Mark::Bake) {
+    } else if(M==Mark::Precompute) {
         Line(12,5,19,5);Line(19,5,21,7);Line(21,7,21,19);Line(21,19,19,21);Line(19,21,7,21);Line(7,21,5,19);Line(5,19,5,13);
         Line(2,9,13,9);Line(9,5,13,9);Line(13,9,9,13);Line(3,2,3,5);Line(1.5f,3.5f,4.5f,3.5f);
         D->AddRect(C.P(14,14),C.P(17,17),Tint,0,0,1.5f*C.Scale);
@@ -60,8 +60,8 @@ struct Panel {
     }
     void Rule(float X,float Y,float W)const {D->AddLine(At(X,Y),At(X+W,Y),Colour(255,255,255,12/255.f));}
     void Surface(float X,float Y,float W,float H,float Round=22)const {
-        int First=D->VtxBuffer.Size;D->AddRectFilled(At(X,Y),At(X+W,Y+H),Colour(255,255,255),Round);
-        ImGui::ShadeVertsLinearColorGradientKeepAlpha(D,First,D->VtxBuffer.Size,At(X,Y),At(X+W,Y+H),Colour(37,37,37),Colour(32,32,32));
+        int First=D->VtxStore.Size;D->AddRectFilled(At(X,Y),At(X+W,Y+H),Colour(255,255,255),Round);
+        ImGui::ShadeVertsLinearColorGradientKeepAlpha(D,First,D->VtxStore.Size,At(X,Y),At(X+W,Y+H),Colour(37,37,37),Colour(32,32,32));
         D->AddRect(At(X,Y),At(X+W,Y+H),Colour(52,52,52),Round);
     }
     void Card(float X,float Y,float W,float H,const char* Title,Mark M,ImU32 Accent)const {
@@ -107,13 +107,13 @@ struct Panel {
         Centre(X,Y+57,W,Label,10,Colour(200,200,200));Centre(X,Y+80,W,On?(Lit?"ON":"OFF"):"UNAVAILABLE",8,ColourKey);
         if(ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled))ImGui::SetTooltip("%s",Why);
     }
-    void Bake(float X,float Y,float W,const char* Title,const char* Id)const {
-        ImGui::PushID(Id);Card(X,Y,W,225,Title,Mark::Bake,Colour(172,172,172));
+    void Precompute(float X,float Y,float W,const char* Title,const char* Id)const {
+        ImGui::PushID(Id);Card(X,Y,W,225,Title,Mark::Precompute,Colour(172,172,172));
         Text(X+W-123,Y+26,"Procedural source",9,Colour(142,142,142));
-        // Both source targets are drawn. Neither is aliased to the existing Sky-dome bake.
-        Quick(X+24,Y+59,119,"##source","Use baked image",Mark::Bake,nullptr,"No native image binding exists for this Sun target.");
+        // Both source targets are drawn. Neither is aliased to the existing Sky-dome precompute.
+        Quick(X+24,Y+59,119,"##source","Use baked image",Mark::Precompute,nullptr,"No native image binding exists for this Sun target.");
         float AX=X+159,AW=W-183;
-        Button(AX,Y+59,AW,32,"##bake","Bake",false,Mark::Bake,"Sun-specific renderer bake is not exposed. No fake request or completed result is produced.");
+        Button(AX,Y+59,AW,32,"##bake","Precompute",false,Mark::Precompute,"Sun-specific renderer bake is not exposed. No fake request or completed result is produced.");
         Button(AX,Y+100,AW,32,"##load","Load image",false,Mark::Upload,"Native image import/binding is not implemented for this target.");
         Wrap(AX,Y+143,AW,"No image source connected.",9,Colour(133,133,133));
         Rule(X+24,Y+181,W-48);Wrap(X+24,Y+192,W-48,"Renderer / imported-image binding unavailable",9,Colour(144,139,130));
@@ -186,7 +186,7 @@ void RecordSunInspector(ControlPanel& Controls,EditorInstance& Row,EditorSheet& 
     const bool StackDirection=L<370;
     const float DirH=840,SmallH=(DirH-Gap)/2,BottomH=360;
     U.Card(0,Y,L,DirH,"Sun direction",Mark::Orbit,Colour(232,182,95));
-    char Buffer[64];std::snprintf(Buffer,sizeof(Buffer),"%.1f°",double(El->Figure));U.Text(24,Y+57,Buffer,Two?54:46,Ink,true);
+    char Block[64];std::snprintf(Block,sizeof(Block),"%.1f°",double(El->Figure));U.Text(24,Y+57,Block,Two?54:46,Ink,true);
     U.Text(L-105,Y+70,El->Figure<0?"Below the\nhorizon":"Above the\nhorizon",10,Muted);
     Orbit(Fit(U.D,U.At(16,Y+123),{L-32,250},360,280),Az->Figure,El->Figure);
     U.Native(24,Y+385,L-48,"##sun-direction-time",*Time);
@@ -194,28 +194,28 @@ void RecordSunInspector(ControlPanel& Controls,EditorInstance& Row,EditorSheet& 
     for(int I=0;I<2;++I){float X=StackDirection?24:24+I*(Half+18);float V=I?El->Figure:Az->Figure;
         float FieldY=Y+(StackDirection?I*117:0),FieldW=StackDirection?L-48:Half;
         U.D->AddRectFilled(U.At(X,FieldY+442),U.At(X+FieldW,FieldY+551),Colour(25,25,25,180/255.f),12);U.D->AddRect(U.At(X,FieldY+442),U.At(X+FieldW,FieldY+551),Colour(51,51,51),12);
-        U.Text(X+12,FieldY+453,I?"Elevation":"Azimuth",10,Colour(161,161,161));std::snprintf(Buffer,sizeof(Buffer),"%.1f°",double(V));U.Text(X+12,FieldY+473,Buffer,24,Ink,true);
+        U.Text(X+12,FieldY+453,I?"Elevation":"Azimuth",10,Colour(161,161,161));std::snprintf(Block,sizeof(Block),"%.1f°",double(V));U.Text(X+12,FieldY+473,Block,24,Ink,true);
         U.SolvedSlider(X+8,FieldY+510,FieldW-16,I?"##sun-elevation":"##sun-azimuth",V,I?-90:0,I?90:360);
     }
     U.Text(24,Y+DirH-27,"Shared time above · angles solved by date / location",10,Muted);
     float IX=Two?L+Gap:0,IY=Two?Y:Y+DirH+Gap;
     U.Card(IX,IY,R,SmallH,"Sunlight intensity",Mark::Sun,Colour(232,199,106));
-    std::snprintf(Buffer,sizeof(Buffer),"%.1f",double(Intensity->Figure));U.Text(IX+24,IY+58,Buffer,46,Ink,true);
-    U.Text(IX+31+Light->CalcTextSizeA(46,10000,0,Buffer).x,IY+84,"×",17,Muted);
+    std::snprintf(Block,sizeof(Block),"%.1f",double(Intensity->Figure));U.Text(IX+24,IY+58,Block,46,Ink,true);
+    U.Text(IX+31+Light->CalcTextSizeA(46,10000,0,Block).x,IY+84,"×",17,Muted);
     U.Text(IX+24,IY+116,"Sunlight intensity multiplier",11,Muted);
     CurvePanel GainCurve{U.At(IX+24,IY+142), {R-48,150}, {0,0}, {60,300}};
     GainCurve.RecordProbe("##sun-gain-curve", Intensity->Figure, 0.6f, "x");
     const float DirectGain = Find(Sheet,"Direct")->Figure;
     const float CombinedGain = GainCurve.RecordCurve([&](float Gain) { return Gain * DirectGain; }, Colour(217,198,161));
-    std::snprintf(Buffer,sizeof(Buffer),"Gain %.1f x · Direct %.2f x",double(CombinedGain),double(DirectGain));
-    U.Text(IX+24,IY+302,Buffer,10,Muted);
+    std::snprintf(Block,sizeof(Block),"Gain %.1f x · Direct %.2f x",double(CombinedGain),double(DirectGain));
+    U.Text(IX+24,IY+302,Block,10,Muted);
     U.Native(IX+24,IY+324,R-48,"##sun-intensity",*Intensity);
     U.Wrap(IX+24,IY+366,R-48,"Drag gain · Intensity × Direct. Authored multipliers, not measured lux.",10,Muted);
     float TY=IY+SmallH+Gap;
     U.Card(IX,TY,R,SmallH,"Temperature",Mark::Sparkles,Colour(230,156,121));
     if(ColourSource->Picked==1){
-        std::snprintf(Buffer,sizeof(Buffer),"%.0f",double(Temperature->Figure));U.Text(IX+24,TY+58,Buffer,46,Ink,true);
-        U.Text(IX+31+Light->CalcTextSizeA(46,10000,0,Buffer).x,TY+84,"K",17,Muted);
+        std::snprintf(Block,sizeof(Block),"%.0f",double(Temperature->Figure));U.Text(IX+24,TY+58,Block,46,Ink,true);
+        U.Text(IX+31+Light->CalcTextSizeA(46,10000,0,Block).x,TY+84,"K",17,Muted);
     } else U.Text(IX+24,TY+58,"RGB",46,Ink,true);
     ImGui::SetCursorScreenPos(U.At(IX+24,TY+109));
     ImGui::BeginChild("##sun-colour-source",{R-48,32},ImGuiChildFlags_None,ImGuiWindowFlags_NoScrollbar|ImGuiWindowFlags_NoScrollWithMouse);
@@ -226,9 +226,9 @@ void RecordSunInspector(ControlPanel& Controls,EditorInstance& Row,EditorSheet& 
     const ImDrawListFlags SavedDrawFlags=U.D->Flags;U.D->Flags &= ~ImDrawListFlags_AntiAliasedFill;
     for(int I=0;I<4;++I){
         ImVec2 A=U.At(IX+24+(R-48)*Off[I],TY+148),B=U.At(IX+24+(R-48)*Off[I+1],TY+164);
-        int First=U.D->VtxBuffer.Size;
+        int First=U.D->VtxStore.Size;
         U.D->AddRectFilled(A,B,IM_COL32_WHITE,8,I==0?ImDrawFlags_RoundCornersLeft:I==3?ImDrawFlags_RoundCornersRight:ImDrawFlags_RoundCornersNone);
-        ImGui::ShadeVertsLinearColorGradientKeepAlpha(U.D,First,U.D->VtxBuffer.Size,A,{B.x,A.y},Stops[I],Stops[I+1]);
+        ImGui::ShadeVertsLinearColorGradientKeepAlpha(U.D,First,U.D->VtxStore.Size,A,{B.x,A.y},Stops[I],Stops[I+1]);
     }
     U.D->Flags=SavedDrawFlags;
     U.Text(IX+24,TY+168,"Warm",10,Muted);U.Text(IX+R-47,TY+168,"Cool",10,Muted);
@@ -247,8 +247,8 @@ void RecordSunInspector(ControlPanel& Controls,EditorInstance& Row,EditorSheet& 
     SpectrumCurve.RecordProbe("##sun-spectrum-curve", Wavelength, 4, "nm");
     const float Power = SpectrumCurve.RecordCurve([&](float Sample) { return EnvironmentProjection::SampleSpectrum(Sample,Temperature->Figure); }, Colour(210,190,173));
     ImGui::GetStateStorage()->SetFloat(SpectrumIdentity,Wavelength);
-    std::snprintf(Buffer,sizeof(Buffer),"%.0f nm · %.3f relative power",double(SpectrumCurve.Probe),double(Power));
-    U.Text(IX+24,TY+377,Buffer,10,Muted);
+    std::snprintf(Block,sizeof(Block),"%.0f nm · %.3f relative power",double(SpectrumCurve.Probe),double(Power));
+    U.Text(IX+24,TY+377,Block,10,Muted);
     U.Text(IX+24,TY+394,"Planck study · RGB mode does not use this spectrum",9,Muted);
     CelestialObservation Observer;
     Observer.Year = int(Find(Sheet,"Year")->Figure);
@@ -261,7 +261,7 @@ void RecordSunInspector(ControlPanel& Controls,EditorInstance& Row,EditorSheet& 
     float CY=Two?Y+DirH+Gap:TY+SmallH+Gap;
     U.Card(0,CY,L,BottomH,"Daylight cycle",Mark::Sun,Colour(212,185,112));
     int Hour=int(Time->Figure),Minute=int(std::round((Time->Figure-Hour)*60));if(Minute==60){Minute=0;Hour=(Hour+1)%24;}
-    std::snprintf(Buffer,sizeof(Buffer),"%02d:%02d",Hour,Minute);U.Text(24,CY+61,Buffer,40,Ink,true);
+    std::snprintf(Block,sizeof(Block),"%02d:%02d",Hour,Minute);U.Text(24,CY+61,Block,40,Ink,true);
     const char* Period=CelestialSolver::Solve(Observer).Sun.Elevation<0?"Night":"Daylight";
     U.D->AddRectFilled(U.At(L-109,CY+68),U.At(L-24,CY+94),Colour(44,44,44),13);U.Centre(L-109,CY+75,85,Period,10,Colour(188,188,188));
     CurvePanel DayCurve{U.At(24,CY+116), {L-48,135}, {0,-90}, {24,90}};
@@ -272,13 +272,13 @@ void RecordSunInspector(ControlPanel& Controls,EditorInstance& Row,EditorSheet& 
         Position.LocalHours = Hours;
         return CelestialSolver::Solve(Position).Sun.Elevation;
     }, Colour(222,204,170));
-    std::snprintf(Buffer,sizeof(Buffer),"%.2f h · elevation %+.2f deg",double(DayCurve.Probe),double(DayElevation));
-    U.Text(24,CY+264,Buffer,10,Muted);
+    std::snprintf(Block,sizeof(Block),"%.2f h · elevation %+.2f deg",double(DayCurve.Probe),double(DayElevation));
+    U.Text(24,CY+264,Block,10,Muted);
     U.Native(24,CY+286,L-48,"##sun-time",*Time);
     U.Text(24,CY+332,"Drag time · native solar solver / current date",9,Muted);
     float DX=Two?L+Gap:0,DY=Two?CY:CY+BottomH+Gap;
     U.Card(DX,DY,R,BottomH,"Sun disc",Mark::Sun,Colour(240,189,114));
-    std::snprintf(Buffer,sizeof(Buffer),"%.2f°",double(Size->Figure));U.Text(DX+24,DY+93,Buffer,R<380?34:43,Ink,true);U.Text(DX+24,DY+146,"Angular diameter",11,Muted);
+    std::snprintf(Block,sizeof(Block),"%.2f°",double(Size->Figure));U.Text(DX+24,DY+93,Block,R<380?34:43,Ink,true);U.Text(DX+24,DY+146,"Angular diameter",11,Muted);
     const float DiscSide=R<380?90:126;Canvas Disc{U.D,U.At(DX+R-24-DiscSide,DY+68),DiscSide/126};
     Disc.Glow(63,63,63,201,165,103,15/255.f);Disc.Line({0,63},{126,63},Colour(255,255,255,18/255.f));Disc.Line({63,0},{63,126},Colour(255,255,255,18/255.f));
     std::array<ImVec2,97> Rim;for(int I=0;I<=96;++I)Rim[I]={63+55*std::cos(I*2*Pi/96),63+55*std::sin(I*2*Pi/96)};
@@ -311,9 +311,9 @@ void RecordSunInspector(ControlPanel& Controls,EditorInstance& Row,EditorSheet& 
     }, Colour(187,198,172));
     auto InspectedDate = Observer;
     EnvironmentProjection::ResolveDate(InspectedDate,int(std::round(SeasonCurve.Probe)));
-    std::snprintf(Buffer,sizeof(Buffer),"%04d-%02d-%02d · local-noon elevation %+.2f deg",
+    std::snprintf(Block,sizeof(Block),"%04d-%02d-%02d · local-noon elevation %+.2f deg",
         InspectedDate.Year,InspectedDate.Month,InspectedDate.Day,double(NoonElevation));
-    U.Wrap(24,End+372,W-48,Buffer,10,Muted);
+    U.Wrap(24,End+372,W-48,Block,10,Muted);
     U.Wrap(24,End+393,W-48,"Drag date · native solver at 12:00 local time, not solar noon. Hover inspects; arrows / Home / End edit.",10,Muted);
     End+=458;
     ImGui::SetCursorScreenPos(U.At(0,End));
@@ -344,13 +344,13 @@ void RecordSunInspector(ControlPanel& Controls,EditorInstance& Row,EditorSheet& 
     // Parent draw list is submitted before its child: same gradient/radius as every other card.
     U.Surface(0,End,W,CardHeight,22);
     // Export targets always follow authoring, previews and native settings.
-    float BakeY=End+CardHeight+22;
-    U.Text(0,BakeY,"BAKING / TEXTURES",10,Muted);
-    U.Text(0,BakeY+20,"Native target bindings pending",10,Muted);
-    const float BakeW=Two?(W-12)/2:W;
-    U.Bake(0,BakeY+44,BakeW,"Sun lighting bake","sun-lighting-bake");
-    U.Bake(Two?BakeW+12:0,BakeY+(Two?44:281),BakeW,"Sun disk bake","sun-disk-bake");
-    ImGui::SetCursorScreenPos(U.At(0,BakeY+(Two?290:527)));ImGui::TextDisabled("Bound controls apply in real time. Unavailable controls are disabled.");
+    float PrecomputeY=End+CardHeight+22;
+    U.Text(0,PrecomputeY,"PRECOMPUTING / TEXTURES",10,Muted);
+    U.Text(0,PrecomputeY+20,"Native target bindings pending",10,Muted);
+    const float PrecomputeW=Two?(W-12)/2:W;
+    U.Precompute(0,PrecomputeY+44,PrecomputeW,"Sun lighting bake","sun-lighting-bake");
+    U.Precompute(Two?PrecomputeW+12:0,PrecomputeY+(Two?44:281),PrecomputeW,"Sun disk bake","sun-disk-bake");
+    ImGui::SetCursorScreenPos(U.At(0,PrecomputeY+(Two?290:527)));ImGui::TextDisabled("Bound controls apply in real time. Unavailable controls are disabled.");
     ImGui::Dummy({0,16});ImGui::PopFont();
 }
 }

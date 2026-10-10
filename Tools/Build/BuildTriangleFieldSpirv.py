@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Compile the mesh SDF compute kernels (Engine/GeometricRaster/Shaders/TriangleField.slang) to SPIR-V through the Slang C API and write
+Compile the topology SDF compute kernels (Engine/GeometricRaster/Shaders/TriangleField.slang) to SPIR-V through the Slang C API and write
 them as a generated include that the Vulkan host embeds.
 
     python3 Tools/Build/BuildTriangleFieldSpirv.py [--slang-lib PATH] [--out PATH]
@@ -77,7 +77,7 @@ def write_include(blobs: dict, out: Path) -> None:
 
 
 # Host struct layouts (Engine/GeometricRaster/TriangleFieldVulkanExchange.h) must match what Slang compiled. Offsets are checked from the SPIR-V
-# decorations. Constant buffers are read directly; the structured buffer's element is read through its runtime array.
+# decorations. Constant stores are read directly; the structured store's element is read through its runtime array.
 EXPECTED_CONSTANT_BUFFERS = {
     0: ("GridProjectionParams", [0, 16, 28, 32, 40]),
     3: ("ClipMinimumParams", [0, 12, 16, 32, 48, 60, 64]),

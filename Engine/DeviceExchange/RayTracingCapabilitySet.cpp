@@ -34,7 +34,7 @@ RayTracingCapabilitySet RayTracingCapabilitySet::Probe(VkPhysicalDevice Device) 
 
     Set.AccelerationStructureExtension  = HasExtension(Extensions, VK_KHR_ACCELERATION_STRUCTURE_EXTENSION_NAME);
     Set.RayQueryExtension               = HasExtension(Extensions, VK_KHR_RAY_QUERY_EXTENSION_NAME);
-    Set.RayTracingPipelineExtension     = HasExtension(Extensions, VK_KHR_RAY_TRACING_PIPELINE_EXTENSION_NAME);
+    Set.RayTracingChainExtension     = HasExtension(Extensions, VK_KHR_RAY_TRACING_PIPELINE_EXTENSION_NAME);
     Set.DeferredHostOperationsExtension = HasExtension(Extensions, VK_KHR_DEFERRED_HOST_OPERATIONS_EXTENSION_NAME);
     Set.ShaderInt64Atomics              = HasExtension(Extensions, VK_KHR_SHADER_ATOMIC_INT64_EXTENSION_NAME);
 
@@ -55,14 +55,14 @@ RayTracingCapabilitySet RayTracingCapabilitySet::Probe(VkPhysicalDevice Device) 
     Chain(&Features12, &Features12.pNext);
     if (Set.AccelerationStructureExtension) Chain(&AsFeatures, &AsFeatures.pNext);
     if (Set.RayQueryExtension)              Chain(&RqFeatures, &RqFeatures.pNext);
-    if (Set.RayTracingPipelineExtension)    Chain(&RpFeatures, &RpFeatures.pNext);
+    if (Set.RayTracingChainExtension)    Chain(&RpFeatures, &RpFeatures.pNext);
     vkGetPhysicalDeviceFeatures2(Device, &Features2);
 
-    Set.BufferDeviceAddress          = Features12.bufferDeviceAddress == VK_TRUE;
+    Set.StoreDeviceAddress          = Features12.bufferDeviceAddress == VK_TRUE;
     Set.DescriptorIndexing           = Features12.descriptorIndexing == VK_TRUE && Features12.runtimeDescriptorArray == VK_TRUE;
     Set.AccelerationStructureFeature = Set.AccelerationStructureExtension && AsFeatures.accelerationStructure == VK_TRUE;
     Set.RayQueryFeature              = Set.RayQueryExtension && RqFeatures.rayQuery == VK_TRUE;
-    Set.RayTracingPipelineFeature    = Set.RayTracingPipelineExtension && RpFeatures.rayTracingPipeline == VK_TRUE;
+    Set.RayTracingChainFeature    = Set.RayTracingChainExtension && RpFeatures.rayTracingPipeline == VK_TRUE;
 
     // ③ Properties / limits
     VkPhysicalDeviceAccelerationStructurePropertiesKHR AsProperties{};
@@ -85,7 +85,7 @@ RayTracingCapabilitySet RayTracingCapabilitySet::Probe(VkPhysicalDevice Device) 
     Set.MaxGeometryCount                = AsProperties.maxGeometryCount;
     Set.MaxInstanceCount                = AsProperties.maxInstanceCount;
     Set.DeviceName                      = Properties2.properties.deviceName;
-    Set.DriverInfo                      = std::string(DriverProperties.driverName) + " " + DriverProperties.driverInfo;
+    Set.DriverDetails                      = std::string(DriverProperties.driverName) + " " + DriverProperties.driverInfo;
     return Set;
 }
 
@@ -93,8 +93,8 @@ RayTracingTierCategory RayTracingCapabilitySet::QuerySupportedTier() const noexc
 {
     // Each tier requires the full extension + feature set of the tier below plus its own.
     const bool AsReady = AccelerationStructureExtension && AccelerationStructureFeature
-                      && DeferredHostOperationsExtension && BufferDeviceAddress;
-    if (AsReady && RayQueryFeature && RayTracingPipelineFeature) return RayTracingTierCategory::Pipeline;
+                      && DeferredHostOperationsExtension && StoreDeviceAddress;
+    if (AsReady && RayQueryFeature && RayTracingChainFeature) return RayTracingTierCategory::Sequence;
     if (AsReady && RayQueryFeature)                              return RayTracingTierCategory::RayQuery;
     return RayTracingTierCategory::Software;
 }
@@ -107,7 +107,7 @@ RayTracingTierCategory RayTracingCapabilitySet::ResolveTier(RayTracingRequestCat
     {
         case RayTracingRequestCategory::Software: Wanted = RayTracingTierCategory::Software; break;
         case RayTracingRequestCategory::RayQuery: Wanted = RayTracingTierCategory::RayQuery; break;
-        case RayTracingRequestCategory::Pipeline: Wanted = RayTracingTierCategory::Pipeline; break;
+        case RayTracingRequestCategory::Sequence: Wanted = RayTracingTierCategory::Sequence; break;
         default: break;
     }
     // Never above what the device supports — downgrade silently here; the caller announces it.
@@ -120,7 +120,7 @@ const char* RayTracingCapabilitySet::TierName(RayTracingTierCategory Tier) noexc
     {
         case RayTracingTierCategory::Software: return "Software BVH";
         case RayTracingTierCategory::RayQuery: return "Ray Query";
-        case RayTracingTierCategory::Pipeline: return "Ray Pipeline";
+        case RayTracingTierCategory::Sequence: return "Ray Sequence";
         default: return "Unknown";
     }
 }
@@ -132,7 +132,7 @@ const char* RayTracingCapabilitySet::RequestName(RayTracingRequestCategory Reque
         case RayTracingRequestCategory::Auto:     return "Auto";
         case RayTracingRequestCategory::Software: return "Software";
         case RayTracingRequestCategory::RayQuery: return "RayQuery";
-        case RayTracingRequestCategory::Pipeline: return "Pipeline";
+        case RayTracingRequestCategory::Sequence: return "Sequence";
         default: return "Unknown";
     }
 }

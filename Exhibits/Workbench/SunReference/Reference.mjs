@@ -27,10 +27,10 @@ for(let i=0;i<cases.length;i++)for(const kind of ['Orbit','Day','Illuminance'])f
  // Skia SVG rejects CSS #RRGGBBAA; losslessly express the same alpha separately.
  text=text.replace(/(fill|stroke)="#([0-9a-fA-F]{6})([0-9a-fA-F]{2})"/g,(_,attr,rgb,alpha)=>`${attr}="#${rgb}" ${attr}-opacity="${parseInt(alpha,16)/255}"`);
  fs.writeFileSync(path.join(out,`Reference-${kind}-${i}-${scale}x.svg`),text+'\n');
- const c=createCanvas(w*scale,h*scale),cx=c.getContext('2d');cx.fillStyle='#232323';cx.fillRect(0,0,c.width,c.height);cx.drawImage(await loadImage(Buffer.from(text)),0,0);
+ const c=createCanvas(w*scale,h*scale),cx=c.getContext('2d');cx.fillStyle='#232323';cx.fillRect(0,0,c.width,c.height);cx.drawImage(await loadImage(Block.from(text)),0,0);
  fs.writeFileSync(path.join(out,`Reference-${kind}-${i}-${scale}x.png`),c.toBuffer('image/png'));
  const n=createCanvas(c.width,c.height),nx=n.getContext('2d');nx.drawImage(await loadImage(path.join(out,`Native-${kind}-${i}-${scale}x.png`)),0,0);
- const a=cx.getImageData(0,0,c.width,c.height).data,b=nx.getImageData(0,0,c.width,c.height).data;let sum=0,changed=0;
+ const a=cx.getImageData(0,0,c.width,c.height).record,b=nx.getImageData(0,0,c.width,c.height).record;let sum=0,changed=0;
  for(let p=0;p<a.length;p+=4){let delta=0;for(let k=0;k<3;k++)delta+=Math.abs(a[p+k]-b[p+k]);sum+=delta;if(delta/3>12)changed++;}
  metrics.push({kind,case:i,scale,meanRgbPercent:100*sum/(c.width*c.height*3*255),pixelsOver12Percent:100*changed/(c.width*c.height)});
 }

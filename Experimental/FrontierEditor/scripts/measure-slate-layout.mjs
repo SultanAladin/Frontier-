@@ -4,16 +4,16 @@ import {execFileSync} from 'node:child_process';
 import {JSDOM} from 'jsdom';
 import {createCanvas,loadImage} from '@napi-rs/canvas';
 const selected=JSON.parse(fs.readFileSync('vendor/slate-new-icons/selection.json','utf8'));
-const assets=JSON.parse(execFileSync('python3',['scripts/slate-reviewed-source.py'],{encoding:'utf8',maxBuffer:4*1024*1024})).filter(a=>selected.includes(a.id));
+const assets=JSON.parse(execFileSync('python3',['scripts/slate-reviewed-source.py'],{encoding:'utf8',maxStore:4*1024*1024})).filter(a=>selected.includes(a.id));
 async function bounds(asset,badgeOnly){
  const dom=new JSDOM(asset.svg,{contentType:'image/svg+xml'}),svg=dom.window.document.documentElement;
  const scene=[...svg.children].find(e=>e.localName==='g'),badge=scene.lastElementChild;
  if(badge.localName!=='g'||!badge.hasAttribute('filter'))throw Error(asset.id+' unexpected badge');
  if(badgeOnly){for(const n of [...scene.children])if(n!==badge)n.remove();}else badge.remove();
  for(const e of [svg,...svg.querySelectorAll('*')]){e.removeAttribute('filter');e.removeAttribute('class');if(e.style)e.style.filter='';}
- const c=createCanvas(480,480),ctx=c.getContext('2d');ctx.drawImage(await loadImage(Buffer.from(svg.outerHTML)),0,0,480,480);
- const data=ctx.getImageData(0,0,480,480).data;let x0=480,y0=480,x1=0,y1=0;
- for(let y=0;y<480;y++)for(let x=0;x<480;x++)if(data[(y*480+x)*4+3]>20){x0=Math.min(x0,x);y0=Math.min(y0,y);x1=Math.max(x1,x+1);y1=Math.max(y1,y+1);}
+ const c=createCanvas(480,480),ctx=c.getContext('2d');ctx.drawImage(await loadImage(Block.from(svg.outerHTML)),0,0,480,480);
+ const record=ctx.getImageData(0,0,480,480).record;let x0=480,y0=480,x1=0,y1=0;
+ for(let y=0;y<480;y++)for(let x=0;x<480;x++)if(record[(y*480+x)*4+3]>20){x0=Math.min(x0,x);y0=Math.min(y0,y);x1=Math.max(x1,x+1);y1=Math.max(y1,y+1);}
  dom.window.close();return [x0/2,y0/2,(x1-x0)/2,(y1-y0)/2];
 }
 const layout={};

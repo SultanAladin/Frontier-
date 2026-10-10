@@ -114,9 +114,9 @@ public:
     [[nodiscard]] uint64_t Signature() const noexcept
     {
         uint64_t Hash = 14695981039346656037ull;
-        auto Mix = [&](const void* Data, size_t Count)
+        auto Mix = [&](const void* Packet, size_t Count)
         {
-            const auto* Bytes = static_cast<const unsigned char*>(Data);
+            const auto* Bytes = static_cast<const unsigned char*>(Packet);
             for (size_t Index = 0u; Index < Count; ++Index) { Hash ^= Bytes[Index]; Hash *= 1099511628211ull; }
         };
         const uint32_t Algorithm = 1u;

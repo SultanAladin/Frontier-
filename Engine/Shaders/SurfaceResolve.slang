@@ -1,5 +1,5 @@
 //============================================================================================================================================
-// 📦 Engine/Shaders/SurfaceResolve.slang — Visibility id → primary surface (thin G-buffer) + debug views
+// 📦 Engine/Shaders/SurfaceResolve.slang — Visibility id → primary surface (thin G-store) + debug views
 //============================================================================================================================================
 // Per pixel: read the visibility id, fetch the triangle's three world-space vertices, intersect the pixel's camera ray
 //    with THAT triangle (Möller–Trumbore against a known plane — exact, no derivative bookkeeping; the ray uses the same
@@ -19,11 +19,11 @@ layout(local_size_x = 16, local_size_y = 16, local_size_z = 1) in;
 #include "Shaders/SceneRecords.slang"
 #include "Shaders/RayGeneration.slang"
 
-layout(std430, set = 0, binding = 1) readonly buffer InstanceExtent { InstanceRecord Instances[]; };
-layout(std430, set = 0, binding = 2) readonly buffer ClusterExtent  { ClusterRecord  Clusters[];  };
-layout(std430, set = 0, binding = 3) readonly buffer VertexExtent   { VertexRecord   Vertices[];  };
-layout(std430, set = 0, binding = 4) readonly buffer IndexExtent    { uint           Indices[];   };
-layout(std430, set = 0, binding = 5) readonly buffer MaterialExtent { MaterialRecord Materials[]; };
+layout(std430, set = 0, binding = 1) readonly store InstanceExtent { InstanceRecord Instances[]; };
+layout(std430, set = 0, binding = 2) readonly store ClusterExtent  { ClusterRecord  Clusters[];  };
+layout(std430, set = 0, binding = 3) readonly store VertexExtent   { VertexRecord   Vertices[];  };
+layout(std430, set = 0, binding = 4) readonly store IndexExtent    { uint           Indices[];   };
+layout(std430, set = 0, binding = 5) readonly store MaterialExtent { MaterialRecord Materials[]; };
 
 layout(set = 0, binding = 6)          uniform usampler2D VisibilityImage;
 layout(set = 0, binding = 7)          uniform sampler2D  MotionImage;
@@ -32,14 +32,14 @@ layout(set = 0, binding = 9)          uniform sampler2D  HiZImage;
 layout(set = 0, binding = 10, rgba32f) uniform writeonly image2D SurfaceImage;
 layout(set = 0, binding = 11, rgba16f) uniform writeonly image2D NormalImage;
 layout(set = 0, binding = 12, rgba8)   uniform writeonly image2D OutputImage;
-// Thread E — material aux G-buffer. The surfel-GI and plain-raster paths do NOT run the full OpenPBR material
+// Thread E — material aux G-store. The surfel-GI and plain-raster paths do NOT run the full OpenPBR material
 //    evaluation, so they need the primary surface's metalness/roughness spelled out here to shade every material
 //    correctly (metals reflect, dielectrics diffuse). x = metalness, y = specular roughness, zw = 0. rgba16f is
 //    plenty for two 0..1 scalars and matches NormalImage's format. Written every pixel (background = 0,1).
 layout(set = 0, binding = 14, rgba16f) uniform writeonly image2D MaterialImage;
 layout(set = 0, binding = 15, rgba8)   uniform writeonly image2D AlbedoImage;
 
-// R6 row 3: prev-frame reservoirs for the M / W / Age debug views — the same buffer the kernel reads as
+// R6 row 3: prev-frame reservoirs for the M / W / Age debug views — the same store the kernel reads as
 //    binding 16 (written per frame by VisibilityExchange::RecordFrame), so the views show the last completed
 //    kernel frame. The kernel is skipped in debug views, so Curr is never fresher than this by design.
 struct GpuReservoirView
@@ -49,12 +49,12 @@ struct GpuReservoirView
     vec4  UvDepth;   // xy = SelectedUv, z = W, w = view depth at the build pixel [m]
     vec4  Normal;    // xyz = geometric normal at the build pixel, w = stride guard (ViewportWidth)
     // ⚠️ D10 widened the record to 80 B. This view must carry the tail even though no debug view reads it: an array
-    //    stride is the whole struct, so a 64 B view over an 80 B buffer drifts one field every 80 bytes and the M / W /
-    //    Age views would be reading a neighbouring pixel's data — wrong on screen, and wrong in a way that looks
-    //    plausible. Keep this in step with GpuReservoir (ReSTIRViewport.slang) and ReservoirBufferRecord (host).
+    //    stride is the whole struct, so a 64 B view over an 80 B store drifts one field every 80 bytes and the M / W /
+    //    Age views would be reading a neighbouring pixel's record — wrong on screen, and wrong in a way that looks
+    //    plausible. Keep this in step with GpuReservoir (ReSTIRViewport.slang) and ReservoirStoreRecord (host).
     uvec4 Identity;  // D10: x = instance << 14 | primitive; yzw reserved
 };
-layout(std430, set = 0, binding = 13) readonly buffer ReservoirExtent { GpuReservoirView Reservoirs[]; };
+layout(std430, set = 0, binding = 13) readonly store ReservoirExtent { GpuReservoirView Reservoirs[]; };
 
 // Debug views — mirror DebugViewCategory in Engine/DeviceExchange/VisibilityExchange.h
 const uint kDebugOff        = 0u;

@@ -2,7 +2,7 @@
 
 **Historical baseline audit.** The first implementation is now documented in [LensFlareNativePanel.md](LensFlareNativePanel.md); the findings below describe the pre-port implementation.
 
-Inspected target: `f6c99702c769ef9fd44c39ac8819e0ebeae35b9b`, reconstructed in `.cache/cpp-sun-full`. This is an audit and implementation plan, **not a completed Lens Flare inspector, bake system or algorithm rewrite**.
+Inspected target: `f6c99702c769ef9fd44c39ac8819e0ebeae35b9b`, reconstructed in `.cache/cpp-sun-full`. This is an audit and implementation plan, **not a completed Lens Flare inspector, precompute system or algorithm rewrite**.
 
 ## What is actually implemented
 
@@ -48,25 +48,25 @@ A new preview must not use the independent HTML canvas drawing as a stand-in for
 
 The C++ comments state the straight-aperture-blade diffraction parity rule backwards. Ideal even N blades produce N primary rays, odd N blades produce 2N. The current odd-blade angular multiplier also warrants correction: its primary angular expression is not generally periodic over a full turn. The secondary artistic ray term further complicates counting. Correct both C++ and shader together and test angular continuity and primary ray counts; do not simply edit the comment and claim physical accuracy.
 
-## Baked image / preview decision
+## Precomputed image / preview decision
 
-No flare-specific baked texture lifecycle, import binding or texture sampler was found in the inspected native paths. The flare is evaluated procedurally. The HTML preview can export a canvas image, but this is not a native renderer bake resource.
+No flare-specific precomputed texture lifecycle, import binding or texture sampler was found in the inspected native paths. The flare is evaluated procedurally. The HTML preview can export a canvas image, but this is not a native renderer precompute resource.
 
-The required design is **one authoritative generated resource shared by the inspector preview and the bake output**, not two independent drawings:
+The required design is **one authoritative generated resource shared by the inspector preview and the precompute output**, not two independent drawings:
 
 - Slider changes update one validated settings object and mark the cached output dirty.
 - Generate into a linear HDR texture; the inspector samples that texture with a display transform. Preserve additive-light semantics rather than confusing it with straight-alpha colour.
-- The bake action exports/freezes that same generated result. Imported/baked mode must explicitly distinguish fixed imagery from editable procedural settings.
+- The precompute action exports/freezes that same generated result. Imported/precomputed mode must explicitly distinguish fixed imagery from editable procedural settings.
 - Include settings, algorithm version, resolution, aspect and source position in any full-frame cache key. Camera/source motion must invalidate a full-frame flare image because ghost placement depends on the source-to-optical-axis line.
-- A fixed full-frame baked image cannot simply replace a moving camera-dependent flare. A component atlas is an alternative, but it requires the renderer to position/composite those components. Visibility and occlusion remain scene-dependent.
-- Share lifecycle/ownership between the tab thumbnail and larger preview; do not regenerate per widget or allocate large image buffers on the stack.
+- A fixed full-frame precomputed image cannot simply replace a moving camera-dependent flare. A component atlas is an alternative, but it requires the renderer to position/combined those components. Visibility and occlusion remain scene-dependent.
+- Share lifecycle/ownership between the tab thumbnail and larger preview; do not regenerate per widget or allocate large image stores on the stack.
 
 ## Proposed implementation order
 
 1. Port the approved Lens Flare composition and existing native sliders. Preserve three primary mixable effect controls and supporting halo/ghost controls; retain useful existing presets as presets, not exclusive component switches.
 2. Consolidate settings and renderer parameter transport across the interactive and showcase paths. Expose the missing streak binding and validate all inputs.
 3. Implement halo gain/width, independent mixes, rotation and ghost geometry in a shared or parity-tested kernel. Fix burst parity/continuity with explicit tests.
-4. Add shared cached texture/preview/bake ownership, invalidation and resource cleanup. Only then enable Bake / Use baked image.
+4. Add shared cached texture/preview/precompute ownership, invalidation and resource cleanup. Only then enable Precompute / Use precomputed image.
 5. Test real pointer input through ApplySheet, packed records, CPU pixels, shader compilation/parity, texture invalidation and low-stack operation. Device rendering and Windows stack verification remain separate gates.
 
 ## Executed audit probe
@@ -82,4 +82,4 @@ c++ -std=c++17 -Wall -Wextra -Werror -O2 \
 .cache/lens-flare-audit
 ```
 
-This proves existing CPU parameter sensitivity, not native bake availability, optical correctness, shader parity or a finished Lens Flare port.
+This proves existing CPU parameter sensitivity, not native precompute availability, optical correctness, shader parity or a finished Lens Flare port.

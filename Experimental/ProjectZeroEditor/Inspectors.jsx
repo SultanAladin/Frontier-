@@ -163,7 +163,7 @@ export function Icon({ Name, Size = 24 }) {
     return (
       <span
         className="native-icon precipitation-symbol"
-        data-native-icon={Name}
+        record-native-icon={Name}
         style={{ color: "#91b7cd", display: "inline-flex" }}
       >
         <ActionIcon Name="rain" Size={Size} />
@@ -177,7 +177,7 @@ export function Icon({ Name, Size = 24 }) {
       height={Size}
       src={Source}
       alt=""
-      data-native-icon={Name}
+      record-native-icon={Name}
     />
   ) : (
     <Glyph Name={Name} Size={Size} />
@@ -286,7 +286,7 @@ export function Control({
   return (
     <label
       className={"field " + (Compact ? "compact" : "")}
-      data-native-property={Label}
+      record-native-property={Label}
     >
       <span>{Label}</span>
       <div className="slider-pill">
@@ -344,7 +344,7 @@ export function Card({
     <section
       className={"property-card " + (Wide ? "span-two " : "") + Class}
       style={{ minHeight: Height, "--accent": Accent || "#bababa" }}
-      data-card={Title}
+      record-card={Title}
     >
       <h3>
         {Mark && <Glyph Name={Mark} Size={16} />}
@@ -374,7 +374,7 @@ export function Tile({
       onClick={Action}
       aria-pressed={Disabled ? undefined : !!On}
       aria-label={Label}
-      data-quick-action={Label}
+      record-quick-action={Label}
     >
       <span className="quick-icon-seat">
         <ActionIcon Name={QuickSymbol(Label, Context, IconName)} Size={26} />
@@ -438,7 +438,7 @@ export function EntityNotes({ Value = "", Change }) {
   );
 }
 
-function Bake({ Title, Sun = false }) {
+function Precompute({ Title, Sun = false }) {
   return (
     <Card Title={Title} Height={Sun ? 225 : 162}>
       {Sun && <small className="procedural-source">Procedural source</small>}
@@ -446,7 +446,7 @@ function Bake({ Title, Sun = false }) {
         <Tile Label="Use baked image" Disabled Large={Sun} IconName="bake" />
         <div>
           <button disabled>
-            <Glyph Name="bake" /> Bake
+            <Glyph Name="bake" /> Precompute
           </button>
           <button disabled>↥　Load image</button>
           <p>No image source connected.</p>
@@ -590,7 +590,7 @@ export function Inspector({
   const Capabilities = () => (
     <section
       className="generic-card entity-capabilities"
-      data-card="Quick controls"
+      record-card="Quick controls"
     >
       <h4>QUICK CONTROLS</h4>
       <div className="tiles">
@@ -731,7 +731,7 @@ export function Inspector({
               ? "environment-live"
               : "")
           }
-          data-panel={Subject.Panel}
+          record-panel={Subject.Panel}
         >
           {Subject.ReferenceOnly && Subject.Panel === "light" ? (
             <>
@@ -926,11 +926,11 @@ export function Inspector({
           JavaScript. No GPU lighting is running.
         </p>
         <div className="section-caption">
-          BAKING <small>Native target bindings pending</small>
+          PRECOMPUTING <small>Native target bindings pending</small>
         </div>
         <div className="card-grid">
-          <Bake Title="Sun lighting bake" Sun />
-          <Bake Title="Sun disk bake" Sun />
+          <Precompute Title="Sun lighting bake" Sun />
+          <Precompute Title="Sun disk bake" Sun />
         </div>
       </>
     );
@@ -1114,13 +1114,13 @@ export function Inspector({
             a schematic.
           </p>
         </Card>
-        <div className="section-caption">BAKING</div>
+        <div className="section-caption">PRECOMPUTING</div>
         <Card Title="Star field bake">
           <div className="tiles">
-            <Tile Label="Bake" Disabled IconName="bake" />
+            <Tile Label="Precompute" Disabled IconName="bake" />
             <Tile Label="Use baked" Disabled IconName="bake" />
           </div>
-          <p>Baked-star playback is not implemented.</p>
+          <p>Precomputed-star playback is not implemented.</p>
         </Card>
       </>
     );
@@ -1290,7 +1290,7 @@ export function Inspector({
           {F("Ground Albedo")}
           <p>
             Original RGB ground albedo · applied separately, not stored in the
-            smooth dome bake.
+            smooth dome precompute.
           </p>
         </Card>
         <Card Title="Native atmosphere controls">
@@ -1305,15 +1305,15 @@ export function Inspector({
             "Tier Samples",
           )}
         </Card>
-        <div className="section-caption">BAKING</div>
-        <Bake Title="Atmosphere bake" Sun />
-        <Card Title="Baked atmosphere" Height={210}>
+        <div className="section-caption">PRECOMPUTING</div>
+        <Precompute Title="Atmosphere bake" Sun />
+        <Card Title="Precomputed atmosphere" Height={210}>
           <div className="empty-image">No resident atmosphere image</div>
           <p>
-            Load / bake requires the native engine. No completed bake is
+            Load / precompute requires the native engine. No completed precompute is
             simulated.
           </p>
-          {F("Fetch Baked Dome", true)}
+          {F("Fetch Precomputed Dome", true)}
           {Fields("Dome Path", "Sheet")}
         </Card>
       </>
@@ -1371,7 +1371,7 @@ export function Inspector({
           </div>
           <p>
             Drag the source · HTML optical illustration, not the renderer
-            composite.
+            combined.
           </p>
         </Card>
         <Card Title="Flare settings">
@@ -1402,8 +1402,8 @@ export function Inspector({
         <Card Title="Legacy preset settings">
           {Fields("Aperture Blades", "Preview X", "Preview Y")}
         </Card>
-        <div className="section-caption">BAKING</div>
-        <Bake Title="Lens flare image" />
+        <div className="section-caption">PRECOMPUTING</div>
+        <Precompute Title="Lens flare image" />
       </>
     );
   } else if (Subject.Panel === "gas") {
@@ -1557,7 +1557,7 @@ export function Inspector({
         <Card Title="Bow response" Height={458}>
           {Fields("Intensity", "Width", "Secondary", "Minimum Path")}
         </Card>
-        <Bake Title="Bake / image" />
+        <Precompute Title="Precompute / image" />
       </>
     );
   } else if (["clouds", "local-cloud"].includes(Subject.Panel)) {
@@ -1583,7 +1583,7 @@ export function Inspector({
         </Card>
         <section
           className="cloud-coverage-replacement"
-          data-card="Cloud coverage"
+          record-card="Cloud coverage"
         >
           {CloudCoverageCards}
           {F("Coverage")}
@@ -1731,7 +1731,7 @@ export function Inspector({
     <GraphContext.Provider value={{ Panel: Subject.Panel }}>
       <div
         className={"specialized-inspector environment-live " + Subject.Panel}
-        data-panel={Subject.Panel}
+        record-panel={Subject.Panel}
       >
         {Content}
       </div>

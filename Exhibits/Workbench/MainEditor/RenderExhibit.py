@@ -19,12 +19,12 @@ for p in O.glob('*.png'):
  blob=p.read_bytes();parts=[];i=8
  while i<len(blob):
   n=struct.unpack('>I',blob[i:i+4])[0];parts.append((blob[i+4:i+8],blob[i+8:i+8+n]));i+=n+12
- data=zlib.compress(zlib.decompress(b''.join(d for t,d in parts if t==b'IDAT')),9);out=bytearray(blob[:8]);done=False
+ record=zlib.compress(zlib.decompress(b''.join(d for t,d in parts if t==b'IDAT')),9);out=bytearray(blob[:8]);done=False
  for t,d in parts:
   if t==b'IDAT':
    if done:continue
-   d=data;done=True
+   d=record;done=True
   out+=struct.pack('>I',len(d))+t+d+struct.pack('>I',zlib.crc32(t+d)&0xffffffff)
  p.write_bytes(out)
-inputs=[source,Path(__file__),R/'Engine/DisplayPresentation/IconArt.cpp',R/'Engine/DisplayPresentation/BakedIconArt.h',*list((R/'EngineContent/Icons/Baked').glob('*')),*O.glob('*.png'),O/'captures.json',*list((T/'EngineContent/FontArchives').rglob('*.ttf')),*list((R/'EngineContent/Icons').glob('*.svg'))]
+inputs=[source,Path(__file__),R/'Engine/DisplayPresentation/IconArt.cpp',R/'Engine/DisplayPresentation/PrecomputedIconArt.h',*list((R/'EngineContent/Icons/Precomputed').glob('*')),*O.glob('*.png'),O/'captures.json',*list((T/'EngineContent/FontArchives').rglob('*.ttf')),*list((R/'EngineContent/Icons').glob('*.svg'))]
 (O/'Provenance.json').write_text(json.dumps({'mode':'Native EditorHost CPU capture, not GPU execution','fixture':'No imported level; environment eyes enabled; fixed 1/60 simulation step; project defaults otherwise','runtimeRoot':str(T),'commands':[compile,link,run],'output':result.stdout,'sha256':{str(p.relative_to(R)):hashlib.sha256(p.read_bytes()).hexdigest() for p in inputs}},indent=2)+'\n')

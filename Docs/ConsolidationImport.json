@@ -548,11 +548,11 @@
       "action": "imported"
     },
     {
-      "path": "Engine/GeometricRaster/BlasBuildPipeline.cpp",
+      "path": "Engine/GeometricRaster/BlasBuildChain.cpp",
       "action": "imported"
     },
     {
-      "path": "Engine/GeometricRaster/BlasBuildPipeline.h",
+      "path": "Engine/GeometricRaster/BlasBuildChain.h",
       "action": "imported"
     },
     {

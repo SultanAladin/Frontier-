@@ -407,7 +407,7 @@ public:
     //    Each medium now marches its own span at half its feature scale (the layer keeps the tier's 143 m step
     //    — near enough to half its 315 m features that the tier keeps quoting it), capped by its budget; steps
     //    sit at absolute multiples of the step, so a span's comb never moves when another medium appears; the
-    //    media composite near-to-far, which is exact for disjoint spans (what parked volumes are — an
+    //    media combined near-to-far, which is exact for disjoint spans (what parked volumes are — an
     //    editor-dragged overlap composites in span order, approximately). Fog still shadows cloud and cloud
     //    still shadows fog, because the SUN-shadow march samples the combined medium — one shadow march per
     //    occupied step, whichever loop it sits in, which is the number the gate asserts.

@@ -104,7 +104,7 @@ void ScenePresentation::DrawTriad(RasterExchange& Raster, double Length) noexcep
 
 void ScenePresentation::DrawEmpty(RasterExchange& Raster, Vec3 Position, double Size) noexcept
 {
-    // Phase 19: an Empty is a transform handle with no geometry. We draw a small triad (3 short
+    // Phase 19: an Empty is a transform identifier with no geometry. We draw a small triad (3 short
     //    coloured lines, one per world axis) at the Empty's position so the user can see it.
     const float Colours[3][3] = { { 0.90f, 0.25f, 0.25f }, { 0.30f, 0.80f, 0.30f }, { 0.30f, 0.50f, 0.95f } };
     const Vec3 Axes[3] = { Vec3::UnitX(), Vec3::UnitY(), Vec3::UnitZ() };

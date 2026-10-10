@@ -11,7 +11,7 @@
 //    Drag maths: axis grips use the closest point on the axis line to the pointer ray; plane and rotate grips
 //    intersect the pointer ray with the plane through the pivot; Ctrl snaps to 0.25 m / 0.1× / 5°.
 //    The gizmo is drawn in the overlay segment at a constant pixel size (L scales with camera distance) and picks
-//    through its own analytic ray tests, not the pick buffer, so it works before anything is rendered.
+//    through its own analytic ray tests, not the pick store, so it works before anything is rendered.
 #pragma once
 
 #include "CameraProjection.h"

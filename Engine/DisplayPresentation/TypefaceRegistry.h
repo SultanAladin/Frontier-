@@ -31,7 +31,7 @@ namespace Frontier {
 struct TypefaceFace
 {
     FontWeightCategory Weight   = FontWeightCategory::Regular;
-    void*              Handle   = nullptr;   // [-] backend face (ImFont*), opaque above this seam
+    void*              Tag   = nullptr;   // [-] backend face (ImFont*), opaque above this seam
 };
 
 struct TypefaceFamily

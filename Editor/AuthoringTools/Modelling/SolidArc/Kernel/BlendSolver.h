@@ -639,7 +639,7 @@ struct G2PlanarCornerSpecification
     double Length = 0.0;
     double Width = 0.0;
     double Radius = 0.0;
-    double HandleFraction = 1.0 / 3.0;                                                   // [-] quintic tangent handle / Radius
+    double IdentifierFraction = 1.0 / 3.0;                                                   // [-] quintic tangent identifier / Radius
 };
 
 // A bounded rolling-ball-core transition. The exact circular core is deliberately separated from
@@ -946,7 +946,7 @@ public:
     [[nodiscard]] static Deliver<NurbsCurve> BuildG2CornerProfile(const G2PlanarCornerSpecification& Specification) noexcept;
     [[nodiscard]] static bool ValidateG2CornerProfile(const NurbsCurve& Profile, const G2PlanarCornerSpecification& Specification,
                                                       std::string& Refusal) noexcept;
-    [[nodiscard]] static double G2CornerRemovalArea(double Radius, double HandleFraction) noexcept;
+    [[nodiscard]] static double G2CornerRemovalArea(double Radius, double IdentifierFraction) noexcept;
     [[nodiscard]] static Deliver<BrepBody> ReconstructG2PlanarCorner(const G2PlanarCornerSpecification& Specification) noexcept;
     [[nodiscard]] static Deliver<G2RollingBallProfile> BuildG2RollingBallProfile(
         const G2RollingBallPlanarCornerSpecification& Specification) noexcept;

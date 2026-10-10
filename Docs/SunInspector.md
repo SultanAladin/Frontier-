@@ -8,7 +8,7 @@ Apply `Tools/Build/Patches/SunInspector.patch` **after** `NativeOutliner.patch` 
 
 Sun now has six scrollable, collapsible cards:
 
-1. **Bake / image** — honest capability notice. No Sun-specific bake or imported-image path exists in the current properties. It does not toggle Sky's bake under a different name.
+1. **Precompute / image** — honest capability notice. No Sun-specific precompute or imported-image path exists in the current properties. It does not toggle Sky's precompute under a different name.
 2. **Sun Disk** — angular diameter and native RGB tint.
 3. **Sunlight gain** — intensity and direct-light multipliers, explicitly **not lux**. Colour temperature is not invented.
 4. **Day cycle** — a full 24-hour local-clock illustration, native Local Hours slider, Animate switch, and speed selector. The dial is informational, not a pretend manual azimuth/elevation control.

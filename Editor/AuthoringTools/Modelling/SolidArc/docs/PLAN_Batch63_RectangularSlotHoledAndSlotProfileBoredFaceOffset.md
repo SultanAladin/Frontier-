@@ -7,7 +7,7 @@ profile or through-hole is an exact analytic slot (a closed line/arc/line/arc ch
 `NurbsCurve::Slot`, stored as a degree-two rational closed curve with thirteen poles):
 
 1. A canonical axis-aligned rectangular prism with exactly one canonical **slot through-hole**
-   (genus 1). This is the first holed route whose hole wall is a composite linear-plus-circular
+   (genus 1). This is the first holed route whose hole wall is a combined linear-plus-circular
    analytic chain rather than a single conic or a polygonal chain.
 2. A canonical axis-aligned **slot-profile prism** with exactly one canonical concentric circular
    bore (genus 1). This is the first route whose outer wall is a slot chain.
@@ -25,7 +25,7 @@ Both support only a finite positive +Z extension of their upper planar cap.
   `V4/E6/C12/L6/F4`, genus 1, two-loop caps, two extrusion walls, two seam lines, two slot curves
   and two circles.
 
-Because the extrusion pipeline flattens a slot's classification, recognition is structural plus
+Because the extrusion chain flattens a slot's classification, recognition is structural plus
 sampled: closed, rational, degree two, thirteen poles, Z axis, `SpanY = 2·Radius`,
 `SpanX = 2·(HalfSpan + Radius)`, planar, and 49 samples within `1e-6` of a freshly built
 `NurbsCurve::Slot` with the derived parameters.

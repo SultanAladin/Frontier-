@@ -126,20 +126,20 @@ int main()
     }
     Panel.Expect("The source bodies are untouched", std::fabs(A.Validate().Volume - 64.0) < 1e-9 && std::fabs(B.Validate().Volume - 64.0) < 1e-9 && A.Faces.size() == 6 && B.Faces.size() == 6);
 
-    //------------------------------------------------------------------ same-body handle: two hulls carried by one B-rep document
+    //------------------------------------------------------------------ same-body identifier: two hulls carried by one B-rep document
     Panel.Section("Same-body face loft: a bounded handle bridge joins two disconnected hulls without duplicating faces");
     Deliver<BrepBody> MultiHull = IntersectionSolver::Combine(A, B, BodyOperation::Union);
     Panel.Expect("The same-body fixture contains two valid disconnected hulls", MultiHull && MultiHull.Payload.Validate().Solid() && MultiHull.Payload.Validate().Hulls == 2);
     const int ATop = MultiHull ? FaceNear(MultiHull.Payload, { 4, 2, 2 }, { 1, 0, 0 }) : -1;
     const int BBottom = MultiHull ? FaceNear(MultiHull.Payload, { 10, 2, 2 }, { -1, 0, 0 }) : -1;
-    Deliver<BrepBody> Handle = MultiHull && ATop >= 0 && BBottom >= 0
+    Deliver<BrepBody> Tag = MultiHull && ATop >= 0 && BBottom >= 0
         ? SkinSolver::LoftFaces(MultiHull.Payload, ATop, MultiHull.Payload, BBottom)
         : Deliver<BrepBody>::Reject(RefusalReason::DegenerateInput, "same-body fixture failed");
-    Panel.Expect("Two facing faces on one same-body multi-hull B-rep produce a closed handle solid", Handle && Handle.Payload.Validate().Solid());
-    if (!Handle) Panel.Note("same-body refusal: %s — %s", Refusal::Describe(Handle.Denial.Reason), Handle.Denial.Detail);
-    if (Handle)
+    Panel.Expect("Two facing faces on one same-body multi-hull B-rep produce a closed handle solid", Tag && Tag.Payload.Validate().Solid());
+    if (!Tag) Panel.Note("same-body refusal: %s — %s", Refusal::Describe(Tag.Denial.Reason), Tag.Denial.Detail);
+    if (Tag)
     {
-        const BodyReport R = Handle.Payload.Validate();
+        const BodyReport R = Tag.Payload.Validate();
         Panel.Expect("The same-body bridge joins one oriented genus-zero hull", R.Hulls == 1 && R.Genus == 0 && R.Vertices == 16 && R.Edges == 25 && R.Faces == 11);
         Panel.Expect("The same-body bridge does not duplicate the surviving topology", R.OpenEdges == 0 && R.NonManifoldEdges == 0);
         Panel.Within("The same-body bridge volume is the two boxes plus the connecting prism", std::fabs(R.Volume - 224.0) / 224.0, VolumeLimit);
@@ -250,12 +250,12 @@ int main()
     Panel.Expect("The console accepts two distinct faces of one body", [&]
     {
         if (!MultiHull) return false;
-        ConsoleHost HandleHost(SOLIDARC_PROOF_FOLDER, 1280, 800);
-        (void)HandleHost.Document().AddBody("HandleSource", MultiHull.Payload);
-        const std::string SameCommand = "loft HandleSource:f" + std::to_string(ATop) + " HandleSource:f" + std::to_string(BBottom) + " --keep --name=Handle";
-        const bool AcceptedSame = HandleHost.Execute(SameCommand);
-        const SceneFigure* Result = HandleHost.Document().Find("Handle");
-        return AcceptedSame && Result && Result->Body.Validate().Solid() && HandleHost.Document().Find("HandleSource");
+        ConsoleHost IdentifierHost(SOLIDARC_PROOF_FOLDER, 1280, 800);
+        (void)IdentifierHost.Document().AddBody("IdentifierSource", MultiHull.Payload);
+        const std::string SameCommand = "loft IdentifierSource:f" + std::to_string(ATop) + " IdentifierSource:f" + std::to_string(BBottom) + " --keep --name=Tag";
+        const bool AcceptedSame = IdentifierHost.Execute(SameCommand);
+        const SceneFigure* Result = IdentifierHost.Document().Find("Tag");
+        return AcceptedSame && Result && Result->Body.Validate().Solid() && IdentifierHost.Document().Find("IdentifierSource");
     }());
 
     const std::filesystem::path Proof = std::filesystem::path(SOLIDARC_PROOF_FOLDER) / "Phase34a_FaceLoft.png";
@@ -273,15 +273,15 @@ int main()
     Panel.Expect("C++ proof commands complete without refusal", Rendered);
     Panel.Expect("C++ contact-sheet proof is written and non-trivial", std::filesystem::exists(Proof) && std::filesystem::file_size(Proof, Error) > 100000);
 
-    const std::filesystem::path HandleProof = std::filesystem::path(SOLIDARC_PROOF_FOLDER) / "Phase34f_SameBodyFaceLoft.png";
-    std::filesystem::remove(HandleProof, Error);
-    ConsoleHost HandleProofHost(SOLIDARC_PROOF_FOLDER, 1600, 800);
-    const bool HandleRendered = MultiHull && Handle &&
-        HandleProofHost.Document().AddBody("DisconnectedSource", MultiHull.Payload.Transformed(Mat4::Translation({ 0, -6, 0 }))).Identity > 0 &&
-        HandleProofHost.Document().AddBody("SameBodyHandle", Handle.Payload.Transformed(Mat4::Translation({ 0, 6, 0 }))).Identity > 0 &&
-        HandleProofHost.Execute("view iso") && HandleProofHost.Execute("view fit") && HandleProofHost.Execute("render Phase34f_SameBodyFaceLoft");
-    Panel.Expect("The same-body handle proof render completes", HandleRendered);
-    Panel.Expect("The same-body handle proof PNG is written", std::filesystem::exists(HandleProof) && std::filesystem::file_size(HandleProof, Error) > 100000);
+    const std::filesystem::path IdentifierProof = std::filesystem::path(SOLIDARC_PROOF_FOLDER) / "Phase34f_SameBodyFaceLoft.png";
+    std::filesystem::remove(IdentifierProof, Error);
+    ConsoleHost IdentifierProofHost(SOLIDARC_PROOF_FOLDER, 1600, 800);
+    const bool IdentifierRendered = MultiHull && Tag &&
+        IdentifierProofHost.Document().AddBody("DisconnectedSource", MultiHull.Payload.Transformed(Mat4::Translation({ 0, -6, 0 }))).Identity > 0 &&
+        IdentifierProofHost.Document().AddBody("SameBodyIdentifier", Tag.Payload.Transformed(Mat4::Translation({ 0, 6, 0 }))).Identity > 0 &&
+        IdentifierProofHost.Execute("view iso") && IdentifierProofHost.Execute("view fit") && IdentifierProofHost.Execute("render Phase34f_SameBodyFaceLoft");
+    Panel.Expect("The same-body handle proof render completes", IdentifierRendered);
+    Panel.Expect("The same-body handle proof PNG is written", std::filesystem::exists(IdentifierProof) && std::filesystem::file_size(IdentifierProof, Error) > 100000);
 
     return Panel.Conclude();
 }

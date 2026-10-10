@@ -725,7 +725,7 @@ Deliver<BrepBody> SkinSolver::LoftFaces(const BrepBody& A, int FaceA, const Brep
     const Vec3 SeamA = S.Sample(U0, V0), SeamB = S.Sample(U0, V1);
     const double Tol = ScalarCriteria::MergeTolerance * 10.0;
 
-    // Assemble: remove each selected face once. For a same-body handle this leaves two open rims in one source shell;
+    // Assemble: remove each selected face once. For a same-body identifier this leaves two open rims in one source shell;
     //    the new skin is the only added bridge, so no source face or edge is duplicated.
     BrepBody Out;
     if (SameBody) AppendFaces(A, FaceA, FaceB, Out);

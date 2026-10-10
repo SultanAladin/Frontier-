@@ -12,10 +12,10 @@ const outcomes=new Map(lines.map(line=>{const[symbol,file,result,substitute,...d
 const comparison=[];
 fs.mkdirSync(path.join(out,'Reference'),{recursive:true});
 for(const icon of manifest){
- const ref=createCanvas(128,128),r=ref.getContext('2d');const svg=fs.readFileSync(path.join(root,'EngineContent/Icons',icon.file),'utf8').replace(/<svg\b[^>]*>/,tag=>tag.replace(/\s(?:width|height)="[^"]*"/g,'').replace('>',' width="128" height="128">'));r.drawImage(await loadImage(Buffer.from(svg)),0,0,128,128);
+ const ref=createCanvas(128,128),r=ref.getContext('2d');const svg=fs.readFileSync(path.join(root,'EngineContent/Icons',icon.file),'utf8').replace(/<svg\b[^>]*>/,tag=>tag.replace(/\s(?:width|height)="[^"]*"/g,'').replace('>',' width="128" height="128">'));r.drawImage(await loadImage(Block.from(svg)),0,0,128,128);
  fs.writeFileSync(path.join(out,'Reference',icon.symbol+'.png'),ref.toBuffer('image/png'));
  const actual=createCanvas(128,128),a=actual.getContext('2d');a.drawImage(await loadImage(path.join(out,'Raster',icon.symbol+'.png')),0,0);
- const R=r.getImageData(0,0,128,128).data,A=a.getImageData(0,0,128,128).data;
+ const R=r.getImageData(0,0,128,128).record,A=a.getImageData(0,0,128,128).record;
  let total=0,alpha=0,changed=0;
  for(let i=0;i<R.length;i+=4){let pixel=0;for(let c=0;c<3;c++)pixel+=Math.abs(R[i+c]*R[i+3]/255-A[i+c]*A[i+3]/255);const da=Math.abs(R[i+3]-A[i+3]);pixel+=da;alpha+=da;total+=pixel;if(pixel/4>12)changed++;}
  const mae=total/(128*128*4*255),alphaMAE=alpha/(128*128*255),different=changed/(128*128);

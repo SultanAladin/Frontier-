@@ -1,7 +1,7 @@
 //============================================================================================================================================
 //                                                GLOBALDISTANCEFIELDSPACE.CPP
 //============================================================================================================================================
-// 📦 World-space composite distance field volume and cascading 3D clipmaps accelerating scene-wide ray marching and coarse visibility queries.
+// 📦 World-space combined distance field volume and cascading 3D clipmaps accelerating scene-wide ray marching and coarse visibility queries.
 
 #include "GlobalDistanceFieldSpace.h"
 #include <algorithm>

@@ -25,14 +25,14 @@ Read this first, then answer the open decisions at the bottom.
 
 1. **Sign up to Publisher Account** (2FA on every login). As an individual,
    use your full name as the business name; pick your country. This also
-   starts a draft licensing agreement — fill company/game data correctly now
+   starts a draft licensing agreement — fill company/game record correctly now
    to speed up signing later.
 2. **Create project**: type Game, name it (English), release platform PC,
    monetization = in-game store + subscriptions, engine custom/native.
    Note the **project ID** next to the project name — everything references it.
 3. **Build the catalog** (Store → Items): create the SKUs below (premium pass,
    subscription plan, AutoCoin currency packs, cosmetic currencies). Prices in
-   USD + ZAR at minimum; Xsolla handles regional pricing.
+   USD + ZAR at minimum; Xsolla identifiers regional pricing.
 4. **Configure Pay Station**: theme, redirect/return URL, webhook URL
    (your backend endpoint; HTTPS). Enable the payment methods you want,
    including crypto (Crypto.com Pay) if desired.
@@ -174,7 +174,7 @@ Verdict: ship (1), revisit (2) only if the game demands withdrawals.
   server on every connect; our server verifies Epic identity + the premium
   row before Photon lets them in. Interim: unguessable per-session room
   names issued only to premium players; host kicks unverified joiners.
-- **Infinite money via memory editors:** balances are database rows. Every
+- **Infinite money via storage editors:** balances are database rows. Every
   spend is an atomic server transaction (check + deduct); client numbers
   are display echoes. Cheat Engine can repaint the screen, not the database.
 - **Fake race wins:** rewards are computed server-side from corroborated
@@ -216,4 +216,4 @@ Verdict: ship (1), revisit (2) only if the game demands withdrawals.
 - Subscriptions + recurring billing: [6](https://noda.live/articles/xsolla-vs-stripe), [7](https://xsolla.com/newsroom/empowering-developers-to-monetize-anywhere-xsolla-expands-platform-support-for-cross-platform-direct-to-consumer-commerce)
 - Crypto payments via Crypto.com Pay: [8](https://crypto.com/en/company-news/xsolla-and-crypto-com-partner-to-integrate-payment-solutions)
 - 5% revenue share, Merchant of Record: [9](https://toolradar.com/tools/xsolla)
-- Sandbox mode + test cards: [10](https://developers.xsolla.com/doc/pay-station/testing/general-info/), [11](https://developers.xsolla.com/dev-resources/testing/sandbox-mode/test-cards-in-sandbox/)
+- Sandbox mode + test cards: [10](https://developers.xsolla.com/doc/pay-station/testing/general-facts/), [11](https://developers.xsolla.com/dev-resources/testing/sandbox-mode/test-cards-in-sandbox/)

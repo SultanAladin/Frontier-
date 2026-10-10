@@ -1,7 +1,7 @@
 //============================================================================================================================================
 //                                                     VISIBILITYEXCHANGE.CPP
 //============================================================================================================================================
-// 🧩 Vulkan side of the R2 front end: resident scene buffers, cull / raster / HiZ / resolve pipelines, per-slot frame
+// 🧩 Vulkan side of the R2 front end: resident scene stores, cull / raster / HiZ / resolve chains, per-slot frame
 //    constants, indirect draw lists, timestamp queries and the telemetry read-back.
 
 #include <vulkan/vulkan.h>
@@ -63,10 +63,10 @@ struct HiZPushRecord { uint32_t SourceExtent[2]; uint32_t TargetExtent[2]; uint3
 //                                                    VULKAN RECORD
 //------------------------------------------------------------------------------------------------------------------------
 
-struct GpuBuffer
+struct GpuStore
 {
-    VkBuffer       Buffer = VK_NULL_HANDLE;
-    VkDeviceMemory Memory = VK_NULL_HANDLE;
+    VkBuffer       Block = VK_NULL_HANDLE;
+    VkDeviceMemory Store = VK_NULL_HANDLE;
     VkDeviceSize   Bytes  = 0u;
     void*          Mapped = nullptr;
 };
@@ -74,7 +74,7 @@ struct GpuBuffer
 struct GpuImage
 {
     VkImage        Image  = VK_NULL_HANDLE;
-    VkDeviceMemory Memory = VK_NULL_HANDLE;
+    VkDeviceMemory Store = VK_NULL_HANDLE;
     VkImageView    View   = VK_NULL_HANDLE;               // whole image
     std::vector<VkImageView> LevelViews;                  // HiZ per-level storage views
     uint32_t       Levels = 1u;
@@ -93,16 +93,16 @@ struct VisibilityExchange::VulkanRecord
     bool                              DrawIndirectCount = false;
 
     // Scene (host-visible, uploaded once)
-    GpuBuffer Vertices, Indices, Instances, Clusters, Materials, Luminaires, FlatTriangles;
+    GpuStore Vertices, Indices, Instances, Clusters, Materials, Luminaires, FlatTriangles;
     VkBuffer  BorrowedSlabs = VK_NULL_HANDLE;                   // R4b: SwapchainExchange's MaterialSlabRecord[] (raster binding 6)
     VkBuffer  BorrowedReservoir = VK_NULL_HANDLE;             // R6 row 3: kernel's prev-frame reservoirs (resolve binding 13, M/W/Age views)
     VkSampler BorrowedSampler = VK_NULL_HANDLE;                 // R4b: bindless table sampler + views (raster binding 7)
     std::vector<VkImageView> BorrowedTextures;
     uint32_t  TextureSlotCapacity = 0u;                         // 0 = no descriptor indexing: raster set stops at binding 6
-    GpuBuffer Draws, Counters, VisibleBitsA, VisibleBitsB;      // per-frame cull state (device-local except counters)
-    GpuBuffer CounterReadback[kMaximumCycleSlots];              // host-visible copies for telemetry
-    GpuBuffer FrameConstants[kMaximumCycleSlots][2];            // [slot][phase]
-    bool      VisibleParity = false;                            // which bit buffer is "previous" this frame
+    GpuStore Draws, Counters, VisibleBitsA, VisibleBitsB;      // per-frame cull state (device-local except counters)
+    GpuStore CounterReadback[kMaximumCycleSlots];              // host-visible copies for telemetry
+    GpuStore FrameConstants[kMaximumCycleSlots][2];            // [slot][phase]
+    bool      VisibleParity = false;                            // which bit store is "previous" this frame
 
     // Targets (render-size)
     GpuImage Depth, Visibility, Motion, HiZ, Surface, Normal, MaterialAux, Albedo;
@@ -111,15 +111,15 @@ struct VisibilityExchange::VulkanRecord
     VkExtent2D    TargetExtent{};
     bool          TargetsInitialised = false;
 
-    // Pipelines
+    // Chains
     VkRenderPass          RasterPassClear = VK_NULL_HANDLE, RasterPassLoad = VK_NULL_HANDLE;
     VkDescriptorSetLayout CullLayout = VK_NULL_HANDLE, RasterLayout = VK_NULL_HANDLE, HiZLayout = VK_NULL_HANDLE, ResolveLayout = VK_NULL_HANDLE;
     VkPipelineLayout      CullPipelineLayout = VK_NULL_HANDLE, RasterPipelineLayout = VK_NULL_HANDLE, HiZPipelineLayout = VK_NULL_HANDLE, ResolvePipelineLayout = VK_NULL_HANDLE;
-    VkPipeline            CullPipeline = VK_NULL_HANDLE, RasterPipelineClear = VK_NULL_HANDLE, RasterPipelineLoad = VK_NULL_HANDLE, HiZPipeline = VK_NULL_HANDLE, ResolvePipeline = VK_NULL_HANDLE;
+    VkPipeline            CullChain = VK_NULL_HANDLE, RasterChainClear = VK_NULL_HANDLE, RasterChainLoad = VK_NULL_HANDLE, HiZChain = VK_NULL_HANDLE, ResolveChain = VK_NULL_HANDLE;
     VkSampler             PointSampler = VK_NULL_HANDLE;
 
     // Descriptor sets: [slot][phase] for cull / raster / resolve; HiZ one per level (+1 for the level-0 copy)
-    VkDescriptorPool      Pool = VK_NULL_HANDLE;
+    VkDescriptorPool      Bank = VK_NULL_HANDLE;
     VkDescriptorSet       CullSets[kMaximumCycleSlots][2]{};
     VkDescriptorSet       RasterSets[kMaximumCycleSlots][2]{};
     VkDescriptorSet       ResolveSets[kMaximumCycleSlots]{};
@@ -131,12 +131,12 @@ struct VisibilityExchange::VulkanRecord
     VkRenderPass          ShadowPass = VK_NULL_HANDLE;
     VkDescriptorSetLayout ShadowLayout = VK_NULL_HANDLE;          // set 1: 0 = constants (UBO), 1 = maps (sampler2DArray)
     VkPipelineLayout      ShadowRasterPipelineLayout = VK_NULL_HANDLE, ShadowResolvePipelineLayout = VK_NULL_HANDLE;
-    VkPipeline            ShadowRasterPipeline = VK_NULL_HANDLE, ShadowResolvePipeline = VK_NULL_HANDLE;
+    VkPipeline            ShadowRasterChain = VK_NULL_HANDLE, ShadowResolveChain = VK_NULL_HANDLE;
     VkSampler             ShadowSampler = VK_NULL_HANDLE;         // NEAREST: the filters do their own averaging
     GpuImage              ShadowMaps;                             // D32, MaximumTaps layers
     std::vector<VkImageView> ShadowLayerViews;                    // one per tap, for the depth attachment
     std::vector<VkFramebuffer> ShadowFramebuffers;                // one per tap
-    GpuBuffer             ShadowConstants[kMaximumCycleSlots];    // std140 ShadowConstants, one per cycle slot
+    GpuStore             ShadowConstants[kMaximumCycleSlots];    // std140 ShadowConstants, one per cycle slot
     VkDescriptorSet       ShadowSets[kMaximumCycleSlots]{};       // set 1 (constants + maps)
     uint32_t              ShadowMapSide = 0u;                     // [px] side the array is currently allocated at
     bool                  ShadowReady   = false;
@@ -147,13 +147,13 @@ struct VisibilityExchange::VulkanRecord
 
     // Editor picking: one texel of the id image copied into a host-visible extent per cycle slot, read back after
     //    the slot's fence like every other readback here. PickRecorded gates a slot that never carried a tap.
-    GpuBuffer             PickReadback[kMaximumCycleSlots];
+    GpuStore             PickReadback[kMaximumCycleSlots];
     bool                  PickRecorded[kMaximumCycleSlots]{};
 
     // Editor selection outline: SelectionOutline.spv over the presentation image, silhouette from the id image.
     VkDescriptorSetLayout OutlineLayout = VK_NULL_HANDLE;
     VkPipelineLayout      OutlinePipelineLayout = VK_NULL_HANDLE;
-    VkPipeline            OutlinePipeline = VK_NULL_HANDLE;
+    VkPipeline            OutlineChain = VK_NULL_HANDLE;
     VkDescriptorSet       OutlineSet = VK_NULL_HANDLE;
 };
 
@@ -201,11 +201,11 @@ VkShaderModule LoadShader(VkDevice Device, const char* Relative)
     std::vector<uint32_t> Code(static_cast<size_t>(Bytes) / 4u);
     File.seekg(0);
     File.read(reinterpret_cast<char*>(Code.data()), Bytes);
-    VkShaderModuleCreateInfo Info{ VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO };
-    Info.codeSize = Code.size() * 4u;
-    Info.pCode    = Code.data();
+    VkShaderModuleCreateInfo Facts{ VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO };
+    Facts.codeSize = Code.size() * 4u;
+    Facts.pCode    = Code.data();
     VkShaderModule Module = VK_NULL_HANDLE;
-    if (DriverProgress::Call(std::string("shader module: ")+Relative, [&] { return vkCreateShaderModule(Device, &Info, nullptr, &Module); }) != VK_SUCCESS) { std::cerr << "[VisibilityExchange] vkCreateShaderModule failed: " << Relative << "\n"; return VK_NULL_HANDLE; }
+    if (DriverProgress::Call(std::string("shader module: ")+Relative, [&] { return vkCreateShaderModule(Device, &Facts, nullptr, &Module); }) != VK_SUCCESS) { std::cerr << "[VisibilityExchange] vkCreateShaderModule failed: " << Relative << "\n"; return VK_NULL_HANDLE; }
     std::cerr << "[VisibilityExchange] Loaded SPIR-V: " << Path.string() << "\n";
     return Module;
 }
@@ -217,34 +217,34 @@ uint32_t FindMemoryType(const VkPhysicalDeviceMemoryProperties& P, uint32_t Mask
     return 0u;
 }
 
-void DestroyBuffer(VkDevice Device, GpuBuffer& B)
+void DestroyBuffer(VkDevice Device, GpuStore& B)
 {
-    if (B.Mapped) vkUnmapMemory(Device, B.Memory);
-    if (B.Buffer) vkDestroyBuffer(Device, B.Buffer, nullptr);
-    if (B.Memory) vkFreeMemory(Device, B.Memory, nullptr);
+    if (B.Mapped) vkUnmapMemory(Device, B.Store);
+    if (B.Block) vkDestroyBuffer(Device, B.Block, nullptr);
+    if (B.Store) vkFreeMemory(Device, B.Store, nullptr);
     B = {};
 }
 
-bool CreateBuffer(VkDevice Device, const VkPhysicalDeviceMemoryProperties& P, GpuBuffer& B, VkDeviceSize Bytes, VkBufferUsageFlags Usage, bool HostVisible, const char* Label)
+bool CreateBuffer(VkDevice Device, const VkPhysicalDeviceMemoryProperties& P, GpuStore& B, VkDeviceSize Bytes, VkBufferUsageFlags Usage, bool HostVisible, const char* Label)
 {
     DestroyBuffer(Device, B);
     B.Bytes = std::max<VkDeviceSize>(Bytes, 16u);
-    VkBufferCreateInfo Info{ VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO };
-    Info.size  = B.Bytes;
-    Info.usage = Usage;
-    if (vkCreateBuffer(Device, &Info, nullptr, &B.Buffer) != VK_SUCCESS) { std::cerr << "[VisibilityExchange] vkCreateBuffer (" << Label << ") failed.\n"; return false; }
+    VkBufferCreateInfo Facts{ VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO };
+    Facts.size  = B.Bytes;
+    Facts.usage = Usage;
+    if (vkCreateBuffer(Device, &Facts, nullptr, &B.Block) != VK_SUCCESS) { std::cerr << "[VisibilityExchange] vkCreateBuffer (" << Label << ") failed.\n"; return false; }
     VkMemoryRequirements R{};
-    vkGetBufferMemoryRequirements(Device, B.Buffer, &R);
+    vkGetBufferMemoryRequirements(Device, B.Block, &R);
     VkMemoryAllocateInfo Allocate{ VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO };
     Allocate.allocationSize  = R.size;
     Allocate.memoryTypeIndex = FindMemoryType(P, R.memoryTypeBits, HostVisible ? (VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT) : VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
-    if (vkAllocateMemory(Device, &Allocate, nullptr, &B.Memory) != VK_SUCCESS) { std::cerr << "[VisibilityExchange] vkAllocateMemory (" << Label << ") failed.\n"; return false; }
-    vkBindBufferMemory(Device, B.Buffer, B.Memory, 0u);
-    if (HostVisible && vkMapMemory(Device, B.Memory, 0u, B.Bytes, 0u, &B.Mapped) != VK_SUCCESS) B.Mapped = nullptr;
+    if (vkAllocateMemory(Device, &Allocate, nullptr, &B.Store) != VK_SUCCESS) { std::cerr << "[VisibilityExchange] vkAllocateMemory (" << Label << ") failed.\n"; return false; }
+    vkBindBufferMemory(Device, B.Block, B.Store, 0u);
+    if (HostVisible && vkMapMemory(Device, B.Store, 0u, B.Bytes, 0u, &B.Mapped) != VK_SUCCESS) B.Mapped = nullptr;
     return true;
 }
 
-bool UploadBuffer(VkDevice Device, const VkPhysicalDeviceMemoryProperties& P, GpuBuffer& B, const void* Source, size_t Bytes, VkBufferUsageFlags Usage, const char* Label)
+bool UploadStore(VkDevice Device, const VkPhysicalDeviceMemoryProperties& P, GpuStore& B, const void* Source, size_t Bytes, VkBufferUsageFlags Usage, const char* Label)
 {
     if (!CreateBuffer(Device, P, B, Bytes, Usage, true, Label)) return false;
     if (B.Mapped) { std::memset(B.Mapped, 0, static_cast<size_t>(B.Bytes)); if (Bytes) std::memcpy(B.Mapped, Source, Bytes); }
@@ -257,7 +257,7 @@ void DestroyImage(VkDevice Device, GpuImage& I)
     I.LevelViews.clear();
     if (I.View)   vkDestroyImageView(Device, I.View, nullptr);
     if (I.Image)  vkDestroyImage(Device, I.Image, nullptr);
-    if (I.Memory) vkFreeMemory(Device, I.Memory, nullptr);
+    if (I.Store) vkFreeMemory(Device, I.Store, nullptr);
     I = {};
 }
 
@@ -266,25 +266,25 @@ bool CreateImage(VkDevice Device, const VkPhysicalDeviceMemoryProperties& P, Gpu
     DestroyImage(Device, I);
     I.Format = Format;
     I.Levels = Levels;
-    VkImageCreateInfo Info{ VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO };
-    Info.imageType     = VK_IMAGE_TYPE_2D;
-    Info.format        = Format;
-    Info.extent        = { Extent.width, Extent.height, 1u };
-    Info.mipLevels     = Levels;
-    Info.arrayLayers   = 1u;
-    Info.samples       = VK_SAMPLE_COUNT_1_BIT;
-    Info.tiling        = VK_IMAGE_TILING_OPTIMAL;
-    Info.usage         = Usage;
-    Info.sharingMode   = VK_SHARING_MODE_EXCLUSIVE;
-    Info.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-    if (vkCreateImage(Device, &Info, nullptr, &I.Image) != VK_SUCCESS) { std::cerr << "[VisibilityExchange] vkCreateImage (" << Label << ") failed.\n"; return false; }
+    VkImageCreateInfo Facts{ VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO };
+    Facts.imageType     = VK_IMAGE_TYPE_2D;
+    Facts.format        = Format;
+    Facts.extent        = { Extent.width, Extent.height, 1u };
+    Facts.mipLevels     = Levels;
+    Facts.arrayLayers   = 1u;
+    Facts.samples       = VK_SAMPLE_COUNT_1_BIT;
+    Facts.tiling        = VK_IMAGE_TILING_OPTIMAL;
+    Facts.usage         = Usage;
+    Facts.sharingMode   = VK_SHARING_MODE_EXCLUSIVE;
+    Facts.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+    if (vkCreateImage(Device, &Facts, nullptr, &I.Image) != VK_SUCCESS) { std::cerr << "[VisibilityExchange] vkCreateImage (" << Label << ") failed.\n"; return false; }
     VkMemoryRequirements R{};
     vkGetImageMemoryRequirements(Device, I.Image, &R);
     VkMemoryAllocateInfo Allocate{ VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO };
     Allocate.allocationSize  = R.size;
     Allocate.memoryTypeIndex = FindMemoryType(P, R.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
-    if (vkAllocateMemory(Device, &Allocate, nullptr, &I.Memory) != VK_SUCCESS) { std::cerr << "[VisibilityExchange] vkAllocateMemory (" << Label << ") failed.\n"; return false; }
-    vkBindImageMemory(Device, I.Image, I.Memory, 0u);
+    if (vkAllocateMemory(Device, &Allocate, nullptr, &I.Store) != VK_SUCCESS) { std::cerr << "[VisibilityExchange] vkAllocateMemory (" << Label << ") failed.\n"; return false; }
+    vkBindImageMemory(Device, I.Image, I.Store, 0u);
 
     VkImageViewCreateInfo View{ VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO };
     View.image    = I.Image;
@@ -317,12 +317,12 @@ void ImageBarrier(VkCommandBuffer Command, VkImage Image, VkImageAspectFlags Asp
     vkCmdPipelineBarrier(Command, SrcStage, DstStage, 0u, 0u, nullptr, 0u, nullptr, 1u, &B);
 }
 
-void BufferBarrier(VkCommandBuffer Command, VkBuffer Buffer, VkAccessFlags SrcAccess, VkAccessFlags DstAccess, VkPipelineStageFlags SrcStage, VkPipelineStageFlags DstStage)
+void StoreBarrier(VkCommandBuffer Command, VkBuffer Block, VkAccessFlags SrcAccess, VkAccessFlags DstAccess, VkPipelineStageFlags SrcStage, VkPipelineStageFlags DstStage)
 {
     VkBufferMemoryBarrier B{ VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER };
     B.srcAccessMask = SrcAccess; B.dstAccessMask = DstAccess;
     B.srcQueueFamilyIndex = B.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-    B.buffer = Buffer; B.offset = 0u; B.size = VK_WHOLE_SIZE;
+    B.buffer = Block; B.offset = 0u; B.size = VK_WHOLE_SIZE;
     vkCmdPipelineBarrier(Command, SrcStage, DstStage, 0u, 0u, nullptr, 1u, &B, 0u, nullptr);
 }
 
@@ -397,7 +397,7 @@ bool VisibilityExchange::Bring(void* Device, void* PhysicalDevice, uint32_t Cycl
     if (!CreateBuffer(Vulkan->Device, Vulkan->MemoryProperties, Vulkan->Counters, kCounterCount * 4u,
                       VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT, false, "cull counters")) return false;
 
-    if (!BringPipelines()) return false;
+    if (!BringChains()) return false;
     Ready = true;
     return true;
 }
@@ -408,7 +408,7 @@ void VisibilityExchange::Retire() noexcept
     VkDevice D = Vulkan->Device;
     vkDeviceWaitIdle(D);
     RetireTargets();
-    for (GpuBuffer* B : { &Vulkan->Vertices, &Vulkan->Indices, &Vulkan->Instances, &Vulkan->Clusters, &Vulkan->Materials, &Vulkan->Luminaires, &Vulkan->FlatTriangles,
+    for (GpuStore* B : { &Vulkan->Vertices, &Vulkan->Indices, &Vulkan->Instances, &Vulkan->Clusters, &Vulkan->Materials, &Vulkan->Luminaires, &Vulkan->FlatTriangles,
                           &Vulkan->Draws, &Vulkan->Counters, &Vulkan->VisibleBitsA, &Vulkan->VisibleBitsB })
         DestroyBuffer(D, *B);
     for (uint32_t S = 0u; S < kMaximumCycleSlots; ++S)
@@ -425,9 +425,9 @@ void VisibilityExchange::Retire() noexcept
     DestroyImage(D, Vulkan->ShadowMaps);
     for (uint32_t S = 0u; S < kMaximumCycleSlots; ++S) DestroyBuffer(D, Vulkan->ShadowConstants[S]);
 
-    if (Vulkan->Pool) vkDestroyDescriptorPool(D, Vulkan->Pool, nullptr);
-    for (VkPipeline P : { Vulkan->CullPipeline, Vulkan->RasterPipelineClear, Vulkan->RasterPipelineLoad, Vulkan->HiZPipeline, Vulkan->ResolvePipeline,
-                          Vulkan->ShadowRasterPipeline, Vulkan->ShadowResolvePipeline, Vulkan->OutlinePipeline }) if (P) vkDestroyPipeline(D, P, nullptr);
+    if (Vulkan->Bank) vkDestroyDescriptorPool(D, Vulkan->Bank, nullptr);
+    for (VkPipeline P : { Vulkan->CullChain, Vulkan->RasterChainClear, Vulkan->RasterChainLoad, Vulkan->HiZChain, Vulkan->ResolveChain,
+                          Vulkan->ShadowRasterChain, Vulkan->ShadowResolveChain, Vulkan->OutlineChain }) if (P) vkDestroyPipeline(D, P, nullptr);
     for (VkPipelineLayout L : { Vulkan->CullPipelineLayout, Vulkan->RasterPipelineLayout, Vulkan->HiZPipelineLayout, Vulkan->ResolvePipelineLayout,
                                 Vulkan->ShadowRasterPipelineLayout, Vulkan->ShadowResolvePipelineLayout, Vulkan->OutlinePipelineLayout }) if (L) vkDestroyPipelineLayout(D, L, nullptr);
     for (VkDescriptorSetLayout L : { Vulkan->CullLayout, Vulkan->RasterLayout, Vulkan->HiZLayout, Vulkan->ResolveLayout, Vulkan->ShadowLayout, Vulkan->OutlineLayout }) if (L) vkDestroyDescriptorSetLayout(D, L, nullptr);
@@ -452,37 +452,37 @@ void VisibilityExchange::RetireTargets() noexcept
 }
 
 //------------------------------------------------------------------------------------------------------------------------
-//                                                      PIPELINES
+//                                                      CHAINS
 //------------------------------------------------------------------------------------------------------------------------
 
-bool VisibilityExchange::BringPipelines() noexcept
+bool VisibilityExchange::BringChains() noexcept
 {
     VkDevice D = Vulkan->Device;
 
     const auto Binding = [](uint32_t Index, VkDescriptorType Type, VkShaderStageFlags Stages) { VkDescriptorSetLayoutBinding B{}; B.binding = Index; B.descriptorType = Type; B.descriptorCount = 1u; B.stageFlags = Stages; return B; };
     const auto MakeLayout = [&](const std::vector<VkDescriptorSetLayoutBinding>& Bindings, VkDescriptorSetLayout& Out)
     {
-        VkDescriptorSetLayoutCreateInfo Info{ VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO };
-        Info.bindingCount = static_cast<uint32_t>(Bindings.size());
-        Info.pBindings    = Bindings.data();
-        return vkCreateDescriptorSetLayout(D, &Info, nullptr, &Out) == VK_SUCCESS;
+        VkDescriptorSetLayoutCreateInfo Facts{ VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO };
+        Facts.bindingCount = static_cast<uint32_t>(Bindings.size());
+        Facts.pBindings    = Bindings.data();
+        return vkCreateDescriptorSetLayout(D, &Facts, nullptr, &Out) == VK_SUCCESS;
     };
     const auto MakePipelineLayout = [&](VkDescriptorSetLayout Set, uint32_t PushBytes, VkShaderStageFlags PushStages, VkPipelineLayout& Out)
     {
         VkPushConstantRange Range{ PushStages, 0u, PushBytes };
-        VkPipelineLayoutCreateInfo Info{ VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO };
-        Info.setLayoutCount = 1u; Info.pSetLayouts = &Set;
-        Info.pushConstantRangeCount = PushBytes ? 1u : 0u; Info.pPushConstantRanges = PushBytes ? &Range : nullptr;
-        return vkCreatePipelineLayout(D, &Info, nullptr, &Out) == VK_SUCCESS;
+        VkPipelineLayoutCreateInfo Facts{ VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO };
+        Facts.setLayoutCount = 1u; Facts.pSetLayouts = &Set;
+        Facts.pushConstantRangeCount = PushBytes ? 1u : 0u; Facts.pPushConstantRanges = PushBytes ? &Range : nullptr;
+        return vkCreatePipelineLayout(D, &Facts, nullptr, &Out) == VK_SUCCESS;
     };
     const auto MakeCompute = [&](const char* Spirv, VkPipelineLayout Layout, VkPipeline& Out)
     {
         VkShaderModule Module = LoadShader(D, Spirv);
         if (!Module) return false;
-        VkComputePipelineCreateInfo Info{ VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO };
-        Info.stage = { VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO, nullptr, 0u, VK_SHADER_STAGE_COMPUTE_BIT, Module, "main", nullptr };
-        Info.layout = Layout;
-        const VkResult R = DriverProgress::Call(std::string("compute pipeline (driver compile/cache lookup): ")+Spirv, [&] { return vkCreateComputePipelines(D, VK_NULL_HANDLE, 1u, &Info, nullptr, &Out); });
+        VkComputePipelineCreateInfo Facts{ VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO };
+        Facts.stage = { VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO, nullptr, 0u, VK_SHADER_STAGE_COMPUTE_BIT, Module, "main", nullptr };
+        Facts.layout = Layout;
+        const VkResult R = DriverProgress::Call(std::string("compute pipeline (driver compile/cache lookup): ")+Spirv, [&] { return vkCreateComputePipelines(D, VK_NULL_HANDLE, 1u, &Facts, nullptr, &Out); });
         vkDestroyShaderModule(D, Module, nullptr);
         if (R != VK_SUCCESS) std::cerr << "[VisibilityExchange] compute pipeline failed: " << Spirv << "\n";
         return R == VK_SUCCESS;
@@ -494,7 +494,7 @@ bool VisibilityExchange::BringPipelines() noexcept
     // ① Cull: 0 frame, 1 instances, 2 clusters, 3 draws, 4 counters, 5 previous bits, 6 current bits, 7 HiZ, 8 live materials, 9 live slabs
     if (!MakeLayout({ Binding(0, UBO, CS), Binding(1, SSBO, CS), Binding(2, SSBO, CS), Binding(3, SSBO, CS), Binding(4, SSBO, CS), Binding(5, SSBO, CS), Binding(6, SSBO, CS), Binding(7, TEX, CS), Binding(8, SSBO, CS), Binding(9, SSBO, CS) }, Vulkan->CullLayout)) return false;
     if (!MakePipelineLayout(Vulkan->CullLayout, 0u, 0u, Vulkan->CullPipelineLayout)) return false;
-    if (!MakeCompute("Engine/Shaders/ClusterCull.spv", Vulkan->CullPipelineLayout, Vulkan->CullPipeline)) return false;
+    if (!MakeCompute("Engine/Shaders/ClusterCull.spv", Vulkan->CullPipelineLayout, Vulkan->CullChain)) return false;
 
     // ② Raster: 0 frame, 1 instances, 2 clusters, 3 vertices — R4b: 4 (unused), 5 materials, 6 slabs, 7 Textures[] (variable count, last) for the alpha mask
     {
@@ -505,12 +505,12 @@ bool VisibilityExchange::BringPipelines() noexcept
             RasterBindings.push_back(Table);
             std::vector<VkDescriptorBindingFlags> Flags(RasterBindings.size(), 0u);
             Flags.back() = VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT | VK_DESCRIPTOR_BINDING_VARIABLE_DESCRIPTOR_COUNT_BIT | VK_DESCRIPTOR_BINDING_UPDATE_AFTER_BIND_BIT;
-            VkDescriptorSetLayoutBindingFlagsCreateInfo FlagsInfo{ VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_BINDING_FLAGS_CREATE_INFO };
-            FlagsInfo.bindingCount = static_cast<uint32_t>(Flags.size()); FlagsInfo.pBindingFlags = Flags.data();
-            VkDescriptorSetLayoutCreateInfo Info{ VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO };
-            Info.pNext = &FlagsInfo; Info.flags = VK_DESCRIPTOR_SET_LAYOUT_CREATE_UPDATE_AFTER_BIND_POOL_BIT;
-            Info.bindingCount = static_cast<uint32_t>(RasterBindings.size()); Info.pBindings = RasterBindings.data();
-            if (vkCreateDescriptorSetLayout(D, &Info, nullptr, &Vulkan->RasterLayout) != VK_SUCCESS) return false;
+            VkDescriptorSetLayoutBindingFlagsCreateInfo FlagsDetails{ VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_BINDING_FLAGS_CREATE_INFO };
+            FlagsDetails.bindingCount = static_cast<uint32_t>(Flags.size()); FlagsDetails.pBindingFlags = Flags.data();
+            VkDescriptorSetLayoutCreateInfo Facts{ VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO };
+            Facts.pNext = &FlagsDetails; Facts.flags = VK_DESCRIPTOR_SET_LAYOUT_CREATE_UPDATE_AFTER_BIND_POOL_BIT;
+            Facts.bindingCount = static_cast<uint32_t>(RasterBindings.size()); Facts.pBindings = RasterBindings.data();
+            if (vkCreateDescriptorSetLayout(D, &Facts, nullptr, &Vulkan->RasterLayout) != VK_SUCCESS) return false;
         }
         else if (!MakeLayout(RasterBindings, Vulkan->RasterLayout)) return false;
     }
@@ -519,21 +519,21 @@ bool VisibilityExchange::BringPipelines() noexcept
     // ③ HiZ: 0 source (sampled), 1 target level (storage)
     if (!MakeLayout({ Binding(0, TEX, CS), Binding(1, IMG, CS) }, Vulkan->HiZLayout)) return false;
     if (!MakePipelineLayout(Vulkan->HiZLayout, sizeof(HiZPushRecord), CS, Vulkan->HiZPipelineLayout)) return false;
-    if (!MakeCompute("Engine/Shaders/HiZReduce.spv", Vulkan->HiZPipelineLayout, Vulkan->HiZPipeline)) return false;
+    if (!MakeCompute("Engine/Shaders/HiZReduce.spv", Vulkan->HiZPipelineLayout, Vulkan->HiZChain)) return false;
 
     // ④ Resolve: shared position, normal, material-auxiliary, and albedo targets feed the non-raytraced Surfel route.
     if (!MakeLayout({ Binding(0, UBO, CS), Binding(1, SSBO, CS), Binding(2, SSBO, CS), Binding(3, SSBO, CS), Binding(4, SSBO, CS), Binding(5, SSBO, CS),
                       Binding(6, TEX, CS), Binding(7, TEX, CS), Binding(8, TEX, CS), Binding(9, TEX, CS), Binding(10, IMG, CS), Binding(11, IMG, CS), Binding(12, IMG, CS), Binding(13, SSBO, CS), Binding(14, IMG, CS), Binding(15, IMG, CS) }, Vulkan->ResolveLayout)) return false;
     if (!MakePipelineLayout(Vulkan->ResolveLayout, 0u, 0u, Vulkan->ResolvePipelineLayout)) return false;
-    if (!MakeCompute("Engine/Shaders/SurfaceResolve.spv", Vulkan->ResolvePipelineLayout, Vulkan->ResolvePipeline)) return false;
+    if (!MakeCompute("Engine/Shaders/SurfaceResolve.spv", Vulkan->ResolvePipelineLayout, Vulkan->ResolveChain)) return false;
 
     // ④b Editor selection outline: 0 visibility id (point sampled), 1 presentation image. Reported but not fatal
     //    when the SPIR-V is missing — an engine built before this shader still renders everything else.
     if (!MakeLayout({ Binding(0, TEX, CS), Binding(1, IMG, CS) }, Vulkan->OutlineLayout)) return false;
     if (!MakePipelineLayout(Vulkan->OutlineLayout, sizeof(OutlinePushRecord), CS, Vulkan->OutlinePipelineLayout)) return false;
-    if (!MakeCompute("Engine/Shaders/SelectionOutline.spv", Vulkan->OutlinePipelineLayout, Vulkan->OutlinePipeline))
+    if (!MakeCompute("Engine/Shaders/SelectionOutline.spv", Vulkan->OutlinePipelineLayout, Vulkan->OutlineChain))
     {
-        Vulkan->OutlinePipeline = VK_NULL_HANDLE;
+        Vulkan->OutlineChain = VK_NULL_HANDLE;
         std::cerr << "[VisibilityExchange] SelectionOutline.spv unavailable - the editor's selection outline stays off.\n";
     }
 
@@ -560,12 +560,12 @@ bool VisibilityExchange::BringPipelines() noexcept
                             VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT, VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT, 0u };
         Dependencies[1] = { 0u, VK_SUBPASS_EXTERNAL, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT | VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
                             VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT, 0u };
-        VkRenderPassCreateInfo Info{ VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO };
-        Info.attachmentCount = 3u; Info.pAttachments = A.data(); Info.subpassCount = 1u; Info.pSubpasses = &Subpass; Info.dependencyCount = 2u; Info.pDependencies = Dependencies;
-        if (vkCreateRenderPass(D, &Info, nullptr, Variant == 0 ? &Vulkan->RasterPassClear : &Vulkan->RasterPassLoad) != VK_SUCCESS) return false;
+        VkRenderPassCreateInfo Facts{ VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO };
+        Facts.attachmentCount = 3u; Facts.pAttachments = A.data(); Facts.subpassCount = 1u; Facts.pSubpasses = &Subpass; Facts.dependencyCount = 2u; Facts.pDependencies = Dependencies;
+        if (vkCreateRenderPass(D, &Facts, nullptr, Variant == 0 ? &Vulkan->RasterPassClear : &Vulkan->RasterPassLoad) != VK_SUCCESS) return false;
     }
 
-    // ⑥ Raster graphics pipeline (dynamic viewport/scissor; reverse-Z GREATER; no culling — the cone test decides, and the kernel is two-sided)
+    // ⑥ Raster graphics chain (dynamic viewport/scissor; reverse-Z GREATER; no culling — the cone test decides, and the kernel is two-sided)
     VkShaderModule Vertex = LoadShader(D, "Engine/Shaders/VisibilityRaster.vert.spv");
     VkShaderModule Fragment = LoadShader(D, "Engine/Shaders/VisibilityRaster.frag.spv");
     if (!Vertex || !Fragment) return false;
@@ -598,9 +598,9 @@ bool VisibilityExchange::BringPipelines() noexcept
     Graphics.pColorBlendState = &BlendState; Graphics.pDynamicState = &DynamicState;
     Graphics.layout = Vulkan->RasterPipelineLayout;
     Graphics.renderPass = Vulkan->RasterPassClear;
-    VkResult R = DriverProgress::Call("graphics pipeline (driver compile/cache lookup): VisibilityRaster clear", [&] { return vkCreateGraphicsPipelines(D, VK_NULL_HANDLE, 1u, &Graphics, nullptr, &Vulkan->RasterPipelineClear); });
+    VkResult R = DriverProgress::Call("graphics pipeline (driver compile/cache lookup): VisibilityRaster clear", [&] { return vkCreateGraphicsPipelines(D, VK_NULL_HANDLE, 1u, &Graphics, nullptr, &Vulkan->RasterChainClear); });
     Graphics.renderPass = Vulkan->RasterPassLoad;
-    if (R == VK_SUCCESS) R = DriverProgress::Call("graphics pipeline (driver compile/cache lookup): VisibilityRaster load", [&] { return vkCreateGraphicsPipelines(D, VK_NULL_HANDLE, 1u, &Graphics, nullptr, &Vulkan->RasterPipelineLoad); });
+    if (R == VK_SUCCESS) R = DriverProgress::Call("graphics pipeline (driver compile/cache lookup): VisibilityRaster load", [&] { return vkCreateGraphicsPipelines(D, VK_NULL_HANDLE, 1u, &Graphics, nullptr, &Vulkan->RasterChainLoad); });
     vkDestroyShaderModule(D, Vertex, nullptr);
     vkDestroyShaderModule(D, Fragment, nullptr);
     if (R != VK_SUCCESS) { std::cerr << "[VisibilityExchange] visibility raster pipeline failed (VkResult " << static_cast<int>(R) << ").\n"; return false; }
@@ -613,9 +613,9 @@ bool VisibilityExchange::BringPipelines() noexcept
         //    shaders can reuse the existing bindings without renumbering anything.
         constexpr VkShaderStageFlags ShadowStages = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT | VK_SHADER_STAGE_COMPUTE_BIT;
         VkDescriptorSetLayoutBinding ShadowBindings[2] = { Binding(0, UBO, ShadowStages), Binding(1, TEX, VK_SHADER_STAGE_COMPUTE_BIT) };
-        VkDescriptorSetLayoutCreateInfo ShadowSetInfo{ VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO };
-        ShadowSetInfo.bindingCount = 2u; ShadowSetInfo.pBindings = ShadowBindings;
-        if (vkCreateDescriptorSetLayout(D, &ShadowSetInfo, nullptr, &Vulkan->ShadowLayout) != VK_SUCCESS)
+        VkDescriptorSetLayoutCreateInfo ShadowSetDetails{ VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO };
+        ShadowSetDetails.bindingCount = 2u; ShadowSetDetails.pBindings = ShadowBindings;
+        if (vkCreateDescriptorSetLayout(D, &ShadowSetDetails, nullptr, &Vulkan->ShadowLayout) != VK_SUCCESS)
         {
             std::cerr << "[VisibilityExchange] shadow descriptor layout failed - GI-off shadows disabled.\n";
             return BringDescriptorSets();
@@ -627,19 +627,19 @@ bool VisibilityExchange::BringPipelines() noexcept
         {
             const VkDescriptorSetLayout Sets[2] = { Vulkan->RasterLayout, Vulkan->ShadowLayout };
             VkPushConstantRange Range{ PushStages, 0u, PushBytes };
-            VkPipelineLayoutCreateInfo Info{ VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO };
-            Info.setLayoutCount = 2u; Info.pSetLayouts = Sets;
-            Info.pushConstantRangeCount = PushBytes ? 1u : 0u; Info.pPushConstantRanges = PushBytes ? &Range : nullptr;
-            return vkCreatePipelineLayout(D, &Info, nullptr, &Out) == VK_SUCCESS;
+            VkPipelineLayoutCreateInfo Facts{ VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO };
+            Facts.setLayoutCount = 2u; Facts.pSetLayouts = Sets;
+            Facts.pushConstantRangeCount = PushBytes ? 1u : 0u; Facts.pPushConstantRanges = PushBytes ? &Range : nullptr;
+            return vkCreatePipelineLayout(D, &Facts, nullptr, &Out) == VK_SUCCESS;
         };
 
         // The resolve reads the scene through the RESOLVE set (bindings 1/5/10/11/12), not the raster set.
         const VkDescriptorSetLayout ResolveSets[2] = { Vulkan->ResolveLayout, Vulkan->ShadowLayout };
-        VkPipelineLayoutCreateInfo ResolveLayoutInfo{ VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO };
-        ResolveLayoutInfo.setLayoutCount = 2u; ResolveLayoutInfo.pSetLayouts = ResolveSets;
+        VkPipelineLayoutCreateInfo ResolveLayoutDetails{ VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO };
+        ResolveLayoutDetails.setLayoutCount = 2u; ResolveLayoutDetails.pSetLayouts = ResolveSets;
 
         if (!MakeShadowPipelineLayout(Vulkan->ShadowRasterPipelineLayout, sizeof(uint32_t), VK_SHADER_STAGE_VERTEX_BIT) ||
-            vkCreatePipelineLayout(D, &ResolveLayoutInfo, nullptr, &Vulkan->ShadowResolvePipelineLayout) != VK_SUCCESS)
+            vkCreatePipelineLayout(D, &ResolveLayoutDetails, nullptr, &Vulkan->ShadowResolvePipelineLayout) != VK_SUCCESS)
         {
             std::cerr << "[VisibilityExchange] shadow pipeline layout failed - GI-off shadows disabled.\n";
             return BringDescriptorSets();
@@ -668,11 +668,11 @@ bool VisibilityExchange::BringPipelines() noexcept
                                   VK_ACCESS_SHADER_READ_BIT, VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT, 0u };
         ShadowDependencies[1] = { 0u, VK_SUBPASS_EXTERNAL, VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
                                   VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT, 0u };
-        VkRenderPassCreateInfo ShadowPassInfo{ VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO };
-        ShadowPassInfo.attachmentCount = 1u; ShadowPassInfo.pAttachments = &ShadowAttachment;
-        ShadowPassInfo.subpassCount = 1u; ShadowPassInfo.pSubpasses = &ShadowSubpass;
-        ShadowPassInfo.dependencyCount = 2u; ShadowPassInfo.pDependencies = ShadowDependencies;
-        if (vkCreateRenderPass(D, &ShadowPassInfo, nullptr, &Vulkan->ShadowPass) != VK_SUCCESS)
+        VkRenderPassCreateInfo ShadowPassDetails{ VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO };
+        ShadowPassDetails.attachmentCount = 1u; ShadowPassDetails.pAttachments = &ShadowAttachment;
+        ShadowPassDetails.subpassCount = 1u; ShadowPassDetails.pSubpasses = &ShadowSubpass;
+        ShadowPassDetails.dependencyCount = 2u; ShadowPassDetails.pDependencies = ShadowDependencies;
+        if (vkCreateRenderPass(D, &ShadowPassDetails, nullptr, &Vulkan->ShadowPass) != VK_SUCCESS)
         {
             std::cerr << "[VisibilityExchange] shadow render pass failed - GI-off shadows disabled.\n";
             return BringDescriptorSets();
@@ -688,7 +688,7 @@ bool VisibilityExchange::BringPipelines() noexcept
             return BringDescriptorSets();
         }
 
-        VkPipelineShaderStageCreateInfo ShadowStageInfo[2] = {
+        VkPipelineShaderStageCreateInfo ShadowStageDetails[2] = {
             { VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO, nullptr, 0u, VK_SHADER_STAGE_VERTEX_BIT,   ShadowVertex,   "main", nullptr },
             { VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO, nullptr, 0u, VK_SHADER_STAGE_FRAGMENT_BIT, ShadowFragment, "main", nullptr } };
 
@@ -710,7 +710,7 @@ bool VisibilityExchange::BringPipelines() noexcept
 
         VkGraphicsPipelineCreateInfo ShadowGraphics{ VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO };
         ShadowGraphics.stageCount          = 2u;
-        ShadowGraphics.pStages             = ShadowStageInfo;
+        ShadowGraphics.pStages             = ShadowStageDetails;
         ShadowGraphics.pVertexInputState   = &VertexInput;      // pulled from the SSBO, same as the primary raster
         ShadowGraphics.pInputAssemblyState = &Assembly;
         ShadowGraphics.pViewportState      = &Viewport;
@@ -721,7 +721,7 @@ bool VisibilityExchange::BringPipelines() noexcept
         ShadowGraphics.pDynamicState       = &DynamicState;
         ShadowGraphics.layout              = Vulkan->ShadowRasterPipelineLayout;
         ShadowGraphics.renderPass          = Vulkan->ShadowPass;
-        const VkResult ShadowResult = DriverProgress::Call("graphics pipeline (driver compile/cache lookup): ShadowRaster", [&] { return vkCreateGraphicsPipelines(D, VK_NULL_HANDLE, 1u, &ShadowGraphics, nullptr, &Vulkan->ShadowRasterPipeline); });
+        const VkResult ShadowResult = DriverProgress::Call("graphics pipeline (driver compile/cache lookup): ShadowRaster", [&] { return vkCreateGraphicsPipelines(D, VK_NULL_HANDLE, 1u, &ShadowGraphics, nullptr, &Vulkan->ShadowRasterChain); });
         vkDestroyShaderModule(D, ShadowVertex, nullptr);
         vkDestroyShaderModule(D, ShadowFragment, nullptr);
         if (ShadowResult != VK_SUCCESS)
@@ -730,7 +730,7 @@ bool VisibilityExchange::BringPipelines() noexcept
             return BringDescriptorSets();
         }
 
-        if (!MakeCompute("Engine/Shaders/ShadowResolve.spv", Vulkan->ShadowResolvePipelineLayout, Vulkan->ShadowResolvePipeline))
+        if (!MakeCompute("Engine/Shaders/ShadowResolve.spv", Vulkan->ShadowResolvePipelineLayout, Vulkan->ShadowResolveChain))
         {
             std::cerr << "[VisibilityExchange] shadow resolve pipeline failed - GI-off shadows disabled.\n";
             return BringDescriptorSets();
@@ -739,12 +739,12 @@ bool VisibilityExchange::BringPipelines() noexcept
         // NEAREST, and clamped. The filters fetch individual texels and average them themselves — a linear sampler
         //    would silently pre-blend depths, and averaging DEPTHS either side of a silhouette produces a value
         //    that lies on neither surface, which is exactly the artefact PCSS's blocker search must not see.
-        VkSamplerCreateInfo ShadowSamplerInfo{ VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO };
-        ShadowSamplerInfo.magFilter = ShadowSamplerInfo.minFilter = VK_FILTER_NEAREST;
-        ShadowSamplerInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_NEAREST;
-        ShadowSamplerInfo.addressModeU = ShadowSamplerInfo.addressModeV = ShadowSamplerInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
-        ShadowSamplerInfo.maxLod = 1.0f;
-        if (vkCreateSampler(D, &ShadowSamplerInfo, nullptr, &Vulkan->ShadowSampler) != VK_SUCCESS)
+        VkSamplerCreateInfo ShadowSamplerDetails{ VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO };
+        ShadowSamplerDetails.magFilter = ShadowSamplerDetails.minFilter = VK_FILTER_NEAREST;
+        ShadowSamplerDetails.mipmapMode = VK_SAMPLER_MIPMAP_MODE_NEAREST;
+        ShadowSamplerDetails.addressModeU = ShadowSamplerDetails.addressModeV = ShadowSamplerDetails.addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+        ShadowSamplerDetails.maxLod = 1.0f;
+        if (vkCreateSampler(D, &ShadowSamplerDetails, nullptr, &Vulkan->ShadowSampler) != VK_SUCCESS)
         {
             std::cerr << "[VisibilityExchange] shadow sampler failed - GI-off shadows disabled.\n";
             return BringDescriptorSets();
@@ -763,22 +763,22 @@ bool VisibilityExchange::BringDescriptorSets() noexcept
     const uint32_t RasterSetCount = kMaximumCycleSlots * 2u;
     std::array<VkDescriptorPoolSize, 4u> Sizes{ { { VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 32u }, { VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 128u + 2u * RasterSetCount },
                                                   { VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 64u + Vulkan->TextureSlotCapacity * RasterSetCount }, { VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 64u } } };
-    VkDescriptorPoolCreateInfo Pool{ VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO };
-    Pool.flags   = Vulkan->TextureSlotCapacity > 0u ? static_cast<VkDescriptorPoolCreateFlags>(VK_DESCRIPTOR_POOL_CREATE_UPDATE_AFTER_BIND_BIT) : 0u;
+    VkDescriptorPoolCreateInfo Bank{ VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO };
+    Bank.flags   = Vulkan->TextureSlotCapacity > 0u ? static_cast<VkDescriptorPoolCreateFlags>(VK_DESCRIPTOR_POOL_CREATE_UPDATE_AFTER_BIND_BIT) : 0u;
     // 5 sets per slot as before, plus the one the R10 shadow stage adds (its own set 1 — its set 0 is the
     //    resolve's, shared rather than duplicated). Sized once; a few unused descriptors beat a resize path.
-    Pool.maxSets = kMaximumCycleSlots * 6u + MaxHiZLevels + 1u;   // +1: the editor outline's single set
-    Pool.poolSizeCount = static_cast<uint32_t>(Sizes.size()); Pool.pPoolSizes = Sizes.data();
-    if (vkCreateDescriptorPool(D, &Pool, nullptr, &Vulkan->Pool) != VK_SUCCESS) return false;
+    Bank.maxSets = kMaximumCycleSlots * 6u + MaxHiZLevels + 1u;   // +1: the editor outline's single set
+    Bank.poolSizeCount = static_cast<uint32_t>(Sizes.size()); Bank.pPoolSizes = Sizes.data();
+    if (vkCreateDescriptorPool(D, &Bank, nullptr, &Vulkan->Bank) != VK_SUCCESS) return false;
 
     const auto Allocate = [&](VkDescriptorSetLayout Layout, VkDescriptorSet& Out)
     {
         VkDescriptorSetVariableDescriptorCountAllocateInfo Variable{ VK_STRUCTURE_TYPE_DESCRIPTOR_SET_VARIABLE_DESCRIPTOR_COUNT_ALLOCATE_INFO };
         Variable.descriptorSetCount = 1u; Variable.pDescriptorCounts = &Vulkan->TextureSlotCapacity;
-        VkDescriptorSetAllocateInfo Info{ VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO };
-        Info.pNext = (Layout == Vulkan->RasterLayout && Vulkan->TextureSlotCapacity > 0u) ? &Variable : nullptr;
-        Info.descriptorPool = Vulkan->Pool; Info.descriptorSetCount = 1u; Info.pSetLayouts = &Layout;
-        return vkAllocateDescriptorSets(D, &Info, &Out) == VK_SUCCESS;
+        VkDescriptorSetAllocateInfo Facts{ VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO };
+        Facts.pNext = (Layout == Vulkan->RasterLayout && Vulkan->TextureSlotCapacity > 0u) ? &Variable : nullptr;
+        Facts.descriptorPool = Vulkan->Bank; Facts.descriptorSetCount = 1u; Facts.pSetLayouts = &Layout;
+        return vkAllocateDescriptorSets(D, &Facts, &Out) == VK_SUCCESS;
     };
     for (uint32_t S = 0u; S < Vulkan->SlotCount; ++S)
     {
@@ -788,7 +788,7 @@ bool VisibilityExchange::BringDescriptorSets() noexcept
             if (!Allocate(Vulkan->RasterLayout, Vulkan->RasterSets[S][P])) return false;
         }
         if (!Allocate(Vulkan->ResolveLayout, Vulkan->ResolveSets[S])) return false;
-        // The shading pass reads the scene, the G-buffer and the presentation image through the resolve's set 0
+        // The shading pass reads the scene, the G-store and the presentation image through the resolve's set 0
         //    (bindings 1/5/10/11/12), which WriteDescriptorSets already fills — so it binds ResolveSets directly
         //    and only needs its own set 1. Nothing in the shadow stage writes those descriptors, so sharing them
         //    is safe and one allocation per slot cheaper.
@@ -796,7 +796,7 @@ bool VisibilityExchange::BringDescriptorSets() noexcept
     }
     Vulkan->HiZSets.resize(MaxHiZLevels);
     for (VkDescriptorSet& Set : Vulkan->HiZSets) if (!Allocate(Vulkan->HiZLayout, Set)) return false;
-    if (Vulkan->OutlinePipeline && !Allocate(Vulkan->OutlineLayout, Vulkan->OutlineSet)) return false;
+    if (Vulkan->OutlineChain && !Allocate(Vulkan->OutlineLayout, Vulkan->OutlineSet)) return false;
     return true;
 }
 
@@ -852,13 +852,13 @@ void VisibilityExchange::UploadScene(const SceneStructure& Scene) noexcept
     constexpr VkBufferUsageFlags S = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT;
 
     const auto Bytes = [](const auto& V) { return V.size() * sizeof(V[0]); };
-    (void)UploadBuffer(D, P, Vulkan->Vertices,      Scene.QueryVertices().data(),      Bytes(Scene.QueryVertices()),      S, "vertices");
-    (void)UploadBuffer(D, P, Vulkan->Indices,       Scene.QueryIndices().data(),       Bytes(Scene.QueryIndices()),       S | VK_BUFFER_USAGE_INDEX_BUFFER_BIT, "indices");
-    (void)UploadBuffer(D, P, Vulkan->Instances,     Scene.QueryInstances().data(),     Bytes(Scene.QueryInstances()),     S | VK_BUFFER_USAGE_TRANSFER_DST_BIT, "instances");
-    (void)UploadBuffer(D, P, Vulkan->Clusters,      Scene.QueryClusters().data(),      Bytes(Scene.QueryClusters()),      S, "clusters");
-    (void)UploadBuffer(D, P, Vulkan->Materials,     Scene.QueryMaterials().QueryRecords().data(), Bytes(Scene.QueryMaterials().QueryRecords()), S, "materials");   // R4a MaterialRecord[]
-    (void)UploadBuffer(D, P, Vulkan->Luminaires,    Scene.QueryLuminaires().data(),    Bytes(Scene.QueryLuminaires()),    S, "luminaires");
-    (void)UploadBuffer(D, P, Vulkan->FlatTriangles, Scene.QueryFlatTriangles().data(), Bytes(Scene.QueryFlatTriangles()), S, "flat triangles");
+    (void)UploadStore(D, P, Vulkan->Vertices,      Scene.QueryVertices().data(),      Bytes(Scene.QueryVertices()),      S, "vertices");
+    (void)UploadStore(D, P, Vulkan->Indices,       Scene.QueryIndices().data(),       Bytes(Scene.QueryIndices()),       S | VK_BUFFER_USAGE_INDEX_BUFFER_BIT, "indices");
+    (void)UploadStore(D, P, Vulkan->Instances,     Scene.QueryInstances().data(),     Bytes(Scene.QueryInstances()),     S | VK_BUFFER_USAGE_TRANSFER_DST_BIT, "instances");
+    (void)UploadStore(D, P, Vulkan->Clusters,      Scene.QueryClusters().data(),      Bytes(Scene.QueryClusters()),      S, "clusters");
+    (void)UploadStore(D, P, Vulkan->Materials,     Scene.QueryMaterials().QueryRecords().data(), Bytes(Scene.QueryMaterials().QueryRecords()), S, "materials");   // R4a MaterialRecord[]
+    (void)UploadStore(D, P, Vulkan->Luminaires,    Scene.QueryLuminaires().data(),    Bytes(Scene.QueryLuminaires()),    S, "luminaires");
+    (void)UploadStore(D, P, Vulkan->FlatTriangles, Scene.QueryFlatTriangles().data(), Bytes(Scene.QueryFlatTriangles()), S, "flat triangles");
 
     TriangleCount  = Scene.QueryTriangleCount();
     InstanceCount  = static_cast<uint32_t>(Scene.QueryInstances().size());
@@ -870,7 +870,7 @@ void VisibilityExchange::UploadScene(const SceneStructure& Scene) noexcept
     (void)CreateBuffer(D, P, Vulkan->Draws,        DrawBytes, S | VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT, false, "draws");
     (void)CreateBuffer(D, P, Vulkan->VisibleBitsA, BitBytes,  S | VK_BUFFER_USAGE_TRANSFER_DST_BIT, false, "visible bits A");
     (void)CreateBuffer(D, P, Vulkan->VisibleBitsB, BitBytes,  S | VK_BUFFER_USAGE_TRANSFER_DST_BIT, false, "visible bits B");
-    Vulkan->TargetsInitialised = false;   // forces the bit buffers to be cleared before first use
+    Vulkan->TargetsInitialised = false;   // forces the bit stores to be cleared before first use
     PreviousValid = false;
 
     // R10. Cache what the shadow stage needs to place its light taps: the emissive triangles, and the scene centre
@@ -921,12 +921,12 @@ bool VisibilityExchange::RefreshInstances(const InstanceRecord* Rows, uint32_t C
     //    silent short write would leave stale transforms that look exactly like a physics bug.
     if (Rows == nullptr || Count == 0u)          return false;
     if (Count != InstanceCount)                  return false;
-    if (Vulkan == nullptr || !Vulkan->Instances.Buffer) return false;
+    if (Vulkan == nullptr || !Vulkan->Instances.Block) return false;
 
     const size_t Bytes = static_cast<size_t>(Count) * sizeof(InstanceRecord);
     if (Bytes > static_cast<size_t>(Vulkan->Instances.Bytes)) return false;
 
-    // RecordFrame copies the staged bytes in queue order. Coherent host memory alone does not
+    // RecordFrame copies the staged bytes in queue order. Coherent host storage alone does not
     // protect an earlier recording that is still reading these shared transforms.
     Vulkan->PendingInstances.assign(Rows, Rows + Count);
     return true;
@@ -938,25 +938,25 @@ bool VisibilityExchange::RefreshInstances(const InstanceRecord* Rows, uint32_t C
 
 void VisibilityExchange::WriteDescriptorSets() noexcept
 {
-    if (!Vulkan->Pool || !Vulkan->Clusters.Buffer || !Vulkan->Depth.View) return;
+    if (!Vulkan->Bank || !Vulkan->Clusters.Block || !Vulkan->Depth.View) return;
     VkDevice D = Vulkan->Device;
 
     std::vector<VkWriteDescriptorSet>   Writes;
-    std::vector<VkDescriptorBufferInfo> Buffers;  Buffers.reserve(256);
+    std::vector<VkDescriptorBufferInfo> Stores;  Stores.reserve(256);
     std::vector<VkDescriptorImageInfo>  Images;   Images.reserve(128);
-    const auto Buffer = [&](VkDescriptorSet Set, uint32_t Binding, VkDescriptorType Type, VkBuffer B)
+    const auto Block = [&](VkDescriptorSet Set, uint32_t Binding, VkDescriptorType Type, VkBuffer B)
     {
-        Buffers.push_back({ B, 0u, VK_WHOLE_SIZE });
+        Stores.push_back({ B, 0u, VK_WHOLE_SIZE });
         VkWriteDescriptorSet W{ VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET }; W.dstSet = Set; W.dstBinding = Binding; W.descriptorCount = 1u; W.descriptorType = Type;
         // 1-based index: a 0-based index 0 would read back as nullptr and the patch loop below would skip it.
-        W.pBufferInfo = reinterpret_cast<const VkDescriptorBufferInfo*>(Buffers.size());   // patched below (vector may grow)
+        W.pBufferInfo = reinterpret_cast<const VkDescriptorBufferInfo*>(Stores.size());   // patched below (vector may grow)
         Writes.push_back(W);
     };
     const auto Image = [&](VkDescriptorSet Set, uint32_t Binding, VkDescriptorType Type, VkImageView V)
     {
         Images.push_back({ Type == VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER ? Vulkan->PointSampler : VK_NULL_HANDLE, V, VK_IMAGE_LAYOUT_GENERAL });
         VkWriteDescriptorSet W{ VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET }; W.dstSet = Set; W.dstBinding = Binding; W.descriptorCount = 1u; W.descriptorType = Type;
-        W.pImageInfo = reinterpret_cast<const VkDescriptorImageInfo*>(Images.size());   // 1-based, see Buffer above
+        W.pImageInfo = reinterpret_cast<const VkDescriptorImageInfo*>(Images.size());   // 1-based, see Block above
         Writes.push_back(W);
     };
     constexpr VkDescriptorType UBO = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, SSBO = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, IMG = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, TEX = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
@@ -966,31 +966,31 @@ void VisibilityExchange::WriteDescriptorSets() noexcept
         for (uint32_t P = 0u; P < 2u; ++P)
         {
             VkDescriptorSet C = Vulkan->CullSets[S][P];
-            Buffer(C, 0u, UBO,  Vulkan->FrameConstants[S][P].Buffer);
-            Buffer(C, 1u, SSBO, Vulkan->Instances.Buffer);
-            Buffer(C, 2u, SSBO, Vulkan->Clusters.Buffer);
-            Buffer(C, 3u, SSBO, Vulkan->Draws.Buffer);
-            Buffer(C, 4u, SSBO, Vulkan->Counters.Buffer);
+            Block(C, 0u, UBO,  Vulkan->FrameConstants[S][P].Block);
+            Block(C, 1u, SSBO, Vulkan->Instances.Block);
+            Block(C, 2u, SSBO, Vulkan->Clusters.Block);
+            Block(C, 3u, SSBO, Vulkan->Draws.Block);
+            Block(C, 4u, SSBO, Vulkan->Counters.Block);
             // bindings 5/6 (previous / current bits) are written per frame in RecordFrame (parity swaps)
             Image (C, 7u, TEX,  Vulkan->HiZ.View);
-            Buffer(C, 8u, SSBO, Vulkan->Materials.Buffer);
-            Buffer(C, 9u, SSBO, Vulkan->BorrowedSlabs ? Vulkan->BorrowedSlabs : Vulkan->Materials.Buffer);
+            Block(C, 8u, SSBO, Vulkan->Materials.Block);
+            Block(C, 9u, SSBO, Vulkan->BorrowedSlabs ? Vulkan->BorrowedSlabs : Vulkan->Materials.Block);
 
             VkDescriptorSet R = Vulkan->RasterSets[S][P];
-            Buffer(R, 0u, UBO,  Vulkan->FrameConstants[S][P].Buffer);
-            Buffer(R, 1u, SSBO, Vulkan->Instances.Buffer);
-            Buffer(R, 2u, SSBO, Vulkan->Clusters.Buffer);
-            Buffer(R, 3u, SSBO, Vulkan->Vertices.Buffer);
-            Buffer(R, 5u, SSBO, Vulkan->Materials.Buffer);
-            Buffer(R, 6u, SSBO, Vulkan->BorrowedSlabs ? Vulkan->BorrowedSlabs : Vulkan->Materials.Buffer);
+            Block(R, 0u, UBO,  Vulkan->FrameConstants[S][P].Block);
+            Block(R, 1u, SSBO, Vulkan->Instances.Block);
+            Block(R, 2u, SSBO, Vulkan->Clusters.Block);
+            Block(R, 3u, SSBO, Vulkan->Vertices.Block);
+            Block(R, 5u, SSBO, Vulkan->Materials.Block);
+            Block(R, 6u, SSBO, Vulkan->BorrowedSlabs ? Vulkan->BorrowedSlabs : Vulkan->Materials.Block);
         }
         VkDescriptorSet X = Vulkan->ResolveSets[S];
-        Buffer(X, 0u, UBO,  Vulkan->FrameConstants[S][1].Buffer);
-        Buffer(X, 1u, SSBO, Vulkan->Instances.Buffer);
-        Buffer(X, 2u, SSBO, Vulkan->Clusters.Buffer);
-        Buffer(X, 3u, SSBO, Vulkan->Vertices.Buffer);
-        Buffer(X, 4u, SSBO, Vulkan->Indices.Buffer);
-        Buffer(X, 5u, SSBO, Vulkan->Materials.Buffer);
+        Block(X, 0u, UBO,  Vulkan->FrameConstants[S][1].Block);
+        Block(X, 1u, SSBO, Vulkan->Instances.Block);
+        Block(X, 2u, SSBO, Vulkan->Clusters.Block);
+        Block(X, 3u, SSBO, Vulkan->Vertices.Block);
+        Block(X, 4u, SSBO, Vulkan->Indices.Block);
+        Block(X, 5u, SSBO, Vulkan->Materials.Block);
         Image (X, 6u, TEX,  Vulkan->Visibility.View);
         Image (X, 7u, TEX,  Vulkan->Motion.View);
         Image (X, 8u, TEX,  Vulkan->Depth.View);
@@ -1008,7 +1008,7 @@ void VisibilityExchange::WriteDescriptorSets() noexcept
         Image(Vulkan->HiZSets[L], 1u, IMG, Vulkan->HiZ.LevelViews[L]);
     }
     // Editor selection outline: id image in, presentation image out.
-    if (Vulkan->OutlinePipeline && Vulkan->OutlineSet && Vulkan->PresentationView)
+    if (Vulkan->OutlineChain && Vulkan->OutlineSet && Vulkan->PresentationView)
     {
         Image(Vulkan->OutlineSet, 0u, TEX, Vulkan->Visibility.View);
         Image(Vulkan->OutlineSet, 1u, IMG, Vulkan->PresentationView);
@@ -1016,7 +1016,7 @@ void VisibilityExchange::WriteDescriptorSets() noexcept
 
     for (VkWriteDescriptorSet& W : Writes)
     {
-        if (W.pBufferInfo) W.pBufferInfo = &Buffers[reinterpret_cast<size_t>(W.pBufferInfo) - 1u];
+        if (W.pBufferInfo) W.pBufferInfo = &Stores[reinterpret_cast<size_t>(W.pBufferInfo) - 1u];
         if (W.pImageInfo)  W.pImageInfo  = &Images[reinterpret_cast<size_t>(W.pImageInfo) - 1u];
     }
     vkUpdateDescriptorSets(D, static_cast<uint32_t>(Writes.size()), Writes.data(), 0u, nullptr);
@@ -1037,9 +1037,9 @@ void VisibilityExchange::WriteDescriptorSets() noexcept
     }
 }
 
-void VisibilityExchange::AssignRasterMaterials(void* SlabBuffer, void* Sampler, const void* const* Views, uint32_t ViewCount) noexcept
+void VisibilityExchange::AssignRasterMaterials(void* SlabStore, void* Sampler, const void* const* Views, uint32_t ViewCount) noexcept
 {
-    Vulkan->BorrowedSlabs   = static_cast<VkBuffer>(SlabBuffer);
+    Vulkan->BorrowedSlabs   = static_cast<VkBuffer>(SlabStore);
     Vulkan->BorrowedSampler = static_cast<VkSampler>(Sampler);
     Vulkan->BorrowedTextures.clear();
     const uint32_t Count = std::min(ViewCount, Vulkan->TextureSlotCapacity);
@@ -1052,9 +1052,9 @@ void VisibilityExchange::AssignRasterMaterials(void* SlabBuffer, void* Sampler, 
 //                                                    RESERVOIR VIEW (R6 row 3)
 //------------------------------------------------------------------------------------------------------------------------
 
-void VisibilityExchange::AssignReservoirView(void* PrevReservoirBuffer) noexcept
+void VisibilityExchange::AssignReservoirView(void* PrevReservoirStore) noexcept
 {
-    Vulkan->BorrowedReservoir = static_cast<VkBuffer>(PrevReservoirBuffer);
+    Vulkan->BorrowedReservoir = static_cast<VkBuffer>(PrevReservoirStore);
     // No WriteDescriptorSets here: the resolve set's binding 13 is rewritten per frame in RecordFrame (parity swaps
     //    every frame), so a full rewrite on every assign would be redundant.
 }
@@ -1112,7 +1112,7 @@ void VisibilityExchange::ReadTelemetry(uint32_t Slot) noexcept
         Telemetry.TrianglesFine   = Counters[9];
     }
     // WITH_AVAILABILITY, and two words per query: the shadow pair is only written on frames the shadow stage
-    //    actually recorded (GI off, shadow frame valid). A reset-but-never-written query returns UNDEFINED data,
+    //    actually recorded (GI off, shadow frame valid). A reset-but-never-written query returns UNDEFINED record,
     //    not zero, so without the availability word a GI-on frame would subtract garbage from the kernel figure.
     //    The flag makes the driver tell us which stamps are real; unavailable ones are treated as "stage absent".
     uint64_t Stamps[kTimestampCount * 2u]{};
@@ -1121,7 +1121,7 @@ void VisibilityExchange::ReadTelemetry(uint32_t Slot) noexcept
     //    volume only when those stages ran — so the range virtually always contains reset-but-never-written
     //    queries, which stay unavailable forever. Per the specification, vkGetQueryPoolResults without WAIT or
     //    PARTIAL then returns VK_NOT_READY even though it HAS written values for every available query and a
-    //    zero availability word for the rest (PARTIAL is illegal on timestamp pools, so it cannot help). Testing
+    //    zero availability word for the rest (PARTIAL is illegal on timestamp slots, so it cannot help). Testing
     //    for VK_SUCCESS alone therefore skipped this block on every single frame, and the whole [GpuTiming]
     //    report read 0.00 ms for the life of the run. The availability words below already sort real stamps
     //    from absent ones; accept both results and let them do exactly that.
@@ -1183,24 +1183,24 @@ void VisibilityExchange::ReadTelemetry(uint32_t Slot) noexcept
 //                                                      RECORD FRAME
 //------------------------------------------------------------------------------------------------------------------------
 
-void VisibilityExchange::RecordFrame(void* CommandHandle, uint32_t Slot, const VisibilityFrameConfiguration& Frame) noexcept
+void VisibilityExchange::RecordFrame(void* CommandIdentifier, uint32_t Slot, const VisibilityFrameConfiguration& Frame) noexcept
 {
     if (!IsReady() || !Vulkan->Framebuffer) return;
-    VkCommandBuffer Command = static_cast<VkCommandBuffer>(CommandHandle);
+    VkCommandBuffer Command = static_cast<VkCommandBuffer>(CommandIdentifier);
     if (!Vulkan->PendingInstances.empty())
     {
         VkBufferMemoryBarrier Transfer{ VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER };
         Transfer.srcAccessMask = VK_ACCESS_SHADER_READ_BIT;
         Transfer.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
         Transfer.srcQueueFamilyIndex = Transfer.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-        Transfer.buffer = Vulkan->Instances.Buffer;
+        Transfer.buffer = Vulkan->Instances.Block;
         Transfer.size = VK_WHOLE_SIZE;
         vkCmdPipelineBarrier(Command, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT,
                              0u, 0u, nullptr, 1u, &Transfer, 0u, nullptr);
         const VkDeviceSize Bytes = Vulkan->PendingInstances.size() * sizeof(InstanceRecord);
         const auto* Source = reinterpret_cast<const unsigned char*>(Vulkan->PendingInstances.data());
         for (VkDeviceSize Offset = 0u; Offset < Bytes; Offset += 65536u)
-            vkCmdUpdateBuffer(Command, Vulkan->Instances.Buffer, Offset, std::min<VkDeviceSize>(65536u, Bytes - Offset), Source + Offset);
+            vkCmdUpdateBuffer(Command, Vulkan->Instances.Block, Offset, std::min<VkDeviceSize>(65536u, Bytes - Offset), Source + Offset);
         Transfer.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
         Transfer.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
         vkCmdPipelineBarrier(Command, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT,
@@ -1212,12 +1212,12 @@ void VisibilityExchange::RecordFrame(void* CommandHandle, uint32_t Slot, const V
     const uint32_t Q = Slot * kTimestampCount;
     vkCmdResetQueryPool(Command, Vulkan->Timestamps, Q, kTimestampCount);
 
-    // Bit buffers: previous = the one phase 2 wrote last frame; current = the other. Both zeroed on the first frame.
-    GpuBuffer& Previous = Vulkan->VisibleParity ? Vulkan->VisibleBitsB : Vulkan->VisibleBitsA;
-    GpuBuffer& Current  = Vulkan->VisibleParity ? Vulkan->VisibleBitsA : Vulkan->VisibleBitsB;
+    // Bit stores: previous = the one phase 2 wrote last frame; current = the other. Both zeroed on the first frame.
+    GpuStore& Previous = Vulkan->VisibleParity ? Vulkan->VisibleBitsB : Vulkan->VisibleBitsA;
+    GpuStore& Current  = Vulkan->VisibleParity ? Vulkan->VisibleBitsA : Vulkan->VisibleBitsB;
     Vulkan->VisibleParity = !Vulkan->VisibleParity;
     {
-        VkDescriptorBufferInfo Infos[4] = { { Previous.Buffer, 0u, VK_WHOLE_SIZE }, { Current.Buffer, 0u, VK_WHOLE_SIZE }, { Previous.Buffer, 0u, VK_WHOLE_SIZE }, { Current.Buffer, 0u, VK_WHOLE_SIZE } };
+        VkDescriptorBufferInfo Infos[4] = { { Previous.Block, 0u, VK_WHOLE_SIZE }, { Current.Block, 0u, VK_WHOLE_SIZE }, { Previous.Block, 0u, VK_WHOLE_SIZE }, { Current.Block, 0u, VK_WHOLE_SIZE } };
         VkWriteDescriptorSet W[4]{};
         for (uint32_t I = 0u; I < 4u; ++I)
         {
@@ -1237,11 +1237,11 @@ void VisibilityExchange::RecordFrame(void* CommandHandle, uint32_t Slot, const V
         vkCmdPipelineBarrier(Command, Compute | Transfer, Compute | Transfer, 0u, 1u, &Global, 0u, nullptr, 0u, nullptr);
     }
 
-    // ⓪ First use: zero both bit buffers, HiZ → GENERAL (all levels), storage targets → GENERAL.
+    // ⓪ First use: zero both bit stores, HiZ → GENERAL (all levels), storage targets → GENERAL.
     if (!Vulkan->TargetsInitialised)
     {
-        vkCmdFillBuffer(Command, Previous.Buffer, 0u, VK_WHOLE_SIZE, 0u);
-        vkCmdFillBuffer(Command, Current.Buffer,  0u, VK_WHOLE_SIZE, 0u);
+        vkCmdFillBuffer(Command, Previous.Block, 0u, VK_WHOLE_SIZE, 0u);
+        vkCmdFillBuffer(Command, Current.Block,  0u, VK_WHOLE_SIZE, 0u);
         ImageBarrier(Command, Vulkan->HiZ.Image,     VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL, 0u, VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, Compute);
         ImageBarrier(Command, Vulkan->Surface.Image, VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL, 0u, VK_ACCESS_SHADER_WRITE_BIT, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, Compute);
         ImageBarrier(Command, Vulkan->Normal.Image,  VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL, 0u, VK_ACCESS_SHADER_WRITE_BIT, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, Compute);
@@ -1254,19 +1254,19 @@ void VisibilityExchange::RecordFrame(void* CommandHandle, uint32_t Slot, const V
     }
 
     // ① Reset counters and draw list.
-    vkCmdFillBuffer(Command, Vulkan->Counters.Buffer, 0u, VK_WHOLE_SIZE, 0u);
-    BufferBarrier(Command, Vulkan->Counters.Buffer, VK_ACCESS_TRANSFER_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT, Transfer, Compute);
-    BufferBarrier(Command, Current.Buffer,          VK_ACCESS_TRANSFER_WRITE_BIT | VK_ACCESS_SHADER_READ_BIT, VK_ACCESS_SHADER_WRITE_BIT, Transfer | Compute, Compute);
+    vkCmdFillBuffer(Command, Vulkan->Counters.Block, 0u, VK_WHOLE_SIZE, 0u);
+    StoreBarrier(Command, Vulkan->Counters.Block, VK_ACCESS_TRANSFER_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT, Transfer, Compute);
+    StoreBarrier(Command, Current.Block,          VK_ACCESS_TRANSFER_WRITE_BIT | VK_ACCESS_SHADER_READ_BIT, VK_ACCESS_SHADER_WRITE_BIT, Transfer | Compute, Compute);
 
     const auto Cull = [&](uint32_t Phase)
     {
         WriteFrameConstants(Slot, Phase, Frame);
-        vkCmdBindPipeline(Command, VK_PIPELINE_BIND_POINT_COMPUTE, Vulkan->CullPipeline);
+        vkCmdBindPipeline(Command, VK_PIPELINE_BIND_POINT_COMPUTE, Vulkan->CullChain);
         vkCmdBindDescriptorSets(Command, VK_PIPELINE_BIND_POINT_COMPUTE, Vulkan->CullPipelineLayout, 0u, 1u, &Vulkan->CullSets[Slot][Phase - 1u], 0u, nullptr);
         vkCmdDispatch(Command, (ClusterCount + 63u) / 64u, 1u, 1u);
-        BufferBarrier(Command, Vulkan->Draws.Buffer,    VK_ACCESS_SHADER_WRITE_BIT, VK_ACCESS_INDIRECT_COMMAND_READ_BIT, Compute, Indirect);
-        BufferBarrier(Command, Vulkan->Counters.Buffer, VK_ACCESS_SHADER_WRITE_BIT, VK_ACCESS_INDIRECT_COMMAND_READ_BIT | VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT, Compute, Indirect | Compute);
-        BufferBarrier(Command, Current.Buffer,          VK_ACCESS_SHADER_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT, Compute, Compute);
+        StoreBarrier(Command, Vulkan->Draws.Block,    VK_ACCESS_SHADER_WRITE_BIT, VK_ACCESS_INDIRECT_COMMAND_READ_BIT, Compute, Indirect);
+        StoreBarrier(Command, Vulkan->Counters.Block, VK_ACCESS_SHADER_WRITE_BIT, VK_ACCESS_INDIRECT_COMMAND_READ_BIT | VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT, Compute, Indirect | Compute);
+        StoreBarrier(Command, Current.Block,          VK_ACCESS_SHADER_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT, Compute, Compute);
     };
 
     const auto Raster = [&](uint32_t Phase)
@@ -1285,22 +1285,22 @@ void VisibilityExchange::RecordFrame(void* CommandHandle, uint32_t Slot, const V
         VkRect2D   Scissor{ { 0, 0 }, { Frame.RenderWidth, Frame.RenderHeight } };
         vkCmdSetViewport(Command, 0u, 1u, &Viewport);
         vkCmdSetScissor(Command, 0u, 1u, &Scissor);
-        vkCmdBindPipeline(Command, VK_PIPELINE_BIND_POINT_GRAPHICS, Phase == 1u ? Vulkan->RasterPipelineClear : Vulkan->RasterPipelineLoad);
+        vkCmdBindPipeline(Command, VK_PIPELINE_BIND_POINT_GRAPHICS, Phase == 1u ? Vulkan->RasterChainClear : Vulkan->RasterChainLoad);
         vkCmdBindDescriptorSets(Command, VK_PIPELINE_BIND_POINT_GRAPHICS, Vulkan->RasterPipelineLayout, 0u, 1u, &Vulkan->RasterSets[Slot][Phase - 1u], 0u, nullptr);
-        vkCmdBindIndexBuffer(Command, Vulkan->Indices.Buffer, 0u, VK_INDEX_TYPE_UINT32);
+        vkCmdBindIndexBuffer(Command, Vulkan->Indices.Block, 0u, VK_INDEX_TYPE_UINT32);
         const VkDeviceSize DrawOffset  = Phase == 1u ? 0u : static_cast<VkDeviceSize>(ClusterCount) * sizeof(VkDrawIndexedIndirectCommand);
         const VkDeviceSize CountOffset = Phase == 1u ? 0u : kCounterDrawPhaseTwoByte;
         if (Vulkan->DrawIndirectCount)
-            vkCmdDrawIndexedIndirectCount(Command, Vulkan->Draws.Buffer, DrawOffset, Vulkan->Counters.Buffer, CountOffset, ClusterCount, sizeof(VkDrawIndexedIndirectCommand));
+            vkCmdDrawIndexedIndirectCount(Command, Vulkan->Draws.Block, DrawOffset, Vulkan->Counters.Block, CountOffset, ClusterCount, sizeof(VkDrawIndexedIndirectCommand));
         else
-            vkCmdDrawIndexedIndirect(Command, Vulkan->Draws.Buffer, DrawOffset, ClusterCount, sizeof(VkDrawIndexedIndirectCommand));   // unused slots must be zero → see fill below
+            vkCmdDrawIndexedIndirect(Command, Vulkan->Draws.Block, DrawOffset, ClusterCount, sizeof(VkDrawIndexedIndirectCommand));   // unused slots must be zero → see fill below
         vkCmdEndRenderPass(Command);
     };
 
     if (!Vulkan->DrawIndirectCount)
     {
-        vkCmdFillBuffer(Command, Vulkan->Draws.Buffer, 0u, VK_WHOLE_SIZE, 0u);
-        BufferBarrier(Command, Vulkan->Draws.Buffer, VK_ACCESS_TRANSFER_WRITE_BIT, VK_ACCESS_SHADER_WRITE_BIT, Transfer, Compute);
+        vkCmdFillBuffer(Command, Vulkan->Draws.Block, 0u, VK_WHOLE_SIZE, 0u);
+        StoreBarrier(Command, Vulkan->Draws.Block, VK_ACCESS_TRANSFER_WRITE_BIT, VK_ACCESS_SHADER_WRITE_BIT, Transfer, Compute);
     }
 
     // ② Phase 1: last frame's visible clusters, no occlusion test.
@@ -1313,7 +1313,7 @@ void VisibilityExchange::RecordFrame(void* CommandHandle, uint32_t Slot, const V
 
     // ③ HiZ pyramid from the phase-1 depth.
     vkCmdWriteTimestamp(Command, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, Vulkan->Timestamps, Q + 4u);
-    vkCmdBindPipeline(Command, VK_PIPELINE_BIND_POINT_COMPUTE, Vulkan->HiZPipeline);
+    vkCmdBindPipeline(Command, VK_PIPELINE_BIND_POINT_COMPUTE, Vulkan->HiZChain);
     for (uint32_t L = 0u; L < Vulkan->HiZ.Levels; ++L)
     {
         const uint32_t SourceW = L == 0u ? Frame.RenderWidth  : std::max(1u, Frame.RenderWidth  >> (L - 1u));
@@ -1336,23 +1336,23 @@ void VisibilityExchange::RecordFrame(void* CommandHandle, uint32_t Slot, const V
     Raster(2u);
     vkCmdWriteTimestamp(Command, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, Vulkan->Timestamps, Q + 9u);
 
-    // ⑤ Surface resolve (thin G-buffer; debug view straight to the presentation image).
-    // R6 row 3: binding 13 tracks the kernel's prev-frame reservoir buffer, which swaps parity every frame — hence
-    //    the per-frame rewrite here instead of once in WriteDescriptorSets. Skipped while null (no reservoir buffers
+    // ⑤ Surface resolve (thin G-store; debug view straight to the presentation image).
+    // R6 row 3: binding 13 tracks the kernel's prev-frame reservoir store, which swaps parity every frame — hence
+    //    the per-frame rewrite here instead of once in WriteDescriptorSets. Skipped while null (no reservoir stores
     //    yet): the M/W/Age views cannot be selected before the first kernel frame anyway, and an unbound binding
     //    is only UB if the shader actually reads it.
     if (Vulkan->BorrowedReservoir)
     {
-        VkDescriptorBufferInfo ReservoirInfo{ Vulkan->BorrowedReservoir, 0u, VK_WHOLE_SIZE };
+        VkDescriptorBufferInfo ReservoirDetails{ Vulkan->BorrowedReservoir, 0u, VK_WHOLE_SIZE };
         VkWriteDescriptorSet ReservoirWrite{ VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET };
         ReservoirWrite.dstSet          = Vulkan->ResolveSets[Slot];
         ReservoirWrite.dstBinding      = 13u;
         ReservoirWrite.descriptorCount = 1u;
         ReservoirWrite.descriptorType  = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-        ReservoirWrite.pBufferInfo     = &ReservoirInfo;
+        ReservoirWrite.pBufferInfo     = &ReservoirDetails;
         vkUpdateDescriptorSets(Vulkan->Device, 1u, &ReservoirWrite, 0u, nullptr);
     }
-    vkCmdBindPipeline(Command, VK_PIPELINE_BIND_POINT_COMPUTE, Vulkan->ResolvePipeline);
+    vkCmdBindPipeline(Command, VK_PIPELINE_BIND_POINT_COMPUTE, Vulkan->ResolveChain);
     vkCmdBindDescriptorSets(Command, VK_PIPELINE_BIND_POINT_COMPUTE, Vulkan->ResolvePipelineLayout, 0u, 1u, &Vulkan->ResolveSets[Slot], 0u, nullptr);
     vkCmdDispatch(Command, (Frame.RenderWidth + 15u) / 16u, (Frame.RenderHeight + 15u) / 16u, 1u);
     ImageBarrier(Command, Vulkan->Surface.Image, VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_GENERAL, VK_ACCESS_SHADER_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT, Compute, Compute);
@@ -1361,10 +1361,10 @@ void VisibilityExchange::RecordFrame(void* CommandHandle, uint32_t Slot, const V
     ImageBarrier(Command, Vulkan->Albedo.Image, VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_GENERAL, VK_ACCESS_SHADER_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT, Compute, Compute);
     vkCmdWriteTimestamp(Command, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, Vulkan->Timestamps, Q + 10u);
 
-    // ⑥ Counters → this slot's read-back buffer (read two frames later, after the fence).
-    BufferBarrier(Command, Vulkan->Counters.Buffer, VK_ACCESS_SHADER_WRITE_BIT, VK_ACCESS_TRANSFER_READ_BIT, Compute, Transfer);
+    // ⑥ Counters → this slot's read-back store (read two frames later, after the fence).
+    StoreBarrier(Command, Vulkan->Counters.Block, VK_ACCESS_SHADER_WRITE_BIT, VK_ACCESS_TRANSFER_READ_BIT, Compute, Transfer);
     VkBufferCopy Copy{ 0u, 0u, kCounterCount * 4u };
-    vkCmdCopyBuffer(Command, Vulkan->Counters.Buffer, Vulkan->CounterReadback[Slot].Buffer, 1u, &Copy);
+    vkCmdCopyBuffer(Command, Vulkan->Counters.Block, Vulkan->CounterReadback[Slot].Block, 1u, &Copy);
     Vulkan->SlotRecorded[Slot] = true;
 
     // ⑦ Editor picking: one texel of the id image → this slot's host-visible extent, read back after the slot's
@@ -1381,7 +1381,7 @@ void VisibilityExchange::RecordFrame(void* CommandHandle, uint32_t Slot, const V
         Texel.imageSubresource = { VK_IMAGE_ASPECT_COLOR_BIT, 0u, 0u, 1u };
         Texel.imageOffset      = { static_cast<int32_t>(TapX), static_cast<int32_t>(TapY), 0 };
         Texel.imageExtent      = { 1u, 1u, 1u };
-        vkCmdCopyImageToBuffer(Command, Vulkan->Visibility.Image, VK_IMAGE_LAYOUT_GENERAL, Vulkan->PickReadback[Slot].Buffer, 1u, &Texel);
+        vkCmdCopyImageToBuffer(Command, Vulkan->Visibility.Image, VK_IMAGE_LAYOUT_GENERAL, Vulkan->PickReadback[Slot].Block, 1u, &Texel);
         ImageBarrier(Command, Vulkan->Visibility.Image, VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_GENERAL,
                      VK_ACCESS_TRANSFER_READ_BIT, VK_ACCESS_SHADER_READ_BIT, Transfer, Compute);
         Vulkan->PickRecorded[Slot] = true;
@@ -1416,13 +1416,13 @@ uint32_t VisibilityExchange::QueryPickedVisibility(uint32_t CycleSlot) const noe
 //                                                EDITOR SELECTION OUTLINE
 //------------------------------------------------------------------------------------------------------------------------
 
-void VisibilityExchange::RecordSelectionOutline(void* CommandHandle, const uint32_t* PickedInstances, uint32_t PickedCount,
+void VisibilityExchange::RecordSelectionOutline(void* CommandIdentifier, const uint32_t* PickedInstances, uint32_t PickedCount,
                                                 uint32_t RenderWidth, uint32_t RenderHeight, uint32_t StrokeRadius) noexcept
 {
-    if (!IsReady() || !Vulkan->OutlinePipeline || !Vulkan->OutlineSet || !Vulkan->PresentationView) return;
-    if (CommandHandle == nullptr || PickedInstances == nullptr || PickedCount == 0u) return;
+    if (!IsReady() || !Vulkan->OutlineChain || !Vulkan->OutlineSet || !Vulkan->PresentationView) return;
+    if (CommandIdentifier == nullptr || PickedInstances == nullptr || PickedCount == 0u) return;
     if (RenderWidth == 0u || RenderHeight == 0u) return;
-    VkCommandBuffer Command = static_cast<VkCommandBuffer>(CommandHandle);
+    VkCommandBuffer Command = static_cast<VkCommandBuffer>(CommandIdentifier);
 
     OutlinePushRecord Push{};
     Push.RenderWidth  = RenderWidth;
@@ -1438,7 +1438,7 @@ void VisibilityExchange::RecordSelectionOutline(void* CommandHandle, const uint3
     Settle.dstAccessMask = VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT;
     vkCmdPipelineBarrier(Command, Compute, Compute, 0u, 1u, &Settle, 0u, nullptr, 0u, nullptr);
 
-    vkCmdBindPipeline(Command, VK_PIPELINE_BIND_POINT_COMPUTE, Vulkan->OutlinePipeline);
+    vkCmdBindPipeline(Command, VK_PIPELINE_BIND_POINT_COMPUTE, Vulkan->OutlineChain);
     vkCmdPushConstants(Command, Vulkan->OutlinePipelineLayout, VK_SHADER_STAGE_COMPUTE_BIT, 0u, sizeof(Push), &Push);
     vkCmdBindDescriptorSets(Command, VK_PIPELINE_BIND_POINT_COMPUTE, Vulkan->OutlinePipelineLayout, 0u, 1u, &Vulkan->OutlineSet, 0u, nullptr);
     vkCmdDispatch(Command, (RenderWidth + 7u) / 8u, (RenderHeight + 7u) / 8u, 1u);
@@ -1466,7 +1466,7 @@ bool VisibilityExchange::PlaceShadowTaps(ShadowFrameConfiguration& Shadow) const
     Shadow.DirectionalMask = 0u;
 
     // ⚠️ The sun counts. This used to read `if (Emitters.empty()) return false;`, which is why the GI-off path cast
-    //    no sun shadow: an outdoor level with a sun and no emissive mesh placed zero taps, RecordShadowFrame
+    //    no sun shadow: an outdoor level with a sun and no emissive topology placed zero taps, RecordShadowFrame
     //    refused, and the frame fell through to the kernel — or, with GI off, to a stage that never ran. The sun is
     //    a light the kernel has sampled since it landed (kSunLightIndex), so it must be one here too.
     const bool SunLit = Shadow.SunEnabled
@@ -1486,7 +1486,7 @@ bool VisibilityExchange::PlaceShadowTaps(ShadowFrameConfiguration& Shadow) const
     //    usable. The resolve is told it is directional (the mask below) so it uses the direction and skips 1/d².
     //
     //    Sun first, then moon. Both can be up at once — a daytime moon is ordinary — so these are independent
-    //    tests rather than an either/or, and the mesh emitters take whatever slots are left.
+    //    tests rather than an either/or, and the topology emitters take whatever slots are left.
     const auto PlaceDirectional = [&](const float Direction[3], const float Radiance[3], float AngularRadius)
     {
         const float Radius = std::max(SceneDiagonal * 0.5f, 1.0f);
@@ -1511,7 +1511,7 @@ bool VisibilityExchange::PlaceShadowTaps(ShadowFrameConfiguration& Shadow) const
     if (SunLit)  PlaceDirectional(Shadow.SunDirection,  Shadow.SunRadiance,  Shadow.SunAngularRadius);
     if (MoonLit) PlaceDirectional(Shadow.MoonDirection, Shadow.MoonRadiance, Shadow.MoonAngularRadius);
 
-    // ── The mesh emitters fill what is left ──────────────────────────────────────────────────────────────────
+    // ── The topology emitters fill what is left ──────────────────────────────────────────────────────────────────
     //    The same fixed stratified warp points VisibilityRaster::PlaceTaps uses, in the same order. Fixed rather
     //    than random on purpose: a moving tap would make the shadow crawl between frames, and the CPU proof could
     //    not then be compared against the GPU frame at all.
@@ -1520,9 +1520,9 @@ bool VisibilityExchange::PlaceShadowTaps(ShadowFrameConfiguration& Shadow) const
 
     if (!Emitters.empty() && Placed < Maximum)
     {
-        const uint32_t MeshTaps = Maximum - Placed;   // 4, minus however many of sun/moon are up
+        const uint32_t GeometryTaps = Maximum - Placed;   // 4, minus however many of sun/moon are up
         const float    Count    = static_cast<float>(Emitters.size());
-        for (uint32_t K = 0u; K < MeshTaps; ++K)
+        for (uint32_t K = 0u; K < GeometryTaps; ++K)
         {
             const EmissiveTriangle& E = Emitters[K % Emitters.size()];
             const float Sq = std::sqrt(kWarp[K][0]);
@@ -1535,13 +1535,13 @@ bool VisibilityExchange::PlaceShadowTaps(ShadowFrameConfiguration& Shadow) const
             // Each tap integrates its share of the whole emitter set, exactly as the CPU path divides it. The
             //    divisor is the number of MESH taps actually placed — not the slot maximum — or giving the sun a
             //    slot would silently dim every lamp by a quarter.
-            Tap.Weight = E.Area * Count / static_cast<float>(MeshTaps);
+            Tap.Weight = E.Area * Count / static_cast<float>(GeometryTaps);
 
             // PCSS's LightSize is the luminaire's own extent — √(total emissive area), not one tap's share. The
             //    penumbra is cast by the light's real width; the taps are only how that one emitter is integrated.
             Tap.LightSize = std::sqrt(E.Area * Count);
         }
-        Placed += MeshTaps;
+        Placed += GeometryTaps;
     }
 
     Shadow.TapCount = Placed;
@@ -1615,12 +1615,12 @@ static_assert(sizeof(ShadowConstantRecord) % 16u == 0u, "std140 blocks are 16-B 
 
 } // namespace
 
-bool VisibilityExchange::RecordShadowFrame(void* CommandHandle, uint32_t Slot, const ShadowFrameConfiguration& Shadow, bool Resolve) noexcept
+bool VisibilityExchange::RecordShadowFrame(void* CommandIdentifier, uint32_t Slot, const ShadowFrameConfiguration& Shadow, bool Resolve) noexcept
 {
     if (!IsReady() || !Vulkan->ShadowReady || Slot >= Vulkan->SlotCount) return false;
 
 
-    VkCommandBuffer Command = static_cast<VkCommandBuffer>(CommandHandle);
+    VkCommandBuffer Command = static_cast<VkCommandBuffer>(CommandIdentifier);
     VkDevice D = Vulkan->Device;
 
     const uint32_t Taps = std::min(Shadow.TapCount, ShadowFrameConfiguration::MaximumTaps);
@@ -1643,25 +1643,25 @@ bool VisibilityExchange::RecordShadowFrame(void* CommandHandle, uint32_t Slot, c
         GpuImage& Maps = Vulkan->ShadowMaps;
         Maps.Format = VK_FORMAT_D32_SFLOAT;
         Maps.Levels = 1u;
-        VkImageCreateInfo Info{ VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO };
-        Info.imageType   = VK_IMAGE_TYPE_2D;
-        Info.format      = VK_FORMAT_D32_SFLOAT;
-        Info.extent      = { Side, Side, 1u };
-        Info.mipLevels   = 1u;
-        Info.arrayLayers = ShadowFrameConfiguration::MaximumTaps;
-        Info.samples     = VK_SAMPLE_COUNT_1_BIT;
-        Info.tiling      = VK_IMAGE_TILING_OPTIMAL;
-        Info.usage       = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
-        Info.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-        if (vkCreateImage(D, &Info, nullptr, &Maps.Image) != VK_SUCCESS) return false;
+        VkImageCreateInfo Facts{ VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO };
+        Facts.imageType   = VK_IMAGE_TYPE_2D;
+        Facts.format      = VK_FORMAT_D32_SFLOAT;
+        Facts.extent      = { Side, Side, 1u };
+        Facts.mipLevels   = 1u;
+        Facts.arrayLayers = ShadowFrameConfiguration::MaximumTaps;
+        Facts.samples     = VK_SAMPLE_COUNT_1_BIT;
+        Facts.tiling      = VK_IMAGE_TILING_OPTIMAL;
+        Facts.usage       = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
+        Facts.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+        if (vkCreateImage(D, &Facts, nullptr, &Maps.Image) != VK_SUCCESS) return false;
 
         VkMemoryRequirements Requirements{};
         vkGetImageMemoryRequirements(D, Maps.Image, &Requirements);
         VkMemoryAllocateInfo Allocate{ VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO };
         Allocate.allocationSize  = Requirements.size;
         Allocate.memoryTypeIndex = FindMemoryType(Vulkan->MemoryProperties, Requirements.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
-        if (vkAllocateMemory(D, &Allocate, nullptr, &Maps.Memory) != VK_SUCCESS) return false;
-        vkBindImageMemory(D, Maps.Image, Maps.Memory, 0u);
+        if (vkAllocateMemory(D, &Allocate, nullptr, &Maps.Store) != VK_SUCCESS) return false;
+        vkBindImageMemory(D, Maps.Image, Maps.Store, 0u);
 
         // The whole-array view the sampler reads.
         VkImageViewCreateInfo ArrayView{ VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO };
@@ -1693,14 +1693,14 @@ bool VisibilityExchange::RecordShadowFrame(void* CommandHandle, uint32_t Slot, c
             LayerView.subresourceRange = { VK_IMAGE_ASPECT_DEPTH_BIT, 0u, 1u, Layer, 1u };
             if (vkCreateImageView(D, &LayerView, nullptr, &Vulkan->ShadowLayerViews[Layer]) != VK_SUCCESS) return false;
 
-            VkFramebufferCreateInfo FramebufferInfo{ VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO };
-            FramebufferInfo.renderPass      = Vulkan->ShadowPass;
-            FramebufferInfo.attachmentCount = 1u;
-            FramebufferInfo.pAttachments    = &Vulkan->ShadowLayerViews[Layer];
-            FramebufferInfo.width           = Side;
-            FramebufferInfo.height          = Side;
-            FramebufferInfo.layers          = 1u;
-            if (vkCreateFramebuffer(D, &FramebufferInfo, nullptr, &Vulkan->ShadowFramebuffers[Layer]) != VK_SUCCESS) return false;
+            VkFramebufferCreateInfo FramebufferDetails{ VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO };
+            FramebufferDetails.renderPass      = Vulkan->ShadowPass;
+            FramebufferDetails.attachmentCount = 1u;
+            FramebufferDetails.pAttachments    = &Vulkan->ShadowLayerViews[Layer];
+            FramebufferDetails.width           = Side;
+            FramebufferDetails.height          = Side;
+            FramebufferDetails.layers          = 1u;
+            if (vkCreateFramebuffer(D, &FramebufferDetails, nullptr, &Vulkan->ShadowFramebuffers[Layer]) != VK_SUCCESS) return false;
         }
         Vulkan->ShadowMapSide = Side;
 
@@ -1721,13 +1721,13 @@ bool VisibilityExchange::RecordShadowFrame(void* CommandHandle, uint32_t Slot, c
     //    runs when the map size changes; timing it would report a resize as a slow frame.
     vkCmdWriteTimestamp(Command, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, Vulkan->Timestamps, Slot * kTimestampCount + 12u);
 
-    // ② The constants for this frame, into this slot's own buffer (never touched while an earlier frame is in flight).
-    if (Vulkan->ShadowConstants[Slot].Buffer == VK_NULL_HANDLE)
+    // ② The constants for this frame, into this slot's own store (never touched while an earlier frame is in flight).
+    if (Vulkan->ShadowConstants[Slot].Block == VK_NULL_HANDLE)
     {
         if (!CreateBuffer(D, Vulkan->MemoryProperties, Vulkan->ShadowConstants[Slot], sizeof(ShadowConstantRecord),
                           VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, true, "shadow constants"))
             return false;
-        VkDescriptorBufferInfo BufferInfo{ Vulkan->ShadowConstants[Slot].Buffer, 0u, VK_WHOLE_SIZE };
+        VkDescriptorBufferInfo BufferInfo{ Vulkan->ShadowConstants[Slot].Block, 0u, VK_WHOLE_SIZE };
         VkWriteDescriptorSet Write{ VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET };
         Write.dstSet = Vulkan->ShadowSets[Slot]; Write.dstBinding = 0u;
         Write.descriptorCount = 1u; Write.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
@@ -1779,7 +1779,7 @@ bool VisibilityExchange::RecordShadowFrame(void* CommandHandle, uint32_t Slot, c
         vkCmdBeginRenderPass(Command, &Begin, VK_SUBPASS_CONTENTS_INLINE);
         vkCmdSetViewport(Command, 0u, 1u, &ShadowViewport);
         vkCmdSetScissor(Command, 0u, 1u, &ShadowScissor);
-        vkCmdBindPipeline(Command, VK_PIPELINE_BIND_POINT_GRAPHICS, Vulkan->ShadowRasterPipeline);
+        vkCmdBindPipeline(Command, VK_PIPELINE_BIND_POINT_GRAPHICS, Vulkan->ShadowRasterChain);
         vkCmdBindDescriptorSets(Command, VK_PIPELINE_BIND_POINT_GRAPHICS, Vulkan->ShadowRasterPipelineLayout,
                                 0u, 1u, &Vulkan->RasterSets[Slot][1], 0u, nullptr);            // set 0: the scene
         vkCmdBindDescriptorSets(Command, VK_PIPELINE_BIND_POINT_GRAPHICS, Vulkan->ShadowRasterPipelineLayout,
@@ -1790,17 +1790,17 @@ bool VisibilityExchange::RecordShadowFrame(void* CommandHandle, uint32_t Slot, c
         const VkDeviceSize DrawOffset  = static_cast<VkDeviceSize>(ClusterCount) * sizeof(VkDrawIndexedIndirectCommand);
         const VkDeviceSize CountOffset = 1u * sizeof(uint32_t);
         if (Vulkan->DrawIndirectCount)
-            vkCmdDrawIndexedIndirectCount(Command, Vulkan->Draws.Buffer, DrawOffset, Vulkan->Counters.Buffer, CountOffset, ClusterCount, sizeof(VkDrawIndexedIndirectCommand));
+            vkCmdDrawIndexedIndirectCount(Command, Vulkan->Draws.Block, DrawOffset, Vulkan->Counters.Block, CountOffset, ClusterCount, sizeof(VkDrawIndexedIndirectCommand));
         else
-            vkCmdDrawIndexedIndirect(Command, Vulkan->Draws.Buffer, DrawOffset, ClusterCount, sizeof(VkDrawIndexedIndirectCommand));
+            vkCmdDrawIndexedIndirect(Command, Vulkan->Draws.Block, DrawOffset, ClusterCount, sizeof(VkDrawIndexedIndirectCommand));
         vkCmdEndRenderPass(Command);
     }
 
-    // ④ The shading pass. Set 0 is the resolve's scene + G-buffer set (the surface and normal images the resolve
+    // ④ The shading pass. Set 0 is the resolve's scene + G-store set (the surface and normal images the resolve
     //    just wrote); set 1 is the maps and constants.
     if (Resolve)
     {
-    vkCmdBindPipeline(Command, VK_PIPELINE_BIND_POINT_COMPUTE, Vulkan->ShadowResolvePipeline);
+    vkCmdBindPipeline(Command, VK_PIPELINE_BIND_POINT_COMPUTE, Vulkan->ShadowResolveChain);
     vkCmdBindDescriptorSets(Command, VK_PIPELINE_BIND_POINT_COMPUTE, Vulkan->ShadowResolvePipelineLayout,
                             0u, 1u, &Vulkan->ResolveSets[Slot], 0u, nullptr);
     vkCmdBindDescriptorSets(Command, VK_PIPELINE_BIND_POINT_COMPUTE, Vulkan->ShadowResolvePipelineLayout,
@@ -1838,48 +1838,48 @@ void VisibilityExchange::RecordHistorySnapshotBoundary(void* Command,uint32_t Sl
         Vulkan->Timestamps,Slot*kTimestampCount+30+(End?1:0));
 }
 
-void VisibilityExchange::RecordRestirBegin(void* CommandHandle, uint32_t Slot) noexcept
+void VisibilityExchange::RecordRestirBegin(void* CommandIdentifier, uint32_t Slot) noexcept
 {
     if (!IsReady() || !Vulkan->SlotRecorded[Slot]) return;
-    vkCmdWriteTimestamp(static_cast<VkCommandBuffer>(CommandHandle), VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, Vulkan->Timestamps, Slot * kTimestampCount + 14u);
+    vkCmdWriteTimestamp(static_cast<VkCommandBuffer>(CommandIdentifier), VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, Vulkan->Timestamps, Slot * kTimestampCount + 14u);
 }
 
-void VisibilityExchange::RecordRestirEnd(void* CommandHandle, uint32_t Slot) noexcept
+void VisibilityExchange::RecordRestirEnd(void* CommandIdentifier, uint32_t Slot) noexcept
 {
     if (!IsReady() || !Vulkan->SlotRecorded[Slot]) return;
-    vkCmdWriteTimestamp(static_cast<VkCommandBuffer>(CommandHandle), VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, Vulkan->Timestamps, Slot * kTimestampCount + 15u);
+    vkCmdWriteTimestamp(static_cast<VkCommandBuffer>(CommandIdentifier), VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, Vulkan->Timestamps, Slot * kTimestampCount + 15u);
 }
 
 // Celestial port step 0 — reserved spans for the sky and the unified volumetrics march. Written the moment those
 //    stages exist; until then they are simply never called and the availability word keeps them out of the sums.
-void VisibilityExchange::RecordSkyBegin(void* CommandHandle, uint32_t Slot) noexcept
+void VisibilityExchange::RecordSkyBegin(void* CommandIdentifier, uint32_t Slot) noexcept
 {
     if (!IsReady() || !Vulkan->SlotRecorded[Slot]) return;
-    vkCmdWriteTimestamp(static_cast<VkCommandBuffer>(CommandHandle), VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, Vulkan->Timestamps, Slot * kTimestampCount + 16u);
+    vkCmdWriteTimestamp(static_cast<VkCommandBuffer>(CommandIdentifier), VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, Vulkan->Timestamps, Slot * kTimestampCount + 16u);
 }
 
-void VisibilityExchange::RecordSkyEnd(void* CommandHandle, uint32_t Slot) noexcept
+void VisibilityExchange::RecordSkyEnd(void* CommandIdentifier, uint32_t Slot) noexcept
 {
     if (!IsReady() || !Vulkan->SlotRecorded[Slot]) return;
-    vkCmdWriteTimestamp(static_cast<VkCommandBuffer>(CommandHandle), VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, Vulkan->Timestamps, Slot * kTimestampCount + 17u);
+    vkCmdWriteTimestamp(static_cast<VkCommandBuffer>(CommandIdentifier), VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, Vulkan->Timestamps, Slot * kTimestampCount + 17u);
 }
 
-void VisibilityExchange::RecordVolumeBegin(void* CommandHandle, uint32_t Slot) noexcept
+void VisibilityExchange::RecordVolumeBegin(void* CommandIdentifier, uint32_t Slot) noexcept
 {
     if (!IsReady() || !Vulkan->SlotRecorded[Slot]) return;
-    vkCmdWriteTimestamp(static_cast<VkCommandBuffer>(CommandHandle), VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, Vulkan->Timestamps, Slot * kTimestampCount + 18u);
+    vkCmdWriteTimestamp(static_cast<VkCommandBuffer>(CommandIdentifier), VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, Vulkan->Timestamps, Slot * kTimestampCount + 18u);
 }
 
-void VisibilityExchange::RecordVolumeEnd(void* CommandHandle, uint32_t Slot) noexcept
+void VisibilityExchange::RecordVolumeEnd(void* CommandIdentifier, uint32_t Slot) noexcept
 {
     if (!IsReady() || !Vulkan->SlotRecorded[Slot]) return;
-    vkCmdWriteTimestamp(static_cast<VkCommandBuffer>(CommandHandle), VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, Vulkan->Timestamps, Slot * kTimestampCount + 19u);
+    vkCmdWriteTimestamp(static_cast<VkCommandBuffer>(CommandIdentifier), VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, Vulkan->Timestamps, Slot * kTimestampCount + 19u);
 }
 
-void VisibilityExchange::RecordKernelEnd(void* CommandHandle, uint32_t Slot) noexcept
+void VisibilityExchange::RecordKernelEnd(void* CommandIdentifier, uint32_t Slot) noexcept
 {
     if (!IsReady() || !Vulkan->SlotRecorded[Slot]) return;
-    vkCmdWriteTimestamp(static_cast<VkCommandBuffer>(CommandHandle), VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, Vulkan->Timestamps, Slot * kTimestampCount + 11u);
+    vkCmdWriteTimestamp(static_cast<VkCommandBuffer>(CommandIdentifier), VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, Vulkan->Timestamps, Slot * kTimestampCount + 11u);
 }
 
 //------------------------------------------------------------------------------------------------------------------------
@@ -1891,12 +1891,12 @@ void* VisibilityExchange::QueryNormalView()         const noexcept { return Vulk
 void* VisibilityExchange::QueryAlbedoView()         const noexcept { return Vulkan->Albedo.View; }
 void* VisibilityExchange::QueryMaterialAuxView()    const noexcept { return Vulkan->MaterialAux.View; }
 void* VisibilityExchange::QueryMotionView()         const noexcept { return Vulkan->Motion.View; }
-void* VisibilityExchange::QueryLuminaireBuffer()    const noexcept { return Vulkan->Luminaires.Buffer; }
-void* VisibilityExchange::QueryInstanceBuffer()     const noexcept { return Vulkan->Instances.Buffer; }
-void* VisibilityExchange::QueryFlatTriangleBuffer() const noexcept { return Vulkan->FlatTriangles.Buffer; }
-void* VisibilityExchange::QueryMaterialBuffer()     const noexcept { return Vulkan->Materials.Buffer; }
-void* VisibilityExchange::QueryVertexBuffer()       const noexcept { return Vulkan->Vertices.Buffer; }
-void* VisibilityExchange::QueryIndexBuffer()        const noexcept { return Vulkan->Indices.Buffer; }
+void* VisibilityExchange::QueryLuminaireBuffer()    const noexcept { return Vulkan->Luminaires.Block; }
+void* VisibilityExchange::QueryInstanceBuffer()     const noexcept { return Vulkan->Instances.Block; }
+void* VisibilityExchange::QueryFlatTriangleBuffer() const noexcept { return Vulkan->FlatTriangles.Block; }
+void* VisibilityExchange::QueryMaterialBuffer()     const noexcept { return Vulkan->Materials.Block; }
+void* VisibilityExchange::QueryVertexBuffer()       const noexcept { return Vulkan->Vertices.Block; }
+void* VisibilityExchange::QueryIndexBuffer()        const noexcept { return Vulkan->Indices.Block; }
 
 } // namespace Frontier
 

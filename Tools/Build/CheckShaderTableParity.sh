@@ -7,7 +7,7 @@
 #    This gate exists because they did not, and the divergence cost a whole feature. ShadowResolve.slang and the two
 #    ShadowRaster stages were listed in CMakeLists.txt but missing from the PowerShell table. On Linux/CMake the
 #    shadows worked; on Windows — which is what the project is actually built and run on — the three .spv files were
-#    never produced, the shadow stage could not bring up its pipelines, and every frame fell through to the unshadowed
+#    never produced, the shadow stage could not bring up its chains, and every frame fell through to the unshadowed
 #    path. The renderer looked like it had a shadow bug. It had a build-script bug.
 #
 #    Neither list is the authority: the gate asserts they are EQUAL, in both directions, so adding a shader to one and

@@ -6,7 +6,7 @@
 // fixed-count and deterministic: the same inputs produce bit-identical outputs
 // on CPU and GPU by construction (integer-hash noise, no sin anywhere).
 //
-// Theory: Wronski 2014 (froxel pipeline), Hillaire/Frostbite 2015 (closed-form
+// Theory: Wronski 2014 (froxel chain), Hillaire/Frostbite 2015 (closed-form
 // slab integral), Crytek 2007 (analytic box/sphere volumes), Lin et al. 2021
 // (Volumetric ReSTIR: volumes reuse the winning ReSTIR DI light sample).
 // See Reviews/Fog-Research-2026-09-14.md.

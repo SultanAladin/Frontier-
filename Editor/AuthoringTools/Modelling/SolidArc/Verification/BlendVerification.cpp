@@ -55,7 +55,7 @@ namespace
         return -1;
     }
 
-    bool IsReflexHandleRoot(const BrepBody& Body, const BrepEdge& Edge)
+    bool IsReflexIdentifierRoot(const BrepBody& Body, const BrepEdge& Edge)
     {
         if (Edge.VertexStart < 0 || Edge.VertexEnd < 0) return false;
         Vec3 A = Body.Vertices[Edge.VertexStart].Point, B = Body.Vertices[Edge.VertexEnd].Point;
@@ -177,7 +177,7 @@ int main()
         }
     }
 
-    // ---- 4. Reflex handle root: the re-entrant 210° material edge where the pushed handle meets the head --------
+    // ---- 4. Reflex identifier root: the re-entrant 210° material edge where the pushed identifier meets the head --------
     //    Unlike an exterior edge, a blend at this root fills the small void wedge.  The checks deliberately verify
     //    the clean rebuilt topology and the exact circular boundary; `Solid()` alone formerly let a visibly pinched
     //    Boolean result pass here.  This is the edge rendered by Phase21_Blends.arc section 4.
@@ -188,7 +188,7 @@ int main()
         Deliver<BrepBody> Spanner = BlendSolver::PushFace(Prism.Payload, 1, 26.0);
         int Root = -1;
         for (size_t E = 0; E < Spanner.Payload.Edges.size(); ++E)
-            if (IsReflexHandleRoot(Spanner.Payload, Spanner.Payload.Edges[E])) { Root = (int)E; break; }
+            if (IsReflexIdentifierRoot(Spanner.Payload, Spanner.Payload.Edges[E])) { Root = (int)E; break; }
         Check("pushed spanner has its re-entrant handle-root edge", Root >= 0);
         if (Root >= 0)
         {
@@ -247,9 +247,9 @@ int main()
                 else
                 {
                     ++Chamfered;
-                    // The one 210° handle root is a reflex profile blend: it fills, rather than removes, the
+                    // The one 210° identifier root is a reflex profile blend: it fills, rather than removes, the
                     // local wedge.  Keep it in the sweep so a future Boolean fallback cannot quietly regress it.
-                    bool Reflex = IsReflexHandleRoot(Spanner.Payload, Spanner.Payload.Edges[E]);
+                    bool Reflex = IsReflexIdentifierRoot(Spanner.Payload, Spanner.Payload.Edges[E]);
                     double Expected = Base + (Reflex ? 1.0 : -1.0) * BlendSolver::ChamferRemoval(F, 3.0);
                     double Error = std::fabs(Flat.Payload.Validate().Volume - Expected);
                     if (Error < 1e-6) ++Exact;

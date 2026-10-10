@@ -5,7 +5,7 @@
     "Explanatory blocks removed; shaded fracture illustrations replace wire diagrams and respond to both quality controls",
     "Material changes retain selected-object geometry; dynamic fracture is closed and volume preserving",
     "Wireframe and separated inspection; reassembly restores original coordinates",
-    "Baked mode refuses missing geometry; IndexedDB bake/replay and actual JSON download agree",
+    "Precomputed mode refuses missing geometry; IndexedDB bake/replay and actual JSON download agree",
     "Stored fragment geometry survives reopening; receipt returns to the object inspector",
     "Object scale is applied; changing source geometry invalidates baked replay",
     "Cube and sphere retain independent materials, seeds and stored geometry",

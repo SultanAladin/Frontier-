@@ -28,7 +28,7 @@ public:
   if(Row.Glyph==EditorGlyph::Fog||Row.Glyph==EditorGlyph::AerialFog)return IconSymbol::Fog;
   if(Row.Glyph==EditorGlyph::Effects)return IconSymbol::EnvironmentExposure;
   if(Row.Category==EditorInstanceCategory::Camera)return IconSymbol::Camera;
-  if(Row.Category==EditorInstanceCategory::Geometry)return IconSymbol::EditorMesh;
+  if(Row.Category==EditorInstanceCategory::Geometry)return IconSymbol::EditorGeometry;
   if(Row.Category==EditorInstanceCategory::Light)return IconSymbol::EditorPointLight;
   return IconSymbol::SkyScattering;
  }

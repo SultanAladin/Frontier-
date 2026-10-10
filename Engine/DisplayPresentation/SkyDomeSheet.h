@@ -1,15 +1,15 @@
 //============================================================================================================================================
-// 📦 Engine/DisplayPresentation/SkyDomeSheet.h — the baked sky dome, and the rule for when it may stand in for the march
+// 📦 Engine/DisplayPresentation/SkyDomeSheet.h — the precomputed sky dome, and the rule for when it may stand in for the march
 //============================================================================================================================================
 // Roadmap #26 stage A, taken from Exhibits/Workbench/Sky/SkyProbeProof.cpp where the split was measured (six
 //    times of day, mean relative error 0.014-0.123 %, tone-mapped panel RMSE ≤ 0.13 of 255, fetch 67-135x the
 //    march). The realism rule the proof engineered in, restated as the contract of this file:
 //
-//    WHAT BAKES: the smooth single-scatter dome — SkyRecords.slang's SkyRadiance integral and nothing else —
+//    WHAT PRECOMPUTES: the smooth single-scatter dome — SkyRecords.slang's SkyRadiance integral and nothing else —
 //    as radiance AND transmittance, both spectral, in one RGBA16F sheet of two stacked octahedral squares
 //    (radiance on top, transmittance below).
 //
-//    WHAT NEVER BAKES: every point and animated feature. The sun's disc and aureole (sub-texel; cone texels
+//    WHAT NEVER PRECOMPUTES: every point and animated feature. The sun's disc and aureole (sub-texel; cone texels
 //    are inpainted from the cone's boundary so no disc energy smears into the bilinear neighbourhood), the
 //    stars (binding 23's own pass), the moons (their texture slots), the twilight approximation and the
 //    cirrus (it animates). SkyAlong adds all of these ANALYTICALLY on top of the fetched dome, so the fetch
@@ -87,7 +87,7 @@ inline void SkyDomeDirectionFromOct(float U, float V, float Direction[3]) noexce
 }
 
 //------------------------------------------------------------------------------------------------------------------------
-//                                                     THE BAKE
+//                                                     THE PRECOMPUTE
 //------------------------------------------------------------------------------------------------------------------------
 
 // IEEE half, round-to-nearest — what an RGBA16F texel holds. Radiance and transmittance both sit well inside
@@ -107,12 +107,12 @@ inline uint16_t SkyDomeHalfFromFloat(float Value) noexcept
     return static_cast<uint16_t>(Sign | Half);
 }
 
-// Bakes the dome for one staging into RGBA16F texels: Side x 2·Side, radiance square first, transmittance
+// Precomputes the dome for one staging into RGBA16F texels: Side x 2·Side, radiance square first, transmittance
 //    square below it, 4 halves per texel (alpha carries 1). Texels inside the solar cone are inpainted from
 //    the cone's boundary — the sun's energy never enters the sheet, which is what keeps the circumsolar
-//    gradient honest when the analytic disc lands on top. 2x2 supersampled: bake-time cost only, measured at
+//    gradient honest when the analytic disc lands on top. 2x2 supersampled: precompute-time cost only, measured at
 //    ~2 s for the 256² sheet at the product's 16x6 sample staging.
-inline void BakeSkyDomeSheet(const AtmosphereMedium& Medium, const AtmosphereLight& Light,
+inline void PrecomputeSkyDomeSheet(const AtmosphereMedium& Medium, const AtmosphereLight& Light,
                              uint32_t ViewSamples, uint32_t LightSamples,
                              std::vector<uint16_t>& OutHalves) noexcept
 {
@@ -178,26 +178,26 @@ inline void BakeSkyDomeSheet(const AtmosphereMedium& Medium, const AtmosphereLig
 //    three media, the planet, and the sample counts (a march at different counts is a different dome). The
 //    shadow lanes (Mie.w, Ozone.w, Planet.w) and the twilight are deliberately outside the compare — they
 //    never enter the integral. PackSkyRecord drops to the analytic march the moment this returns false, so a
-//    re-staged sun can never render against yesterday's bake. (Templated on the record shape so this header
+//    re-staged sun can never render against yesterday's precompute. (Templated on the record shape so this header
 //    needs no include of SkyConstantRecord.h; the one instantiation is with SkyConstantRecord.)
 template <typename RecordShape>
-[[nodiscard]] inline bool SkyDomeStagingMatches(const RecordShape& Baked, const RecordShape& Current) noexcept
+[[nodiscard]] inline bool SkyDomeStagingMatches(const RecordShape& Precomputed, const RecordShape& Current) noexcept
 {
     const auto Near = [](float A, float B) { return std::fabs(A - B) <= 1e-6f * std::fmax(1.0f, std::fabs(A)); };
     for (int C = 0; C < 3; ++C)
     {
-        if (!Near(Baked.SunDirection[C], Current.SunDirection[C])) return false;
-        if (!Near(Baked.SunRadiance[C],  Current.SunRadiance[C]))  return false;
-        if (!Near(Baked.Rayleigh[C],     Current.Rayleigh[C]))     return false;
-        if (!Near(Baked.Ozone[C],        Current.Ozone[C]))        return false;
+        if (!Near(Precomputed.SunDirection[C], Current.SunDirection[C])) return false;
+        if (!Near(Precomputed.SunRadiance[C],  Current.SunRadiance[C]))  return false;
+        if (!Near(Precomputed.Rayleigh[C],     Current.Rayleigh[C]))     return false;
+        if (!Near(Precomputed.Ozone[C],        Current.Ozone[C]))        return false;
     }
-    if (!Near(Baked.SunRadiance[3], Current.SunRadiance[3])) return false;
-    if (!Near(Baked.Rayleigh[3],    Current.Rayleigh[3]))    return false;
+    if (!Near(Precomputed.SunRadiance[3], Current.SunRadiance[3])) return false;
+    if (!Near(Precomputed.Rayleigh[3],    Current.Rayleigh[3]))    return false;
     for (int C = 0; C < 3; ++C)
-        if (!Near(Baked.Mie[C], Current.Mie[C])) return false;
+        if (!Near(Precomputed.Mie[C], Current.Mie[C])) return false;
     for (int C = 0; C < 3; ++C)
-        if (!Near(Baked.Planet[C], Current.Planet[C])) return false;
-    return Baked.Control[0] == Current.Control[0] && Baked.Control[1] == Current.Control[1];
+        if (!Near(Precomputed.Planet[C], Current.Planet[C])) return false;
+    return Precomputed.Control[0] == Current.Control[0] && Precomputed.Control[1] == Current.Control[1];
 }
 
 } // namespace Frontier

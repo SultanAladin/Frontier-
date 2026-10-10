@@ -385,8 +385,8 @@ bool TextField(const char* Id, const char* Label, std::string* Value)
     const float FieldX = At.x + LabelColumnWidth + 8.0f;
     const float FieldW = std::max(40.0f, At.x + Full - FieldX);
 
-    char Buffer[128];
-    std::snprintf(Buffer, sizeof(Buffer), "%s", Value->c_str());
+    char Block[128];
+    std::snprintf(Block, sizeof(Block), "%s", Value->c_str());
 
     ImGui::SetCursorScreenPos(ImVec2(FieldX, Mid - 13.0f));
     ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, 13.0f);
@@ -396,12 +396,12 @@ bool TextField(const char* Id, const char* Label, std::string* Value)
     ImGui::PushStyleColor(ImGuiCol_FrameBgActive, CardHoverTint);
     ImGui::PushStyleColor(ImGuiCol_Text, TextTint);
     ImGui::SetNextItemWidth(FieldW);
-    const bool Changed = ImGui::InputText(Id, Buffer, sizeof(Buffer));
+    const bool Changed = ImGui::InputText(Id, Block, sizeof(Block));
     ImGui::PopStyleColor(4);
     ImGui::PopStyleVar(2);
     if (Changed)
     {
-        *Value = Buffer;
+        *Value = Block;
     }
 
     ImGui::SetCursorScreenPos(ImVec2(At.x, At.y + RowHeight + RowGap));
@@ -547,8 +547,8 @@ void DrawDepthThumbnail(ImDrawList* Draw, ImVec2 Min, ImVec2 Max, const TreadDep
 //                                                     THE CROSS-SECTION
 //------------------------------------------------------------------------------------------------------------------------
 
-/// 📦 One draggable handle on the cross-section.
-struct ProfileHandle
+/// 📦 One draggable identifier on the cross-section.
+struct ProfileIdentifier
 {
     const char* Identity = "";
     float       Lateral  = 0.0f;   // [mm]
@@ -558,13 +558,13 @@ struct ProfileHandle
     bool        Mirrored = false;
 };
 
-/// 📦 The four parameters the cross-section exposes as handles, each one mirrored unless it sits on the axis.
-[[nodiscard]] std::vector<ProfileHandle> ProfileHandles(const TreadSpecification& S,
+/// 📦 The four parameters the cross-section exposes as identifiers, each one mirrored unless it sits on the axis.
+[[nodiscard]] std::vector<ProfileIdentifier> ProfileIdentifiers(const TreadSpecification& S,
                                                         const TreadDerivedValues& D)
 {
     const float Sin45 = std::sin(π * 0.25f);
     const float Cos45 = std::cos(π * 0.25f);
-    const ProfileHandle Seeds[4] = {
+    const ProfileIdentifier Seeds[4] = {
         { "tread",    D.TreadHalf,                        D.OuterRadius - S.Crown,
           "tread edge / crown", GreenTint,  false },
         { "shoulder", D.TreadHalf + D.ShoulderRadius * Sin45,
@@ -576,23 +576,23 @@ struct ProfileHandle
           "tread depth",        RedTint,    false }
     };
 
-    std::vector<ProfileHandle> Handles;
-    Handles.reserve(7u);
-    for (const ProfileHandle& H : Seeds)
+    std::vector<ProfileIdentifier> Identifiers;
+    Identifiers.reserve(7u);
+    for (const ProfileIdentifier& H : Seeds)
     {
-        Handles.push_back(H);
+        Identifiers.push_back(H);
         if (H.Lateral != 0.0f)
         {
-            ProfileHandle Mirror = H;
+            ProfileIdentifier Mirror = H;
             Mirror.Lateral = -H.Lateral;
             Mirror.Mirrored = true;
-            Handles.push_back(Mirror);
+            Identifiers.push_back(Mirror);
         }
     }
-    return Handles;
+    return Identifiers;
 }
 
-/// 📦 Draws the lathe profile with its draggable handles, which is the generator's primary shape editor.
+/// 📦 Draws the lathe profile with its draggable identifiers, which is the generator's primary shape editor.
 bool DrawCrossSection(ImDrawList* Draw, ImVec2 Min, ImVec2 Max, TreadSpecification& S, const char* Id)
 {
     const TreadDerivedValues D = DeriveTreadValues(S);
@@ -685,13 +685,13 @@ bool DrawCrossSection(ImDrawList* Draw, ImVec2 Min, ImVec2 Max, TreadSpecificati
                       YellowTint, 1.0f);
     }
 
-    // ④ the handles, each one a direct grip on the parameter it names
+    // ④ the identifiers, each one a direct grip on the parameter it names
     bool Changed = false;
-    const std::vector<ProfileHandle> Handles = ProfileHandles(S, D);
-    for (size_t I = 0; I < Handles.size(); ++I)
+    const std::vector<ProfileIdentifier> Identifiers = ProfileIdentifiers(S, D);
+    for (size_t I = 0; I < Identifiers.size(); ++I)
     {
-        const ProfileHandle& Handle = Handles[I];
-        const ImVec2 At(X(Handle.Lateral), Y(Handle.Radius));
+        const ProfileIdentifier& Tag = Identifiers[I];
+        const ImVec2 At(X(Tag.Lateral), Y(Tag.Radius));
 
         ImGui::SetCursorScreenPos(ImVec2(At.x - 8.0f, At.y - 8.0f));
         ImGui::PushID(int(I));
@@ -700,23 +700,23 @@ bool DrawCrossSection(ImDrawList* Draw, ImVec2 Min, ImVec2 Max, TreadSpecificati
         if (Active)
         {
             const ImVec2 Mouse = ImGui::GetIO().MousePos;
-            const float  Sign  = Handle.Mirrored ? -1.0f : 1.0f;
+            const float  Sign  = Tag.Mirrored ? -1.0f : 1.0f;
             const float  Lateral = Sign * (Mouse.x - OX) / Scale;
             const float  Radius  = D.RimRadius - 20.0f + (OY - Mouse.y) / Scale;
-            if (std::strcmp(Handle.Identity, "tread") == 0)
+            if (std::strcmp(Tag.Identity, "tread") == 0)
             {
                 S.TreadFraction = std::clamp(Lateral / D.HalfWidth, 0.7f, 0.98f);
                 S.Crown = std::clamp(D.OuterRadius - Radius, 0.0f, 8.0f);
             }
-            else if (std::strcmp(Handle.Identity, "shoulder") == 0)
+            else if (std::strcmp(Tag.Identity, "shoulder") == 0)
             {
                 S.Shoulder = std::clamp((Lateral - D.TreadHalf) / std::sin(π * 0.25f), 4.0f, 40.0f);
             }
-            else if (std::strcmp(Handle.Identity, "bulge") == 0)
+            else if (std::strcmp(Tag.Identity, "bulge") == 0)
             {
                 S.Bulge = std::clamp((Lateral / D.HalfWidth - 0.6f) / 0.4f, 0.4f, 1.6f);
             }
-            else if (std::strcmp(Handle.Identity, "depth") == 0)
+            else if (std::strcmp(Tag.Identity, "depth") == 0)
             {
                 S.TreadDepth = std::clamp(std::round((D.OuterRadius - Radius) * 2.0f) * 0.5f, 2.0f, 20.0f);
             }
@@ -725,13 +725,13 @@ bool DrawCrossSection(ImDrawList* Draw, ImVec2 Min, ImVec2 Max, TreadSpecificati
         ImGui::PopID();
 
         Draw->AddCircleFilled(At, Active ? 7.0f : 5.0f, IM_COL32(0x11, 0x11, 0x11, 255), 16);
-        Draw->AddCircle(At, Active ? 7.0f : 5.0f, Handle.Colour, 16, 2.0f);
-        if (!Handle.Mirrored)
+        Draw->AddCircle(At, Active ? 7.0f : 5.0f, Tag.Colour, 16, 2.0f);
+        if (!Tag.Mirrored)
         {
-            const bool Below = std::strcmp(Handle.Identity, "depth") == 0;
-            const ImVec2 Size = Measure(10.0f, Handle.Label);
+            const bool Below = std::strcmp(Tag.Identity, "depth") == 0;
+            const ImVec2 Size = Measure(10.0f, Tag.Label);
             Ink(Draw, 10.0f, ImVec2(Below ? At.x - Size.x * 0.5f : At.x + 9.0f,
-                                    Below ? At.y + 8.0f : At.y - 14.0f), Handle.Colour, Handle.Label);
+                                    Below ? At.y + 8.0f : At.y - 14.0f), Tag.Colour, Tag.Label);
         }
     }
 
@@ -955,10 +955,10 @@ void RecordTyrePage(TyreGeneratorState& State)
         if (Slider("##aspect", "Aspect ratio (%)",   &S.Aspect,  20.0f,  85.0f, 5.0f, 0)) { State.Touch(); }
         SectionLabel("Wear");
         if (Slider("##wearbias", "Wear bias (edge-centre)", &S.WearBias, -1.0f, 1.0f, 0.01f, 2)) { State.Touch(); }
-        SectionLabel("Tread mesh");
+        SectionLabel("Tread topology");
         {
             const ImVec2 Row = ImGui::GetCursorScreenPos();
-            Ink(Draw, 13.0f, ImVec2(Row.x, Row.y + 5.0f), MutedTint, "Mesh mode");
+            Ink(Draw, 13.0f, ImVec2(Row.x, Row.y + 5.0f), MutedTint, "Hull mode");
             Ink(Draw, 13.0f, ImVec2(Row.x + LabelColumnWidth + 8.0f, Row.y + 5.0f), TextTint, "Polygon topology");
             ImGui::Dummy(ImVec2(ImGui::GetContentRegionAvail().x, RowHeight + RowGap));
         }
@@ -1011,7 +1011,7 @@ void RecordTyrePage(TyreGeneratorState& State)
     }
 
     //----------------------------------------------------------------------------------------------------------
-    // ③ the cross-section, with the five scalars its handles do not reach
+    // ③ the cross-section, with the five scalars its identifiers do not reach
     //----------------------------------------------------------------------------------------------------------
     {
         Card Panel;
@@ -1180,10 +1180,10 @@ void RecordRimPage(TyreGeneratorState& State)
         DrawRimSection(Draw, At, ImVec2(At.x + W, At.y + 190.0f), R, D);
         ImGui::SetCursorScreenPos(ImVec2(At.x, At.y + 198.0f));
 
-        char Info[160];
-        std::snprintf(Info, sizeof(Info), "%g in rim · %.0f mm bead width · %.1f mm flange · %.1f mm drop well",
+        char Facts[160];
+        std::snprintf(Facts, sizeof(Facts), "%g in rim · %.0f mm bead width · %.1f mm flange · %.1f mm drop well",
                       double(S.Rim), double(D.BeadHalf * 2.0f), double(R.Flange), double(R.DropWell));
-        Hint(Info);
+        Hint(Facts);
         Panel.End();
     }
 }
@@ -1424,7 +1424,7 @@ void RecordViewport(TyreGeneratorState& State, ImVec2 Min, ImVec2 Max)
                       double(S.SegmentsAround * S.SegmentsAcross * 2.0f / 1000.0f));
         std::snprintf(Units[3],  sizeof(Units[3]),  "k tris");
 
-        const char* Labels[4] = { "Overall Ø", "Tread left", "Circumference", "Tread mesh" };
+        const char* Labels[4] = { "Overall Ø", "Tread left", "Circumference", "Tread topology" };
         const ImU32 Dots[4]   = { YellowTint, Health, YellowTint, GreenTint };
 
         for (int I = 0; I < 4; ++I)

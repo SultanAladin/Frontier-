@@ -32,7 +32,7 @@ endif()
 
 # ─── Editor authoring tools ────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 # Standalone C++ tools live outside the runtime Frontier host source batch. SolidArc is the first modelling/CAD tool;
-# future siblings sit beside it under Editor/AuthoringTools/{TexturePainting,Baking,Terrain}.
+# future siblings sit beside it under Editor/AuthoringTools/{TexturePainting,Precomputing,Terrain}.
 add_subdirectory(Editor/AuthoringTools/Modelling/SolidArc EXCLUDE_FROM_ALL)
 # ─── Reject Windows CMake builds — use ToolchainSequence.ps1 instead ────────────────────────────────────────────────────────────────────────
 if(WIN32 AND MSVC)
@@ -197,15 +197,15 @@ set(FRONTIER_ENGINE_SOURCES
     Engine/GeometricRaster/InstanceAcceleration.cpp
     Engine/GeometricRaster/BlasBuildMirror.cpp
     Engine/GeometricRaster/BlasDevicePayload.cpp
-    Engine/GeometricRaster/BlasBuildPipeline.cpp   # D9b: the Vulkan half (pipelines, dispatch plan, readback verification)
-    Engine/GeometricRaster/TriangleFieldVulkanExchange.cpp   # mesh SDF Vulkan host (GPU import bake and dirty-cell composite)
+    Engine/GeometricRaster/BlasBuildChain.cpp   # D9b: the Vulkan half (chains, dispatch plan, readback verification)
+    Engine/GeometricRaster/TriangleFieldVulkanExchange.cpp   # topology SDF Vulkan host (GPU import precompute and dirty-cell combined)
     Engine/ContentInterchange/MaterialIndex.cpp
     Engine/ContentInterchange/MaterialCodec.cpp
     Engine/ContentInterchange/TextureIndex.cpp
     Engine/ContentInterchange/SceneCodec.cpp
     Engine/ContentInterchange/ShaderBallStructure.cpp
     Engine/ContentInterchange/ShowcaseStructure.cpp
-    # ShowcaseStructure::BringGridMesh calls ShaderBallGeometry::LoadResolved — without this TU the
+    # ShowcaseStructure::BringGridGeometry calls ShaderBallGeometry::LoadResolved — without this TU the
     #    exe link fails with an unresolved external.
     Engine/ContentInterchange/ShaderBallGeometry.cpp
     Engine/ContentInterchange/AssetResolution.cpp
@@ -297,7 +297,7 @@ set(FRONTIER_ENGINE_INCLUDES
 
 set(FRONTIER_HOST_SOURCES
     Projects/Project-Fluid/Source/SurfaceReconstruction.cpp
-    Projects/Project-Fluid/Source/GpuSurfaceData.cpp
+    Projects/Project-Fluid/Source/GpuSurfacePayload.cpp
     Projects/Project-Fluid/Source/GpuSurfaceExtractor.cpp
     Projects/Project-Fluid/Source/FluidGpuTest.cpp
     Projects/Project-Fluid/Source/VulkanFluidMain.cpp

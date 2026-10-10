@@ -16,9 +16,9 @@ bool RayQueryExchange::Allocate(Extent& Storage, VkDeviceSize Bytes, VkBufferUsa
     VkBufferCreateInfo Description{ VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO };
     Description.size = Storage.Bytes;
     Description.usage = Usage | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT;
-    if (vkCreateBuffer(Device, &Description, nullptr, &Storage.Buffer) != VK_SUCCESS) return false;
+    if (vkCreateBuffer(Device, &Description, nullptr, &Storage.Block) != VK_SUCCESS) return false;
     VkMemoryRequirements Requirements{};
-    vkGetBufferMemoryRequirements(Device, Storage.Buffer, &Requirements);
+    vkGetBufferMemoryRequirements(Device, Storage.Block, &Requirements);
     VkPhysicalDeviceMemoryProperties Properties{};
     vkGetPhysicalDeviceMemoryProperties(PhysicalDevice, &Properties);
     const VkMemoryPropertyFlags Requested = Source ? VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT
@@ -34,25 +34,25 @@ bool RayQueryExchange::Allocate(Extent& Storage, VkDeviceSize Bytes, VkBufferUsa
     Allocation.pNext = &Address;
     Allocation.allocationSize = Requirements.size;
     Allocation.memoryTypeIndex = Selected;
-    if (vkAllocateMemory(Device, &Allocation, nullptr, &Storage.Memory) != VK_SUCCESS) return false;
-    if (vkBindBufferMemory(Device, Storage.Buffer, Storage.Memory, 0u) != VK_SUCCESS) return false;
+    if (vkAllocateMemory(Device, &Allocation, nullptr, &Storage.Store) != VK_SUCCESS) return false;
+    if (vkBindBufferMemory(Device, Storage.Block, Storage.Store, 0u) != VK_SUCCESS) return false;
     if (Source)
     {
         void* Destination = nullptr;
-        if (vkMapMemory(Device, Storage.Memory, 0u, Bytes, 0u, &Destination) != VK_SUCCESS) return false;
+        if (vkMapMemory(Device, Storage.Store, 0u, Bytes, 0u, &Destination) != VK_SUCCESS) return false;
         std::memcpy(Destination, Source, static_cast<size_t>(Bytes));
-        vkUnmapMemory(Device, Storage.Memory);
+        vkUnmapMemory(Device, Storage.Store);
     }
     VkBufferDeviceAddressInfo Query{ VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO };
-    Query.buffer = Storage.Buffer;
+    Query.buffer = Storage.Block;
     Storage.Address = vkGetBufferDeviceAddress(Device, &Query);
     return Storage.Address != 0u;
 }
 
 void RayQueryExchange::Reclaim(Extent& Storage)
 {
-    if (Storage.Buffer) vkDestroyBuffer(Device, Storage.Buffer, nullptr);
-    if (Storage.Memory) vkFreeMemory(Device, Storage.Memory, nullptr);
+    if (Storage.Block) vkDestroyBuffer(Device, Storage.Block, nullptr);
+    if (Storage.Store) vkFreeMemory(Device, Storage.Store, nullptr);
     Storage = {};
 }
 
@@ -109,11 +109,11 @@ bool RayQueryExchange::Construct(VkDevice ActiveDevice, VkPhysicalDevice ActiveP
     LayoutDescription.pBindings = &DescriptorDescription;
     if (vkCreateDescriptorSetLayout(Device, &LayoutDescription, nullptr, &Layout) != VK_SUCCESS) return false;
     VkDescriptorPoolSize Size{ VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR, 1u };
-    VkDescriptorPoolCreateInfo PoolDescription{ VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO };
-    PoolDescription.maxSets = 1u;
-    PoolDescription.poolSizeCount = 1u;
-    PoolDescription.pPoolSizes = &Size;
-    if (vkCreateDescriptorPool(Device, &PoolDescription, nullptr, &DescriptorPool) != VK_SUCCESS) return false;
+    VkDescriptorPoolCreateInfo SlotsDescription{ VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO };
+    SlotsDescription.maxSets = 1u;
+    SlotsDescription.poolSizeCount = 1u;
+    SlotsDescription.pPoolSizes = &Size;
+    if (vkCreateDescriptorPool(Device, &SlotsDescription, nullptr, &DescriptorPool) != VK_SUCCESS) return false;
     VkDescriptorSetAllocateInfo Allocation{ VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO };
     Allocation.descriptorPool = DescriptorPool;
     Allocation.descriptorSetCount = 1u;
@@ -126,7 +126,7 @@ VkAccelerationStructureGeometryKHR RayQueryExchange::PlacementGeometry() const
     VkAccelerationStructureGeometryKHR Geometry{ VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_KHR };
     Geometry.geometryType = VK_GEOMETRY_TYPE_INSTANCES_KHR;
     Geometry.geometry.instances.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_INSTANCES_DATA_KHR;
-    Geometry.geometry.instances.data.deviceAddress = Placements.Address;
+    Geometry.geometry.instances.record.deviceAddress = Placements.Address;
     return Geometry;
 }
 
@@ -202,7 +202,7 @@ bool RayQueryExchange::ConstructScene(const SceneStructure& Scene)
         BuildSizes(Device, VK_ACCELERATION_STRUCTURE_BUILD_TYPE_DEVICE_KHR, &Build, &Row.TriangleCount, &Sizes);
         if (!Allocate(BottomStorage[Slot], Sizes.accelerationStructureSize, VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_STORAGE_BIT_KHR)) return false;
         VkAccelerationStructureCreateInfoKHR Description{ VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_CREATE_INFO_KHR };
-        Description.buffer = BottomStorage[Slot].Buffer;
+        Description.buffer = BottomStorage[Slot].Block;
         Description.size = Sizes.accelerationStructureSize;
         Description.type = VK_ACCELERATION_STRUCTURE_TYPE_BOTTOM_LEVEL_KHR;
         if (CreateAcceleration(Device, &Description, nullptr, &BottomLevels[Slot]) != VK_SUCCESS) return false;
@@ -236,7 +236,7 @@ bool RayQueryExchange::ConstructScene(const SceneStructure& Scene)
         !Allocate(Scratch, ScratchBytes + ScratchAlignment, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT)) return false;
     ScratchAddress = (Scratch.Address + ScratchAlignment - 1u) / ScratchAlignment * ScratchAlignment;
     VkAccelerationStructureCreateInfoKHR Description{ VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_CREATE_INFO_KHR };
-    Description.buffer = TopStorage.Buffer;
+    Description.buffer = TopStorage.Block;
     Description.size = Sizes.accelerationStructureSize;
     Description.type = VK_ACCELERATION_STRUCTURE_TYPE_TOP_LEVEL_KHR;
     if (CreateAcceleration(Device, &Description, nullptr, &TopLevel) != VK_SUCCESS) return false;
@@ -305,7 +305,7 @@ void RayQueryExchange::RecordRefit(VkCommandBuffer Command)
     const VkDeviceSize Bytes = PendingPlacements.size() * sizeof(VkAccelerationStructureInstanceKHR);
     const auto* Source = reinterpret_cast<const unsigned char*>(PendingPlacements.data());
     for (VkDeviceSize Offset = 0u; Offset < Bytes; Offset += 65536u)
-        vkCmdUpdateBuffer(Command, Placements.Buffer, Offset, std::min<VkDeviceSize>(65536u, Bytes - Offset), Source + Offset);
+        vkCmdUpdateBuffer(Command, Placements.Block, Offset, std::min<VkDeviceSize>(65536u, Bytes - Offset), Source + Offset);
     VkMemoryBarrier Uploaded{ VK_STRUCTURE_TYPE_MEMORY_BARRIER };
     Uploaded.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
     Uploaded.dstAccessMask = VK_ACCESS_ACCELERATION_STRUCTURE_READ_BIT_KHR;

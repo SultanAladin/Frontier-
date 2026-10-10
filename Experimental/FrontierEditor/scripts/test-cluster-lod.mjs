@@ -3,16 +3,16 @@ import {readFileSync,mkdirSync,writeFileSync} from 'node:fs';
 import {fileURLToPath} from 'node:url';
 import {JSDOM} from 'jsdom';
 import {createCanvas} from '@napi-rs/canvas';
-import {buildMesh,watertight,camera} from '../cluster-lod-core.js';
+import {buildGeometry,watertight,camera} from '../cluster-lod-core.js';
 let checks=0;const check=(value)=>{assert(value);checks++;};
 for(const amplitude of [0,.03,.18])for(const error of [.3,2.2,8]){
- const m=buildMesh({amplitude,error,eye:camera(.6,.4,5.5)});check(watertight(m));
+ const m=buildGeometry({amplitude,error,eye:camera(.6,.4,5.5)});check(watertight(m));
  check(m.tris.every(t=>t.p.flat().every(Number.isFinite)));
 }
-const near=buildMesh({eye:[0,0,2.2]}),far=buildMesh({eye:[0,0,16]});check(near.tris.length>far.tris.length);
-check(buildMesh({error:.3}).tris.length>buildMesh({error:8}).tris.length);
-const locked=buildMesh({glass:true,glassSafe:true,eye:[0,0,16],error:8});check(locked.tris.length===locked.reference);check(watertight(locked));
-const free=buildMesh({glass:true,glassSafe:false,eye:[0,0,16],error:8});check(free.tris.length<locked.tris.length);
+const near=buildGeometry({eye:[0,0,2.2]}),far=buildGeometry({eye:[0,0,16]});check(near.tris.length>far.tris.length);
+check(buildGeometry({error:.3}).tris.length>buildGeometry({error:8}).tris.length);
+const locked=buildGeometry({glass:true,glassSafe:true,eye:[0,0,16],error:8});check(locked.tris.length===locked.reference);check(watertight(locked));
+const free=buildGeometry({glass:true,glassSafe:false,eye:[0,0,16],error:8});check(free.tris.length<locked.tris.length);
 // Real DOM handlers and real Canvas drawing in a software renderer; not a browser/GPU performance test.
 const html=readFileSync(new URL('../cluster-lod.html',import.meta.url),'utf8');
 const dom=new JSDOM(html,{url:'http://localhost/cluster-lod.html'});
@@ -37,5 +37,5 @@ click('reset');const triangles=window.clusterLodDemo.triangles;click('normalmap'
 click('fixed');check(window.clusterLodDemo.triangles===locked.reference);click('adaptive');check(window.clusterLodDemo.triangles<locked.reference);
 const out=new URL('../../../build/cluster-lod/',import.meta.url);mkdirSync(out,{recursive:true});
 writeFileSync(new URL('canvas-proof.png',out),real.toBuffer('image/png'));
-writeFileSync(new URL('result.txt',out),`PASS ${checks} cluster mesh / watertightness / DOM interaction checks. Software Canvas render; not a Chromium or GPU test.\n`);
-console.log(`PASS ${checks} cluster mesh / watertightness / DOM interaction checks. Software Canvas render; not a Chromium or GPU test.`);
+writeFileSync(new URL('result.txt',out),`PASS ${checks} cluster topology / watertightness / DOM interaction checks. Software Canvas render; not a Chromium or GPU test.\n`);
+console.log(`PASS ${checks} cluster topology / watertightness / DOM interaction checks. Software Canvas render; not a Chromium or GPU test.`);

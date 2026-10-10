@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # D9b — THE GPU RUN. Builds `BlasDeviceRun` and runs D9's two kernels on a Vulkan device, comparing their output byte for
 #    byte with the CPU mirror (BlasBuildMirror). It is the one part of D9 that cannot happen in a sandbox with no GPU:
-#    everything else — the kernels' lowering, the mirror, the payload, the plan, the pipelines' compilation — is gated
+#    everything else — the kernels' lowering, the mirror, the payload, the plan, the chains' compilation — is gated
 #    by tools that need no device at all.
 #
 # What it does:
@@ -35,7 +35,7 @@ if [ -z "$TB" ]; then
 fi
 echo "[BlasDeviceRun] headers: $Vk + $TB"
 
-# ② the SPIR-V the pipelines are created from. Lowered here if absent — through the SAME recipe the compile gate uses
+# ② the SPIR-V the chains are created from. Lowered here if absent — through the SAME recipe the compile gate uses
 #    (SHADER_OUT tells CheckShaders.sh to keep its output), because a machine with a GPU is exactly the machine that
 #    should not have to know how to lower a shader first. Nothing lands in the repository: the artifacts go to
 #    Build/Spriv/, the build tree's business.
@@ -60,7 +60,7 @@ if ! g++ -std=c++20 -O2 -DFRONTIER_CPU_PORT -Wall -Wextra -Wno-missing-field-ini
      Exhibits/Workbench/Traversal/BlasDeviceRun.cpp \
      Engine/GeometricRaster/BlasBuildMirror.cpp \
      Engine/GeometricRaster/BlasDevicePayload.cpp \
-     Engine/GeometricRaster/BlasBuildPipeline.cpp \
+     Engine/GeometricRaster/BlasBuildChain.cpp \
      Engine/GeometricRaster/InstanceAcceleration.cpp \
      Engine/GeometricRaster/TraversalIndex.cpp \
      Engine/ContentInterchange/MaterialSwatchStructure.cpp \

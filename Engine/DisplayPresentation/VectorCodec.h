@@ -83,7 +83,7 @@ enum class ControlCentreIconCategory : uint32_t
     ChevronUp                           = 19,                   // ⌃ lucide "chevron-up" — dropdown caret (open)
     TriangleAlert                       = 20,                   // ⚠ lucide "triangle-alert" — warning tone
     CircleCheck                         = 21,                   // ✓ lucide "circle-check-big" — success tone
-    CircleInfo                          = 22,                   // ⓘ lucide "info" — info tone
+    CircleDetails                          = 22,                   // ⓘ lucide "facts" — facts tone
     OctagonAlert                        = 23,                   // ⛔ lucide "octagon-alert" — caution / danger tone
 
     // ── Editor row columns and record furniture ────────────────────────────────────────────────────────────────────
@@ -97,7 +97,7 @@ enum class ControlCentreIconCategory : uint32_t
     MotionActivity                      = 28,                   // ∿ lucide "activity" — row is dynamic
     FolderClosed                        = 29,                   // 🗀 lucide "folder" — container row
     FolderOpen                          = 30,                   // 🗁 lucide "folder-open" — expanded container
-    CubeObject                          = 31,                   // ⬢ lucide "box" — mesh / geometry row
+    CubeObject                          = 31,                   // ⬢ lucide "box" — topology / geometry row
     SearchGlass                         = 32,                   // 🔍 lucide "search" — the search field
     PlusAdd                             = 33,                   // ＋ lucide "plus" — add a row
     TrashDelete                         = 34,                   // 🗑 lucide "trash-2" — remove a row
@@ -147,7 +147,7 @@ struct OutlinerGlyphRecord
 
 // Lucide glyphs are authored as several <path>/<circle>/<rect> children. VectorGlyphRecord stores them
 //    concatenated into one path string: circles and rects are rewritten as equivalent arc / line paths so a
-//    single SVG path decoder handles every glyph. Sub-paths are separated by their own M commands.
+//    single SVG path decoder identifiers every glyph. Sub-paths are separated by their own M commands.
 
 //------------------------------------------------------------------------------------------------------------------------
 //                                                VECTOR GLYPH RECORD

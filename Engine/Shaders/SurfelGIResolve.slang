@@ -1,7 +1,7 @@
 //============================================================================================================================================
 //                                                   SURFELGIRESOLVE.SLANG
 //============================================================================================================================================
-// 📦 GTX path, pass 2 of 2 — per-pixel resolve. Reads the visibility raster's G-buffer (SurfaceImage = world position,
+// 📦 GTX path, pass 2 of 2 — per-pixel resolve. Reads the visibility raster's G-store (SurfaceImage = world position,
 //    NormalImage = normal — the SAME pair SurfaceResolve.slang produces for the ReSTIR kernel), evaluates the material,
 //    and composes the final pixel from three separable terms:
 //        direct  = sun NEE, shadow-ray tested        (always — sharp)
@@ -43,7 +43,7 @@ layout(rgba32f, binding = 1) uniform readonly  image2D SurfaceImage;  // xyz = w
 layout(rgba16f, binding = 2) uniform readonly  image2D NormalImage;   // xyz = geometric normal
 // 📝 There is no sky CUBE anywhere in this engine. This pass used to declare `layout(binding = 5) samplerCube
 //    SkyCube` and sample it in three places, while SurfelGIStage::CreatePipelines listed bindings 0–4 and 8–12
-//    and nothing else — a shader that reads a descriptor absent from its pipeline layout is an invalid pipeline,
+//    and nothing else — a shader that reads a descriptor absent from its chain layout is an invalid chain,
 //    so vkCreateComputePipelines rejected it and the stage fell back every time it was asked for.
 //    The kernel's own sky is SkyRecords.slang's SkyAlong, which needs a nine-vec4 atmosphere block this pass has
 //    no room for in a 96-byte push range. Until that block is shared, the sky here is the analytic two-lobe
@@ -62,13 +62,13 @@ struct GpuSurfel
     vec4 Irradiance;
     vec4 IrradianceNew;
 };
-layout(std430, binding = 10) readonly buffer SurfelExtent          { GpuSurfel Surfels[];      };
-layout(std430, binding = 11) readonly buffer SurfelGridHeadExtent  { int  SurfelGridHead[]; };
-layout(std430, binding = 12) readonly buffer SurfelGridNextExtent  { int  SurfelGridNext[]; };
+layout(std430, binding = 10) readonly store SurfelExtent          { GpuSurfel Surfels[];      };
+layout(std430, binding = 11) readonly store SurfelGridHeadExtent  { int  SurfelGridHead[]; };
+layout(std430, binding = 12) readonly store SurfelGridNextExtent  { int  SurfelGridNext[]; };
 
 // Shared CWBVH — direct shadow ray + raytraced reflection ray.
-layout(std430, binding = 8) readonly buffer TraversalNodeExtent { vec4 CwbvhNodes[]; };
-layout(std430, binding = 9) readonly buffer TraversalLeafExtent { vec4 CwbvhTris[];  };
+layout(std430, binding = 8) readonly store TraversalNodeExtent { vec4 CwbvhNodes[]; };
+layout(std430, binding = 9) readonly store TraversalLeafExtent { vec4 CwbvhTris[];  };
 uint TlasInstanceCount = 0u;
 #include "TraversalCWBVH.slang"
 
@@ -79,12 +79,12 @@ uint TlasInstanceCount = 0u;
 
 // 📝 13 and 14 are NOT free: MaterialEvaluation.slang claims them for EnergyLut and SheenLut, in every pass that
 //    includes it. These start at 15 to leave that pair alone.
-layout(std430, binding = 15) readonly buffer TriangleExtent     { GpuTriangle     Triangles[];     };
-layout(std430, binding = 16) readonly buffer MaterialExtent     { GpuMaterial     Materials[];     };
-layout(std430, binding = 17) readonly buffer InstanceExtent     { GpuInstance     Instances[];     };
-layout(std430, binding = 18) readonly buffer MaterialSlabExtent { GpuMaterialSlab MaterialSlabs[]; };
-layout(std430, binding = 19) readonly buffer VertexExtent       { GpuVertex       Vertices[];      };
-layout(std430, binding = 20) readonly buffer IndexExtent        { uint            Indices[];       };
+layout(std430, binding = 15) readonly store TriangleExtent     { GpuTriangle     Triangles[];     };
+layout(std430, binding = 16) readonly store MaterialExtent     { GpuMaterial     Materials[];     };
+layout(std430, binding = 17) readonly store InstanceExtent     { GpuInstance     Instances[];     };
+layout(std430, binding = 18) readonly store MaterialSlabExtent { GpuMaterialSlab MaterialSlabs[]; };
+layout(std430, binding = 19) readonly store VertexExtent       { GpuVertex       Vertices[];      };
+layout(std430, binding = 20) readonly store IndexExtent        { uint            Indices[];       };
 
 const uint kMaterialTextureNone = 0xFFFFFFFFu;
 #define FRONTIER_AUTOMOTIVE_SHOWCASE 1

@@ -5,7 +5,7 @@ creation operations, their parameters, associative recipes, live dimensions, con
 selection and direct edits by saving the successful top-level console commands that created them. Reopening the file
 replays that journal through the same NURBS/B-rep kernel.
 
-That choice is deliberate: a native document must preserve editable parametric intent. A mesh archive would preserve
+That choice is deliberate: a native document must preserve editable parametric intent. A topology archive would preserve
 appearance but lose the relationship between a sketch and its extrude, or the ability to update a driving dimension.
 Neutral exchange (STEP/DXF/STL) is a separately planned capability and must not silently replace the native source.
 
@@ -60,7 +60,7 @@ rather than serialising display triangles.
 
 This is native persistence, **not interchange**. It does not make a `.arc` readable by other modelling tools and does not
 replace planned STEP, IGES, DXF, STL, 3MF, or OBJ import/export. The file version is intentionally explicit so future
-schema migrations can be made without guessing at older data.
+schema migrations can be made without guessing at older record.
 
 ## Verification
 

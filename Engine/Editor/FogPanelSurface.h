@@ -32,7 +32,7 @@ constexpr ImU32 ChamberFill  = IM_COL32( 25,  25,  25, 255);   // [-] .fog-share
 constexpr ImU32 ChamberEdge  = IM_COL32(255, 255, 255,  18);   // [-] .fog-shared-beam border-top #ffffff12
 constexpr ImU32 ChamberKey   = IM_COL32(119, 125, 120, 255);   // [-] .fog-shared-beam header #777d78
 constexpr ImU32 ChamberLive  = IM_COL32(207, 211, 206, 255);   // [-] header strong #cfd3ce
-constexpr ImU32 ChamberIdle  = IM_COL32(215, 154, 143, 255);   // [-] [data-enabled=false] strong #d79a8f
+constexpr ImU32 ChamberIdle  = IM_COL32(215, 154, 143, 255);   // [-] [record-enabled=false] strong #d79a8f
 constexpr ImU32 ChamberSmall = IM_COL32(102, 109, 104, 255);   // [-] .fog-shared-beam > small #666d68
 constexpr ImU32 ChamberText  = IM_COL32(147, 154, 149, 255);   // [-] .fog-shared-beam svg text #939a95
 constexpr ImU32 ChamberRule  = IM_COL32(255, 255, 255,  16);   // [-] chamber gridline #ffffff10
@@ -51,7 +51,7 @@ constexpr ImU32 ProfileText  = IM_COL32(150, 157, 153, 255);   // [-] svg text #
 constexpr ImU32 ProfileRule  = IM_COL32(255, 255, 255,  18);   // [-] density gridline #ffffff12
 constexpr ImU32 ProfileTick  = IM_COL32(255, 255, 255,  11);   // [-] altitude gridline #ffffff0b
 constexpr ImU32 ProfileDrop  = IM_COL32(255, 255, 255, 107);   // [-] falloff rule #ffffff6b
-constexpr ImU32 ProfileRing  = IM_COL32( 17,  19,  21, 255);   // [-] handle stroke #111315
+constexpr ImU32 ProfileRing  = IM_COL32( 17,  19,  21, 255);   // [-] identifier stroke #111315
 constexpr ImU32 ReadingFill  = IM_COL32( 24,  25,  24, 255);   // [-] .height-density-readings span #181918
 constexpr ImU32 ReadingKey   = IM_COL32(120, 126, 121, 255);   // [-] readings small #787e79
 constexpr ImU32 ReadingValue = IM_COL32(215, 218, 213, 255);   // [-] readings b #d7dad5
@@ -59,8 +59,8 @@ constexpr ImU32 ReadingValue = IM_COL32(215, 218, 213, 255);   // [-] readings b
 constexpr ImU32 VolumeFill   = IM_COL32( 21,  27,  29, 255);   // [-] .fog-shape-preview background #151b1d
 constexpr ImU32 VolumeEdge   = IM_COL32(255, 255, 255,  18);   // [-] preview border #ffffff12
 constexpr ImU32 VolumeGlow   = IM_COL32(173, 203, 214, 255);   // [-] preview radial gradient #adcbd6
-constexpr ImU32 VolumeFace   = IM_COL32(184, 217, 225,   7);   // [-] mesh face #b8d9e107
-constexpr ImU32 VolumeWire   = IM_COL32(175, 206, 218, 255);   // [-] mesh edge #afceda
+constexpr ImU32 VolumeFace   = IM_COL32(184, 217, 225,   7);   // [-] topology face #b8d9e107
+constexpr ImU32 VolumeWire   = IM_COL32(175, 206, 218, 255);   // [-] topology edge #afceda
 constexpr ImU32 VolumeStamp  = IM_COL32(129, 150, 159, 255);   // [-] preview caption #81969f
 constexpr ImU32 ChoiceText   = IM_COL32(170, 184, 185, 255);   // [-] .fog-shape-choice #aab8b9
 constexpr ImU32 EntryKey     = IM_COL32(158, 175, 178, 255);   // [-] .fog-dimensions label #9eafb2
@@ -170,7 +170,7 @@ inline void ShadeColumn(ImDrawList* Draw, int First, int Last, float TopY, float
     const float Reach = std::max(0.0001f, FootY - TopY);
     for (int Index = First; Index < Last; ++Index)
     {
-        ImDrawVert& Vertex = Draw->VtxBuffer[Index];
+        ImDrawVert& Vertex = Draw->VtxStore[Index];
         const float Share  = std::clamp((Vertex.pos.y - TopY) / Reach, 0.0f, 1.0f);
         ImU32 Mixed = 0;
         for (int Channel = 0; Channel < 4; ++Channel)
@@ -261,13 +261,13 @@ inline float Tracked(const Frame& F, float X, float Y, float Size, ImU32 Colour,
 {
     const float  Lifted = Size * F.ScaleY;
     const float  Step   = Extra * F.ScaleX;
-    ImFontBaked* Baked  = F.Face->GetFontBaked(Lifted);
+    ImFontBaked* Precomputed  = F.Face->GetFontPrecomputed(Lifted);
     float Run = 0.0f;
     for (const char* Walk = Body; *Walk;)
     {
         unsigned int Point = 0;
         Walk += ImTextCharFromUtf8(&Point, Walk, nullptr);
-        Run += Baked->GetCharAdvance(static_cast<ImWchar>(Point)) + Step;
+        Run += Precomputed->GetCharAdvance(static_cast<ImWchar>(Point)) + Step;
     }
     Run = std::max(0.0f, Run - Step);
     ImVec2 Spot = F.At(X, Y);
@@ -285,7 +285,7 @@ inline float Tracked(const Frame& F, float X, float Y, float Size, ImU32 Colour,
         unsigned int Point = 0;
         Walk += ImTextCharFromUtf8(&Point, Walk, nullptr);
         F.Draw->AddText(F.Face, Lifted, Spot, Colour, Head, Walk);
-        Spot.x += Baked->GetCharAdvance(static_cast<ImWchar>(Point)) + Step;
+        Spot.x += Precomputed->GetCharAdvance(static_cast<ImWchar>(Point)) + Step;
     }
     return Run;
 }
@@ -543,14 +543,14 @@ inline float PaintProfile(ImDrawList* Draw, ImFont* Face, ImVec2 Spot, float Wid
     }
 
     //  The filled area carries a vertical gradient over the bounding box of the filled path itself ------
-    const int First = F.Draw->VtxBuffer.Size;
+    const int First = F.Draw->VtxStore.Size;
     for (int Index = 1; Index <= 60; ++Index)
     {
         const float A = static_cast<float>(Index - 1) * 50.0f, B = static_cast<float>(Index) * 50.0f;
         F.Draw->AddQuadFilled(F.At(Across(A), Up(Curve(A))), F.At(Across(B), Up(Curve(B))),
                               F.At(Across(B), ProfileBottom), F.At(Across(A), ProfileBottom), IM_COL32_WHITE);
     }
-    ShadeColumn(F.Draw, First, F.Draw->VtxBuffer.Size, F.At(0.0f, Up(Density)).y, F.At(0.0f, ProfileBottom).y,
+    ShadeColumn(F.Draw, First, F.Draw->VtxStore.Size, F.At(0.0f, Up(Density)).y, F.At(0.0f, ProfileBottom).y,
                 Blend(Tint, Live ? 0.42f : 0.28f), Blend(Tint, 0.025f));
     for (int Index = 0; Index <= 60; ++Index)
     {
@@ -559,14 +559,14 @@ inline float PaintProfile(ImDrawList* Draw, ImFont* Face, ImVec2 Spot, float Wid
     }
     F.Draw->PathStroke(Tint, 0, 1.7f * Thin);
 
-    const float HandleX = Across(Falloff), HandleY = Up(Curve(Falloff));
-    Dashed(F, { HandleX, ProfileTop }, { HandleX, ProfileBottom }, ProfileDrop, 4.0f, 4.0f, Thin);
-    F.Draw->AddCircleFilled(F.At(HandleX, HandleY), 5.0f * F.ScaleY, Tint, 24);
-    F.Draw->AddCircle(F.At(HandleX, HandleY), 5.0f * F.ScaleY, ProfileRing, 24, 2.0f * Thin);
+    const float IdentifierX = Across(Falloff), IdentifierY = Up(Curve(Falloff));
+    Dashed(F, { IdentifierX, ProfileTop }, { IdentifierX, ProfileBottom }, ProfileDrop, 4.0f, 4.0f, Thin);
+    F.Draw->AddCircleFilled(F.At(IdentifierX, IdentifierY), 5.0f * F.ScaleY, Tint, 24);
+    F.Draw->AddCircle(F.At(IdentifierX, IdentifierY), 5.0f * F.ScaleY, ProfileRing, 24, 2.0f * Thin);
     Fixed(Figure, sizeof(Figure), Falloff, 0);
     std::snprintf(Body, sizeof(Body), "37%% \u00b7 %s m", Figure);
-    Tracked(F, std::min(ProfileRight - 4.0f, HandleX + 8.0f), std::max(14.0f, HandleY - 9.0f), 8.0f, ProfileText,
-            Body, 0.25f, HandleX > 230.0f ? Anchor::End : Anchor::Start, true);
+    Tracked(F, std::min(ProfileRight - 4.0f, IdentifierX + 8.0f), std::max(14.0f, IdentifierY - 9.0f), 8.0f, ProfileText,
+            Body, 0.25f, IdentifierX > 230.0f ? Anchor::End : Anchor::Start, true);
     Tracked(F, ProfileLeft, 207.0f, 8.0f, ProfileText, "DRAG POINT \u00b7 DENSITY / FALLOFF", 0.25f,
             Anchor::Start, true);
 
@@ -701,7 +701,7 @@ inline bool ValidOutline(const float Points[][2], int Count)
     return std::fabs(Area) > 0.001f;
 }
 
-struct ShapeMesh
+struct ShapeGeometry
 {
     std::vector<std::array<float, 3>> Vertices;
     std::vector<std::array<int, 2>>   Edges;
@@ -712,27 +712,27 @@ struct ShapeMesh
 };
 
 // FogGeometry — every branch in source order so the vertex indices match the browser one for one.
-inline ShapeMesh ConstructMesh(const FogShape& Shape)
+inline ShapeGeometry ConstructGeometry(const FogShape& Shape)
 {
-    ShapeMesh Mesh;
+    ShapeGeometry Hull;
     auto Extrude = [&](const std::vector<std::array<float, 2>>& Ring)
     {
         const int Count = static_cast<int>(Ring.size());
         for (const auto& Point : Ring)
         {
-            Mesh.Vertices.push_back({ Point[0], Point[1], -Shape.Tall / 2.0f });
+            Hull.Vertices.push_back({ Point[0], Point[1], -Shape.Tall / 2.0f });
         }
         for (const auto& Point : Ring)
         {
-            Mesh.Vertices.push_back({ Point[0], Point[1], Shape.Tall / 2.0f });
+            Hull.Vertices.push_back({ Point[0], Point[1], Shape.Tall / 2.0f });
         }
         for (int I = 0; I < Count; ++I)
         {
             const int J = (I + 1) % Count;
-            Mesh.Edges.push_back({ I, J });
-            Mesh.Edges.push_back({ I + Count, J + Count });
-            Mesh.Edges.push_back({ I, I + Count });
-            Mesh.Faces.push_back({ I, J, J + Count, I + Count });
+            Hull.Edges.push_back({ I, J });
+            Hull.Edges.push_back({ I + Count, J + Count });
+            Hull.Edges.push_back({ I, I + Count });
+            Hull.Faces.push_back({ I, J, J + Count, I + Count });
         }
         std::vector<int> Floor, Roof;
         for (int I = 0; I < Count; ++I)
@@ -740,8 +740,8 @@ inline ShapeMesh ConstructMesh(const FogShape& Shape)
             Floor.push_back(I);
             Roof.push_back(I + Count);
         }
-        Mesh.Faces.push_back(Floor);
-        Mesh.Faces.push_back(Roof);
+        Hull.Faces.push_back(Floor);
+        Hull.Faces.push_back(Roof);
     };
 
     if (Shape.Form == FogForm::Box)
@@ -776,32 +776,32 @@ inline ShapeMesh ConstructMesh(const FogShape& Shape)
         for (int I = 0; I < 48; ++I)
         {
             const float Angle = static_cast<float>(I) * Pi / 24.0f;
-            Mesh.Vertices.push_back({ Shape.Radius * std::cos(Angle), Shape.Radius * std::sin(Angle),
+            Hull.Vertices.push_back({ Shape.Radius * std::cos(Angle), Shape.Radius * std::sin(Angle),
                                       -Shape.Tall / 2.0f });
         }
-        Mesh.Vertices.push_back({ 0.0f, 0.0f, Shape.Tall / 2.0f });
+        Hull.Vertices.push_back({ 0.0f, 0.0f, Shape.Tall / 2.0f });
         for (int I = 0; I < 48; ++I)
         {
-            Mesh.Edges.push_back({ I, (I + 1) % 48 });
+            Hull.Edges.push_back({ I, (I + 1) % 48 });
             if (I % 6 == 0)
             {
-                Mesh.Edges.push_back({ I, 48 });
+                Hull.Edges.push_back({ I, 48 });
             }
-            Mesh.Faces.push_back({ I, (I + 1) % 48, 48 });
+            Hull.Faces.push_back({ I, (I + 1) % 48, 48 });
         }
     }
     else if (Shape.Form == FogForm::Diamond)
     {
-        Mesh.Vertices = { {  Shape.Wide / 2.0f, 0.0f, 0.0f }, { 0.0f,  Shape.Deep / 2.0f, 0.0f },
+        Hull.Vertices = { {  Shape.Wide / 2.0f, 0.0f, 0.0f }, { 0.0f,  Shape.Deep / 2.0f, 0.0f },
                           { -Shape.Wide / 2.0f, 0.0f, 0.0f }, { 0.0f, -Shape.Deep / 2.0f, 0.0f },
                           { 0.0f, 0.0f, Shape.Tall / 2.0f },  { 0.0f, 0.0f, -Shape.Tall / 2.0f } };
         for (int I = 0; I < 4; ++I)
         {
-            Mesh.Edges.push_back({ I, (I + 1) % 4 });
-            Mesh.Edges.push_back({ I, 4 });
-            Mesh.Edges.push_back({ I, 5 });
-            Mesh.Faces.push_back({ I, (I + 1) % 4, 4 });
-            Mesh.Faces.push_back({ I, (I + 1) % 4, 5 });
+            Hull.Edges.push_back({ I, (I + 1) % 4 });
+            Hull.Edges.push_back({ I, 4 });
+            Hull.Edges.push_back({ I, 5 });
+            Hull.Faces.push_back({ I, (I + 1) % 4, 4 });
+            Hull.Faces.push_back({ I, (I + 1) % 4, 5 });
         }
     }
     else
@@ -816,18 +816,18 @@ inline ShapeMesh ConstructMesh(const FogShape& Shape)
             {
                 const float A = static_cast<float>(Latitude) * Pi / 12.0f;
                 const float B = static_cast<float>(Longitude) * Pi / 12.0f;
-                Mesh.Vertices.push_back({ Radii[0] * std::sin(A) * std::cos(B),
+                Hull.Vertices.push_back({ Radii[0] * std::sin(A) * std::cos(B),
                                           Radii[1] * std::sin(A) * std::sin(B), Radii[2] * std::cos(A) });
                 const int I = Latitude * 24 + Longitude;
                 const int J = Latitude * 24 + (Longitude + 1) % 24;
-                Mesh.Edges.push_back({ I, J });
+                Hull.Edges.push_back({ I, J });
                 if (Latitude < 12)
                 {
                     if (Longitude % 3 == 0)
                     {
-                        Mesh.Edges.push_back({ I, I + 24 });
+                        Hull.Edges.push_back({ I, I + 24 });
                     }
-                    Mesh.Faces.push_back({ I, J, J + 24, I + 24 });
+                    Hull.Faces.push_back({ I, J, J + 24, I + 24 });
                 }
             }
         }
@@ -836,16 +836,16 @@ inline ShapeMesh ConstructMesh(const FogShape& Shape)
     for (int Axis = 0; Axis < 3; ++Axis)
     {
         float Least = FLT_MAX, Most = -FLT_MAX;
-        for (const auto& Point : Mesh.Vertices)
+        for (const auto& Point : Hull.Vertices)
         {
             Least = std::min(Least, Point[Axis]);
             Most  = std::max(Most, Point[Axis]);
         }
-        Mesh.Low[Axis]  = Least;
-        Mesh.High[Axis] = Most;
-        Mesh.Size[Axis] = Most - Least;
+        Hull.Low[Axis]  = Least;
+        Hull.High[Axis] = Most;
+        Hull.Size[Axis] = Most - Least;
     }
-    return Mesh;
+    return Hull;
 }
 
 // Ear clipping, because AddConvexPolyFilled silently misdraws the concave caps a Custom outline extrudes.
@@ -924,7 +924,7 @@ inline const char* VolumeNote()
 inline const char* OutlineNote()
 {
     return "Ordered polygon, extruded along Z. Supports concave footprints without crossing edges; this is not an "
-           "arbitrary mesh/SDF importer.";
+           "arbitrary topology/SDF importer.";
 }
 
 // Row heights straight off FogShapePanel.css; the caller draws the card and its h3, this draws the body.
@@ -955,7 +955,7 @@ inline float VolumeHeight(ImFont* Face, float Wide, const FogShape& Shape)
 inline float PaintVolume(ImDrawList* Draw, ImFont* Face, ImVec2 Spot, float Wide, const FogShape& Shape,
                          const float Centre[3], FogShape* Cycle = nullptr)
 {
-    const ShapeMesh Mesh = ConstructMesh(Shape);
+    const ShapeGeometry Hull = ConstructGeometry(Shape);
     Frame Flat{ Draw, Face, Spot, 1.0f, 1.0f };
     char  Body[192], Figure[64];
     float Y = Spot.y;
@@ -985,11 +985,11 @@ inline float PaintVolume(ImDrawList* Draw, ImFont* Face, ImVec2 Spot, float Wide
     Draw->AddRectFilled(F.At(0.0f, 0.0f), F.At(320.0f, 250.0f), VolumeFill, 15.0f * F.ScaleX);
     Halo(F, 160.0f, 125.0f, 155.0f, 112.0f, VolumeGlow, 0.16f);
 
-    std::vector<ImVec2> Flattened(Mesh.Vertices.size());
+    std::vector<ImVec2> Flattened(Hull.Vertices.size());
     float Least[2] = { FLT_MAX, FLT_MAX }, Most[2] = { -FLT_MAX, -FLT_MAX };
-    for (size_t Index = 0; Index < Mesh.Vertices.size(); ++Index)
+    for (size_t Index = 0; Index < Hull.Vertices.size(); ++Index)
     {
-        const auto& Point = Mesh.Vertices[Index];
+        const auto& Point = Hull.Vertices[Index];
         Flattened[Index]  = { (Point[0] - Point[1]) * 0.70710678f,
                               (Point[0] + Point[1]) / std::sqrt(6.0f) - Point[2] * std::sqrt(2.0f / 3.0f) };
         Least[0] = std::min(Least[0], Flattened[Index].x);
@@ -1005,7 +1005,7 @@ inline float PaintVolume(ImDrawList* Draw, ImFont* Face, ImVec2 Spot, float Wide
         Shown[Index] = F.At(160.0f + (Flattened[Index].x - (Least[0] + Most[0]) / 2.0f) * Zoom,
                             120.0f + (Flattened[Index].y - (Least[1] + Most[1]) / 2.0f) * Zoom);
     }
-    for (const auto& Face3 : Mesh.Faces)
+    for (const auto& Face3 : Hull.Faces)
     {
         std::vector<ImVec2> Ring;
         Ring.reserve(Face3.size());
@@ -1016,7 +1016,7 @@ inline float PaintVolume(ImDrawList* Draw, ImFont* Face, ImVec2 Spot, float Wide
         FillOutline(Draw, Ring, VolumeFace);
     }
     const float Fade = Shape.Form == FogForm::Sphere || Shape.Form == FogForm::Ellipsoid ? 0.4f : 0.65f;
-    for (const auto& Line : Mesh.Edges)
+    for (const auto& Line : Hull.Edges)
     {
         Draw->AddLine(Shown[static_cast<size_t>(Line[0])], Shown[static_cast<size_t>(Line[1])],
                       Blend(VolumeWire, Fade), 0.65f * F.ScaleX);
@@ -1142,9 +1142,9 @@ inline float PaintVolume(ImDrawList* Draw, ImFont* Face, ImVec2 Spot, float Wide
         Draw->AddText(Face, 10.0f, { Spot.x + 3.0f, Y + 9.0f }, BoundsKey, Names[Row]);
         for (int Axis = 0; Axis < 3; ++Axis)
         {
-            const float Value = Row == 0   ? Mesh.Low[Axis] + Centre[Axis]
-                                : Row == 1 ? Mesh.High[Axis] + Centre[Axis]
-                                           : Mesh.Size[Axis];
+            const float Value = Row == 0   ? Hull.Low[Axis] + Centre[Axis]
+                                : Row == 1 ? Hull.High[Axis] + Centre[Axis]
+                                           : Hull.Size[Axis];
             Grouped(Figure, sizeof(Figure), std::fabs(Value) < 0.00005f ? 0.0f : Value, 3);
             Inked(Flat, static_cast<float>(Axis + 2) * Quarter - 3.0f, Y + 9.0f + 10.0f * BaselineShare - Spot.y,
                   10.0f, BoundsValue, Figure, Anchor::End);

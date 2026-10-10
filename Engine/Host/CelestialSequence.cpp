@@ -531,12 +531,12 @@ SkyConstantRecord CelestialSequence::PackSkyRecord() const noexcept
     SkyConstantRecord Record = PackSkyConstants(Medium, Effective, Twilight, Solved.Sun.Elevation, /*CameraHeightMetres=*/2.0f,
                                                 Budget.AtmosphereSamples, Budget.AtmosphereLightSamples, Enabled, SunDirect,
                                                 ShadowStaging, ShadowDriftX, ShadowDriftY);
-    // The baked dome (roadmap #26 stage A): SkyControl.w carries the bindless slot + 1 — but ONLY while the
-    //    boolean is on, a sheet is resident, and the staging the bake was taken from still matches the record
+    // The precomputed dome (roadmap #26 stage A): SkyControl.w carries the bindless slot + 1 — but ONLY while the
+    //    boolean is on, a sheet is resident, and the staging the precompute was taken from still matches the record
     //    just packed. A scrubbed sun, a changed medium or a re-budgeted sample count silently drops the frame
     //    back to the analytic march; nothing ever renders against yesterday's air. Control[3] is otherwise 0,
-    //    so the OFF path packs bytes identical to the pre-bake build (the A/B's identity).
-    if (SkyDomeBaked && SkyDomeSeated && SkyDomeSlot != kNoSkyDomeSlot
+    //    so the OFF path packs bytes identical to the pre-precompute build (the A/B's identity).
+    if (SkyDomePrecomputed && SkyDomeSeated && SkyDomeSlot != kNoSkyDomeSlot
         && SkyDomeStagingMatches(SkyDomeRecord, Record))
         Record.Control[3] = SkyDomeSlot + 1u;
     return Record;
@@ -549,11 +549,11 @@ void CelestialSequence::AssignSkyDomeSlot(uint32_t BindlessSlot) noexcept
 
 bool CelestialSequence::QuerySkyDomeLive() const noexcept
 {
-    if (!SkyDomeBaked || !SkyDomeSeated || SkyDomeSlot == kNoSkyDomeSlot) return false;
+    if (!SkyDomePrecomputed || !SkyDomeSeated || SkyDomeSlot == kNoSkyDomeSlot) return false;
     return SkyDomeStagingMatches(SkyDomeRecord, PackSkyRecord());
 }
 
-// #26c — the persisted bake. The PROB blob is the staging record (144 B, the same bytes the staleness rule
+// #26c — the persisted precompute. The PROB blob is the staging record (144 B, the same bytes the staleness rule
 //    compares) followed by the RGBA16F halves; the ENVR row carries the staging figures a browsing tool shows.
 //    One layout, written and read by these two bodies only, verified by SkyDomeKernelProof's persistence gates.
 bool CelestialSequence::SaveSkyDome(const std::string& Path, const std::vector<uint16_t>& Halves) const noexcept
@@ -567,9 +567,9 @@ bool CelestialSequence::SaveSkyDome(const std::string& Path, const std::vector<u
     SpaceEnvironmentRow Row{};
     std::snprintf(Row.Name, sizeof(Row.Name), "Sky Dome");
     Row.SunHour         = Observation.LocalHours;
-    Row.FogDensity      = 0.0f;                       // the dome bakes no fog — the march keeps volumetrics
+    Row.FogDensity      = 0.0f;                       // the dome precomputes no fog — the march keeps volumetrics
     Row.AtmosphereScale = Medium.RayleighStrength;
-    Row.MoonPhase       = 0.0f;                       // the moon never bakes (its slots draw it)
+    Row.MoonPhase       = 0.0f;                       // the moon never precomputes (its slots draw it)
     Row.TerrainRef  = 0xFFFFFFFFu;
     Row.TerrainBlob = 0xFFFFFFFFu;
 
@@ -603,8 +603,8 @@ bool CelestialSequence::LoadSkyDome(const std::string& Path, std::vector<uint16_
     if (Probe.size() != sizeof(SkyConstantRecord) + kSheetHalves * sizeof(uint16_t)) return false;
 
     // The staleness rule at the file boundary: the file's recorded staging against THIS staging, packed the
-    //    same way the bake would pack it. A moved sun, a changed medium, a re-budgeted sample count — the
-    //    file yields and the lazy runtime bake takes over, exactly as a stale in-memory bake would.
+    //    same way the precompute would pack it. A moved sun, a changed medium, a re-budgeted sample count — the
+    //    file yields and the lazy runtime precompute takes over, exactly as a stale in-storage precompute would.
     SkyConstantRecord FileRecord{};
     std::memcpy(&FileRecord, Probe.data(), sizeof(SkyConstantRecord));
     SkyConstantRecord Current = PackSkyRecord();
@@ -619,9 +619,9 @@ bool CelestialSequence::LoadSkyDome(const std::string& Path, std::vector<uint16_
     return true;
 }
 
-void CelestialSequence::BakeSkyDome(std::vector<uint16_t>& OutHalves) noexcept
+void CelestialSequence::PrecomputeSkyDome(std::vector<uint16_t>& OutHalves) noexcept
 {
-    // The bake integrates the SAME effective light PackSkyRecord packs (solved direction, tint and brightness
+    // The precompute integrates the SAME effective light PackSkyRecord packs (solved direction, tint and brightness
     //    on the radiance, a hidden sun as night), at the SAME budget — so the staging-match compare below is
     //    against exactly the arithmetic that filled the sheet.
     AtmosphereLight Effective = Light;
@@ -630,7 +630,7 @@ void CelestialSequence::BakeSkyDome(std::vector<uint16_t>& OutHalves) noexcept
     for (int C = 0; C < 3; ++C) Effective.Colour[C] *= SkyTint[C];
     if (!Shown[static_cast<uint32_t>(CelestialEntity::Sun)])
         Effective.Intensity = 0.0f;
-    BakeSkyDomeSheet(Medium, Effective, Budget.AtmosphereSamples == 0u ? 1u : Budget.AtmosphereSamples,
+    PrecomputeSkyDomeSheet(Medium, Effective, Budget.AtmosphereSamples == 0u ? 1u : Budget.AtmosphereSamples,
                      Budget.AtmosphereLightSamples == 0u ? 1u : Budget.AtmosphereLightSamples, OutHalves);
     // Remember the staging WITHOUT the dome lane: the compare runs against freshly packed records whose
     //    Control[3] is still 0 at compare time (the lane is seated after the match).
@@ -1061,8 +1061,8 @@ void CelestialSequence::BuildSunSheet(EditorSheet& Sheet) const noexcept
 {
     Sheet.Appearance = EditorSheetAppearance::Sun;
     char Text[48];
-        EditorPropertyGroup& Bake = OpenGroup(Sheet, "Bake / image");
-        std::snprintf(Bake.Caption, sizeof(Bake.Caption), "Sun-specific Bake and Use baked image are not supported. The existing bake belongs to Sky, not Sun.");
+        EditorPropertyGroup& Precompute = OpenGroup(Sheet, "Precompute / image");
+        std::snprintf(Precompute.Caption, sizeof(Precompute.Caption), "Sun-specific Precompute and Use baked image are not supported. The existing bake belongs to Sky, not Sun.");
         EditorPropertyGroup& Disk = OpenGroup(Sheet, "Sun Disk");
         Push(Disk, MakeSlider("Angular Diameter", 0.1f, 5.0f, SunDiskSize, 2, "deg"));
         Push(Disk, MakeColour("Sun Tint", SunUseTemperature ? SunRgbTint : Light.Colour));
@@ -1361,8 +1361,8 @@ void CelestialSequence::ApplySheet(CelestialEntity Entity, const EditorSheet& Sh
         SkyBrightness = Scalar("Sky Brightness", SkyBrightness, 0.0f, 3.0f);
         const EditorProperty* Ground = Find(Sheet, "Ground Albedo");
         if (Ground != nullptr) for (int C = 0; C < 3; ++C) if(std::isfinite(Ground->ColourTint[C])) GroundAlbedo[C] = Ground->ColourTint[C];
-        SkyDomeBaked = ReadSwitch(Sheet, "Fetch Baked Dome", SkyDomeBaked);
-        if(Sheet.SkyImage.RequestBake) SkyPreviewBakeRequested=true;
+        SkyDomePrecomputed = ReadSwitch(Sheet, "Fetch Precomputed Dome", SkyDomePrecomputed);
+        if(Sheet.SkyImage.RequestPrecompute) SkyPreviewPrecomputeRequested=true;
         break;
     }
     case CelestialEntity::Sun:
@@ -1716,12 +1716,12 @@ void Frontier::HostRuntime::CelestialSequence::BuildAtmosphereSkySheet(EditorShe
         Push(Look, MakeColour("Sky Tint", SkyTint));
         Push(Look, MakeSlider("Sky Brightness", 0.0f, 3.0f, SkyBrightness, 2, "x"));
         Push(Look, MakeColour("Ground Albedo", GroundAlbedo));
-        // The baked dome (roadmap #26 stage A). The switch is the boolean; the readouts say what the frame is
-        //    actually doing — "fetch" only while a resident bake still matches the live staging, "march"
+        // The precomputed dome (roadmap #26 stage A). The switch is the boolean; the readouts say what the frame is
+        //    actually doing — "fetch" only while a resident precompute still matches the live staging, "march"
         //    otherwise (scrubbed sun, changed medium, no sheet). The split is measured in
         //    Exhibits/Gallery/Sky/: mean error 0.014-0.123 %, fetch 67-135x the march.
-        EditorPropertyGroup& Dome = OpenGroup(Sheet, "Baked Dome");
-        Push(Dome, MakeSwitch("Fetch Baked Dome", SkyDomeBaked));
+        EditorPropertyGroup& Dome = OpenGroup(Sheet, "Precomputed Dome");
+        Push(Dome, MakeSwitch("Fetch Precomputed Dome", SkyDomePrecomputed));
         Push(Dome, MakeReadout("Dome Path", QuerySkyDomeLive() ? "fetch (256^2 RGBA16F)" : "march (analytic)"));
         Push(Dome, MakeReadout("Sheet", SkyDomeSlot == kNoSkyDomeSlot ? "none resident"
                                         : (SkyDomeSeated ? "resident, staged" : "slot only")));
@@ -1729,11 +1729,11 @@ void Frontier::HostRuntime::CelestialSequence::BuildAtmosphereSkySheet(EditorShe
     auto& Image=Sheet.SkyImage;
     if(SkyPreviewHalves.size()==size_t(kSkyDomeSide)*kSkyDomeSide*8u){
         Image.Pixels=SkyPreviewHalves.data();Image.Width=kSkyDomeSide;Image.Height=kSkyDomeSide*2;
-        for(int C=0;C<3;++C)Image.BakedSunDirection[C]=SkyDomeRecord.SunDirection[C];
+        for(int C=0;C<3;++C)Image.PrecomputedSunDirection[C]=SkyDomeRecord.SunDirection[C];
         Image.Revision=SkyPreviewRevision;Image.Stale=!SkyDomeStagingMatches(SkyDomeRecord,PackSkyRecord());
     }
     Image.Resident=SkyDomeSlot!=kNoSkyDomeSlot;
-    Image.Pending=SkyPreviewBakeRequested;
+    Image.Pending=SkyPreviewPrecomputeRequested;
 }
 
 void Frontier::HostRuntime::CelestialSequence::BuildMoonSlot(EditorSheet& Sheet,uint32_t S) const noexcept {

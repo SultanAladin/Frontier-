@@ -141,8 +141,8 @@ bool IsOutlineGreen(const unsigned char* P)
 //                                         THE GIZMO RASTER, GPU ARITHMETIC ON CPU
 //------------------------------------------------------------------------------------------------------------------------
 // GizmoRaster.vert projects Location through ViewClip and the fragment shades through GizmoShade — replayed
-//    here with perspective-correct interpolation, no depth test (the GPU pipeline tests none: the grips read
-//    over the object), alpha blending exactly the pipeline's SRC_ALPHA / ONE_MINUS_SRC_ALPHA.
+//    here with perspective-correct interpolation, no depth test (the GPU chain tests none: the grips read
+//    over the object), alpha blending exactly the chain's SRC_ALPHA / ONE_MINUS_SRC_ALPHA.
 
 struct ProjectedFigure { float Px, Py, W; bool Live; };
 
@@ -213,7 +213,7 @@ void RasteriseGizmo(const Frontier::GizmoVertex* Triangles, uint32_t TriangleCou
                 BlendTexel(P, Shaded, A.Tint[3]);
             }
     }
-    // The line list — the corner quads' two opaque edges, unlit, exactly the second pipeline's draw.
+    // The line list — the corner quads' two opaque edges, unlit, exactly the second chain's draw.
     for (uint32_t L = 0u; L + 1u < StrokeCount; L += 2u)
     {
         const ProjectedFigure Pa = ProjectFigure(ViewClip, Strokes[L].Location);
@@ -686,7 +686,7 @@ int main()
     // ── The pick readback race: the desk-observed one-click lag, reproduced and refused ────────────────────
     // The first device run (GTX 1650 SUPER, 2026-09-22) showed picking answering one click late: select
     //    object 2, object 1 highlights. Cause: the readback slot was trusted with no fence check, so at
-    //    30-45 ms GPU frames the CPU read the mapped buffer BEFORE the copy landed — the previous tap's
+    //    30-45 ms GPU frames the CPU read the mapped store BEFORE the copy landed — the previous tap's
     //    texel. This section drives a Counterpart of the cycle's exact decision arithmetic through that
     //    desk scenario: the old rule must reproduce the bug, the shipped rule must refuse it.
     std::fprintf(stderr, "[SelectionProof] pick readback race: the one-click lag reproduced and refused\n");
@@ -730,7 +730,7 @@ int main()
         Expect(Cycle.QueryFixedRule() == kFirstObject, "the finished copy answers the first tap");
 
         // Click 2 lands on the second object. The copy is RECORDED but the GPU (30-45 ms behind) has not
-        //    finished it: the mapped buffer still holds the first object's texel. This is the exact instant
+        //    finished it: the mapped store still holds the first object's texel. This is the exact instant
         //    the desk saw the wrong highlight.
         Cycle.Tap(); Cycle.RecordCopy(1u); Cycle.Mapped[1] = kFirstObject; Cycle.Active = 0u;
         Expect(Cycle.QueryOldRule() == kFirstObject,

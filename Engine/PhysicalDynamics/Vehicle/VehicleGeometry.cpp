@@ -20,7 +20,7 @@ std::vector<WheelMount> MakeWheelMounts(const VehicleGeometry& g)
 {
     // 💡 Read straight from Socket_AxleMount_*, not rebuilt from Wheelbase/Track arithmetic. The two agreed to the
     //    millimetre, but only by coincidence: nothing kept them in step, so editing the track width silently moved
-    //    the wheels away from the sockets the body mesh was modelled around. The sockets are the authored truth.
+    //    the wheels away from the sockets the body topology was modelled around. The sockets are the authored truth.
     return {
         WheelMount{ g.AxleMountLocal(0u), g.SuspensionMountLocal(0u), /*Steered*/true,  /*Driven*/false, /*Braked*/true },
         WheelMount{ g.AxleMountLocal(1u), g.SuspensionMountLocal(1u), /*Steered*/true,  /*Driven*/false, /*Braked*/true },
@@ -75,7 +75,7 @@ void ApplyGeometry(VehicleSolverConfiguration& c, const VehicleGeometry& Authore
 
     c.ChassisMass = g.Mass;
     c.Wheels      = MakeWheelMounts(g);
-    // Keep the soft tyre in sync with the geometry. All three come from the ControlVehicle.blend wheel meshes, so the
+    // Keep the soft tyre in sync with the geometry. All three come from the ControlVehicle.blend wheel geometries, so the
     //    carcass the XPBD solver deforms is the size of the wheel the renderer draws — one number, not two.
     // Struts and bars, already rated for the corner masses by ResolveSuspension.
     c.FrontStrut   = g.Front;

@@ -23,7 +23,7 @@ Latest previously used Slate branch was checked through GitHub:
 2. Display actual local player and distinctly labelled local dummy players for
    solo readiness testing. Dummy players are not Epic accounts/PUIDs, network
    members or RTC participants; exclude them from competitive/cloud statistics.
-3. Publish readiness for real players through lobby member attributes; handle
+3. Publish readiness for real players through lobby member attributes; identifier
    membership changes and clear readiness as appropriate.
 4. Host creates/registers/starts a real EOS match session only after readiness and
    successful callbacks. Serialize operations to prevent duplicate create/start.
@@ -36,7 +36,7 @@ Latest previously used Slate branch was checked through GitHub:
    unregisters and destroys; members destroy their local joined session, then
    the lobby is left/destroyed. Kicks and disconnects trigger the same cascade.
 7. Browse both EOS lobbies and EOS match sessions with text filters, join by
-   list or by lobby ID. Session search results keep their details handles for
+   list or by lobby ID. Session search results keep their details identifiers for
    Join; lobby joins use Join-by-ID.
 8. Host-editable lobby settings (bucket, max members, permission, presence,
    invites, RTC, host migration, join-by-ID, rejoin rule, map/mode/region/note)
@@ -74,12 +74,12 @@ Latest previously used Slate branch was checked through GitHub:
 - Clean tabbed UI (Lobby / Browse / Settings / History) in the reference blue,
   black, white and dark-grey palette. Voice status is acknowledged only from SDK
   callbacks, never on button click.
-- EOS Player Data Storage history: immutable per-event files, strict parser,
+- EOS Player Packet Storage history: immutable per-event files, strict parser,
   bounded local cache, explicit pending markers, retry, and no claim of cloud
   success on failure. Records contain login UTC, session IDs, duration and
   explicit dummy counts, never invented gameplay metrics.
-- Private portable `Charge.local.ini` (client id, secret, 64-hex data key) read
-  from beside the executable, with strict parsing, no truncation, buffer wiping,
+- Private portable `Charge.local.ini` (client id, secret, 64-hex record key) read
+  from beside the executable, with strict parsing, no truncation, store wiping,
   Git-ignored local archive, and a tracked-source scan for private values.
 - Epic auto-login: desktop PersistentAuth is tried first (no browser), with a
   one-time Account Portal fallback. The portal login stores the token the next
@@ -123,5 +123,5 @@ member session joins, RTC audio transmission, session start/end with a real
 second player, and actual cloud read/write. Gameplay transport/replication and
 authoritative competitive statistics are not implemented.
 
-No EOS lobby/session/RTC/data-storage success is claimed by this document.
+No EOS lobby/session/RTC/record-storage success is claimed by this document.
 No secret has been embedded in source, reference files or a public artifact.

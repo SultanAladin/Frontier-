@@ -14,7 +14,7 @@ env=dict(os.environ,GIT_CEILING_DIRECTORIES=str(T));patch=R/'Tools/Build/Patches
 if subprocess.run(['git','apply','--reverse','--check',str(patch)],cwd=T,env=env,capture_output=True).returncode:
  subprocess.run(['git','apply',str(patch)],cwd=T,env=env,check=True)
 shutil.copy2(R/'Engine/Editor/NativeConstructPanel.h',T/'Engine/Editor/NativeConstructPanel.h')
-for name in ['IconArt.cpp','BakedIconArt.h']:shutil.copy2(R/'Engine/DisplayPresentation'/name,T/'Engine/DisplayPresentation'/name)
+for name in ['IconArt.cpp','PrecomputedIconArt.h']:shutil.copy2(R/'Engine/DisplayPresentation'/name,T/'Engine/DisplayPresentation'/name)
 commands=json.loads((R/'Exhibits/Gallery/MainEditorNative/ReleaseCommands.json').read_text())
 B=R/'.cache'/('native-construct-asan' if a.sanitize else 'native-construct');B.mkdir(exist_ok=True)
 for c in commands:
@@ -25,7 +25,7 @@ for c in commands:
 def run(c):
  r=subprocess.run(c,cwd=T,text=True,stdout=subprocess.PIPE,stderr=subprocess.STDOUT)
  if r.returncode:raise RuntimeError(' '.join(c)+'\n'+r.stdout)
-with concurrent.futures.ThreadPoolExecutor(max_workers=3) as pool:list(pool.map(run,commands[:-1]))
+with concurrent.futures.ThreadPoolExecutor(max_workers=3) as slots:list(slots.map(run,commands[:-1]))
 run(commands[-1])
 shutil.copytree(R/'EngineContent/Icons',T/'EngineContent/Icons',dirs_exist_ok=True)
 (T/'Exhibits/Gallery/NativeConstruct').mkdir(parents=True,exist_ok=True)

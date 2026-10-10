@@ -60,7 +60,7 @@ async function Select(Name) {
     exact: true,
   }).fill(Name);
   await Page.locator(".row-name").getByText(Name, { exact: true }).click();
-  await Page.locator(".inspector-scroll [data-panel]").waitFor();
+  await Page.locator(".inspector-scroll [record-panel]").waitFor();
 }
 try {
   await Page.goto(process.env.FRONTIER_EDITOR_URL || "http://127.0.0.1:5180/", {
@@ -78,8 +78,8 @@ try {
       Nodes.forEach((Node) => (Node.open = true)),
     );
     const Type = await Page.locator(
-      ".inspector-scroll [data-panel]",
-    ).getAttribute("data-panel");
+      ".inspector-scroll [record-panel]",
+    ).getAttribute("record-panel");
     const Numbers = await Page.locator(
       '.inspector-scroll input[type="number"]:not([disabled])',
     ).all();
@@ -196,8 +196,8 @@ try {
     .getByRole("button", { name: "Rainbow", exact: true })
     .click();
   await Page.getByRole("button", { name: "Add to scene", exact: true }).click();
-  assert.equal(await Page.locator("[data-preview-id]").count(), 1);
-  assert.equal(await Page.locator('[data-panel="rainbow"]').count(), 1);
+  assert.equal(await Page.locator("[record-preview-id]").count(), 1);
+  assert.equal(await Page.locator('[record-panel="rainbow"]').count(), 1);
   // Notch and all five native control-centre pages.
   await Page.getByRole("button", {
     name: "Project-Zero control center notch",

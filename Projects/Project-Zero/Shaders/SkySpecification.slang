@@ -19,7 +19,7 @@
 //
 // Include path: the Host compiles this file as C++17 after SlangCompat.h; the
 // Vulkan engine compiles it as Slang via #include. Slang-only rendering code
-// (buffers, ray queries, entry points) lives in ReSTIRSequence.slang.
+// (stores, ray queries, entry points) lives in ReSTIRSequence.slang.
 #ifndef PROJECT_ZERO_CELESTIAL_CORE_SLANG
 #define PROJECT_ZERO_CELESTIAL_CORE_SLANG
 

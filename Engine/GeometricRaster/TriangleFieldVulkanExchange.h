@@ -1,14 +1,14 @@
 //============================================================================================================================================
 //                                                       TRIANGLEFIELDVULKANEXCHANGE.H
 //============================================================================================================================================
-// 📦 Vulkan host for the mesh SDF compute kernels (TriangleField.slang, SPIR-V embedded in Generated/TriangleFieldSpirv.inc).
-//    Import-time bake (ProjectGridMain) and dirty-cell composite (ClipMinimumMain). Compute only: no ray tracing extensions, so the same
+// 📦 Vulkan host for the topology SDF compute kernels (TriangleField.slang, SPIR-V embedded in Generated/TriangleFieldSpirv.inc).
+//    Import-time precompute (ProjectGridMain) and dirty-cell combined (ClipMinimumMain). Compute only: no ray tracing extensions, so the same
 //    code runs on any Vulkan 1.0 device with a compute queue (NVIDIA GTX or RTX, AMD RX). RT cores are not used.
 //
 //    Not executed in the build sandbox (no Vulkan driver there). Compile-checked against the Vulkan headers only.
-//    Run the device check, Tools/Bake/TriangleFieldDeviceCheck.cpp, on the target GPU to validate it.
+//    Run the device check, Tools/Geometry/TriangleFieldDeviceCheck.cpp, on the target GPU to validate it.
 //
-//    Buffers are host-visible and host-coherent, which keeps the first version simple and correct. A device-local path with a
+//    Stores are host-visible and host-coherent, which keeps the first version simple and correct. A device-local path with a
 //    staging copy is the obvious next optimisation once the device check is green.
 
 #pragma once
@@ -82,11 +82,11 @@ class Kernels
     bool Create(const Context& Ctx, std::string& Error);
     void Destroy();
 
-    // Import-time bake. TriangleFloats holds 9 floats per triangle. Writes Resolution^3 distances, X fastest.
+    // Import-time precompute. TriangleFloats holds 9 floats per triangle. Writes Resolution^3 distances, X fastest.
     bool Project(const std::vector<float>& TriangleFloats, const float Min[3], const float Max[3], uint32_t Resolution,
               std::vector<float>& Out, double& Seconds, std::string& Error);
 
-    // Dirty-cell composite over one clip level. Only cells inside [Lo, Hi] are written. Other cells of ClipVolume are untouched.
+    // Dirty-cell combined over one clip level. Only cells inside [Lo, Hi] are written. Other cells of ClipVolume are untouched.
     bool ClipMinimum(const ClipMinimumParamsHost& Params, const std::vector<InstanceGpuHost>& Instances, const std::vector<float>& FieldSamples,
                    std::vector<float>& ClipVolume, double& Seconds, std::string& Error);
 
@@ -98,7 +98,7 @@ class Kernels
     VkShaderModule ProjectModule = VK_NULL_HANDLE, ClipMinimumModule = VK_NULL_HANDLE;
     VkDescriptorSetLayout ProjectLayout = VK_NULL_HANDLE, ClipMinimumLayout = VK_NULL_HANDLE;
     VkPipelineLayout ProjectPipelineLayout = VK_NULL_HANDLE, ClipMinimumPipelineLayout = VK_NULL_HANDLE;
-    VkPipeline ProjectPipeline = VK_NULL_HANDLE, ClipMinimumPipeline = VK_NULL_HANDLE;
+    VkPipeline ProjectChain = VK_NULL_HANDLE, ClipMinimumChain = VK_NULL_HANDLE;
     VkDescriptorPool DescriptorSlots = VK_NULL_HANDLE;
     VkCommandPool Commands = VK_NULL_HANDLE;
     VkFence Fence = VK_NULL_HANDLE;

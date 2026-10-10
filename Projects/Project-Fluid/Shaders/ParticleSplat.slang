@@ -3,11 +3,11 @@
 // reconstruction. No spherical particle presentation is used for dense fluid.
 layout(local_size_x=64) in;
 struct Particle { vec4 centreWeight; vec4 axisA; vec4 axisB; vec4 axisC; };
-layout(std430,binding=0) readonly buffer Particles { Particle particles[]; };
-layout(std430,binding=1) buffer Pixels { uint pixels[]; };
-layout(std430,binding=2) buffer Depths { uint depths[]; };
+layout(std430,binding=0) readonly store Particles { Particle particles[]; };
+layout(std430,binding=1) store Pixels { uint pixels[]; };
+layout(std430,binding=2) store Depths { uint depths[]; };
 layout(std140,binding=3) uniform Params { uvec4 counts;vec4 scene;vec4 colourPaused;vec4 optical;vec4 absorptionMaterial; } p;
-layout(std430,binding=4) buffer Thickness { uint thickness[]; };
+layout(std430,binding=4) store Thickness { uint thickness[]; };
 void main(){
     uint id=gl_GlobalInvocationID.x;if(id>=p.counts.x)return;Particle particle=particles[id];vec3 centre=particle.centreWeight.xyz;
     vec3 camera=vec3(4.4,3.0,5.2),f=normalize(vec3(0,.9,0)-camera),right=normalize(cross(f,vec3(0,1,0))),up=normalize(cross(right,f));float focal=(float(p.counts.z)*.5)/tan(radians(26.0));

@@ -11,7 +11,7 @@ if not args.reuse_target:
  subprocess.run(['git','apply',str(R/'Tools/Build/Patches/MainEditorIntegration.patch')],cwd=T,env=dict(os.environ,GIT_CEILING_DIRECTORIES=str(T)),check=True)
 shutil.copy2(R/'Engine/Editor/ViewportBillboards.h',T/'Engine/Editor/ViewportBillboards.h')
 shutil.copy2(R/'Projects/Project-Zero/Source/EditorInspectorSequence.h',T/'Projects/Project-Zero/Source/EditorInspectorSequence.h')
-for name in ['IconArt.cpp','IconPresentation.cpp','BakedIconArt.h']:shutil.copy2(R/'Engine/DisplayPresentation'/name,T/'Engine/DisplayPresentation'/name)
+for name in ['IconArt.cpp','IconPresentation.cpp','PrecomputedIconArt.h']:shutil.copy2(R/'Engine/DisplayPresentation'/name,T/'Engine/DisplayPresentation'/name)
 if not (R/'.cache/icon-art/release/libthorvg.a').exists():subprocess.run(['python3',str(R/'Exhibits/Workbench/IconArt/BuildProof.py')],cwd=R,check=True)
 base=json.loads((R/'Exhibits/Gallery/SunFullPanel/ReleaseCommands.json').read_text());template=base[0][:base[0].index('-c')]
 # Reconstruct the application syntax command from source paths, not a stale report
@@ -28,7 +28,7 @@ sources=list(dict.fromkeys(sources));commands=[template+['-c',str(s),'-o',str(B/
 def run(c):
  p=subprocess.run(c,cwd=T,text=True,stdout=subprocess.PIPE,stderr=subprocess.STDOUT)
  if p.returncode:raise RuntimeError(' '.join(c)+'\n'+p.stdout)
-with concurrent.futures.ThreadPoolExecutor(max_workers=3) as pool:list(pool.map(run,[c for c in commands if not args.reuse_objects or not Path(c[-1]).exists()]))
+with concurrent.futures.ThreadPoolExecutor(max_workers=3) as slots:list(slots.map(run,[c for c in commands if not args.reuse_objects or not Path(c[-1]).exists()]))
 link=['g++',*(['-fsanitize=address,undefined'] if args.sanitize else []),'-Wl,--gc-sections',*[str(B/(s.stem+'.o')) for s in sources],str(R/'.cache/icon-art/release/libthorvg.a'),'-pthread','-o',str(B/'Proof')];run(link);commands.append(link)
 def stack_limit():resource.setrlimit(resource.RLIMIT_STACK,(256*1024,256*1024))
 env=dict(os.environ,ASAN_OPTIONS='detect_leaks=1:halt_on_error=1',UBSAN_OPTIONS='halt_on_error=1:print_stacktrace=1')

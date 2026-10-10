@@ -125,8 +125,8 @@ host. Flags are honoured where the panel supports them (`--name=`, `--constructi
 
 ### 2.4 Three new primitive bodies
 `sphere`, `cone` and `torus` are registered in `.arc` scripts (27, 4 and 11 uses respectively) but
-had **no mesh at all** in the panel — another reason scripts appeared to do nothing. Added
-`sphereMesh` / `torusMesh` (cone reuses the existing tapered `cylMesh`), wired into `meshOf`,
+had **no topology at all** in the panel — another reason scripts appeared to do nothing. Added
+`sphereGeometry` / `torusGeometry` (cone reuses the existing tapered `cylGeometry`), wired into `geometryOf`,
 `measure` (exact analytic volumes) and `boundsOf`.
 
 ### 2.5 The console is visible
@@ -149,12 +149,12 @@ and `view fit [selected]` (routed to the existing `focusSelection`).
 `Verification/smoke.js` grew a section **§31 — .arc grammar parity** (the suite is now at 460 checks,
 all passing). It asserts:
 
-- the tokeniser handles vectors, whitespace in vectors, flags, `;`, `#`, quotes;
+- the tokeniser identifiers vectors, whitespace in vectors, flags, `;`, `#`, quotes;
 - `box (0,0,0) 40 30 20` builds a body with **finite** `w/d/h` (the original corruption);
 - every no-op line in the table above now creates the figure it names;
 - a refused command creates no figure **and no undo entry**;
 - unknown vs. not-yet-implemented produce different messages;
-- `sphere` / `cone` / `torus` build meshes with positive volume;
+- `sphere` / `cone` / `torus` build geometries with positive volume;
 - a representative slice of `Scripts/Phase2_Primitives.arc` replays end to end.
 
 ```

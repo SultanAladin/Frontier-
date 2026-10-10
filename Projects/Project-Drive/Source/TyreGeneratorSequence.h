@@ -93,7 +93,7 @@ struct TyreCarcassAuthoring
     }
 };
 
-/// 📦 One authored tyre: the carcass the mesh is cut from, the pattern cut into it, and the solver that deforms it.
+/// 📦 One authored tyre: the carcass the topology is cut from, the pattern cut into it, and the solver that deforms it.
 struct TyreDocument
 {
     TreadSpecification          Tread{};
@@ -102,8 +102,8 @@ struct TyreDocument
     uint32_t                    PickedLayer = 0u;   // [idx] the layer Tyre Generator has open
 };
 
-/// 📦 Seats the off-road preset the tread mesh gate runs against — 285/70 R17 "Grizzly Magnum".
-/// note  The same preset as Exhibits/Workbench/Tyre/TreadMeshProof.cpp, so the editor and the gate author the
+/// 📦 Seats the off-road preset the tread topology gate runs against — 285/70 R17 "Grizzly Magnum".
+/// note  The same preset as Exhibits/Workbench/Tyre/TreadGeometryProof.cpp, so the editor and the gate author the
 ///       same tyre and a disagreement between them is a real disagreement.
 /// tag   api
 void SeatGrizzlyMagnum(TyreDocument& Document) noexcept;

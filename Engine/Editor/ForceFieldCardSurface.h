@@ -15,7 +15,7 @@
 //
 // 📐 FOUR THINGS THIS PANEL SAYS OUT LOUD.
 //    ① A field that reaches Everywhere draws NO centre and NO radius. Not a greyed-out pair — absent.
-//       Everywhere is not a very large sphere, and a radius control on gravity is a lie with a handle.
+//       Everywhere is not a very large sphere, and a radius control on gravity is a lie with a identifier.
 //    ② The cost card counts what sums into the lattice against what is evaluated per receiver, because
 //       that is the consequence of the taxonomy and the one number that changes when you add a field.
 //    ③ A kind with no shader path yet is LISTED, with a plain line saying it does nothing. A control that
@@ -265,7 +265,7 @@ inline bool RowIsSlider(ForceRow Row) noexcept
 
 struct ForceCost
 {
-    uint32_t Baked = 0u;    // summed into the shared lattice
+    uint32_t Precomputed = 0u;    // summed into the shared lattice
     uint32_t Live  = 0u;    // evaluated per receiver
 };
 
@@ -276,7 +276,7 @@ inline ForceCost ResolveCost(const ForceCardSubject& Subject) noexcept
     ForceCost Cost;
     for (uint32_t At = 0u; At < Subject.Count; ++At)
     {
-        if (ForceBakeable(Subject.Fields[At])) ++Cost.Baked;
+        if (ForceBakeable(Subject.Fields[At])) ++Cost.Precomputed;
         else                                   ++Cost.Live;
     }
     return Cost;
@@ -424,7 +424,7 @@ inline float PaintForceCard(ImDrawList* Draw, ImFont* Light, ImFont* Regular, Im
     {
         const ForceCost Cost = ResolveCost(Subject);
         char Reading[48];
-        std::snprintf(Reading, sizeof(Reading), "%u / %u", Cost.Baked, Cost.Live);
+        std::snprintf(Reading, sizeof(Reading), "%u / %u", Cost.Precomputed, Cost.Live);
         const float MetricY = Y + Kit::CardPadTop + Kit::TitleSize + Kit::TitleFoot;
         Draw->AddText(Regular, Kit::MetricSize, { Spot.x + Kit::CardPadX, MetricY }, Kit::MetricInk, Reading);
         Draw->AddText(Light, Kit::CaptionSize,

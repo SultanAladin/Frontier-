@@ -87,8 +87,8 @@ public:
     [[nodiscard]] Vector3 GetBoundingMaximum() const noexcept { return BoundingMaximum; }
     [[nodiscard]] Vector3 GetVoxelSpacing() const noexcept { return VoxelSpacing; }
     [[nodiscard]] size_t GetSampleCount() const noexcept { return DistanceSamples.size(); }
-    [[nodiscard]] const float* GetSampleData() const noexcept { return DistanceSamples.data(); }
-    [[nodiscard]] float* GetMutableSampleData() noexcept { return DistanceSamples.data(); }
+    [[nodiscard]] const float* GetSamplePayload() const noexcept { return DistanceSamples.data(); }
+    [[nodiscard]] float* GetMutableSamplePayload() noexcept { return DistanceSamples.data(); }
 
     [[nodiscard]] float GetVoxelSample(uint32_t X, uint32_t Y, uint32_t Z) const noexcept
     {

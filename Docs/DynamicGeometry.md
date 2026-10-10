@@ -11,8 +11,8 @@ that number decides the answer. Three frequencies, three answers:
 |---|---|---|---|
 | build the world tree | once at load | whole scene | **CPU** (today's `TraversalIndex::Build`; deterministic, already proven) |
 | move a rigid object | every frame | transforms only — 0 triangles | **either** (CPU is 0.16–3.1 ms for the whole TLAS; see §3) |
-| deform a mesh (skinning/VAT/cloth) | every frame | that mesh's triangles | **GPU refit**, once the layout allows refit-in-place |
-| change topology (destruction, LOD swap) | occasionally | that mesh | CPU rebuild on a worker thread, or the GPU build kernel (`BlasBuild.slang`; H-PLOC's cluster merge is the open optimisation) |
+| deform a topology (skinning/VAT/cloth) | every frame | that topology's triangles | **GPU refit**, once the layout allows refit-in-place |
+| change topology (destruction, LOD swap) | occasionally | that topology | CPU rebuild on a worker thread, or the GPU build kernel (`BlasBuild.slang`; H-PLOC's cluster merge is the open optimisation) |
 
 ## 1. What exists in this repository today
 
@@ -34,7 +34,7 @@ that number decides the answer. Three frequencies, three answers:
 The industry model (DXR/Vulkan-RT, and tinybvh's own `BLASInstance` + `BVH::Build(BLASInstance*, …, BVHBase** BLASes)`)
 is exactly what was proposed earlier in the conversation:
 
-- **BLAS** — one tree per *unique mesh*, in **object space**, built once. A BLAS can be shared by any number of
+- **BLAS** — one tree per *unique topology*, in **object space**, built once. A BLAS can be shared by any number of
   instances.
 - **Instance row** — `transform` (object→world) and its inverse, plus the world-space AABB of the transformed root.
 - **TLAS** — a tree over instances' world AABBs only (`N` leaves, not `N × triangles`).
@@ -80,7 +80,7 @@ its `Refit()` is a hard error on a TLAS):
 Read together, these say:
 
 - **Rigid motion needs no BVH build at all.** 4 096 simultaneously moving objects cost ~3 ms of *CPU* TLAS work per
-  frame on this machine — and that is the worst case (rebuild every frame, single-threaded pool); a fat-AABB
+  frame on this machine — and that is the worst case (rebuild every frame, single-threaded slots); a fat-AABB
   incremental TLAS or the same rebuild on a worker thread while the frame renders makes it invisible. On a GPU a TLAS
   rebuild is a single AABB-LBVH pass; drivers do it in well under a millisecond.
 - **Deformation is where the CPU stops scaling, and the reason is the packed layout, not the algebra.** Refitting is
@@ -91,30 +91,30 @@ Read together, these say:
   bottom-up refit kernel updates node boxes in place — no re-collapse and no vertex re-quantization. Then the per-frame
   update of a 16 k character is one compute dispatch over its nodes, and the CPU only writes instance rows.
 - Static geometry keeps the **compressed CWBVH**, which is the best traversal format available here and costs nothing
-  per frame. Two formats, chosen by whether the mesh is ever going to move: compressed for the world, wide-refittable
+  per frame. Two formats, chosen by whether the topology is ever going to move: compressed for the world, wide-refittable
   for actors. (Intel's DXR guidance says the same from the other side: keep BLASes updatable *only* where needed,
-  because updatable structures cost memory and trace performance.)
+  because updatable structures cost storage and trace performance.)
 
 ## 4. Animated characters without a rig
 
 The brief is explicit — "just the triangles, not rig". That is the *easier* case to schedule, because the renderer
 never needs bone matrices: it receives a triangle soup that changed shape. Options, in order of what should be built:
 
-1. **Per-frame vertex update + BLAS refit (the default).** Whatever produces the deformed vertices (baked vertex
-   animation, morph targets, a skinning pass elsewhere, cloth), the renderer refits that mesh's BLAS. Topology must be
+1. **Per-frame vertex update + BLAS refit (the default).** Whatever produces the deformed vertices (precomputed vertex
+   animation, morph targets, a skinning pass elsewhere, cloth), the renderer refits that topology's BLAS. Topology must be
    fixed — same triangle count and connectivity — which is exactly what vertex animation and skinning give. Cost:
    §3's refit row, on the GPU as a node-update kernel, or 0.17 ms/char on the CPU for a handful of actors.
 2. **Refit with a periodic rebuild.** Refit quality decays as the deformation grows (tree AABBs slacken), so the
    standard rule is *refit while the vertex displacement is small relative to primitive size, rebuild when it is not*.
-   Practical form: track the maximum vertex displacement per mesh per frame; rebuild that BLAS when it exceeds a
-   fraction (say 10 %) of the mesh's average primitive size, or every `N` frames regardless. A rebuild is 13 ms
+   Practical form: track the maximum vertex displacement per topology per frame; rebuild that BLAS when it exceeds a
+   fraction (say 10 %) of the topology's average primitive size, or every `N` frames regardless. A rebuild is 13 ms
    (CPU, 16 k) — affordable on a worker thread, not in the frame's critical path.
-3. **Vertex-animation textures (VAT).** If animation is baked from the DCC as a texture of per-frame vertex positions,
+3. **Vertex-animation textures (VAT).** If animation is precomputed from the DCC as a texture of per-frame vertex positions,
    the same refit path serves it *and* the CPU mirror can reproduce it deterministically — the same property that made
    the ReSTIR proofs possible. This is the recommended authoring route for the `.geometry`/`.instance` formats when
    animation is added.
-4. **Prebuilt BLAS per pose cluster (memory-heavy).** Reuse a cached BLAS for poses within a tolerance of the current
-   one; trades memory for update time. Only worth it for hero assets on constrained hardware.
+4. **Prebuilt BLAS per pose cluster (storage-heavy).** Reuse a cached BLAS for poses within a tolerance of the current
+   one; trades storage for update time. Only worth it for hero assets on constrained hardware.
 5. **Tetrahedral cage (research).** A 2026 ACM paper ("Ray Tracing Massive Amounts of Animated Geometry") animates a
    coarse tetrahedral cage and rebuilds the TLAS over the *tetrahedra* — two to three orders of magnitude fewer
    primitives than the triangles — decoupling per-frame cost from triangle density. Worth watching; it needs a custom
@@ -127,7 +127,7 @@ deformed vertices and refits; the animation system owns everything before that b
 
 - **A GPU builder must write our blob.** The traverser reads SSBO blobs in a fixed layout. A GPU builder that emits
   some other layout is useless unless `TraversalCWBVH.slang` grows a second traversal path — which is the real cost of
-  H-PLOC/PLOC++/LBVH here, not the builder itself. Vertex data must also already be on the device (it is not: the CPU
+  H-PLOC/PLOC++/LBVH here, not the builder itself. Vertex record must also already be on the device (it is not: the CPU
   uploads flat triangles). So a GPU *build* is a bigger change than a GPU *refit*.
   **D9 answered this the way the paragraph asks.** `Engine/Shaders/BlasBuild.slang` emits the same packed layout — Morton
   key prepass, a per-level octant partition that is also the sort (no radix passes, no key prefix sum), a childBase scan
@@ -176,7 +176,7 @@ deformed vertices and refits; the animation system owns everything before that b
   D8's CPU sweep uses, dispatched deepest level first so a parallel pass reads only finished children. §⑨e proves the
   two orders agree byte for byte on the same blob (4 827 nodes, 31 927 triangles, 0 differing floats), which is what
   makes the transcription checkable without a device.
-- **GPU builders are for topology changes** (destruction, LOD swaps, meshes authored on the fly): H-PLOC (AMD, GPUOpen,
+- **GPU builders are for topology changes** (destruction, LOD swaps, geometries authored on the fly): H-PLOC (AMD, GPUOpen,
   Benthin et al. 2024) constructs a whole BVH in a single kernel launch, 1.1–3.6× faster than PLOC++/ATRBVH, with
   LBVH-quality-competitive results (a million instances, 4-wide, in 2.21 ms). PLOC (Meister & Bittner 2018) / PLOC++
   are the well-understood fallbacks, and a student CUDA port measured 0.44–0.83 G triangles/s. Which one we take
@@ -250,10 +250,10 @@ deformed vertices and refits; the animation system owns everything before that b
   - **cost**, this 2-core host, 63 854 triangles with 31 927 in the refitted BLAS: in-place refit **4.39 ms** against
     **74.84 ms** for a full rebuild; the packed re-emit (refit + collapse + compress) is **7.76 ms** and moves the node
     count 24 135 → 25 190 blocks, i.e. it **no longer fits the recorded slice** (+1 055). In-place is not merely
-    faster, it is the only update that can stay in an already-uploaded buffer. 4 827 nodes went through the sweep, whose
+    faster, it is the only update that can stay in an already-uploaded store. 4 827 nodes went through the sweep, whose
     largest child-index jump is 4 125 (`Metrics.MaxChildIndexJump`, `RefitSweepable`) — the number a GPU kernel needs to
     size its windows;
-  - the gate deforms at **5.04 % of the mesh's own mean edge** (0.0031 m of 0.0611 m), the regime the policy calls
+  - the gate deforms at **5.04 % of the topology's own mean edge** (0.0031 m of 0.0611 m), the regime the policy calls
     Refit; `Frontier::MeasureDeformation` + `Frontier::BlasUpdatePolicy{RefitDisplacementRatio, RebuildCooldownFrames}`
     answer all seven policy cases, a topology change is refused **and counted** (`RefitRefusedCount`), and a
     spatial-split (HighQuality) BLAS refuses to refit — its splits cut triangles, so the D8 trade holds.
@@ -298,23 +298,23 @@ actually does frame to frame, and reports the level-scale wave as information on
    `InstanceWorldToObjectDirection` in `TraversalRecords.slang` — and gate ③c transcribes both forms into C++ and
    compares them against the CPU mirror, so a GPU is not needed to catch it (the transposed form is 5.99 m off on the
    M10 level's own geometry, 0.00 m for the corrected one).
-2. **The row's transform must be RELATIVE, not absolute.** `SceneStructure::Finalise` bakes each instance's `World` into
-   the flat soup, so a BLAS built over that soup already sits in the baked frame; carrying `World_now` as the row
-   transform applies the bake twice. The row is `World_now · World_rest⁻¹` (`RelativeMatrix`), which is also the reason
-   the drop scene looked fine — its rest transform is identity. Gate ③b builds a prototype over a *baked* soup and moves
+2. **The row's transform must be RELATIVE, not absolute.** `SceneStructure::Finalise` precomputes each instance's `World` into
+   the flat soup, so a BLAS built over that soup already sits in the precomputed frame; carrying `World_now` as the row
+   transform applies the precompute twice. The row is `World_now · World_rest⁻¹` (`RelativeMatrix`), which is also the reason
+   the drop scene looked fine — its rest transform is identity. Gate ③b builds a prototype over a *precomputed* soup and moves
    it with a non-identity relative transform, against a world tree over the moved soup.
-3. **Descriptor pool vs layout, for the second time.** The pool's storage-buffer count was hand-kept and had gone stale:
+3. **Descriptor slots vs layout, for the second time.** The slots's storage-store count was hand-kept and had gone stale:
    14 for a layout asking 18 (the GI reservoir pair 25/26 and D6/D7's four were never added). One driver let that
-   through with a validation error; the next would not. Both the set layout and the pool are now derived from one
+   through with a validation error; the next would not. Both the set layout and the slots are now derived from one
    `ComputeBindingType` table with `static_assert`s on the counts, and the four new descriptor writes are guarded on
-   their buffers existing (a `VK_NULL_HANDLE` write is invalid, not merely useless).
+   their stores existing (a `VK_NULL_HANDLE` write is invalid, not merely useless).
 
 Two further notes worth keeping:
 
 - **The ray-to-object transform needs no re-normalisation.** `M·(O' + t·D') = O + t·D`, so `t` survives; the CPU walker
   (`TraceClosestObjectSpace`) takes the caller's direction verbatim, and the kernel divides twice (`rD' = 1/D'`). This is
   what makes an identity instance bit-identical rather than merely close.
-- **The BLAS is quantised in object space.** Under a non-uniform bake-to-world scale the object-space tree is a
+- **The BLAS is quantised in object space.** Under a non-uniform precompute-to-world scale the object-space tree is a
   *different, axis-sensitive* quantisation of the same geometry, so two trees can disagree by an ulp at a grazing hit
   (measured: one ray in 20 000, |det| ≈ 0.03 on that triangle). Both orders are legitimate; a disagreement is only a
   defect if the ray meets the triangle well inside it. The proof adjudicates every disagreement with a
@@ -350,7 +350,7 @@ Vulkan SDK makes it a one-line pre-commit check; on a host with `slangc`/`glslc`
   (`8 + 24 × node slots`), the soup in the layout the kernels index (3 vec4 = 12 floats per triangle — §⑨h's first run
   caught that unit slip as a heap overflow), the level table the refit counts down (`PackBlasLevels` widens `LevelsOf`'s
   uint16 to the kernel's uint32 with 0xFFFFFFFF for a slot the tree cannot reach), and the **dispatch plan** — the host's
-  loop as data: §⑨i checks 60 build dispatches (`prepass`, then `partition · count+scan · BLOCK SCAN · emit` per level —
+  loop as record: §⑨i checks 60 build dispatches (`prepass`, then `partition · count+scan · BLOCK SCAN · emit` per level —
   the block scan lands between the two stages it feeds — then the run path's three) under a level cap of 14 for the 8
   levels this level has, and 9 refit dispatches whose levels run 7,6,…,0, each exactly once and deepest first, because a
   repeated level would re-quantise a node from a child that moved. The plan's `Groups == 1`
@@ -360,9 +360,9 @@ Vulkan SDK makes it a one-line pre-commit check; on a host with `slangc`/`glslc`
   source batch compiles the four D6–D9 TUs**
   (`InstanceAcceleration.cpp` had been called from `SwapchainExchange.cpp` since D6 with no target compiling it); each was
   compile-checked standalone under the engine's own include paths and flags before registration, which B76–B78 pin.
-  **The Vulkan half is written, and the run is one command away.** `Engine/GeometricRaster/BlasBuildPipeline.{h,cpp}`
-  creates the two pipelines (`BlasBuild.spv`, `BlasRefit.spv`), allocates one BLAS' worth of buffers on a host-visible
-  memory type, records the plan's dispatches with a compute→compute barrier between every stage, and verifies the device's
+  **The Vulkan half is written, and the run is one command away.** `Engine/GeometricRaster/BlasBuildChain.{h,cpp}`
+  creates the two chains (`BlasBuild.spv`, `BlasRefit.spv`), allocates one BLAS' worth of stores on a host-visible
+  storage type, records the plan's dispatches with a compute→compute barrier between every stage, and verifies the device's
   node blob, leaf blob, level table and leaf-triangle total against the CPU mirror's — byte for byte. It links no Vulkan
   loader: the entry points arrive through a `VulkanSourced` table, which is why the file compiles (and is compiled by the
   gate) in a sandbox with no `libvulkan.so` at all. `Exhibits/Workbench/Traversal/BlasDeviceRun.cpp` is the program — it
@@ -394,7 +394,7 @@ Vulkan SDK makes it a one-line pre-commit check; on a host with `slangc`/`glslc`
 | Which format for dynamic BLASes? | **the packed CWBVH, refitted in place** — *(D8 reversed this plan row)* | the plan said "wide, unquantized (refittable)" on the belief that "packed formats cannot be partially updated". They can: a node quantises its children into ≤ 255 cells of its own extent, so a re-quantise cannot change the block count, and the re-emit that would change it no longer fits the uploaded slice (+1 055 blocks measured). A second wide format would double the traversal code and the descriptor traffic for no measured win |
 | Keep one world-space tree? | **No** — two-level from here on (D6/D7 delivered; the single-blob path stays as the fallback and as the bit-identity reference) | the whole-scene re-emit is the ceiling that blocks every dynamic feature |
 | Must the object-space ray be re-normalised after `M⁻¹`? | **No** — transform O and D, take t as-is | `M·(O' + t·D') = O + t·(M·D')`, so t survives the transform; re-normalising would both rescale t and perturb grazing rays by an ulp |
-| Animation without a rig? | per-frame deformed vertices + refit; VAT as the authoring route | the renderer never needs bone data; refit needs fixed topology, which skinning/VAT give |
+| Animation without a rig? | per-frame deformed vertices + refit; VAT as the authoring route | the renderer never needs bone record; refit needs fixed topology, which skinning/VAT give |
 
 ## 7a. D10 — temporal integration for moving geometry *(delivered)*
 
@@ -403,7 +403,7 @@ measurement changed.
 
 ### What the accumulator had, and why it was not enough
 
-Every history read in the renderer — the running mean in `ResolveSurface` (R7a) and both reservoir pools — is reprojected
+Every history read in the renderer — the running mean in `ResolveSurface` (R7a) and both reservoir slots — is reprojected
 through the R2 motion vectors and validated on the surface's normal and depth: cos 25°, 10 % relative depth. That rule is
 necessary and it is not sufficient, because **normal and depth agree for two different objects more often than is
 comfortable**:
@@ -424,9 +424,9 @@ if that surface is the same one. Implementation notes:
 |---|---|
 | the identity | the packed value the visibility raster already carries, `instance << 14 \| primitive` (`SceneRecords.slang`'s own packing) — not a new number about the scene |
 | where it is stored (mean) | `MomentImage`'s reserved `z/w` channels, which held `0.0` and nothing else. **Not a new binding**: bindings 0–31 of that set are all taken and 31 must stay the highest number (the bindless table is variable-count). Each half is a 16-bit integer, and every integer below 2²⁴ is exact in a float32, so the decoded identity compares with `==` like the integer it is |
-| where it is stored (reservoirs) | a fifth `uvec4 Identity` in `GpuReservoir`: **64 B → 80 B**, mirrored by `ReservoirBufferRecord` on the host behind a `static_assert` that fails at compile time if the two ever drift |
-| the GI/debug views | `SurfaceResolve.slang`'s `GpuReservoirView` carries the new tail too — an array stride is the whole struct, so a 64 B view over an 80 B buffer drifts one field every 80 bytes and the M/W/Age debug views would silently read a neighbouring pixel |
-| whose rule it is | it is the SAME test in all three places (mean, DI pool, GI pool), because a ghost in the reflection half is the same bug wearing a different hat |
+| where it is stored (reservoirs) | a fifth `uvec4 Identity` in `GpuReservoir`: **64 B → 80 B**, mirrored by `ReservoirStoreRecord` on the host behind a `static_assert` that fails at compile time if the two ever drift |
+| the GI/debug views | `SurfaceResolve.slang`'s `GpuReservoirView` carries the new tail too — an array stride is the whole struct, so a 64 B view over an 80 B store drifts one field every 80 bytes and the M/W/Age debug views would silently read a neighbouring pixel |
+| whose rule it is | it is the SAME test in all three places (mean, DI slots, GI slots), because a ghost in the reflection half is the same bug wearing a different hat |
 | default | **on**, with `--restir-no-identity` (mirror) / the bit clear (kernel) restoring the pre-D10 rule, so the fix is measurable rather than asserted |
 
 ### ⚠️ The granularity correction — the identity is the OBJECT, not the triangle
@@ -440,14 +440,14 @@ a 4-triangle box than on a 4 000-triangle sphere.
 
 The object is the right granularity, and it is the one the feature exists for: it survives a moving object's motion (so
 the object keeps its own history as it moves — the point of the milestone), it differs between two objects that exchange
-places (the ghost the rule catches), and it is the number the raster, the instance buffers and the acceleration
+places (the ghost the rule catches), and it is the number the raster, the instance stores and the acceleration
 structure all already agree on. *Same object, different face* is the normal/depth test's business. On the same still
 scene the rule now changes 0.5 % of pixels instead of 13.5 %.
 
 ### ⚠️ The second measurement — the mirror's motion vector had the jitter in it
 
-Once the rule was at the right granularity, the pool still refused ~1 275 merges per frame on a still scene, and the
-diagnostic said why: the mirror measured the surface point's displacement from the pixel **centre** while the G-buffer's
+Once the rule was at the right granularity, the slots still refused ~1 275 merges per frame on a still scene, and the
+diagnostic said why: the mirror measured the surface point's displacement from the pixel **centre** while the G-store's
 hit point came from the **jittered** ray. Motion is a displacement of a POINT, so mixing the two left a sub-pixel offset
 in every reprojection, and `floor()` turned half of them into a neighbouring pixel's history. The kernel does not have
 this bug — its motion image carries a *vertex's* own screen displacement — so this is the mirror being brought into line

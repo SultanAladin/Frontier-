@@ -2,7 +2,7 @@
 //                                                          FBXCODEC.H
 //============================================================================================================================================
 // 🧩 FBX → SceneStructure via ufbx (ContentInterchange). Same output shape as SceneCodec::Decode: one GeometryStructure
-//    per mesh × material part (object space), one instance per node × part, MaterialDescriptor per ufbx_material
+//    per topology × material part (object space), one instance per node × part, MaterialDescriptor per ufbx_material
 //    (MaterialCodec::DecodeFbx: Simple / Single class, Phong shininess → GGX roughness), textures registered by
 //    absolute filename or embedded content, PlacementRecord per node (whole tree), CameraRecord per camera,
 //    PunctualLuminaireRecord per light.

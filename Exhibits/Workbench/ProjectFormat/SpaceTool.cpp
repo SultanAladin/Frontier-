@@ -2,7 +2,7 @@
 //                     📦 Exhibits/Workbench/ProjectFormat/SpaceTool.cpp — P3/P4/P6's tool
 //============================================================================================================================================
 // 🧩 The command line the plan describes, doing the work rather than parsing it: export a level as a project, pack a
-//    project's siblings into it, explode them back out, bake a sky probe into an environment, and print what a container
+//    project's siblings into it, explode them back out, precompute a sky probe into an environment, and print what a container
 //    holds. Tools/Scripts/PackProject.sh and ExplodeProject.sh are two-line wrappers over this binary, because a shell
 //    script that reimplements packing is a second implementation of the format waiting to disagree with the first.
 //
@@ -10,7 +10,7 @@
 //      SpaceTool -Project=Project-Zero -Pack=Build/Space/Project-Zero.projectspace
 //      SpaceTool -Project=Project-Zero -Explode=Build/Space/Project-Zero.projectspace
 //      SpaceTool -Project=Project-Zero -Bake=Sky -Out=Build/Space
-//      SpaceTool -Info=Build/Space/Project-Zero.projectspace
+//      SpaceTool -Facts=Build/Space/Project-Zero.projectspace
 //      SpaceTool -Verify=Build/Space                        ← the CLI's half of claim ⑥/②: the records a project loads ARE
 //                                                             the records the level builder produced, by memcmp
 //
@@ -206,10 +206,10 @@ namespace
         return Objects;
     }
 
-    // The sky probe: a genuine equirectangular bake of the atmosphere model at the environment's own sun position, one
+    // The sky probe: a genuine equirectangular precompute of the atmosphere model at the environment's own sun position, one
     //    float RGB triple per texel, level 0 only. 32×16 is coarse on purpose — it is a probe for a grading reference,
-    //    and a coarse probe that is honestly coarse beats a fine one nobody can afford to bake on import.
-    std::vector<uint8_t> BakeSkyProbe(float SunElevationDegrees, uint32_t& OutLevels)
+    //    and a coarse probe that is honestly coarse beats a fine one nobody can afford to precompute on import.
+    std::vector<uint8_t> PrecomputeSkyProbe(float SunElevationDegrees, uint32_t& OutLevels)
     {
         constexpr uint32_t kWidth = 32u, kHeight = 16u;
         AtmosphereMedium Medium{};
@@ -256,7 +256,7 @@ int main(int ArgumentCount, char** Arguments)
         std::printf("  -Project=<Name> -Level=<Name> -Export[=All|<Level>] [-Out=<dir>]   write the level as a project\n");
         std::printf("  -Pack=<file> | -Explode=<file> [-Out=<dir>]                        the two lossless tools\n");
         std::printf("  -Bake=Sky -Out=<dir>                                               bake the sky probe into the environment\n");
-        std::printf("  -Info=<file>                                                       print what a container holds\n");
+        std::printf("  -Facts=<file>                                                       print what a container holds\n");
         std::printf("  -Verify=<dir>                                                      re-read an export and compare it with the level\n");
         return 0;
     }
@@ -278,15 +278,15 @@ int main(int ArgumentCount, char** Arguments)
         for (size_t I = 0u; I + 1u < size_t(ArgumentCount); ++I)
             if (std::string(Arguments[I]) == "-Out" || std::string(Arguments[I]) == "-out") OutDirectory = Arguments[I + 1u];
 
-    // ── -Info ────────────────────────────────────────────────────────────────────────────────────────────────────────
-    const std::string Info = ValueOf("-Info");
-    if (!Info.empty())
+    // ── -Facts ────────────────────────────────────────────────────────────────────────────────────────────────────────
+    const std::string Facts = ValueOf("-Info");
+    if (!Facts.empty())
     {
         SpaceReader Reader;
         std::string ReadError;
-        if (!Reader.OpenFile(Info, ReadError)) { std::printf("[space-tool] %s: %s\n", Info.c_str(), ReadError.c_str()); return 1; }
+        if (!Reader.OpenFile(Facts, ReadError)) { std::printf("[space-tool] %s: %s\n", Facts.c_str(), ReadError.c_str()); return 1; }
         const SpaceFileType* Type = Reader.Type();
-        std::printf("[space-tool] %s — %s (%zu bytes, %zu tables)\n", Info.c_str(), Type ? Type->Name : "unknown",
+        std::printf("[space-tool] %s — %s (%zu bytes, %zu tables)\n", Facts.c_str(), Type ? Type->Name : "unknown",
                     Reader.ByteCount(), Reader.Tables().size());
         std::printf("    TYPE %s revision %u · META '%s' · header %u.%u\n", Reader.TypeRecord().Tag.Text().c_str(),
                     Reader.TypeRecord().Revision, Reader.MetaName(ReadError).c_str(), 1u, 0u);
@@ -394,9 +394,9 @@ int main(int ArgumentCount, char** Arguments)
                 SpaceReader Geometry;
                 std::string GeometryError;
                 if (!Geometry.Open(GeometryBytes, GeometryError)) { ++Mismatched; continue; }
-                const SpaceTableRecord* Mesh = Geometry.Find(kTagMesh);
-                if (!Mesh) { ++Mismatched; continue; }
-                const std::vector<uint8_t> Payload = Geometry.Payload(*Mesh);
+                const SpaceTableRecord* Hull = Geometry.Find(kTagGeometry);
+                if (!Hull) { ++Mismatched; continue; }
+                const std::vector<uint8_t> Payload = Geometry.Payload(*Hull);
                 uint32_t VertexCount = 0u, IndexCount = 0u;
                 std::memcpy(&VertexCount, Payload.data(), 4u);
                 std::memcpy(&IndexCount, Payload.data() + 4u, 4u);
@@ -584,7 +584,7 @@ int main(int ArgumentCount, char** Arguments)
         else Fail("%s", ExportError.c_str());
     }
 
-    // .environment: the staging, and — with -Bake=Sky — a probe baked from the atmosphere model at the staging's own sun.
+    // .environment: the staging, and — with -Bake=Sky — a probe precomputed from the atmosphere model at the staging's own sun.
     {
         SpaceEnvironmentRow Row{};
         SpaceSetName(Row.Name, sizeof(Row.Name), LevelName + " Sky");
@@ -597,12 +597,12 @@ int main(int ArgumentCount, char** Arguments)
         Row.SkyProbeBlob = 0xFFFFFFFFu;
         std::vector<uint8_t> Probe;
         uint32_t ProbeLevels = 0u;
-        if (Options.BakeSky)
+        if (Options.PrecomputeSky)
         {
-            // The staging's sun hour is a local hour; the probe is baked at the elevation that hour implies, so the file's
-            //    probe and the file's own staging agree instead of the probe being baked at a hard-coded noon.
+            // The staging's sun hour is a local hour; the probe is precomputed at the elevation that hour implies, so the file's
+            //    probe and the file's own staging agree instead of the probe being precomputed at a hard-coded noon.
             const float Elevation = 60.0f * std::sin((Row.SunHour / 24.0f) * 6.2831853f);
-            Probe = BakeSkyProbe(Elevation, ProbeLevels);
+            Probe = PrecomputeSkyProbe(Elevation, ProbeLevels);
             Say("-Bake=Sky: baked a 32×16 equirect probe at sun hour %.2f (elevation %.1f°) — %zu B", Row.SunHour, Elevation, Probe.size());
         }
         std::vector<uint8_t> Bytes;
@@ -643,7 +643,7 @@ int main(int ArgumentCount, char** Arguments)
         else Fail("%s", ExportError.c_str());
     }
 
-    // .workflow: the plan's own pipeline, naming its steps and their operands.
+    // .workflow: the plan's own chain, naming its steps and their operands.
     {
         const std::vector<std::string> Names = { "import", "bake", "validate", "package" };
         const std::vector<std::string> Operands = { ProjectName + ".projectspace", LevelName + ".environment",

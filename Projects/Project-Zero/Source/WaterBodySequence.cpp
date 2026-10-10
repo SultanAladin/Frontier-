@@ -5,9 +5,9 @@
 #include <vector>
 
 namespace Frontier::ProjectZero {
-void BuildPondGeometry(const ProjectFluid::PondWave& Pond,Vector3 Origin,GeometryStructure& Mesh) {
-    if(!Mesh.QueryVertices().empty()||!Mesh.QueryIndices().empty())
-        throw std::invalid_argument("Water mesh destination must be empty");
+void BuildPondGeometry(const ProjectFluid::PondWave& Pond,Vector3 Origin,GeometryStructure& Hull) {
+    if(!Hull.QueryVertices().empty()||!Hull.QueryIndices().empty())
+        throw std::invalid_argument("Water topology destination must be empty");
     if(!std::isfinite(Origin.x)||!std::isfinite(Origin.y)||!std::isfinite(Origin.z))
         throw std::invalid_argument("Water origin must be finite");
     const auto Columns=Pond.Columns(), Rows=Pond.Rows();
@@ -32,7 +32,7 @@ void BuildPondGeometry(const ProjectFluid::PondWave& Pond,Vector3 Origin,Geometr
         const uint32_t A=J*Columns+I,B=A+1,D=A+Columns,C=D+1;
         for(auto Index:{A,C,B,A,D,C})Indices.push_back(Index);
     }
-    Mesh.AppendVertices(Vertices.data(),Vertices.size());Mesh.AppendIndices(Indices.data(),Indices.size());
+    Hull.AppendVertices(Vertices.data(),Vertices.size());Hull.AppendIndices(Indices.data(),Indices.size());
 }
 WaterBodyRegistration AppendPondSnapshot(SceneStructure& Level,const WaterBodySettings& S) {
     if(!std::isfinite(S.Disturbance)||std::abs(S.Disturbance)>2||
@@ -42,7 +42,7 @@ WaterBodyRegistration AppendPondSnapshot(SceneStructure& Level,const WaterBodySe
     Pond.Disturb(0,0,S.Disturbance,.4f);
     float Remaining=S.SettleSeconds;
     while(Remaining>0){const float Dt=std::min(Remaining,Pond.StableDt());Pond.Step(Dt);Remaining-=Dt;}
-    GeometryStructure Mesh;BuildPondGeometry(Pond,S.Origin,Mesh);
+    GeometryStructure Hull;BuildPondGeometry(Pond,S.Origin,Hull);
     MaterialDescriptor Material;Material.Name="Water / Ripple snapshot";Material.Slabs.emplace_back();
     auto& Slab=Material.Slabs.front();
     Slab.BaseWeight=0;Slab.SpecularIor=1.333f;Slab.SpecularRoughness=.035f;
@@ -52,7 +52,7 @@ WaterBodyRegistration AppendPondSnapshot(SceneStructure& Level,const WaterBodySe
     const auto Mat=Level.RegisterMaterial(Material);
     const auto First=static_cast<uint32_t>(Level.QueryInstances().size());
     const Matrix4x4 Identity;
-    (void)Level.RegisterInstance(Mesh,Identity,Mat,InstanceFlagDoubleSided);
+    (void)Level.RegisterInstance(Hull,Identity,Mat,InstanceFlagDoubleSided);
     const auto Count=static_cast<uint32_t>(Level.QueryInstances().size())-First;
     const auto Placement=Level.RegisterPlacement("Water Body / Ripple snapshot",0xffffffffu,Identity,Identity);
     Level.AttachInstances(Placement,First,Count);

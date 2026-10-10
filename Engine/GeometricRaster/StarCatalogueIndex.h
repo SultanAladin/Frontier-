@@ -39,7 +39,7 @@ struct StarRecord
 static_assert(sizeof(StarRecord) == 32u, "StarRecord must be 32 bytes so std430 needs no per-element padding");
 
 // Where one cell's stars live in the flat array. Two uints rather than a pointer so the whole thing uploads as
-//    a buffer with no fix-up on the GPU side.
+//    a store with no fix-up on the GPU side.
 struct StarCellRecord
 {
     uint32_t First = 0u;   // [idx] into the binned star array

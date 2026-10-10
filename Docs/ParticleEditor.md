@@ -72,7 +72,7 @@ Swarm particles (kind 6) read their neighbours from a snapshot taken after emiss
 | Atoms (LJ gas) | Molecular, GPU-simulated | Lennard-Jones pairs on a spatial-hash grid, Langevin thermostat, reflecting box walls. |
 | Chemicals A+B→C | Molecular, GPU-simulated | Same as atoms, with stochastic A + B → C reactions on contact and C → A or B dissociation. |
 
-Particles are stored in one GPU buffer per system, with 80 bytes per particle. Simulation and rendering both stay on the GPU. The CPU only receives the small statistics described under *Readback costs* below.
+Particles are stored in one GPU store per system, with 80 bytes per particle. Simulation and rendering both stay on the GPU. The CPU only receives the small statistics described under *Readback costs* below.
 
 ## Light fibre colour
 
@@ -100,7 +100,7 @@ Radius sets the falloff: strength is `(1 − r/R)²` inside radius R, so the pul
 
 Black hole systems add their own attractor at their origin. Their lensing is a second, screen-space step: each frame the canvas is copied and a full-screen pass bends the background around the projected horizon, with a black disc inside the horizon and a photon ring outside it. The bend is a weak-field mapping (`r − E²/r`), not a ray trace, and it fades with distance from the black hole. Particles are not lensed; they are drawn normally.
 
-Limitations: force fields act on particles, not on rigid meshes. Particles do not collide with each other. The accretion disc comes from the swirl term, not from a Keplerian emitter.
+Limitations: force fields act on particles, not on rigid geometries. Particles do not collide with each other. The accretion disc comes from the swirl term, not from a Keplerian emitter.
 
 ## Heat shimmer, magnetic fields and bubbles
 
@@ -132,17 +132,17 @@ The *Arrow full scale* slider sets the speed that maps to full colour and length
 
 ## Readback costs
 
-The editor keeps simulation state on the GPU. CPU readback is limited to the data the UI actually needs, and every readback is asynchronous: the frame is recorded and submitted without waiting for the map to complete. A result therefore arrives one or more frames after it was requested.
+The editor keeps simulation state on the GPU. CPU readback is limited to the record the UI actually needs, and every readback is asynchronous: the frame is recorded and submitted without waiting for the map to complete. A result therefore arrives one or more frames after it was requested.
 
 | Readback | Size | Frequency | Used for |
 | --- | --- | --- | --- |
 | Molecular statistics (alive count, species counts A/B/C, kinetic energy sum) | 32 bytes per molecular system | At most one in flight per system, so about once per frame | Status bar, live counts, temperature readout |
 | Wind probe (one voxel, rgba16float) | 8 bytes | On request, while the viewport probe is enabled | Probe readout in the viewport |
-| Full particle buffer | 80 bytes × capacity (for example 1,024 atoms = 80 KiB; 65,536 = 5 MiB) | Only when **Benchmark full readback** is pressed | Measurement only; the editor never uses this data |
+| Full particle store | 80 bytes × capacity (for example 1,024 atoms = 80 KiB; 65,536 = 5 MiB) | Only when **Benchmark full readback** is pressed | Measurement only; the editor never uses this record |
 
 Why the statistics are cheap:
 
-- A reduction pass on the GPU sums the counts and energy into a fixed 32-byte buffer. The CPU never reads per-particle data during normal use.
+- A reduction pass on the GPU sums the counts and energy into a fixed 32-byte store. The CPU never reads per-particle record during normal use.
 - Energy is accumulated as integers (`v² × 1000`) so that atomic adds are exact. The integer sum is safe up to about 65,000 atoms at the maximum speed cap before it overflows a `u32`.
 
 Measured here (headless Chrome with SwiftShader, a CPU software WebGPU implementation, so these numbers are not representative of real hardware):
@@ -150,7 +150,7 @@ Measured here (headless Chrome with SwiftShader, a CPU software WebGPU implement
 - The status-bar readback time reached about 790 ms. This value is the time from `mapAsync` to its resolution, which includes queued GPU work. Software emulation makes that queue very slow, so it does not predict real-GPU latency.
 - The temperature readout is `<v²>/3` and settled at 0.59–0.60 for a thermostat set to T = 0.6, which is the expected value.
 
-What to expect on real hardware: a 32-byte map adds about one frame of latency. Use **Benchmark full readback** on the target GPU to measure the full-buffer cost before relying on it. Measured cost is not published in this document.
+What to expect on real hardware: a 32-byte map adds about one frame of latency. Use **Benchmark full readback** on the target GPU to measure the full-store cost before relying on it. Measured cost is not published in this document.
 
 Rule of thumb: keep per-frame readback to the 32-byte statistics. Anything bigger should be requested on demand, asynchronously, and at a low rate.
 
@@ -166,7 +166,7 @@ Rule of thumb: keep per-frame readback to the 32-byte statistics. Anything bigge
 - `ParticleEditor.css`: dark theme, DM Sans fonts from `fonts/`.
 - `js/presets.js`: system presets.
 - `js/shaders.js`: WGSL for simulation, reduction and rendering.
-- `js/engine.js`: WebGPU device, buffers, pipelines, readbacks.
+- `js/engine.js`: WebGPU device, stores, chains, readbacks.
 - `js/lightning.js`: bolt generation and thunder cues.
 - `js/app.js`: editor state, UI, frame loop.
 
@@ -181,7 +181,7 @@ Six things were changed on arrival. Each is a defect rather than a difference of
 | | Finding | What was done |
 | --- | --- | --- |
 | ❌ | A 118 KB copy of DM Sans sat in `Experimental/ParticleEditor/fonts/`, byte-identical to `EngineContent/Fonts/SunReference/`. | Deleted; the `@font-face` rules now point at the shared set, as `Experimental/Fluid` already does. |
-| ❌ | `statStage.mapAsync` could resolve after the system it belonged to had been destroyed, calling `getMappedRange()` on a dead buffer. Removing a system while a readback was in flight crashed the page. | `SystemGPU.gone`, set in `destroy()`; the fulfilment handler returns early. |
+| ❌ | `statStage.mapAsync` could resolve after the system it belonged to had been destroyed, calling `getMappedRange()` on a dead store. Removing a system while a readback was in flight crashed the page. | `SystemGPU.gone`, set in `destroy()`; the fulfilment handler returns early. |
 | ❌ | The frame loop kept encoding GPU work in a background tab. | `frame()` returns early on `document.hidden` and resets `lastT`, so time does not jump when the tab comes back. |
 | ❌ | Nothing could get a scene in or out — no save, no load, no export, no `localStorage`. 52 presets could be tuned and nothing left the page. | `js/handoff.js`, below. |
 | ❌ | No tests of any kind. | `CheckHandoff.mjs`, 24 checks, run in CI. |
@@ -240,7 +240,7 @@ report. The handoff keeps a 2 s sweep behind its subscription for exactly those.
 - `Admit(p, Settings)` — writes known keys into a system's parameters and returns how many it took. A key
   the system does not have is ignored; a number arriving as a string or a NaN, a three-vector of the wrong
   length, and a boolean arriving as `1` are all refused. A message is untrusted input, not a merge source.
-- `Writable(p)` — only scalars, strings and numeric vectors cross. GPU handles, functions and arrays of
+- `Writable(p)` — only scalars, strings and numeric vectors cross. GPU identifiers, functions and arrays of
   objects do not, because `postMessage` would either throw or clone the page's live state.
 - `Install(state, Host)` — listens for `particle-system`, posts `particle-system-changed`, announces
   `particle-editor-ready` on boot, and subscribes to the edit funnel — coalescing a drag to one post per
@@ -305,7 +305,7 @@ genuinely there. Air that is *deliberately* still does still slow you down; empt
 
 ### Who responds
 
-Per the same rule the gas colliders follow, the responding set is data. A field names the channels it
+Per the same rule the gas colliders follow, the responding set is record. A field names the channels it
 acts on (empty = everything) and a receiver names the channels it is in. "This room is on the Moon, but
 only for the rubble" is authored, never compiled in.
 
@@ -413,7 +413,7 @@ sibling it **parses** both sides rather than running them, so it needs neither n
 
 The page requires WebGPU and will keep requiring it. This is not an oversight to be fixed later:
 
-- WebGL2 **has no compute shaders**. The whole simulation is compute passes over storage buffers.
+- WebGL2 **has no compute shaders**. The whole simulation is compute passes over storage stores.
 - It **has no atomics**. The molecular kinds bin themselves with `atomicAdd` into the neighbour lattice;
   there is no equivalent, approximate or otherwise.
 - A WebGL2 path would therefore be a *second, lesser simulator* — transform-feedback ballistics with no

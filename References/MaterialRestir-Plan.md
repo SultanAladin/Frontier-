@@ -86,7 +86,7 @@ CPU-port proofs + shader-ball rows + perf budget.
 sampling (record the hook, default off — or M4c if time); glints (`slate_glint_*` stays
 stored-but-unread); volumetric interiors / random-walk SSS; geometric displacement (rejected
 — no tessellation stage; bump-from-height is a later optional); Tier B multi-slab kernel
-evaluation (data path already folds; revisit after M9); Sultan `56` paint layers / `70`
+evaluation (record path already folds; revisit after M9); Sultan `56` paint layers / `70`
 analytic resolution (the `Imported`/`Constant` sources only — layered content is an editor
 project of its own).
 
@@ -163,7 +163,7 @@ are FP-exact, so pre-M2 scenes are bit-stable. (Codec: real-header `g++ -fsyntax
 one-off driver PASS for rotation/slots/native encode; the committed stub harness lands M6.)
 
 ### M3 — Cloth selection (sheen-primary)
-Files: `ShadingTableCodec.*` (bake Charlie directional albedo into `SheenLut.w`),
+Files: `ShadingTableCodec.*` (precompute Charlie directional albedo into `SheenLut.w`),
 `MaterialEvaluation.slang` (Cloth path: Charlie-or-EON diffuse + LTC sheen as the *primary*
 lobe, GGX suppressed by selection, F0 from `specular_color` at low weight), shader-ball row.
 - Cloth consumes ch 1,3,5,6,8,14,15 (`18` §3) — metallic/emission/opacity rules per selection.
@@ -175,7 +175,7 @@ velvet/felt ball renders; selection test covers Cloth entry/exit with retained c
 (F0 = `specular_color` × f0(η) ≈ 4 %, MS-compensated per `18` §9), aniso forced out; coat/haze/
 /metal/spec-weight are structurally 0 under Cloth so their guarded blocks skip untouched (Pdf/Sample
 need NO changes — forcing flows through `ResolvedLayers`). `SheenLut.w` = true Charlie albedo
-(Gauss–Legendre product rule, φ-halved, +~60 ms bake); cloth-only rescale E_c/R ∈ [0.5, 2], always
+(Gauss–Legendre product rule, φ-halved, +~60 ms precompute); cloth-only rescale E_c/R ∈ [0.5, 2], always
 * toward* truth, rescale·R ≤ 1 per texel and per lerp (proven, not hoped). `ReflectanceConsumes`
 moved into `MaterialEvaluation.slang` (one source of truth, CPU-tested 1:1); Cloth arm += opacity.
 Per-selection rules, verified against Sultan's `ReflectanceIntegrator.cpp`: emission stays additive
@@ -247,7 +247,7 @@ Proof: UI walkthrough on Sponza materials; edit→re-Finalise→re-render loop t
 selection-switch retention test.
 
 ### M8 — Tier B decision + full-scene validation
-- Decide with data: keep Tier A + fold (recommended unless a scene needs true 2-slab) or
+- Decide with record: keep Tier A + fold (recommended unless a scene needs true 2-slab) or
   evaluate 2 slabs in-kernel. Either way: Sponza + Cornell + shaderball + glass-proof at
   `slab_limit` 1/2/8, fold-report review, perf budget (§6).
   (DONE 2026-09-17 — `MaterialSceneProof` 102/102, report §9: verdict keep Tier A + fold,
@@ -313,7 +313,7 @@ Files: `Exhibits/Workbench/Materials/CheckMaterialDenoise.sh` (gate, 97/97), `De
 
 | ReSTIR site | What changes | Notes |
 |---|---|---|
-| RIS target `p̂ = f·L·cosθ/d²` | full BSDF incl. BTDF + SSS-v1 term | Transmissive candidates sample lights *behind* the surface — uniform triangle pick + MIS already handles it; no new sampler |
+| RIS target `p̂ = f·L·cosθ/d²` | full BSDF incl. BTDF + SSS-v1 term | Transmissive candidates sample lights *behind* the surface — uniform triangle pick + MIS already identifiers it; no new sampler |
 | Reservoirs (M/W/Age) | **unchanged layout** | Target-function-only change; validity/revalidation logic untouched |
 | Temporal/spatial reuse (01a0a578) | free via BSDF re-evaluation | DI reservoirs re-evaluate the target at neighbours — new lobes ride along; verify in M9, no Jacobian needed for DI |
 | Shadow rays | cutout re-trace (exists) + transmissive Beer-tint walk (M4, ≤4 steps) | Tinted shadows, not binary; thin-walled never flips the offset |

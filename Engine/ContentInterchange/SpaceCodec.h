@@ -37,7 +37,7 @@ namespace Frontier
         void BeginTable(const SpaceTag& Tag) noexcept;
         void WriteRow(const void* Row, size_t Bytes) noexcept;
         template <typename T> void WriteRow(const T& Row) noexcept { WriteRow(&Row, sizeof(T)); }
-        void WriteBytes(const void* Data, size_t Bytes) noexcept;
+        void WriteBytes(const void* Packet, size_t Bytes) noexcept;
         // A table's variable part is its string block, and it comes AFTER the rows — so a row that names a file is
         //    written first (with its path field zeroed) and the string is attached to it here. EndTable appends the
         //    block and patches the field with the string's offset inside the payload.
@@ -59,7 +59,7 @@ namespace Frontier
         }
         void EndTable() noexcept;
 
-        // The content-addressed blob pool. Identical bytes are one blob, which is what makes copies free (§8 claim 8).
+        // The content-addressed blob slots. Identical bytes are one blob, which is what makes copies free (§8 claim 8).
         uint32_t AddBlob(const std::string& Type, const std::vector<uint8_t>& Bytes) noexcept;
         [[nodiscard]] const std::vector<uint8_t>& BlobAt(uint32_t Index) const noexcept;
         [[nodiscard]] uint32_t BlobCount() const noexcept { return static_cast<uint32_t>(Blobs.size()); }
@@ -98,7 +98,7 @@ namespace Frontier
         [[nodiscard]] const SpaceTableRecord* Find(const SpaceTag& Tag) const noexcept;
         [[nodiscard]] const SpaceTypeRecord& TypeRecord() const noexcept { return TypeRecord_; }
         [[nodiscard]] const SpaceFileType*   Type() const noexcept { return KnownType; }
-        [[nodiscard]] size_t ByteCount() const noexcept { return Data.size(); }
+        [[nodiscard]] size_t ByteCount() const noexcept { return Packet.size(); }
         [[nodiscard]] const std::vector<std::string>& ChecksumFailures() const noexcept { return FailedChecksums; }
         [[nodiscard]] std::vector<uint8_t> Payload(const SpaceTableRecord& Table) const noexcept;
 
@@ -146,11 +146,11 @@ namespace Frontier
         {
             const SpaceTableRecord* Record = Find(Tag);
             if (!Record || Record->Length < sizeof(T)) return false;
-            std::memcpy(&Out, Data.data() + Record->Offset, sizeof(T));
+            std::memcpy(&Out, Packet.data() + Record->Offset, sizeof(T));
             return true;
         }
 
-        std::vector<uint8_t> Data;
+        std::vector<uint8_t> Packet;
         std::vector<SpaceTableRecord> Directory;
         std::vector<std::string> FailedChecksums;
         SpaceTypeRecord TypeRecord_{};

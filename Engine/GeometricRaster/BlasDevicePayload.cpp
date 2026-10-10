@@ -18,7 +18,7 @@ bool PackBlasSoup(const std::vector<TriangleIndex>& Triangles, std::vector<float
         V[4] = T.VertexBetaX;  V[5] = T.VertexBetaY;  V[6] = T.VertexBetaZ;
         V[8] = T.VertexGammaX; V[9] = T.VertexGammaY; V[10] = T.VertexGammaZ;
         // .w of each vec4 is unused by the kernels (they read .xyz), left at zero rather than carrying garbage into a
-        //    buffer a shader might one day read.
+        //    store a shader might one day read.
     }
     return !Triangles.empty();
 }

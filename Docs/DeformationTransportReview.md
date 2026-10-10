@@ -141,7 +141,7 @@ the Lambertian solid-angle factor, and brute-force tests every shadow ray agains
 compare the shader with another invocation of the same shader. GPU ray-oracle queries include axis-parallel rays.
 
 These numerical results demonstrate the tested geometry/visibility/lighting calculations, not general accuracy
-bounds for every mesh or a comparison against an independent full multibounce reference renderer. No complete
+bounds for every topology or a comparison against an independent full multibounce reference renderer. No complete
 self-intersection or tyre-material calibration study is claimed. The continuous warp is injective; the tests check
 the sampled triangle areas and normals, not a universal guarantee for arbitrary supplied solver positions.
 
@@ -157,7 +157,7 @@ execution but does not establish hardware real-time performance.
 Three warmed, changing-pose renders at **320 by 216**, one sample per pixel and path depth three recorded GPU-pass
 sums of **1,302.63, 1,314.90 and 1,297.79 ms**. Across those samples, vertex/triangle preparation plus BVH refit took
 **0.83–16.96 ms** in software; diffuse-path integration dominated. These are observations from this sandbox, not
-projections for a gaming GPU. The pass sums exclude CPU overhead, buffer uploads outside the measured intervals,
+projections for a gaming GPU. The pass sums exclude CPU overhead, store uploads outside the measured intervals,
 query readback and browser compositing. Higher samples per render increase execution time substantially.
 
 The renderer permits one render in flight and waits for completion before reusing its timing readback. This is

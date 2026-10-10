@@ -2,8 +2,8 @@
 // 📦 Editor/EditorTools/ParametricSketcher/Presentation/RasterExchange.h — The device seam: Vulkan-shaped drawing verbs implemented by software and GPU rasters
 //============================================================================================================================================
 // Everything above this line (ScenePresentation, gizmo, overlays, console `render`) speaks only this vocabulary.
-//    SoftwareRaster implements it on the CPU and writes PNG proofs; VulkanRaster implements it with real pipelines.
-//    The verbs are deliberately the ones a Vulkan command buffer records: begin a target, bind a view, issue draws
+//    SoftwareRaster implements it on the CPU and writes PNG proofs; VulkanRaster implements it with real chains.
+//    The verbs are deliberately the ones a Vulkan command store records: begin a target, bind a view, issue draws
 //    from typed vertex streams with a per-draw record, switch to the overlay (depth-test-off) segment, end, read back.
 //
 // Vertex streams are float32 and tightly packed exactly as the .slang vertex shaders consume them, so the GPU path
@@ -53,8 +53,8 @@ struct DrawRecord
 enum class SurfaceShading : uint8_t { Flat = 0, Plastic = 1, Matcap = 2 };
 [[nodiscard]] const char* MatcapName(uint8_t Layer) noexcept;
 [[nodiscard]] int         MatcapCount() noexcept;
-// The baked studio sheet shared by both paths: MatcapCount() layers of 128x128 RGB floats, row-major, top row first.
-[[nodiscard]] const std::vector<float>& BakedMatcapTexels() noexcept;
+// The precomputed studio sheet shared by both paths: MatcapCount() layers of 128x128 RGB floats, row-major, top row first.
+[[nodiscard]] const std::vector<float>& PrecomputedMatcapTexels() noexcept;
 constexpr int MatcapTexelSize = 128;
 
 //------------------------------------------------------------------------------------------------------------------------

@@ -9,7 +9,7 @@ hold; the rim generator on `arena/01a0f767-slate` is not part of this plan.
 VAT was proposed because the generated tyre is high poly. It is the wrong mechanism here and the reason
 is not performance, it is that a VAT replays a **fixed** animation indexed by `(vertex, frame)`. XPBD
 deformation is not an animation; it is a response to vertical load, camber, slip angle, inflation
-pressure and the road surface underneath. There is no frame axis to bake against, and the space of
+pressure and the road surface underneath. There is no frame axis to precompute against, and the space of
 states is not enumerable.
 
 The budget argues the same way:
@@ -17,12 +17,12 @@ The budget argues the same way:
 | Approach | Cost for one tyre |
 |---|---|
 | VAT, 60 frames, half-float RGB, 100k verts | ~36 MB per canned clip, one clip per load/pressure/camber combination |
-| Cage bind data | ~1.6 MB once, shared by all four wheels |
+| Cage bind record | ~1.6 MB once, shared by all four wheels |
 
 The cage already exists. `XPBDSoftTyre` runs a lattice of `RingCount × SegmentCount` = 9 × 128 = 1152
-nodes. That is the simulation mesh; the generated tyre is the render mesh; binding one to the other is
+nodes. That is the simulation topology; the generated tyre is the render topology; binding one to the other is
 the ordinary arrangement and it is exact at the node positions. It also satisfies the shared-topology
-rule directly: one topology, one index buffer and one set of bind weights shared across four wheels,
+rule directly: one topology, one index store and one set of bind weights shared across four wheels,
 with only 1152 node positions (about 14 KB) differing per wheel.
 
 VAT keeps one narrow use: a canned loop for parked or distant traffic that is not simulated at all. It
@@ -30,8 +30,8 @@ is worth having eventually. It is not the main path.
 
 ## Phase 1 — Port the generator, watertight by construction
 
-`References/TyreGenerator.html` is a browser prototype. Its tread mesh is not closed, and
-`Exhibits/Workbench/Tyre/TreadMeshAudit.mjs` now measures exactly how badly on the off-road preset, the
+`References/TyreGenerator.html` is a browser prototype. Its tread topology is not closed, and
+`Exhibits/Workbench/Tyre/TreadGeometryAudit.mjs` now measures exactly how badly on the off-road preset, the
 busiest tread it ships:
 
 | | before | after the two fixes already landed |
@@ -43,7 +43,7 @@ busiest tread it ships:
 The remaining 13,167 are structural and will not be patched out of the prototype. The builder emits every
 floor piece and every groove wall as an independent triangle soup and relies on separately triangulated
 polygons agreeing on their shared vertices. The port closes them by construction with a single shared
-vertex pool and an explicit index buffer, which is a change to how the builder is organised rather than
+vertex slots and an explicit index store, which is a change to how the builder is organised rather than
 another patch to it.
 
 ### Files
@@ -53,10 +53,10 @@ Frontier/Engine/Generators/Tyre/
     TreadSpecification.h            carcass parameters: width, aspect, rim, depth, crown, shoulder, wear
     TreadPatternSpecification.h     the layer sequence: circ, lateral, chevron, sipe, dimple, hex, noise
     TreadRegionSolver.{h,cpp}       boolean stack to depth-ordered floor pieces
-    TreadMeshSolver.{h,cpp}         pieces to one indexed watertight mesh
+    TreadGeometrySolver.{h,cpp}         pieces to one indexed watertight topology
     TyreProfileSpecification.h      crown, shoulder arc, sidewall bezier, bead seat
-    SidewallMeshSolver.{h,cpp}      the lathe, and its seam to the tread shoulder
-    TyreMeshStructure.h             positions, normals, uvs, tangents, indices, material groups
+    SidewallGeometrySolver.{h,cpp}      the lathe, and its seam to the tread shoulder
+    TyreGeometryStructure.h             positions, normals, uvs, tangents, indices, material groups
     TreadPatternCodec.{h,cpp}       specification to and from the project format
 ```
 
@@ -68,7 +68,7 @@ and any g++ helper paths used by the workbench harnesses.
 
 ### Gate
 
-`Exhibits/Workbench/Tyre/TreadMeshProof.cpp` — the audit above, in C++, against `TreadMeshSolver`.
+`Exhibits/Workbench/Tyre/TreadGeometryProof.cpp` — the audit above, in C++, against `TreadGeometrySolver`.
 Acceptance is **interior cracks 0, non-manifold 0, degenerate 0**, every UV chart injective, and the
 shoulder seam between tread and sidewall closed. The `.mjs` audit stays as the prototype's gate.
 
@@ -80,7 +80,7 @@ Frontier/Engine/Shaders/LatticeSkinning.slang
 ```
 
 Each render vertex stores the lattice cell that owns it, bilinear weights inside that cell, and a signed
-offset along the rest normal. Built once against the rest lattice and the rest mesh, so it is part of the
+offset along the rest normal. Built once against the rest lattice and the rest topology, so it is part of the
 shared topology and not per wheel. At runtime a compute pass reads the 1152 deformed node positions and
 writes deformed positions and normals. Normals are rebuilt from the interpolated cell frame rather than
 from finite differences, because finite differences across a groove wall produce garbage at exactly the
@@ -91,7 +91,7 @@ places the tread has the most geometry.
 `Exhibits/Workbench/Tyre/LatticeSkinProof.cpp`
 
 1. At the 1152 node positions the skinned result is exact against the lattice, to float tolerance.
-2. The mesh stays watertight under deformation — the Phase 1 audit, re-run on deformed positions.
+2. The topology stays watertight under deformation — the Phase 1 audit, re-run on deformed positions.
 3. No self-intersection at 100% sidewall travel, which is the load the ramp landing already reaches.
 4. A `ProjectDriveGeneratedTyre` sequence in the Drive gallery, rendered through
    `RunDriveMirror.py --only ProjectDriveGeneratedTyre` so it is a seven minute loop rather than thirty.
@@ -152,7 +152,7 @@ so the measurement exists; what is new is the parameter it is swept against.
 ## Phase 4 — Surface painting
 
 **This phase does not get designed here. It already is designed.** An earlier version of this plan
-proposed baking the painted result to an atlas as the source of truth, with decals and strokes
+proposed precomputing the painted result to an atlas as the source of truth, with decals and strokes
 composited into it. That is wrong, and the correction matters enough to state plainly: the authored
 thing is the *stroke*, not the texels it happens to light up, and texels are a derived, revisable
 residency decision.
@@ -176,20 +176,20 @@ carry a Frontier subsystem in their position table and keep the original unit as
 | `54-TilingSpecification` | Repeating pattern as a declaration of plane symmetry. |
 | `10-DocumentStructure` §2.3–2.4 | `RevisionSequence`, scrubbable in both directions; every transaction invertible. |
 | `84-RevisionPanel` | Scrubbing the history: backward replays inverses, forward replays operations. |
-| `50-AssetInterchange` | Where baked channels go when they leave for other programs. |
+| `50-AssetInterchange` | Where precomputed channels go when they leave for other programs. |
 
 Three consequences for this work.
 
 **The history is the asset.** Strokes, decals and placed content are stored as structure, so the paint
 history can be rewritten and the same surface re-resolved at a different resolution without repainting.
-Baking is an *export* path under `50-AssetInterchange`, not the representation.
+Precomputing is an *export* path under `50-AssetInterchange`, not the representation.
 
 **Evaluation is device-side.** `20` and `22`'s resolution half both sit in `SlateCompute.lib` /
 `Layer4_Compute`. Texels are produced on the GPU against a demand-driven, budget-bounded tile residency,
 which is what keeps a repaint off the CPU rather than spiking it.
 
 **The names already exist, and so do the bans.** The earlier draft of this plan invented
-`PaintLayerDepot`, `LayerCompositeSolver`, `SurfaceBakeSolver` and `TyreChartProjection`. All four are
+`PaintLayerDepot`, `LayerCombinedSolver`, `SurfacePrecomputeSolver` and `TyreChartProjection`. All four are
 withdrawn — the sequence already names these things. `Stack` is banned (`56`): the ordered content of a
 surface is a `SurfaceLayerSequence` and a position in it is a sequence position. `Stamp` is banned
 (`22`): one resolved brush placement is an `ImpressionSample`. `Mip` and `Table` are banned too.
@@ -218,8 +218,8 @@ returns to the same state.
 
 ## Order, and why
 
-Phase 1 first, because Phase 2 cannot be gated until the mesh is actually closed — a watertightness
-assertion on a deformed mesh is meaningless if the rest mesh already has thirteen thousand open edges.
+Phase 1 first, because Phase 2 cannot be gated until the topology is actually closed — a watertightness
+assertion on a deformed topology is meaningless if the rest topology already has thirteen thousand open edges.
 Phase 3 can start its HTML prototype in parallel with Phase 1 since it shares no code. Phase 4 depends on Phase 1 for charts, and on the construction
 sequence being implemented — the tyre is its first surface, not its driver. Implementation order within Phase 4
 follows the sequence's own numbering: `20` (the domain and its residency) before `22` (strokes against it),

@@ -20,7 +20,7 @@
 //       that convention; MoonPhaseToReference converts once, at pack time, for both consumers.
 //    ③ ALBEDOS ARE LINEAR. The panel samples raw sRGB bytes. Ours upload as SRGB (TextureIndex, Linear=false) so
 //       the kernel's texture() returns linear, and SampleMoonAlbedo applies the same piecewise EOTF on the CPU —
-//       because the two pipelines must agree with each other first, and the panel second.
+//       because the two chains must agree with each other first, and the panel second.
 //
 // The record carries bindless texture SLOTS rather than pixels: the six albedos ride the shared TextureIndex and
 //    land in the sampler2D[] table with the scene, so no second upload path exists to drift.
@@ -197,7 +197,7 @@ inline float MoonSmoothstep(float E0, float E1, float X) noexcept
 
 // Bilinear sample of an equirectangular albedo. U wraps (the GPU sampler is REPEAT on every axis), V clamps, and a
 //    missing or misshapen view reads as white — the same 1x1 the TextureIndex placeholder decodes to, so a lost
-//    file degrades to a pale disc on both pipelines rather than a crash on one.
+//    file degrades to a pale disc on both chains rather than a crash on one.
 inline void SampleMoonAlbedo(const MoonAlbedoView& View, float U, float V, float OutRgb[3]) noexcept
 {
     OutRgb[0] = OutRgb[1] = OutRgb[2] = 1.0f;
@@ -305,7 +305,7 @@ inline void EvaluateMoons(const MoonDrawEntry* Entries, uint32_t Count, const fl
 }
 
 // Moonlight as the surfaces see it: the panel's ambient loop, Z-up. Tiny (.0025) and phase-gated — a full moon
-//    overhead against dark ground, not a second sun. Both pipelines add the same term, so a moonlit frame cannot
+//    overhead against dark ground, not a second sun. Both chains add the same term, so a moonlit frame cannot
 //    be bright on one path and black on the other (the lesson the sky ambient's comment records).
 inline void EvaluateMoonAmbient(const MoonDrawEntry* Entries, uint32_t Count, float OutRgb[3]) noexcept
 {

@@ -106,7 +106,7 @@ int WINAPI wWinMain(HINSTANCE Instance, HINSTANCE, PWSTR, int Show)
         ComPtr<IDXGISwapChain>      Chain;
         DXGI_SWAP_CHAIN_DESC        Configuration{};
         Configuration.BufferCount       = 2;
-        Configuration.BufferDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+        Configuration.StoreDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
         Configuration.BufferUsage       = DXGI_USAGE_RENDER_TARGET_OUTPUT;
         Configuration.OutputWindow      = Window;
         Configuration.SampleDesc.Count  = 1;
@@ -184,7 +184,7 @@ int WINAPI wWinMain(HINSTANCE Instance, HINSTANCE, PWSTR, int Show)
                 {
                     Context->OMSetRenderTargets(0, nullptr, nullptr);
                     Target.Reset();
-                    Require(SUCCEEDED(Chain->ResizeBuffers(0, PendingWidth, PendingHeight, DXGI_FORMAT_UNKNOWN, 0)), "Window resize failed");
+                    Require(SUCCEEDED(Chain->ResizeStores(0, PendingWidth, PendingHeight, DXGI_FORMAT_UNKNOWN, 0)), "Window resize failed");
                     ConstructTarget();
                     Editor.ReseatLayout();
                     ResizeRequested = false;

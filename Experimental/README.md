@@ -30,4 +30,4 @@ repository root.
 
 Native C++ sources and runtime assets have **not** moved. Generated native
 proof/report HTML stays in `Exhibits/Gallery/` with its associated evidence.
-The native icon import/bake tools now use the approved SVG sources here.
+The native icon import/precompute tools now use the approved SVG sources here.

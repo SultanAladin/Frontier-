@@ -20,7 +20,7 @@ These environment systems already exist as singleton world records. The menu
 Sun/Wind systems or pretend unsupported generators exist. "Enable in world"
 unhides the record and its ancestor visibility gates. The inspector exchange
 commits edits directly to the project settings used by the engine. Additional
-mesh/camera spawning via `ConstructWorld` is still the separate CPU authoring
+topology/camera spawning via `ConstructWorld` is still the separate CPU authoring
 bridge; this native panel does not add that unfinished GPU scene-rebuild path.
 
 ## Interaction and inspector reuse
@@ -46,11 +46,11 @@ extra folder status badges have been removed. Icons are vertically centred in
 30 px cells, with 39 px rows, 13 px hierarchy steps and consistent label spacing.
 
 Cloud/fog artwork no longer appears as unsupported-filter placeholders.
-`BakeNativeIcons.mjs` rasterizes approved SVGs with their filters intact; the
-native loader verifies **exact source bytes** before using a bake. A stale bake
-is rejected. The source SVGs and verified bake manifest ship together. Semantic
+`PrecomputeNativeIcons.mjs` rasterizes approved SVGs with their filters intact; the
+native loader verifies **exact source bytes** before using a precompute. A stale precompute
+is rejected. The source SVGs and verified precompute manifest ship together. Semantic
 fog and post-process artwork is shared between the palette and outliner, rather
-than using generic mesh icons.
+than using generic topology icons.
 
 ## Reproduce
 

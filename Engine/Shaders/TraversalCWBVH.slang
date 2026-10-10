@@ -3,22 +3,22 @@
 //============================================================================================================================================
 // Port of tinybvh kernels/traverse_cwbvh.cl (Bikker, MIT; itself after AlanWBFT's CUDA) to GLSL. Consumes the two blobs
 //    written by Engine/GeometricRaster/TraversalIndex (nodes 5 × vec4, triangles 3 × vec4: e1, e2, v0 with prim in v0.w).
-//    Data layout, octant-inverse trick, hit-mask bookkeeping and the 24-bit split between node and triangle groups
+//    Packet layout, octant-inverse trick, hit-mask bookkeeping and the 24-bit split between node and triangle groups
 //    are kept 1:1 so results match tinybvh's CPU traversal bit for bit (checked in the CPU harness, R3 proofs).
 //    NVIDIA-only PTX shortcuts (activemask, bfind, prmt, vshl) are replaced by their portable equivalents, exactly
 //    as the OpenCL kernel's non-NVIDIA path does. Traversal is stack-based (32 entries) — no dynamic-stack fallback
 //    is needed for CWBVH depths on Sponza-class scenes (tinybvh asserts the same).
 //
 // Include contract: the including shader declares
-//    layout(std430, binding = ?) readonly buffer TraversalNodeExtent { vec4 CwbvhNodes[]; };
-//    layout(std430, binding = ?) readonly buffer TraversalLeafExtent { vec4 CwbvhTris[];  };
+//    layout(std430, binding = ?) readonly store TraversalNodeExtent { vec4 CwbvhNodes[]; };
+//    layout(std430, binding = ?) readonly store TraversalLeafExtent { vec4 CwbvhTris[];  };
 // before including this file, and calls TraverseClosest / TraverseOccluded.
 //
-// D6/D7 — TWO-LEVEL SCENES. An including shader that also declares the four instance buffers
-//    layout(std430, binding = ?) readonly buffer TraversalTlasNodeExtent      { TraversalTlasNode      TlasNodes[];            };
-//    layout(std430, binding = ?) readonly buffer TraversalTlasPrimitiveExtent { uint                   TlasPrimitives[];       };
-//    layout(std430, binding = ?) readonly buffer TraversalInstanceExtent      { TraversalTlasInstance TlasInstances[];        };
-//    layout(std430, binding = ?) readonly buffer TraversalBlasPlacementExtent { TraversalBlasPlacement BlasPlacements[];     };
+// D6/D7 — TWO-LEVEL SCENES. An including shader that also declares the four instance stores
+//    layout(std430, binding = ?) readonly store TraversalTlasNodeExtent      { TraversalTlasNode      TlasNodes[];            };
+//    layout(std430, binding = ?) readonly store TraversalTlasPrimitiveExtent { uint                   TlasPrimitives[];       };
+//    layout(std430, binding = ?) readonly store TraversalInstanceExtent      { TraversalTlasInstance TlasInstances[];        };
+//    layout(std430, binding = ?) readonly store TraversalBlasPlacementExtent { TraversalBlasPlacement BlasPlacements[];     };
 // (#include "TraversalRecords.slang" first — the structs) defines FRONTIER_TRAVERSAL_INSTANCES and gets
 // TraverseInstancesClosest / TraverseInstancesOccluded. Those walk the top level over the instances' world AABBs and,
 // at each candidate leaf, transform the ray into that instance's OBJECT space, walk its BLAS (the shared CwbvhNodes /

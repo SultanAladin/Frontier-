@@ -270,9 +270,9 @@
     "sha256": "17f11dfc8e5eab93bc49c333b0217f0c72b3f0dd5454c11fb53a09b8b75cfdde"
   },
   {
-    "symbol": "EditorBake",
-    "file": "editor-bake.svg",
-    "reference": "Experimental/FrontierEditor/custom-icons/editor-bake.svg",
+    "symbol": "EditorPrecompute",
+    "file": "editor-precompute.svg",
+    "reference": "Experimental/FrontierEditor/custom-icons/editor-precompute.svg",
     "sha256": "612e52acbdcf51ed622509164c795ac9248c7064f70bc4c9ed7f068a943b8ae5"
   },
   {
@@ -384,9 +384,9 @@
     "sha256": "f329a6001a302aac16ed14eed8a28ccc706bbe783c37ae8c8033c4c0cc7ab2f5"
   },
   {
-    "symbol": "EditorMesh",
-    "file": "editor-mesh.svg",
-    "reference": "Experimental/FrontierEditor/custom-icons/editor-mesh.svg",
+    "symbol": "EditorGeometry",
+    "file": "editor-topology.svg",
+    "reference": "Experimental/FrontierEditor/custom-icons/editor-topology.svg",
     "sha256": "63ccaeb5df75fbd4847297b84eaab4615698fa2597d0f319bf3c0f2036c85973"
   },
   {
@@ -696,9 +696,9 @@
     "sha256": "529adaccfea921a520714f6a488eeb1ea4b6b44382cdc5b42c237579439375f8"
   },
   {
-    "symbol": "Mesh",
-    "file": "mesh.svg",
-    "reference": "Experimental/FrontierEditor/custom-icons/mesh.svg",
+    "symbol": "Hull",
+    "file": "topology.svg",
+    "reference": "Experimental/FrontierEditor/custom-icons/topology.svg",
     "sha256": "8d014a1010c289918bce638c8058e9511ebcfdcf2d929ae84eed1f9b159143d4"
   },
   {

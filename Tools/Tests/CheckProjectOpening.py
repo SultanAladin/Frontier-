@@ -48,8 +48,8 @@ if Windows:
                        for Row in range(145, 270) for Column in range(36, 296)
                        for Offset in [(Row * Width + Column) * 3])
     assert ColourPixels > 500, "Native project preview is missing or not sampled by DX11"
-    def Chunk(Kind, Data):
-        return struct.pack(">I", len(Data)) + Kind + Data + struct.pack(">I", zlib.crc32(Kind + Data) & 0xFFFFFFFF)
+    def Chunk(Kind, Packet):
+        return struct.pack(">I", len(Packet)) + Kind + Packet + struct.pack(">I", zlib.crc32(Kind + Packet) & 0xFFFFFFFF)
     Raster = b"".join(b"\0" + Pixels[Y*Width*3:(Y+1)*Width*3] for Y in range(Height))
     Png = b"\x89PNG\r\n\x1a\n" + Chunk(b"IHDR", struct.pack(">IIBBBBB", Width, Height, 8, 2, 0, 0, 0))
     (Output / "ProjectBrowserWindows.png").write_bytes(Png + Chunk(b"IDAT", zlib.compress(Raster)) + Chunk(b"IEND", b""))
