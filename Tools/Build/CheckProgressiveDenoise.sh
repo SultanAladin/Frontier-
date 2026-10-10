@@ -11,5 +11,6 @@ if [[ "${SANITIZE:-0}" == 1 ]]; then Flags+=(-fsanitize=address,undefined -fno-o
 "${CXX:-g++}" "${Flags[@]}" Tools/Build/Gates/ProgressiveDenoiseGate.cpp \
  Exhibits/Workbench/Materials/AtrousDenoiseMirror.cpp Engine/DisplayPresentation/ReSTIRIntegrator.cpp \
  Engine/GeometricRaster/CameraProjection.cpp Engine/DeviceExchange/OrientationClassifier.cpp \
+ Engine/Host/FlyThroughSolver.cpp Engine/DisplayPresentation/ExposureIntegrator.cpp \
  -o "$Stage/ProgressiveDenoiseGate"
 "$Stage/ProgressiveDenoiseGate"

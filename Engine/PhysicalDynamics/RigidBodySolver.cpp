@@ -24,9 +24,26 @@
 #include <Jolt/Physics/Collision/Shape/CylinderShape.h>
 #include <Jolt/Physics/Collision/Shape/PlaneShape.h>
 #include <Jolt/Physics/Collision/Shape/RotatedTranslatedShape.h>
+#include <Jolt/Physics/Collision/Shape/HeightFieldShape.h>
+
+// Phase 0 (vehicle) additions: scene queries, per-point forces, the strut spring constraint, and terrain heightfields.
+#include <Jolt/Physics/Collision/RayCast.h>
+#include <Jolt/Physics/Collision/ShapeCast.h>
+#include <Jolt/Physics/Collision/CastResult.h>
+#include <Jolt/Physics/Collision/CollisionCollector.h>
+#include <Jolt/Physics/Collision/CollisionCollectorImpl.h>
+#include <Jolt/Physics/Collision/NarrowPhaseQuery.h>
+#include <Jolt/Physics/Body/BodyFilter.h>   // BodyFilter/IgnoreSingleBodyFilter live under Body/, not Collision/ (upstream Jolt layout)
+#include <Jolt/Physics/Body/Body.h>
+#include <Jolt/Physics/Body/BodyLock.h>
+#include <Jolt/Physics/Body/BodyLockMulti.h>
+#include <Jolt/Physics/Constraints/Constraint.h>
+#include <Jolt/Physics/Constraints/DistanceConstraint.h>
+#include <Jolt/Physics/Constraints/SpringSettings.h>
 
 #include <algorithm>
 #include <chrono>
+#include <cmath>
 #include <cstdarg>
 #include <cstdio>
 #include <mutex>
@@ -229,6 +246,24 @@ struct RigidBodySolver::JoltWorld
     std::vector<BodyRecord>                     Records;            // [-] indexed by RigidBodyIdentity; creation order
     std::vector<uint32_t>                       FreeSlots;          // [-] recycled record indices
 
+    // Phase 0 (vehicle): constraints live alongside bodies, same slot-recycling scheme, indexed by ConstraintIdentity.
+    struct ConstraintRecord
+    {
+        JPH::Ref<JPH::Constraint>   Constraint;                     // [-] owning reference; the world also holds one
+        bool                        Alive = false;
+    };
+    std::vector<ConstraintRecord>               Constraints;
+    std::vector<uint32_t>                       FreeConstraintSlots;
+
+    // hit BodyID → RigidBodyIdentity, via the slot we stashed in the body's user data at CreateBody().
+    [[nodiscard]] RigidBodyIdentity IdentityOf(JPH::BodyID Id) noexcept
+    {
+        if (Id.IsInvalid()) return InvalidRigidBody;
+        const uint32_t Slot = static_cast<uint32_t>(Physics.GetBodyInterface().GetUserData(Id));
+        if (Slot < Records.size() && Records[Slot].Alive && Records[Slot].Body == Id) return Slot;
+        return InvalidRigidBody;
+    }
+
     // Jolt's own sample default is hardware_concurrency() - 1, which assumes the physics world owns the machine.
     //    It does not: a frame also carries the render thread and miniaudio's realtime callback, and the callback
     //    must never be preempted — a missed audio deadline is an audible click, whereas a slightly slower physics
@@ -392,6 +427,17 @@ void RigidBodySolver::DestroyBody(RigidBodyIdentity Identity) noexcept
 void RigidBodySolver::DestroyAllBodies() noexcept
 {
     if (!World) return;
+
+    // Constraints reference bodies, so they must leave the world before the bodies they link are destroyed.
+    for (JoltWorld::ConstraintRecord& C : World->Constraints)
+    {
+        if (!C.Alive) continue;
+        if (C.Constraint != nullptr) World->Physics.RemoveConstraint(C.Constraint.GetPtr());
+        C = JoltWorld::ConstraintRecord{};
+    }
+    World->Constraints.clear();
+    World->FreeConstraintSlots.clear();
+
     JPH::BodyInterface& Bodies = World->Physics.GetBodyInterface();
     for (const JoltWorld::BodyRecord& R : World->Records)
     {
@@ -549,6 +595,314 @@ const std::string& RigidBodySolver::QueryName(RigidBodyIdentity Identity) const 
     if (!Ready) return Empty;
     const JoltWorld::BodyRecord* R = World->Find(Identity);
     return R != nullptr ? R->Name : Empty;
+}
+
+//------------------------------------------------------------------------------------------------------------------------
+//                                      PHASE 0 — EXPLICIT STEP (physics thread)
+//------------------------------------------------------------------------------------------------------------------------
+
+bool RigidBodySolver::StepOnce() noexcept
+{
+    if (!Ready) return false;
+
+    using Clock = std::chrono::steady_clock;
+    const auto Start = Clock::now();
+    const JPH::EPhysicsUpdateError Error = World->Physics.Update(Config.FixedStepSeconds,
+                                                                static_cast<int>(std::max(1u, Config.CollisionStepsPerUpdate)),
+                                                                &World->TemporaryAllocator, &World->Jobs);
+    Metrics.LastStepMilliseconds = std::chrono::duration<float, std::milli>(Clock::now() - Start).count();
+    if (Error != JPH::EPhysicsUpdateError::None)
+    {
+        char Line[128];
+        std::snprintf(Line, sizeof(Line), "physics update error 0x%X (raise MaxBodyPairs / MaxContactConstraints / TemporaryAllocationBytes)",
+                      static_cast<unsigned>(Error));
+        LastRefusal = Line;
+    }
+    ++Metrics.StepCount;
+    Metrics.StepsLastAdvance   = 1u;
+    Metrics.AccumulatorSeconds = Accumulator;
+    Metrics.BodyCount          = World->Physics.GetNumBodies();
+    Metrics.ActiveBodyCount    = World->Physics.GetNumActiveBodies(JPH::EBodyType::RigidBody);
+    return Error == JPH::EPhysicsUpdateError::None;
+}
+
+//------------------------------------------------------------------------------------------------------------------------
+//                                      PHASE 0 — PER-POINT FORCES (suspension + tyre)
+//------------------------------------------------------------------------------------------------------------------------
+
+void RigidBodySolver::ApplyForce(RigidBodyIdentity Identity, const Vector3& ForceNewtons) noexcept
+{
+    if (!Ready) return;
+    if (const JoltWorld::BodyRecord* R = World->Find(Identity); R != nullptr && R->Motion == RigidBodyMotionCategory::Dynamic)
+        World->Physics.GetBodyInterface().AddForce(R->Body, ToJolt(ForceNewtons));
+}
+
+void RigidBodySolver::ApplyForceAtPoint(RigidBodyIdentity Identity, const Vector3& ForceNewtons, const Vector3& WorldPoint) noexcept
+{
+    if (!Ready) return;
+    if (const JoltWorld::BodyRecord* R = World->Find(Identity); R != nullptr && R->Motion == RigidBodyMotionCategory::Dynamic)
+        World->Physics.GetBodyInterface().AddForce(R->Body, ToJolt(ForceNewtons), ToJoltReal(WorldPoint));
+}
+
+void RigidBodySolver::ApplyTorque(RigidBodyIdentity Identity, const Vector3& TorqueNewtonMetres) noexcept
+{
+    if (!Ready) return;
+    if (const JoltWorld::BodyRecord* R = World->Find(Identity); R != nullptr && R->Motion == RigidBodyMotionCategory::Dynamic)
+        World->Physics.GetBodyInterface().AddTorque(R->Body, ToJolt(TorqueNewtonMetres));
+}
+
+void RigidBodySolver::ApplyAngularImpulse(RigidBodyIdentity Identity, const Vector3& AngularImpulse) noexcept
+{
+    if (!Ready) return;
+    if (const JoltWorld::BodyRecord* R = World->Find(Identity); R != nullptr && R->Motion == RigidBodyMotionCategory::Dynamic)
+        World->Physics.GetBodyInterface().AddAngularImpulse(R->Body, ToJolt(AngularImpulse));
+}
+
+//------------------------------------------------------------------------------------------------------------------------
+//                                      PHASE 0 — BODY QUERIES (load, moment arm, slip)
+//------------------------------------------------------------------------------------------------------------------------
+
+float RigidBodySolver::QueryBodyMass(RigidBodyIdentity Identity) const noexcept
+{
+    if (!Ready) return 0.0f;
+    const JoltWorld::BodyRecord* R = World->Find(Identity);
+    if (R == nullptr || R->Motion == RigidBodyMotionCategory::Static) return 0.0f;
+
+    JPH::BodyLockRead Lock(World->Physics.GetBodyLockInterface(), R->Body);
+    if (!Lock.Succeeded()) return 0.0f;
+    const JPH::MotionProperties* Motion = Lock.GetBody().GetMotionProperties();
+    if (Motion == nullptr) return 0.0f;
+    const float InverseMass = Motion->GetInverseMass();
+    return InverseMass > 0.0f ? 1.0f / InverseMass : 0.0f;
+}
+
+Vector3 RigidBodySolver::QueryCenterOfMass(RigidBodyIdentity Identity) const noexcept
+{
+    if (!Ready) return Vector3{};
+    const JoltWorld::BodyRecord* R = World->Find(Identity);
+    if (R == nullptr) return Vector3{};
+    return FromJolt(World->Physics.GetBodyInterface().GetCenterOfMassPosition(R->Body));
+}
+
+Vector3 RigidBodySolver::QueryPointVelocity(RigidBodyIdentity Identity, const Vector3& WorldPoint) const noexcept
+{
+    if (!Ready) return Vector3{};
+    const JoltWorld::BodyRecord* R = World->Find(Identity);
+    if (R == nullptr || R->Motion == RigidBodyMotionCategory::Static) return Vector3{};
+    return FromJolt(World->Physics.GetBodyInterface().GetPointVelocity(R->Body, ToJoltReal(WorldPoint)));
+}
+
+//------------------------------------------------------------------------------------------------------------------------
+//                                      PHASE 0 — SCENE QUERIES (probe / footprint)
+//------------------------------------------------------------------------------------------------------------------------
+
+SceneCastResult RigidBodySolver::CastRay(const Vector3& Origin, const Vector3& Direction, float MaxDistance,
+                                         RigidBodyIdentity Ignore) const noexcept
+{
+    SceneCastResult Out;
+    if (!Ready || !(MaxDistance > 0.0f)) return Out;
+
+    const float Length = std::sqrt(Direction.x * Direction.x + Direction.y * Direction.y + Direction.z * Direction.z);
+    if (!(Length > 0.0f)) return Out;
+    const Vector3 Unit{ Direction.x / Length, Direction.y / Length, Direction.z / Length };
+
+    // Jolt encodes the ray length in the (un-normalised) direction vector.
+    const JPH::RRayCast Ray{ ToJoltReal(Origin), ToJolt(Vector3{ Unit.x * MaxDistance, Unit.y * MaxDistance, Unit.z * MaxDistance }) };
+
+    JPH::BodyID IgnoreId;
+    if (const JoltWorld::BodyRecord* Skip = World->Find(Ignore); Skip != nullptr) IgnoreId = Skip->Body;
+    const JPH::IgnoreSingleBodyFilter BodyFilter(IgnoreId);
+
+    JPH::RayCastResult Hit;
+    if (!World->Physics.GetNarrowPhaseQuery().CastRay(Ray, Hit, {}, {}, BodyFilter)) return Out;
+
+    const JPH::RVec3 Point = Ray.GetPointOnRay(Hit.mFraction);
+    Out.Hit      = true;
+    Out.Fraction = Hit.mFraction;
+    Out.Distance = Hit.mFraction * MaxDistance;
+    Out.Position = FromJolt(Point);
+    Out.Body     = World->IdentityOf(Hit.mBodyID);
+
+    JPH::BodyLockRead Lock(World->Physics.GetBodyLockInterface(), Hit.mBodyID);
+    if (Lock.Succeeded())
+        Out.Normal = FromJolt(Lock.GetBody().GetWorldSpaceSurfaceNormal(Hit.mSubShapeID2, Point));
+    return Out;
+}
+
+SceneCastResult RigidBodySolver::CastSphere(float Radius, const Vector3& From, const Vector3& Sweep,
+                                            RigidBodyIdentity Ignore) const noexcept
+{
+    SceneCastResult Out;
+    if (!Ready || !(Radius > 0.0f)) return Out;
+
+    JPH::SphereShapeSettings Settings(Radius);
+    JPH::ShapeSettings::ShapeResult Result = Settings.Create();
+    if (Result.HasError()) return Out;
+
+    JPH::BodyID IgnoreId;
+    if (const JoltWorld::BodyRecord* Skip = World->Find(Ignore); Skip != nullptr) IgnoreId = Skip->Body;
+
+    const JPH::Quat Orientation = JPH::Quat::sIdentity();
+    return SweepShapeImpl(Result.Get().GetPtr(), &Orientation, From, Sweep, IgnoreId.GetIndexAndSequenceNumber());
+}
+
+SceneCastResult RigidBodySolver::CastCylinder(float Radius, float HalfHeight, const Quaternion& Orientation,
+                                              const Vector3& From, const Vector3& Sweep,
+                                              RigidBodyIdentity Ignore) const noexcept
+{
+    SceneCastResult Out;
+    if (!Ready || !(Radius > 0.0f) || !(HalfHeight > 0.0f)) return Out;
+
+    // Frontier's cylinder axis is local +Z; a bare Jolt cylinder is +Y, so pre-rotate the requested orientation the same
+    //    way BuildShape() does, then compose with the caller's world orientation.
+    const JPH::Quat AxisAlign = JPH::Quat::sRotation(JPH::Vec3::sAxisX(), 0.5f * JPH::JPH_PI);
+    JPH::CylinderShapeSettings Settings(HalfHeight, Radius, std::min(JPH::cDefaultConvexRadius, 0.5f * std::min(Radius, HalfHeight)));
+    JPH::ShapeSettings::ShapeResult Result = Settings.Create();
+    if (Result.HasError()) return Out;
+
+    JPH::BodyID IgnoreId;
+    if (const JoltWorld::BodyRecord* Skip = World->Find(Ignore); Skip != nullptr) IgnoreId = Skip->Body;
+
+    const JPH::Quat WorldOrientation = ToJolt(Orientation) * AxisAlign;
+    return SweepShapeImpl(Result.Get().GetPtr(), &WorldOrientation, From, Sweep, IgnoreId.GetIndexAndSequenceNumber());
+}
+
+SceneCastResult RigidBodySolver::SweepShapeImpl(const void* ShapePtr, const void* OrientationPtr,
+                                                const Vector3& From, const Vector3& Sweep, uint32_t IgnoreRaw) const noexcept
+{
+    SceneCastResult Out;
+    const JPH::Shape* Shape = static_cast<const JPH::Shape*>(ShapePtr);
+    const JPH::Quat   Orientation = *static_cast<const JPH::Quat*>(OrientationPtr);
+    JPH::BodyID       IgnoreId(IgnoreRaw);
+
+    const float Length = std::sqrt(Sweep.x * Sweep.x + Sweep.y * Sweep.y + Sweep.z * Sweep.z);
+    if (!(Length > 0.0f)) return Out;
+
+    const JPH::RMat44 Start = JPH::RMat44::sRotationTranslation(Orientation, ToJoltReal(From));
+    JPH::RShapeCast   Cast(Shape, JPH::Vec3::sReplicate(1.0f), Start, ToJolt(Sweep));
+
+    JPH::ShapeCastSettings Settings;
+    Settings.mUseShrunkenShapeAndConvexRadius = true;
+    Settings.mReturnDeepestPoint              = false;
+
+    const JPH::IgnoreSingleBodyFilter BodyFilter(IgnoreId);
+    JPH::ClosestHitCollisionCollector<JPH::CastShapeCollector> Collector;
+    World->Physics.GetNarrowPhaseQuery().CastShape(Cast, Settings, ToJoltReal(From), Collector, {}, {}, BodyFilter);
+    if (!Collector.HadHit()) return Out;
+
+    const JPH::ShapeCastResult& Hit = Collector.mHit;
+    Out.Hit      = true;
+    Out.Fraction = Hit.mFraction;
+    Out.Distance = Hit.mFraction * Length;
+    Out.Position = FromJolt(ToJoltReal(From) + Hit.mContactPointOn2);
+    Out.Normal   = FromJolt(-Hit.mPenetrationAxis.Normalized());        // penetration axis points 2→1; flip for the surface normal
+    Out.Body     = World->IdentityOf(Hit.mBodyID2);
+    return Out;
+}
+
+//------------------------------------------------------------------------------------------------------------------------
+//                                      PHASE 0 — HEIGHTFIELD TERRAIN
+//------------------------------------------------------------------------------------------------------------------------
+
+RigidBodyIdentity RigidBodySolver::CreateHeightfieldBody(const HeightfieldDescription& D) noexcept
+{
+    if (!Ready) { LastRefusal = "solver not ready"; return InvalidRigidBody; }
+    if (D.Samples == nullptr || D.SampleCount == 0u || (D.SampleCount % 8u) != 0u)
+    {
+        LastRefusal = "heightfield needs a non-null sample grid whose side is a non-zero multiple of 8";
+        return InvalidRigidBody;
+    }
+
+    // Jolt lays the grid in its local X/Z plane with height along +Y. Scale maps a sample to local metres.
+    JPH::HeightFieldShapeSettings Field(D.Samples, JPH::Vec3::sZero(),
+                                        JPH::Vec3(D.SpacingX, D.HeightScale, D.SpacingY), D.SampleCount);
+    JPH::ShapeSettings::ShapeResult FieldResult = Field.Create();
+    if (FieldResult.HasError()) { LastRefusal = std::string("heightfield: ") + FieldResult.GetError().c_str(); return InvalidRigidBody; }
+
+    // Rotate local +Y (height) onto world +Z (+90° about X). After the wrap: col→world +X, row→world −Y, height→world +Z.
+    JPH::RotatedTranslatedShapeSettings Wrap(JPH::Vec3::sZero(), JPH::Quat::sRotation(JPH::Vec3::sAxisX(), 0.5f * JPH::JPH_PI),
+                                             FieldResult.Get());
+    JPH::ShapeSettings::ShapeResult WrapResult = Wrap.Create();
+    if (WrapResult.HasError()) { LastRefusal = std::string("heightfield wrap: ") + WrapResult.GetError().c_str(); return InvalidRigidBody; }
+
+    JPH::BodyCreationSettings Settings(WrapResult.Get(), ToJoltReal(D.Origin), JPH::Quat::sIdentity(),
+                                       JPH::EMotionType::Static, ObjectLayers::NonMoving);
+    Settings.mFriction    = std::max(0.0f, D.Friction);
+    Settings.mRestitution = std::clamp(D.Restitution, 0.0f, 1.0f);
+
+    JPH::BodyInterface& Bodies = World->Physics.GetBodyInterface();
+    const JPH::BodyID Body = Bodies.CreateAndAddBody(Settings, JPH::EActivation::DontActivate);
+    if (Body.IsInvalid()) { LastRefusal = "Jolt refused the heightfield body (MaxBodies reached?)"; return InvalidRigidBody; }
+
+    uint32_t Slot;
+    if (!World->FreeSlots.empty()) { Slot = World->FreeSlots.back(); World->FreeSlots.pop_back(); }
+    else                           { Slot = static_cast<uint32_t>(World->Records.size()); World->Records.emplace_back(); }
+
+    JoltWorld::BodyRecord& R = World->Records[Slot];
+    R.Body   = Body;
+    R.Name   = D.Name;
+    R.Motion = RigidBodyMotionCategory::Static;
+    R.Shape  = CollisionShapeCategory::Heightfield;
+    R.Alive  = true;
+    Bodies.SetUserData(Body, Slot);
+
+    Metrics.BodyCount = World->Physics.GetNumBodies();
+    return Slot;
+}
+
+//------------------------------------------------------------------------------------------------------------------------
+//                                      PHASE 0 — STRUT SPRING CONSTRAINT
+//------------------------------------------------------------------------------------------------------------------------
+
+ConstraintIdentity RigidBodySolver::CreateDistanceSpring(RigidBodyIdentity BodyA, const Vector3& WorldAnchorA,
+                                                         RigidBodyIdentity BodyB, const Vector3& WorldAnchorB,
+                                                         float MinDistance, float MaxDistance,
+                                                         float FrequencyHz, float DampingRatio) noexcept
+{
+    if (!Ready) { LastRefusal = "solver not ready"; return InvalidConstraint; }
+    const JoltWorld::BodyRecord* A = World->Find(BodyA);
+    const JoltWorld::BodyRecord* B = World->Find(BodyB);
+    if (A == nullptr || B == nullptr) { LastRefusal = "distance spring: unknown body"; return InvalidConstraint; }
+
+    JPH::DistanceConstraintSettings Settings;
+    Settings.mSpace       = JPH::EConstraintSpace::WorldSpace;
+    Settings.mPoint1      = ToJoltReal(WorldAnchorA);
+    Settings.mPoint2      = ToJoltReal(WorldAnchorB);
+    Settings.mMinDistance = MinDistance;
+    Settings.mMaxDistance = MaxDistance;
+    if (FrequencyHz > 0.0f)
+    {
+        Settings.mLimitsSpringSettings.mMode      = JPH::ESpringMode::FrequencyAndDamping;
+        Settings.mLimitsSpringSettings.mFrequency = FrequencyHz;
+        Settings.mLimitsSpringSettings.mDamping   = DampingRatio;
+    }
+
+    // Constraint creation needs the live Body objects; take both locks (setup path, single-threaded).
+    const JPH::BodyID Pair[2] = { A->Body, B->Body };
+    JPH::BodyLockMultiWrite Locks(World->Physics.GetBodyLockInterface(), Pair, 2);
+    JPH::Body* LiveA = Locks.GetBody(0);
+    JPH::Body* LiveB = Locks.GetBody(1);
+    if (LiveA == nullptr || LiveB == nullptr) { LastRefusal = "distance spring: body lock failed"; return InvalidConstraint; }
+
+    JPH::Constraint* Created = Settings.Create(*LiveA, *LiveB);
+    if (Created == nullptr) { LastRefusal = "distance spring: Jolt refused the constraint"; return InvalidConstraint; }
+    World->Physics.AddConstraint(Created);
+
+    uint32_t Slot;
+    if (!World->FreeConstraintSlots.empty()) { Slot = World->FreeConstraintSlots.back(); World->FreeConstraintSlots.pop_back(); }
+    else                                     { Slot = static_cast<uint32_t>(World->Constraints.size()); World->Constraints.emplace_back(); }
+    World->Constraints[Slot].Constraint = Created;   // Ref adopts; the world holds a second reference
+    World->Constraints[Slot].Alive      = true;
+    return Slot;
+}
+
+void RigidBodySolver::DestroyConstraint(ConstraintIdentity Identity) noexcept
+{
+    if (!Ready || Identity >= World->Constraints.size() || !World->Constraints[Identity].Alive) return;
+    JoltWorld::ConstraintRecord& C = World->Constraints[Identity];
+    if (C.Constraint != nullptr) World->Physics.RemoveConstraint(C.Constraint.GetPtr());
+    C = JoltWorld::ConstraintRecord{};
+    World->FreeConstraintSlots.push_back(Identity);
 }
 
 } // namespace Frontier

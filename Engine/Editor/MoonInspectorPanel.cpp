@@ -98,21 +98,22 @@ void RecordMoonInspector(ControlPanel& Controls,EditorInstance&,EditorSheet& She
  auto& Cached=Cache();UpdateAtlas(Cached,Sheet);auto* Font=ImGui::GetFont();for(auto* F:ImGui::GetIO().Fonts->Fonts)if(std::strcmp(F->GetDebugName(),"Sun reference / regular")==0)Font=F;ImGui::PushFont(Font,14);ImVec2 O=ImGui::GetCursorScreenPos();O.x+=20;O.y+=20;float W=std::max(240.f,ImGui::GetContentRegionAvail().x-40);Panel U{Controls,Sheet,ImGui::GetWindowDrawList(),O,Font,{},false};
  U.Text(0,8,"Inspector / Environment",8,Muted);U.Text(0,48,"Moon",25);U.Text(0,83,"Scene moons · choose a body for each",11,Muted);
  // Instance selection stays compact inside settings; there is no duplicate row above it.
- unsigned HeaderBody=std::min(Property(Sheet,Cached.Slot,"Preset").Picked,5u);U.Glyph=Cached.Thumbnails[HeaderBody].GetTexRef();U.GlyphReady=Cached.Ready[HeaderBody];U.Card(0,110,W,178,"Moon settings");
- ImGui::SetCursorScreenPos(U.At(W-(W>=450?224:124),126));ImGui::SetNextItemWidth(W>=450?200:100);
+ const float SettingsY=569,CatalogueY=763;
+ unsigned HeaderBody=std::min(Property(Sheet,Cached.Slot,"Preset").Picked,5u);U.Glyph=Cached.Thumbnails[HeaderBody].GetTexRef();U.GlyphReady=Cached.Ready[HeaderBody];U.Card(0,SettingsY,W,178,"Moon settings");
+ ImGui::SetCursorScreenPos(U.At(W-(W>=450?224:124),SettingsY+16));ImGui::SetNextItemWidth(W>=450?200:100);
  auto& Current=Property(Sheet,Cached.Slot,"Preset");if(ImGui::BeginCombo("##moon-instance",Current.Options[std::min(Current.Picked,5u)])){for(int I=0;I<4;++I){ImGui::PushID(I);auto& P=Property(Sheet,I,"Preset");if(ImGui::Selectable(P.Options[std::min(P.Picked,5u)],I==Cached.Slot))Cached.Slot=I;ImGui::PopID();}ImGui::EndCombo();}
  if(ImGui::IsItemHovered())ImGui::SetTooltip("Active moon instance");
 
  int S=Cached.Slot;ImGui::PushID(S);auto& Visible=Property(Sheet,S,"Visible").On;auto& Follow=Property(Sheet,S,"Follow Sky").On;auto& Az=Property(Sheet,S,"Azimuth").Figure;auto& El=Property(Sheet,S,"Elevation").Figure;auto& Phase=Property(Sheet,S,"Phase").Figure;auto& Size=Property(Sheet,S,"Size").Figure;auto& Roll=Property(Sheet,S,"Roll").Figure;auto& Pitch=Property(Sheet,S,"Pitch").Figure;auto& Bright=Property(Sheet,S,"Bright").Figure;
  unsigned IconBody=std::min(Property(Sheet,S,"Preset").Picked,5u);U.Glyph=Cached.Thumbnails[IconBody].GetTexRef();U.GlyphReady=Cached.Ready[IconBody];
- bool Wide=W>=760;Tile(U,24,161,"Visible",Visible);Tile(U,142,161,"Follow sky",Follow);
+ bool Wide=W>=760;Tile(U,24,SettingsY+51,"Visible",Visible);Tile(U,142,SettingsY+51,"Follow sky",Follow);
  auto& Catalogue=Property(Sheet,S,"Preset");
  // A dedicated, single horizontal catalogue. The arrows browse the strip;
  // selecting either a sphere or its caption changes only this scene instance.
- U.Card(0,304,W,216,"Moon catalogue");
+ U.Card(0,CatalogueY,W,216,"Moon catalogue");
  const float StripWidth=W-128,CellWidth=112,Stride=124,ContentWidth=732;
  float Padding=std::max(0.f,(StripWidth-ContentWidth)/2);
- ImGui::SetCursorScreenPos(U.At(64,358));ImGui::SetNextWindowContentSize({ContentWidth+Padding*2,124});
+ ImGui::SetCursorScreenPos(U.At(64,CatalogueY+54));ImGui::SetNextWindowContentSize({ContentWidth+Padding*2,124});
  ImGui::BeginChild("##moon-catalogue-strip",{StripWidth,150},ImGuiChildFlags_None,ImGuiWindowFlags_HorizontalScrollbar);
  auto* Strip=ImGui::GetCurrentWindow();
  if(ImGui::IsWindowAppearing())ImGui::SetScrollFromPosX(Strip,Padding+std::min(Catalogue.Picked,5u)*Stride+CellWidth/2,.5f);
@@ -126,15 +127,15 @@ void RecordMoonInspector(ControlPanel& Controls,EditorInstance&,EditorSheet& She
   const char* Name=Catalogue.Options[I];D->AddText(Font,12,{P.x+(CellWidth-Font->CalcTextSizeA(12,10000,0,Name).x)/2,P.y+104},Selected?Ink:Muted,Name);ImGui::PopID();
  }
  ImGui::EndChild();
- if(U.Button(20,394,32,"##previous-bodies","<",false,Strip->Scroll.x<=0))ImGui::SetScrollX(Strip,std::max(0.f,Strip->Scroll.x-Stride));
- if(U.Button(W-52,394,32,"##next-bodies",">",false,Strip->Scroll.x>=Strip->ScrollMax.x))ImGui::SetScrollX(Strip,std::min(Strip->ScrollMax.x,Strip->Scroll.x+Stride));
+ if(U.Button(20,CatalogueY+90,32,"##previous-bodies","<",false,Strip->Scroll.x<=0))ImGui::SetScrollX(Strip,std::max(0.f,Strip->Scroll.x-Stride));
+ if(U.Button(W-52,CatalogueY+90,32,"##next-bodies",">",false,Strip->Scroll.x>=Strip->ScrollMax.x))ImGui::SetScrollX(Strip,std::min(Strip->ScrollMax.x,Strip->Scroll.x+Stride));
  unsigned Body=std::min(Catalogue.Picked,5u);
  float EffectivePhase=Follow?Sheet.MoonPhase:Phase,EffectiveAz=Follow?Sheet.MoonAzimuth:Az,EffectiveEl=Follow?Sheet.MoonElevation:El;
  if(Cached.Body!=int(Body)||Cached.Phase!=EffectivePhase||Cached.Roll!=Roll||Cached.Pitch!=Pitch||Cached.Bright!=Bright){auto& B=Sheet.MoonBodies[Body];MoonAtlasPreview(Cached.Disc.Pixels,256,{B.Pixels,B.Width,B.Height,4},B.Tint,B.Tilt,B.Haze,B.Gamma,EffectivePhase,Roll,Pitch,Bright);Cached.Body=int(Body);Cached.Phase=EffectivePhase;Cached.Roll=Roll;Cached.Pitch=Pitch;Cached.Bright=Bright;ImTextureDataQueueUpload(&Cached.Disc,0,0,256,256);}
 
- float Lit=(1-std::cos(EffectivePhase*2*Pi))*.5f,Y=536;char Text[160];
+ float Lit=(1-std::cos(EffectivePhase*2*Pi))*.5f,Y=110;char Text[160];
  U.Card(0,Y,W,443,"Lunar phase");std::snprintf(Text,sizeof(Text),"%.1f days",double(EffectivePhase*29.53f));U.Text(24,Y+72,Text,30);std::snprintf(Text,sizeof(Text),"%.0f%% illuminated",double(Lit*100));U.Text(W>450?W-150:24,Y+(W>450?83:112),Text,11,Accent);U.Wrap(24,Y+136,W-48,Follow?"Solved sky phase · switch Follow sky off to edit":"Position in the 29.53-day synodic cycle");Disc(Fit(U.D,U.At(24,Y+162),{W-48,199},256,215),Cached,Size,Roll,Pitch);
- auto& PhaseProp=Property(Sheet,S,"Phase");float AuthoredPhase=Phase;PhaseProp.Figure=EffectivePhase*29.53f;PhaseProp.Maximum=29.53f;std::snprintf(PhaseProp.Unit,sizeof(PhaseProp.Unit),"days");Slider(U,S,"Phase",24,Y+373,W-48,Follow);Phase=Follow?AuthoredPhase:PhaseProp.Figure/29.53f;PhaseProp.Maximum=1;PhaseProp.Unit[0]=0;Y+=459;
+ auto& PhaseProp=Property(Sheet,S,"Phase");float AuthoredPhase=Phase;PhaseProp.Figure=EffectivePhase*29.53f;PhaseProp.Maximum=29.53f;std::snprintf(PhaseProp.Unit,sizeof(PhaseProp.Unit),"days");Slider(U,S,"Phase",24,Y+373,W-48,Follow);Phase=Follow?AuthoredPhase:PhaseProp.Figure/29.53f;PhaseProp.Maximum=1;PhaseProp.Unit[0]=0;Y=995;
  float CW=Wide?(W-16)/2:W,X2=Wide?CW+16:0,Y2=Wide?Y:Y+468;
  U.Card(0,Y,CW,452,"Moonlight");std::snprintf(Text,sizeof(Text),"%.2f ×",double(Bright));U.Text(24,Y+72,Text,30);U.Wrap(24,Y+118,CW-48,"Full-disc brightness multiplier · not calibrated lux");Canvas L{U.D,U.At(CW/2,Y+216),1};L.Glow(0,0,78,168,188,219,.075f);if(Cached.Ready[Body])U.D->AddImage(Cached.Disc.GetTexRef(),L.P(-43,-43),L.P(43,43));else U.Text(24,Y+216,"Texture unavailable",11,Muted);std::snprintf(Text,sizeof(Text),"Phase-weighted strength  %.3f ×",double(Bright*Lit));U.Text(24,Y+287,Text,11,Muted);Slider(U,S,"Bright",24,Y+319,CW-48);Slider(U,S,"Glow",24,Y+386,CW-48);
  U.Card(X2,Y2,CW,452,"Moon size");std::snprintf(Text,sizeof(Text),Size>=10000?"%.3g°":"%.2f°",double(Size));U.Text(X2+24,Y2+72,Text,30);U.Wrap(X2+24,Y2+118,CW-48,"Angular diameter · compressed preview for oversized moons");Disc(Fit(U.D,U.At(X2+24,Y2+148),{CW-48,175},256,215),Cached,Size,Roll,Pitch,true);

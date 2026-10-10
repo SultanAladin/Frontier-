@@ -51,6 +51,7 @@ struct WindSettings
     float GustPhase = 0.0f;    // [rad] advanced by the frame clock, so the CPU and GPU twins agree
     float Turbulence= 0.30f;   // [0..1] curl-noise swirl
     float Steadiness= 1.0f;    // [0..1] panel's Steadiness — scales gust and turbulence together
+    float Advection = 0.0f;    // [0/1] 0 = rigid translation (shape preserved); 1 = bounded altitude shear (lean)
 };
 
 class WindField

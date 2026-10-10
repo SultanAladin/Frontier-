@@ -91,8 +91,8 @@ public:
     //---------------------------------------------- construction ----------------------------------------------
     // One face from a surface: its natural boundary becomes edges (seams for closed directions, no edge for degenerate sides).
     [[nodiscard]] static BrepBody FromSurface(const NurbsSurface& Surface) noexcept;
-    // Sew independent faces along coincident boundary edges, then cap and orient. The generic solid builder.
-    [[nodiscard]] static Deliver<BrepBody> Sew(const std::vector<NurbsSurface>& Surfaces, double Tolerance = ScalarCriteria::MergeTolerance, bool Cap = true) noexcept;
+    // Sew coincident natural boundaries; optionally split degree-multiplicity knot joins before sewing, then cap and orient.
+    [[nodiscard]] static Deliver<BrepBody> Sew(const std::vector<NurbsSurface>& Surfaces, double Tolerance = ScalarCriteria::MergeTolerance, bool Cap = true, bool KnotEdges = false, bool SplitJunctions = false) noexcept;
     [[nodiscard]] static Deliver<BrepBody> Box(Vec3 CornerA, Vec3 CornerB) noexcept;
     [[nodiscard]] static Deliver<BrepBody> Cylinder(Vec3 FootCentre, Vec3 Axis, double Radius, double Height) noexcept;
     [[nodiscard]] static Deliver<BrepBody> Cone(Vec3 FootCentre, Vec3 Axis, double RadiusFoot, double RadiusTop, double Height) noexcept;
@@ -160,9 +160,14 @@ public:
     int  AddFace(NurbsSurface Surface) noexcept;                                        // face with no loops yet
     int  AddLoop(int Face, bool Outer) noexcept;
     // Appends the natural boundary loop(s) of a face's surface; merges edges/vertices within tolerance.
-    void AddNaturalBoundary(int Face, double Tolerance) noexcept;
+    void AddNaturalBoundary(int Face, double Tolerance, bool KnotEdges = false) noexcept;
+    // Euler operator: splits an edge at curve parameter T into two edges meeting at a new vertex. Every loop that walked
+    //    the edge now walks both pieces in its own sense, so the body stays exactly as closed and manifold as it was.
+    //    Returns the new vertex, or −1 when T is at an end of the edge or the edge does not exist.
+    int  SplitEdge(int Edge, double T) noexcept;
 
 private:
+    [[nodiscard]] BrepBody ReconcileBoundarySplits(double Tolerance) const noexcept;
     [[nodiscard]] int FindCoincidentEdge(const NurbsCurve& Curve, double Tolerance, bool& ReversedOut) const noexcept;
 };
 

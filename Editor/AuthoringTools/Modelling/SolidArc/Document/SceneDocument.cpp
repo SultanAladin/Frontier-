@@ -116,7 +116,7 @@ void SceneDocument::RebuildAreas(const Workplane& Plane) noexcept
     Frontier::Plane Sheet = Plane.ToPlane();
     for (const SceneFigure& F : Entries)
     {
-        if (F.Classification != FigureClassification::Curve || F.Hidden || F.Construction) continue;
+        if (F.Classification != FigureClassification::Curve || F.Hidden || F.Construction || F.Feature != FeaturePurpose::None) continue;
         bool InPlane = true;
         for (const Vec4& P : F.Curve.Poles) if (std::fabs(Sheet.SignedDistance(P.Divide())) > ScalarCriteria::MergeTolerance) { InPlane = false; break; }
         if (!InPlane) continue;
@@ -192,6 +192,7 @@ std::vector<const SceneFigure*> SceneDocument::DerivedFrom(uint32_t Identity) co
         bool Uses = false;
         for (const RecipeInput& In : F.Recipe.Sections) for (uint32_t Id : In.Figures) Uses |= Id == Identity;
         for (uint32_t Id : F.Recipe.Path.Figures) Uses |= Id == Identity;
+        Uses |= F.Recipe.Path.Support == Identity;
         if (Uses) Out.push_back(&F);
     }
     return Out;
@@ -212,9 +213,20 @@ std::vector<std::string> SceneDocument::Regenerate(const Workplane& Plane) noexc
             if (Now == F.Recipe.InputFingerprint) continue;
             Deliver<FigureRecipe::Product> P = F.Recipe.Produce(*this, Plane);
             F.Recipe.InputFingerprint = Now;
-            if (!P) { F.Recipe.Complaint = P.Denial.Detail; continue; }
+            if (!P)
+            {
+                F.Recipe.Complaint = P.Denial.Detail;
+                if (F.Recipe.Operation == RecipeOperation::SurfaceOffset)
+                {
+                    F.Recipe.OffsetFailureHidden = F.Recipe.OffsetFailureHidden || !F.Hidden;
+                    F.Hidden = true;
+                }
+                continue;
+            }
+            if (F.Recipe.OffsetFailureHidden) { F.Hidden = false; F.Recipe.OffsetFailureHidden = false; }
             F.Recipe.Complaint.clear();
-            if (P.Payload.IsBody) { F.Classification = FigureClassification::Body; F.Body = std::move(P.Payload.Body); F.Surface = NurbsSurface(); }
+            if (P.Payload.IsCurve) { F.Classification = FigureClassification::Curve; F.Curve = std::move(P.Payload.Curve); }
+            else if (P.Payload.IsBody) { F.Classification = FigureClassification::Body; F.Body = std::move(P.Payload.Body); F.Surface = NurbsSurface(); }
             else { F.Classification = FigureClassification::Surface; F.Surface = std::move(P.Payload.Sheet); F.Body = BrepBody(); }
             F.SelectedFaces.clear(); F.SelectedEdges.clear(); F.SelectedPoles.clear();
             Changed.push_back(F.Name); Any = true;

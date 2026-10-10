@@ -29,7 +29,7 @@ struct ViewRecord
     float ViewWorld[16];                                                                // [-] camera → world, matcap basis
     float EyePosition[4];                                                               // [m] xyz, w = 1 perspective / 0 ortho
     float Viewport[4];                                                                  // [px] xy size, zw reciprocal
-    float LatticeStyle[4];                                                                 // x minor cell [m], y major every N, z fade radius [m], w half-width [px]
+    float LatticeStyle[4];                                                                 // x minor cell [m], y major every N, z pad half-extent [m] (square about the origin), w half-width [px]
     float Illumination[4];                                                              // xyz key light dir, w ambient
     float DepthPolicy[4] = {};                                                          // x line depth bias [clip z], yzw reserved
     float PixelAngle = 0.0f;                                                            // [rad] per pixel (perspective)

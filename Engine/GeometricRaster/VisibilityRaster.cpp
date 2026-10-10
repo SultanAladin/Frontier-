@@ -1,7 +1,7 @@
 //============================================================================================================================================
 //                                                      VISIBILITYRASTER.CPP
 //============================================================================================================================================
-// 🧩 The visibility buffer, rasterized on the CPU. Pass one keeps the nearest triangle per pixel; the shadow
+// 📦 The visibility buffer, rasterized on the CPU. Pass one keeps the nearest triangle per pixel; the shadow
 //    pass keeps the nearest depth per texel from each light tap; the shade pass spends the two buffers with no
 //    ray query anywhere. Taps are fixed and stratified (deterministic across runs).
 //
@@ -10,6 +10,9 @@
 //    distance so contact stays sharp and the penumbra widens with distance. See VisibilityRaster.h for the ladder.
 
 #include "VisibilityRaster.h"
+
+// ONE material model for every CPU render path -- see the file's header for why this is not optional.
+#include "ContentInterchange/UnifiedMaterialEvaluation.h"
 #include "DisplayPresentation/FogModel.h"
 #include "DisplayPresentation/StarFieldControls.h"
 
@@ -111,6 +114,8 @@ void VisibilityRaster::CollectLumi(const SceneStructure& Level) noexcept
 {
     const auto& Flat    = Level.QueryFlatTriangles();
     const auto& Records = Level.QueryMaterials().QueryRecords();
+    const auto& Slabs   = Level.QueryMaterials().QuerySlabRecords();
+    Frontier::UnifiedMaterial::EnsureTables();   // the lobe set indexes these; bake once if no host bound them
     Lumi_.clear();
 
     for (size_t T = 0u; T < Flat.size(); ++T)
@@ -569,6 +574,8 @@ void VisibilityRaster::Shade(const SceneStructure& Level, const float Eye[3], co
     //    direction, and a constant would throw away the whole gradient from zenith to horizon.
     const auto& Flat    = Level.QueryFlatTriangles();
     const auto& Records = Level.QueryMaterials().QueryRecords();
+    const auto& Slabs   = Level.QueryMaterials().QuerySlabRecords();
+    Frontier::UnifiedMaterial::EnsureTables();   // the lobe set indexes these; bake once if no host bound them
     const size_t Cells = static_cast<size_t>(Width) * static_cast<size_t>(Height);
 
     float MinB[3] = { 1e30f, 1e30f, 1e30f }, MaxB[3] = { -1e30f, -1e30f, -1e30f };
@@ -748,30 +755,34 @@ void VisibilityRaster::Shade(const SceneStructure& Level, const float Eye[3], co
                                     + Equatorial[2] * Star.DirectionZ;
                     if (Dot <= 0.0f) continue;
                     const float Angle = std::acos(std::fmin(1.0f, Dot));
-                    // ⚠️ A star is a POINT SOURCE and must read as one. The first version used a core radius of
-                    //    0.9 pixels with a Gaussian skirt running to 3x that, so every star covered about 5.4
-                    //    pixels and the field looked like smudges rather than points — visibly soft at any
-                    //    resolution.
+                    // ⚠️ A star is a POINT-SPREAD, and the profile must be SMOOTH or it blocks up. The earlier
+                    //    flat-topped core (Core = 1.0 inside a ~1-render-pixel radius, hard cut at 1.6·R) is a
+                    //    hard-edged disc point-sampled once per pixel: it aliases into hard squares — worst on the
+                    //    reduced-resolution tiers where a ~1-render-pixel disc is upscaled to 2×2+ display pixels —
+                    //    and a bright core (Lum·5.73) clips through the tone map to a solid white BLOCK. That is the
+                    //    reported "blocky / pixelated stars" artefact.
                     //
-                    //    The constraint pulling the other way is aliasing: a star smaller than a pixel lands
-                    //    between sample points and winks in and out as the camera turns, which is worse than
-                    //    blur because it only appears in motion. The resolution is to keep the ENERGY inside
-                    //    roughly one pixel while letting a small skirt handle the sub-pixel positioning: a half
-                    //    pixel core, a skirt of a third of a pixel, cut off at 1.6 pixels.
-                    const float Radius = std::fmax(Celestial_.StarSize * 0.0002f, PixelAngle * 0.5f);
-                    if (Angle > Radius * 1.6f) continue;
-                    // Flat-topped core so the star is at full intensity where it lands, then a tight Gaussian
-                    //    edge. The narrow skirt is what keeps it a point rather than a smudge.
-                    const float Falloff = (Angle - Radius) / (Radius * 0.35f);
-                    const float Core = Angle <= Radius ? 1.0f : std::exp(-Falloff * Falloff);
-                    // Gain 1.0, not a fraction. The catalogue's luminance is already relative to magnitude 0,
-                    //    so scaling it down crushes the faint end: at 0.02 a magnitude-4 star reached 4/255 and
-                    //    the sky rendered as a nearly empty black field with only Sirius faintly visible.
-                    // Energy normalisation. A point source carries a FIXED total, so tightening the profile
-                    //    must raise its peak or the star just gets dimmer — measured, the new footprint holds
-                    //    5.73x less solid angle than the soft one it replaced, and the first sharpened render
-                    //    came out visibly darker for exactly that reason.
-                    const float Gain = Star.Luminance * Celestial_.StarBrightness * Core * 5.73f * StarTwinkleFlux(Celestial_.StarSeconds,Celestial_.StarDepth,Celestial_.StarRate,StarDirectionPhase(Star.DirectionX,Star.DirectionY,Star.DirectionZ));
+                    //    Fix: a smooth, energy-preserving Gaussian PSF. Sigma is floored to ~0.9 of the render
+                    //    pixel so the profile always spans a pixel with a soft edge (no hard rim to alias), and it
+                    //    grows gently with apparent magnitude so bright stars BLOOM softly instead of blocking. The
+                    //    total flux is matched to the old flat-top+skirt disc (Ω_old = 1.727·πR², times the same
+                    //    5.73 gain), so the faint-end calibration is preserved — only the SHAPE changes, not energy.
+                    //    (This must stay identical to PostRecords.slang::StarAlong — same profile, same constants.)
+                    const float PixelAngleClamped = std::fmax(PixelAngle, 1e-6f);
+                    const float RefRadius = std::fmax(Celestial_.StarSize * 0.0002f, PixelAngleClamped * 0.5f);
+                    constexpr float kOldProfileArea = 1.727f;            // Ω_old / (πR²), flat-top + skirt
+                    constexpr float kPiLocal = 3.14159265358979323846f;
+                    const float FluxTarget = kPiLocal * RefRadius * RefRadius * kOldProfileArea * 5.73f;
+                    const float AppMag = std::fmax(Star.Luminance * Celestial_.StarBrightness, 0.0f);
+                    float BloomScale = 1.0f + 0.55f * std::log2(1.0f + AppMag);
+                    BloomScale = std::fmax(1.0f, std::fmin(3.0f, BloomScale));
+                    const float Sigma = std::fmax(Celestial_.StarSize * 0.0002f, PixelAngleClamped * 0.9f) * BloomScale;
+                    if (Angle > 3.0f * Sigma) continue;                  // 3σ support, smooth to the edge
+                    const float Peak = FluxTarget / (2.0f * kPiLocal * Sigma * Sigma);
+                    const float Core = Peak * std::exp(-0.5f * Angle * Angle / (Sigma * Sigma));
+                    // The catalogue's luminance is already relative to magnitude 0, so it is used directly (not a
+                    //    fraction) to keep the faint end alive. The 5.73 energy normalisation is now folded into Peak.
+                    const float Gain = Star.Luminance * Celestial_.StarBrightness * Core * StarTwinkleFlux(Celestial_.StarSeconds,Celestial_.StarDepth,Celestial_.StarRate,StarDirectionPhase(Star.DirectionX,Star.DirectionY,Star.DirectionZ));
                     Out[0] += Star.ColourRed * Gain * CloudT;
                     Out[1] += Star.ColourGreen * Gain * CloudT;
                     Out[2] += Star.ColourBlue * Gain * CloudT;
@@ -907,9 +918,47 @@ void VisibilityRaster::Shade(const SceneStructure& Level, const float Eye[3], co
         const float Fill[3] = { Celestial_.Enabled ? SkyAmbient[0] : kAmbient,
                                 Celestial_.Enabled ? SkyAmbient[1] : kAmbient,
                                 Celestial_.Enabled ? SkyAmbient[2] : kAmbient };
-        Out[0] = R.AlbedoR * (1.0f - R.Metalness) * Fill[0];
-        Out[1] = R.AlbedoG * (1.0f - R.Metalness) * Fill[1];
-        Out[2] = R.AlbedoB * (1.0f - R.Metalness) * Fill[2];
+        // The fill is driven through the SAME lobe set as the direct term, evaluated once along the normal.
+        //    A single direction is a crude stand-in for a cosine-weighted hemisphere integral, and it is kept
+        //    crude on purpose (one evaluation per pixel, no rays -- this is still the GI-off path). What
+        //    matters is that a clearcoated or transmissive slab no longer picks up ambient as though it were
+        //    flat Lambert albedo, which is what `Albedo * (1 - Metalness)` did regardless of the material.
+        const uint32_t AmbientSlab = R.SlabOffset;
+        if (AmbientSlab < Slabs.size() && Frontier::UnifiedMaterial::TablesBound())
+        {
+            ShadingRecord m = Frontier::UnifiedMaterial::Transcribe(
+                Slabs[AmbientSlab], R.Flags >> kMaterialReflectanceShift & 0xFu);
+            const uint32_t ATri = TriId_[Idx];
+            const float AW0 = Bary_[Idx * 2u], AW1 = Bary_[Idx * 2u + 1u], AW2 = 1.0f - AW0 - AW1;
+            const float AP[3] = { AW0 * Flat[ATri].VertexAlphaX + AW1 * Flat[ATri].VertexBetaX + AW2 * Flat[ATri].VertexGammaX,
+                                  AW0 * Flat[ATri].VertexAlphaY + AW1 * Flat[ATri].VertexBetaY + AW2 * Flat[ATri].VertexGammaY,
+                                  AW0 * Flat[ATri].VertexAlphaZ + AW1 * Flat[ATri].VertexBetaZ + AW2 * Flat[ATri].VertexGammaZ };
+            float AN[3] = { TriN_[ATri * 3u], TriN_[ATri * 3u + 1u], TriN_[ATri * 3u + 2u] };
+            float AEx = Eye[0] - AP[0], AEy = Eye[1] - AP[1], AEz = Eye[2] - AP[2];
+            if (AN[0] * AEx + AN[1] * AEy + AN[2] * AEz < 0.0f) { AN[0] = -AN[0]; AN[1] = -AN[1]; AN[2] = -AN[2]; }
+            const float AEl = std::sqrt(AEx * AEx + AEy * AEy + AEz * AEz);
+            AEx /= AEl; AEy /= AEl; AEz /= AEl;
+            const vec3 Nw(AN[0], AN[1], AN[2]);
+            const vec3 Wo(AEx, AEy, AEz);                       // towards the viewer
+            Frontier::UnifiedMaterial::BindAutomotiveHit(m,
+                vec3(Flat[ATri].VertexAlphaX, Flat[ATri].VertexAlphaY, Flat[ATri].VertexAlphaZ),
+                vec3(Flat[ATri].VertexBetaX,  Flat[ATri].VertexBetaY,  Flat[ATri].VertexBetaZ),
+                vec3(Flat[ATri].VertexGammaX, Flat[ATri].VertexGammaY, Flat[ATri].VertexGammaZ),
+                Flat[ATri].TextureAlphaU, Flat[ATri].TextureAlphaV,
+                Flat[ATri].TextureBetaU,  Flat[ATri].TextureBetaV,
+                Flat[ATri].TextureGammaU, Flat[ATri].TextureGammaV,
+                AW1, AW2, AEl, vec3(-AEx, -AEy, -AEz), Nw);
+            const vec3 F = Frontier::UnifiedMaterial::AmbientResponse(m, Nw, Wo);
+            Out[0] = F.x * Fill[0];
+            Out[1] = F.y * Fill[1];
+            Out[2] = F.z * Fill[2];
+        }
+        else
+        {
+            Out[0] = R.AlbedoR * (1.0f - R.Metalness) * Fill[0];
+            Out[1] = R.AlbedoG * (1.0f - R.Metalness) * Fill[1];
+            Out[2] = R.AlbedoB * (1.0f - R.Metalness) * Fill[2];
+        }
     }
 
     // One shadow map per tap, spent over every covered pixel before the next tap renders.
@@ -957,26 +1006,48 @@ void VisibilityRaster::Shade(const SceneStructure& Level, const float Eye[3], co
                 float Hx = Sx + Ex, Hy = Sy + Ey, Hz = Sz + Ez;
                 const float Hl = std::sqrt(Hx * Hx + Hy * Hy + Hz * Hz);
                 Hx /= Hl; Hy /= Hl; Hz /= Hl;
-                const float NdotH = Ns[0] * Hx + Ns[1] * Hy + Ns[2] * Hz;
-                float Alpha = R.Roughness * R.Roughness;
-                if (Alpha < 0.05f)
-                    Alpha = 0.05f;
-                const float A2 = Alpha * Alpha;
-                const float Denom = NdotH * NdotH * (A2 - 1.0f) + 1.0f;
-                const float Df = A2 / (kPi * Denom * Denom);
-                const float Kk = (Alpha + 1.0f) * (Alpha + 1.0f) * 0.125f;
-                const float G = (NdotV / (NdotV * (1.0f - Kk) + Kk)) * (NdotL / (NdotL * (1.0f - Kk) + Kk));
-                const float Cos1 = 1.0f - NdotH;
-                const float Cos5 = Cos1 * Cos1 * Cos1 * Cos1 * Cos1;
+                (void)Hx; (void)Hy; (void)Hz;
+                // THE ENGINE'S MATERIAL MODEL, not a raster-flavoured approximation of it.
+                //
+                //    This used to be a hand-rolled Lambert + single GGX lobe driven off MaterialRecord's
+                //    flattened 64-byte header (AlbedoR/G/B, Roughness, Metalness). That reduction was never a
+                //    property of rasterisation -- rasterisation decides how VISIBILITY is resolved and says
+                //    nothing about which BSDF you evaluate once a pixel knows its triangle. It meant the
+                //    GI-off column of every comparison sheet differed from the GI-on columns by MATERIAL
+                //    MODEL as well as by light transport, so the sheets could not show what they claimed:
+                //    coat, flakes, transmission, fuzz and thin film simply did not exist in this path, and
+                //    the energy-compensation terms were absent from the lobes that did.
+                //
+                //    Same argument, and the same fix, as the tone curve a few lines below.
+                const uint32_t SlabIdx = R.SlabOffset;
                 float* Out = &Acc_[Idx * 3u];
-                const float Alb[3] = { R.AlbedoR, R.AlbedoG, R.AlbedoB };
-                for (int C = 0; C < 3; ++C)
+                if (SlabIdx < Slabs.size() && Frontier::UnifiedMaterial::TablesBound())
                 {
-                    const float F0 = 0.04f + (Alb[C] - 0.04f) * R.Metalness;
-                    const float F = F0 + (1.0f - F0) * Cos5;
-                    const float Spec = Df * G * F / (4.0f * NdotV * NdotL);
-                    const float Diff = Alb[C] * (1.0f - R.Metalness) / kPi;
-                    Out[C] += (Diff + Spec) * Tap.Le[C] * Geo;
+                    ShadingRecord m = Frontier::UnifiedMaterial::Transcribe(
+                        Slabs[SlabIdx], R.Flags >> kMaterialReflectanceShift & 0xFu);
+                    const vec3 Nw(Ns[0], Ns[1], Ns[2]);
+                    const vec3 Wo(Ex, Ey, Ez);        // towards the viewer
+                    const vec3 Wi(Sx, Sy, Sz);        // towards the light
+                    // The flake lobe is per-hit; without this an automotive slab renders black, not flake-less.
+                    Frontier::UnifiedMaterial::BindAutomotiveHit(m,
+                        vec3(Flat[Tri].VertexAlphaX, Flat[Tri].VertexAlphaY, Flat[Tri].VertexAlphaZ),
+                        vec3(Flat[Tri].VertexBetaX,  Flat[Tri].VertexBetaY,  Flat[Tri].VertexBetaZ),
+                        vec3(Flat[Tri].VertexGammaX, Flat[Tri].VertexGammaY, Flat[Tri].VertexGammaZ),
+                        Flat[Tri].TextureAlphaU, Flat[Tri].TextureAlphaV,
+                        Flat[Tri].TextureBetaU,  Flat[Tri].TextureBetaV,
+                        Flat[Tri].TextureGammaU, Flat[Tri].TextureGammaV,
+                        W1, W2, El, vec3(-Ex, -Ey, -Ez), Nw);
+                    const vec3 F = Frontier::UnifiedMaterial::EvaluateWorld(m, Nw, Wo, Wi);
+                    Out[0] += F.x * Tap.Le[0] * Geo;
+                    Out[1] += F.y * Tap.Le[1] * Geo;
+                    Out[2] += F.z * Tap.Le[2] * Geo;
+                }
+                else
+                {
+                    // No slab or no LUTs bound: fall back to the flattened header rather than render black.
+                    const float Alb[3] = { R.AlbedoR, R.AlbedoG, R.AlbedoB };
+                    for (int C = 0; C < 3; ++C)
+                        Out[C] += (Alb[C] * (1.0f - R.Metalness) / kPi) * Tap.Le[C] * Geo;
                 }
             }
         }

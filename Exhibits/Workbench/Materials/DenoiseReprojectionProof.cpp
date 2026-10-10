@@ -134,8 +134,8 @@ int main()
               "A4 default denoise chain = the descriptor ceiling (5 levels), 4 spatial taps");
 
         ReSTIRIntegrator Integrator(Defaults);
-        ProjectZero::FlyThroughConfiguration Flight{};
-        ProjectZero::FlyThroughSolver Camera(Flight);
+        HostRuntime::FlyThroughConfiguration Flight{};
+        HostRuntime::FlyThroughSolver Camera(Flight);
 
         const DispatchConfiguration Dispatch = Integrator.BuildDispatch(Camera, 1280u, 720u, 0u, 4u);
         // kFeatureGiReuse (bit 8, the indirect half's pool) is ON by default since the kernel port landed, so the

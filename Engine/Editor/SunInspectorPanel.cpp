@@ -1,5 +1,7 @@
 #include "SunInspectorPanel.h"
 #include "ControlPanel.h"
+#include "CurvePanel.h"
+#include "EnvironmentProjection.h"
 #include "../DisplayPresentation/SunReferenceDraw.h"
 #include "../DisplayPresentation/SunColourTemperature.h"
 #include <imgui_internal.h>
@@ -150,7 +152,7 @@ void RecordSunInspector(ControlPanel& Controls,EditorInstance& Row,EditorSheet& 
     auto* Duration=Find(Sheet,"Day duration");auto* Speed=Find(Sheet,"Speed");
     auto* Intensity=Find(Sheet,"Intensity");auto* Temperature=Find(Sheet,"Temperature");
     auto* ColourSource=Find(Sheet,"Colour source");auto* RgbTint=Find(Sheet,"Sun Tint");
-    if(!Duration||!Speed||!Time||!Size||!Animate||!Az||!El||!Intensity||!Temperature||!ColourSource||!RgbTint){ImGui::TextUnformatted("Sun property sheet unavailable");return;}
+    if(!Duration||!Speed||!Time||!Size||!Animate||!Az||!El||!Intensity||!Temperature||!ColourSource||!RgbTint||!Find(Sheet,"Year")||!Find(Sheet,"UTC offset")){ImGui::TextUnformatted("Sun property sheet unavailable");return;}
     ImFont* Body=Face("Sun reference / regular"),*Light=Face("Sun reference / light");
     if(!Body)Body=Controls.QueryUi();
     if(!Light)Light=Body;
@@ -166,12 +168,7 @@ void RecordSunInspector(ControlPanel& Controls,EditorInstance& Row,EditorSheet& 
     ImGui::SetCursorScreenPos(U.At(W-98,62));if(ImGui::InvisibleButton("##sun-enabled",{98,32}))Row.Visible=!Row.Visible;
     U.D->AddRectFilled(U.At(W-98,62),U.At(W,94),Colour(38,38,38),16);U.D->AddRect(U.At(W-98,62),U.At(W,94),Colour(59,59,59),16);
     U.D->AddCircleFilled(U.At(W-82,78),3,Row.Visible?Colour(150,207,161):Colour(198,115,112));U.Text(W-70,71,Row.Visible?"Enabled":"Disabled",11);
-    // The requested quick bake area is at the top, with distinct lighting and disk targets.
-    U.Text(0,129,"BAKING",10,Muted);U.Text(W-190,129,"Native target bindings pending",9,Colour(129,126,121));
-    float BakeW=Two?(W-12)/2:W;
-    U.Bake(0,153,BakeW,"Sun lighting bake","sun-lighting-bake");
-    U.Bake(Two?BakeW+12:0,Two?153:390,BakeW,"Sun disk bake","sun-disk-bake");
-    float Y=Two?404:641;
+    float Y=129;
     U.Text(0,Y,"PROPERTIES",10,Muted);U.Text(125,Y,"Light, direction & atmosphere",10,Colour(133,133,133));Y+=32;
     const bool WrapTiles=W<600;
     float Tile=std::min(160.0f,(W-(WrapTiles?9:27))/(WrapTiles?2:4));
@@ -187,7 +184,7 @@ void RecordSunInspector(ControlPanel& Controls,EditorInstance& Row,EditorSheet& 
     Y+=64;
     // HTML's two-column grid: direction spans illuminance and temperature; then cycle / disc.
     const bool StackDirection=L<370;
-    const float DirH=StackDirection?711:594,SmallH=(DirH-Gap)/2,BottomH=329;
+    const float DirH=840,SmallH=(DirH-Gap)/2,BottomH=360;
     U.Card(0,Y,L,DirH,"Sun direction",Mark::Orbit,Colour(232,182,95));
     char Buffer[64];std::snprintf(Buffer,sizeof(Buffer),"%.1f°",double(El->Figure));U.Text(24,Y+57,Buffer,Two?54:46,Ink,true);
     U.Text(L-105,Y+70,El->Figure<0?"Below the\nhorizon":"Above the\nhorizon",10,Muted);
@@ -206,11 +203,14 @@ void RecordSunInspector(ControlPanel& Controls,EditorInstance& Row,EditorSheet& 
     std::snprintf(Buffer,sizeof(Buffer),"%.1f",double(Intensity->Figure));U.Text(IX+24,IY+58,Buffer,46,Ink,true);
     U.Text(IX+31+Light->CalcTextSizeA(46,10000,0,Buffer).x,IY+84,"×",17,Muted);
     U.Text(IX+24,IY+116,"Sunlight intensity multiplier",11,Muted);
-    // Keep the reference illustration, normalized to the native 0–60 gain range, not klux.
-    const float Fraction=std::isfinite(Intensity->Figure)?std::clamp(Intensity->Figure/Intensity->Maximum,0.0f,1.0f):0;
-    Illuminance(Fit(U.D,U.At(IX+24,IY+137),{R-48,80},360,100),Fraction*150);
-    U.Native(IX+24,IY+223,R-48,"##sun-intensity",*Intensity);
-    U.Text(IX+24,IY+267,"0 ×",10,Muted);U.Text(IX+R-50,IY+267,"60 ×",10,Muted);
+    CurvePanel GainCurve{U.At(IX+24,IY+142), {R-48,150}, {0,0}, {60,300}};
+    GainCurve.RecordProbe("##sun-gain-curve", Intensity->Figure, 0.6f, "x");
+    const float DirectGain = Find(Sheet,"Direct")->Figure;
+    const float CombinedGain = GainCurve.RecordCurve([&](float Gain) { return Gain * DirectGain; }, Colour(217,198,161));
+    std::snprintf(Buffer,sizeof(Buffer),"Gain %.1f x · Direct %.2f x",double(CombinedGain),double(DirectGain));
+    U.Text(IX+24,IY+302,Buffer,10,Muted);
+    U.Native(IX+24,IY+324,R-48,"##sun-intensity",*Intensity);
+    U.Wrap(IX+24,IY+366,R-48,"Drag gain · Intensity × Direct. Authored multipliers, not measured lux.",10,Muted);
     float TY=IY+SmallH+Gap;
     U.Card(IX,TY,R,SmallH,"Temperature",Mark::Sparkles,Colour(230,156,121));
     if(ColourSource->Picked==1){
@@ -241,15 +241,41 @@ void RecordSunInspector(ControlPanel& Controls,EditorInstance& Row,EditorSheet& 
     U.D->AddRectFilled(U.At(IX+24,TY+246),U.At(IX+36,TY+258),ImGui::ColorConvertFloat4ToU32({SunColourTemperature::DisplayChannel(Tint[0]),SunColourTemperature::DisplayChannel(Tint[1]),SunColourTemperature::DisplayChannel(Tint[2]),1}),3);
     U.Text(IX+44,TY+244, KelvinActive?(Temperature->Figure<4500?"Golden warmth":Temperature->Figure>7000?"Cool daylight":"Natural daylight"):"Manual RGB tint active",11,Colour(170,170,170));
     U.Text(IX+24,TY+267,KelvinActive?"Blackbody tint approximation · linear RGB":"Move Kelvin slider to use temperature",9,Muted);
+    const ImGuiID SpectrumIdentity = ImGui::GetID("##sun-spectrum-wavelength");
+    float Wavelength = ImGui::GetStateStorage()->GetFloat(SpectrumIdentity,550);
+    CurvePanel SpectrumCurve{U.At(IX+24,TY+286), {R-48,85}, {380,0}, {780,1}};
+    SpectrumCurve.RecordProbe("##sun-spectrum-curve", Wavelength, 4, "nm");
+    const float Power = SpectrumCurve.RecordCurve([&](float Sample) { return EnvironmentProjection::SampleSpectrum(Sample,Temperature->Figure); }, Colour(210,190,173));
+    ImGui::GetStateStorage()->SetFloat(SpectrumIdentity,Wavelength);
+    std::snprintf(Buffer,sizeof(Buffer),"%.0f nm · %.3f relative power",double(SpectrumCurve.Probe),double(Power));
+    U.Text(IX+24,TY+377,Buffer,10,Muted);
+    U.Text(IX+24,TY+394,"Planck study · RGB mode does not use this spectrum",9,Muted);
+    CelestialObservation Observer;
+    Observer.Year = int(Find(Sheet,"Year")->Figure);
+    Observer.Month = int(Find(Sheet,"Month")->Figure);
+    Observer.Day = int(Find(Sheet,"Day of Month")->Figure);
+    Observer.LocalHours = Time->Figure;
+    Observer.Latitude = Find(Sheet,"Latitude")->Figure;
+    Observer.Longitude = Find(Sheet,"Longitude")->Figure;
+    Observer.UtcOffset = Find(Sheet,"UTC offset")->Figure;
     float CY=Two?Y+DirH+Gap:TY+SmallH+Gap;
     U.Card(0,CY,L,BottomH,"Daylight cycle",Mark::Sun,Colour(212,185,112));
     int Hour=int(Time->Figure),Minute=int(std::round((Time->Figure-Hour)*60));if(Minute==60){Minute=0;Hour=(Hour+1)%24;}
     std::snprintf(Buffer,sizeof(Buffer),"%02d:%02d",Hour,Minute);U.Text(24,CY+61,Buffer,40,Ink,true);
-    const char* Period=Time->Figure<6||Time->Figure>=18?"Night":Time->Figure<12?"Morning":Time->Figure<17?"Afternoon":"Evening";
+    const char* Period=CelestialSolver::Solve(Observer).Sun.Elevation<0?"Night":"Daylight";
     U.D->AddRectFilled(U.At(L-109,CY+68),U.At(L-24,CY+94),Colour(44,44,44),13);U.Centre(L-109,CY+75,85,Period,10,Colour(188,188,188));
-    Day(Fit(U.D,U.At(24,CY+121),{L-48,105},500,123),Time->Figure);
-    U.Native(24,CY+241,L-48,"##sun-time",*Time);
-    const char* Times[]={"00:00","06:00","12:00","18:00","24:00"};for(int I=0;I<5;++I)U.Text(24+I*(L-78)/4,CY+287,Times[I],10,Muted);
+    CurvePanel DayCurve{U.At(24,CY+116), {L-48,135}, {0,-90}, {24,90}};
+    DayCurve.RecordProbe("##sun-day-curve", Time->Figure, 0.24f, "h");
+    const float DayElevation = DayCurve.RecordCurve([&](float Hours)
+    {
+        auto Position = Observer;
+        Position.LocalHours = Hours;
+        return CelestialSolver::Solve(Position).Sun.Elevation;
+    }, Colour(222,204,170));
+    std::snprintf(Buffer,sizeof(Buffer),"%.2f h · elevation %+.2f deg",double(DayCurve.Probe),double(DayElevation));
+    U.Text(24,CY+264,Buffer,10,Muted);
+    U.Native(24,CY+286,L-48,"##sun-time",*Time);
+    U.Text(24,CY+332,"Drag time · native solar solver / current date",9,Muted);
     float DX=Two?L+Gap:0,DY=Two?CY:CY+BottomH+Gap;
     U.Card(DX,DY,R,BottomH,"Sun disc",Mark::Sun,Colour(240,189,114));
     std::snprintf(Buffer,sizeof(Buffer),"%.2f°",double(Size->Figure));U.Text(DX+24,DY+93,Buffer,R<380?34:43,Ink,true);U.Text(DX+24,DY+146,"Angular diameter",11,Muted);
@@ -263,12 +289,33 @@ void RecordSunInspector(ControlPanel& Controls,EditorInstance& Row,EditorSheet& 
     U.Native(DX+24,DY+217,R-48,"##sun-diameter",*Size);U.Text(DX+24,DY+262,"Pinpoint",10,Muted);U.Text(DX+R-84,DY+262,"Broad disc",10,Muted);
     U.Rule(DX+24,DY+287,R-48);U.D->AddCircleFilled(U.At(DX+28,DY+306),3.5f,Colour(212,189,146));U.Text(DX+40,DY+301,"Apparent size of the sun in the sky",10,Muted);
     float End=DY+BottomH+24;
-    U.Card(0,End,W,204,"Dynamic settings",Mark::Orbit,Colour(212,185,112));
+    U.Card(0,End,W,434,"Dynamic settings",Mark::Orbit,Colour(212,185,112));
     U.Text(24,End+53,Animate->On?"Dynamic · clock advancing":"Static · position held",18,Ink);
     U.Text(24,End+86,"Full day duration · real hours per complete 24-hour solar cycle",10,Muted);
     U.Native(24,End+111,W-48,"##sun-day-duration",*Duration);
     U.Wrap(24,End+157,W-48,"6 h = one full cycle in six real hours. Both time sliders position the same Sun; static stops automatic movement.",11,Muted);
-    End+=228;
+    float DayNumber = float(EnvironmentProjection::ProjectDay(Observer));
+    CurvePanel SeasonCurve{U.At(24,End+209), {W-48,150}, {1,-90}, {float(EnvironmentProjection::CountYearDays(Observer.Year)),90}};
+    if (SeasonCurve.RecordProbe("##sun-season-curve", DayNumber, 1, "d"))
+    {
+        EnvironmentProjection::ResolveDate(Observer,int(std::round(DayNumber)));
+        Find(Sheet,"Month")->Figure = float(Observer.Month);
+        Find(Sheet,"Day of Month")->Figure = float(Observer.Day);
+    }
+    const float NoonElevation = SeasonCurve.RecordCurve([&](float DaySample)
+    {
+        auto Position = Observer;
+        EnvironmentProjection::ResolveDate(Position,int(std::round(DaySample)));
+        Position.LocalHours = 12;
+        return CelestialSolver::Solve(Position).Sun.Elevation;
+    }, Colour(187,198,172));
+    auto InspectedDate = Observer;
+    EnvironmentProjection::ResolveDate(InspectedDate,int(std::round(SeasonCurve.Probe)));
+    std::snprintf(Buffer,sizeof(Buffer),"%04d-%02d-%02d · local-noon elevation %+.2f deg",
+        InspectedDate.Year,InspectedDate.Month,InspectedDate.Day,double(NoonElevation));
+    U.Wrap(24,End+372,W-48,Buffer,10,Muted);
+    U.Wrap(24,End+393,W-48,"Drag date · native solver at 12:00 local time, not solar noon. Hover inspects; arrows / Home / End edit.",10,Muted);
+    End+=458;
     ImGui::SetCursorScreenPos(U.At(0,End));
     // Authoring-only supplement. Solver inputs remain intact in the project sheet.
     ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding,{24,20});
@@ -288,7 +335,7 @@ void RecordSunInspector(ControlPanel& Controls,EditorInstance& Row,EditorSheet& 
     if(Expanded) {
         ImGui::TextWrapped("Direct sunlight, manual tint and seasonal date. Editing tint switches to RGB mode.");
         ImGui::Dummy({0,10});
-        for(const char* Label:{"Direct","Sun Tint","Day of Month","Month"})
+        for(const char* Label:{"Direct","Sun Tint","Day of Month","Month","Year","Latitude","Longitude","UTC offset"})
             if(auto* P=Find(Sheet,Label))Extra(Controls,*P);
     }
     ImGui::EndChild();
@@ -296,7 +343,14 @@ void RecordSunInspector(ControlPanel& Controls,EditorInstance& Row,EditorSheet& 
     ImGui::PopStyleColor();ImGui::PopStyleVar();
     // Parent draw list is submitted before its child: same gradient/radius as every other card.
     U.Surface(0,End,W,CardHeight,22);
-    ImGui::SetCursorScreenPos({Origin.x,ImGui::GetCursorScreenPos().y+12});ImGui::TextDisabled("Bound controls apply in real time. Unavailable controls are disabled.");
+    // Export targets always follow authoring, previews and native settings.
+    float BakeY=End+CardHeight+22;
+    U.Text(0,BakeY,"BAKING / TEXTURES",10,Muted);
+    U.Text(0,BakeY+20,"Native target bindings pending",10,Muted);
+    const float BakeW=Two?(W-12)/2:W;
+    U.Bake(0,BakeY+44,BakeW,"Sun lighting bake","sun-lighting-bake");
+    U.Bake(Two?BakeW+12:0,BakeY+(Two?44:281),BakeW,"Sun disk bake","sun-disk-bake");
+    ImGui::SetCursorScreenPos(U.At(0,BakeY+(Two?290:527)));ImGui::TextDisabled("Bound controls apply in real time. Unavailable controls are disabled.");
     ImGui::Dummy({0,16});ImGui::PopFont();
 }
 }

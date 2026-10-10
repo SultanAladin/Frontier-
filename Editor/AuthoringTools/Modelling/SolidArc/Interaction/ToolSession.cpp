@@ -3,6 +3,7 @@
 //============================================================================================================================================
 
 #include "ToolSession.h"
+#include <algorithm>
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
@@ -105,6 +106,19 @@ bool ToolSession::Begin(ToolChoice NewChoice, const Context& NewCtx, Completion 
     Live.Cursor = Ctx.Plane.Origin;
     Rebuild();
     return true;
+}
+
+void ToolSession::ResizeViewport(uint32_t Width, uint32_t Height) noexcept
+{
+    if (Ctx.Width == Width && Ctx.Height == Height) return;
+    if (HavePointer && Ctx.Width > 0u && Ctx.Height > 0u)
+    {
+        PointerX *= double(Width) / Ctx.Width;
+        PointerY *= double(Height) / Ctx.Height;
+    }
+    Ctx.Width = Width;
+    Ctx.Height = Height;
+    if (Active()) Rebuild();
 }
 
 void ToolSession::Cancel() noexcept { if (Active()) Finish(false); }
@@ -330,6 +344,7 @@ bool ToolSession::Confirm() noexcept
 {
     if (!Active()) return false;
     if (!Live.NumericEntry.empty()) return SupplyText(std::string(Live.NumericEntry));
+    if (Confirmed.empty() && !HavePointer) return false; // Enter never invents a first point at the origin
     if (CurrentPrompt().Optional || PromptIndex >= Prompts.size()) { Finish(true); return true; }
     if (Classification == ToolChoice::Move || Classification == ToolChoice::Rotate || Classification == ToolChoice::Scale) { Finish(true); return true; }
     return Advance(Live.Cursor);

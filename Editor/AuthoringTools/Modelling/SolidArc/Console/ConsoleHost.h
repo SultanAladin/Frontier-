@@ -51,6 +51,8 @@ public:
     [[nodiscard]] const TransformGizmo& Gizmo() const noexcept { return GizmoRig; }
     [[nodiscard]] const UndoSequence&  Timeline() const noexcept { return Undo; }
     [[nodiscard]] SelectMode            CurrentSelectMode() const noexcept { return Mode; }
+    [[nodiscard]] bool                  HasActiveTool() const noexcept { return Tool.Active(); }
+    void MoveToolPointer(double X, double Y, bool SuppressSnap) noexcept;
 
     // ---- Dimension public types (Phase 13) --------------------------------------------------
     // The free function that formats dim labels lives in ConsoleHost.cpp's anonymous namespace and needs
@@ -101,6 +103,27 @@ public:
     [[nodiscard]] const RasterExchange& Raster() const noexcept { return *Surface; }
     [[nodiscard]] const Workplane&     WorkPlane() const noexcept { return Plane; }
 
+    // The editor's view. The host seats the raster at the size the view draws (so no pixel is stretched) with a working
+    //    pixel count per visible pixel (the anti-aliasing), then selects through the pick plane at view pixels.
+    void SeatSurface(uint32_t Width, uint32_t Height, uint32_t Samples) noexcept;
+    void AssignLatticeCell(double Metres) noexcept { if (Metres > 0.0 && Metres < 10.0) LatticeCell = Metres; }
+    bool SelectAtView(double X, double Y, bool Extend) noexcept { return SelectAtPixel(X, Y, Extend); }
+    int  SelectBoxAtView(double X0, double Y0, double X1, double Y1, bool Extend, bool Subtract) noexcept { return SelectInRectangle(X0, Y0, X1, Y1, Extend, Subtract); }
+    void HoverAtView(double X, double Y) noexcept { HoverAtPixel(X, Y); }
+    void HoverNothing() noexcept { HoverPick = 0; }
+    // Draws only when something the picture shows has changed since the last draw (the document, the camera, the hover, the
+    //    size); true when it drew. A full-size anti-aliased draw is far dearer than the hash that decides whether it is needed.
+    bool RenderIfChanged() noexcept;
+
+    // Browser gestures use the original analytic gizmo. Preview is reversible; release journals a world-space affine
+    // command, never screen coordinates, so save/replay is independent of the camera and viewport resolution.
+    bool BeginGizmoAtView(double Horizontal, double Vertical) noexcept;
+    bool DragGizmoAtView(double Horizontal, double Vertical, bool Snapping) noexcept;
+    bool FinishGizmoAtView(bool Cancel) noexcept;
+    int AimGizmoAtView(double Horizontal, double Vertical) noexcept;
+    void ResizeGizmoAtView(double Pixels) noexcept { GizmoRig.Resize(Pixels); }
+    [[nodiscard]] bool GizmoVisible() const noexcept { return GizmoShown; }
+
 private:
     using Command = std::function<bool(const CommandLine&)>;
     void Register() noexcept;
@@ -138,7 +161,7 @@ private:
     int  SelectInRectangle(double X0, double Y0, double X1, double Y1, bool Toggle, bool Subtract) noexcept;
     void HoverAtPixel(double X, double Y) noexcept;
     [[nodiscard]] Vec3 SelectionPivot() const noexcept;                                 // figure bounds centre or selected-pole centroid
-    void ApplyDeltaToSelection(const Mat4& Delta) noexcept;
+    bool ApplyDeltaToSelection(const Mat4& Delta) noexcept;
     void DrawToolPreview() noexcept;
     // ---- Dimension overlay (Phase 13) --------------------------------------------------------
     void DrawDimensions() noexcept;                                                     // render every non-hidden dim on the overlay pass
@@ -192,7 +215,6 @@ private:
     bool                                 GizmoShown = true;                             // [-] drawn whenever a selection exists
     std::vector<std::pair<uint32_t, SceneFigure>> GizmoOriginals;                         // [-] figure as they were when the drag began
     void RefreshGizmoPivot() noexcept;
-    void ApplyGizmoDelta(const Mat4& Delta) noexcept;
     SnapSettings                         Snap;
     HotkeyChart                          Hotkeys = HotkeyChart::Defaults();
     double                               PointerX = 0.0, PointerY = 0.0;                // [px] synthetic pointer
@@ -216,6 +238,10 @@ private:
     int32_t                              EditDimensionId   = 0;                         // [-] dim awaiting a new value (numeric input in REPL)
 
     std::unique_ptr<SoftwareRaster>      Surface;
+    [[nodiscard]] uint64_t               PictureSignature() const noexcept;
+    uint64_t                             DrawnSignature = 0;                           // [-] the picture's signature at the last RenderIfChanged
+    double                               LatticeCell = 1.0; // native editor overrides to 10 mm; scripts retain 1 m
+    uint32_t                             Revision = 0;                                 // [-] bumps on every command, which may change anything
     std::map<std::string, Command>       Commands;
     std::map<std::string, std::string>   Usage;
     int                                  Refusals = 0;
@@ -229,6 +255,8 @@ private:
     int                                  ExecuteDepth = 0;
     bool                                 ShowControlCages = false;
     bool                                 ShowIsoCurves = true;
+    bool                                 ShowFeatureCurves = true;                     // [-] independent feature-curve visibility
+    bool                                 ShowBoundaryEdges = true;                     // [-] B-rep edge overlay; geometry is unchanged
     bool                                 ShowDimensions = false;        // [Phase 13] dims hidden by default until the renderer is polished
     SurfaceShading                       Shading = SurfaceShading::Matcap;
 

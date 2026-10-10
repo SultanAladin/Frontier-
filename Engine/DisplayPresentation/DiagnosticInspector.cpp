@@ -10,6 +10,8 @@
 #include "../ContentInterchange/TextureIndex.h"
 #include <algorithm>
 #include <cstdio>
+#include <cmath>
+#include <imgui.h>
 
 namespace Frontier {
 
@@ -78,16 +80,13 @@ void Thousands(char* Out, size_t Capacity, uint32_t Value)
 void DiagnosticInspector::ConstructInspectorLayout(PixelSpace& Surface, float TopInset, float DisplayWidth, const VisibilityTelemetry& T,
                                                    uint32_t ClusterTotal, bool DrawIndirectCount, const ReSTIRIntegratorConfiguration& ReSTIR,
                                                    const MaterialIndexMetrics& MaterialStats, const TextureIndexMetrics& TextureStats,
-                                                   uint32_t MaxTextureLevels, const char* MaterialSummary) const noexcept
+                                                   uint32_t MaxTextureLevels, const char* MaterialSummary) noexcept
 {
+    PointerCaptured_ = false;
     if (!Open_ || !Surface.IsRecording()) return;
 
-    const ControlKitPalette& P = ControlKit::Palette();
-    constexpr float Inset = 16.0f, Padding = 12.0f, TitleSize = 13.0f, RowSize = 11.0f, RowGap = 4.0f, Width = 360.0f;
-
-    char Title[64];
-    std::snprintf(Title, sizeof(Title), "Debug View  \xC2\xB7  %s", DebugViewName(View_));
-
+    (void)TopInset;
+    (void)DisplayWidth;
     char Total[16], Frustum[16], Cone[16], Visible[16], One[16], Two[16], Tris[16];
     Thousands(Total,   sizeof(Total),   T.Valid ? T.ClusterTotal : ClusterTotal);
     Thousands(Frustum, sizeof(Frustum), T.FrustumPassed);
@@ -158,32 +157,114 @@ void DiagnosticInspector::ConstructInspectorLayout(PixelSpace& Surface, float To
     }
     std::snprintf(Rows[RowCount - 1u], sizeof(Rows[RowCount - 1u]), "F3 next  \xC2\xB7  Shift+F3 previous  \xC2\xB7  F4 HiZ on/off  \xC2\xB7  F5 alias pick  \xC2\xB7  F6 patch error  \xC2\xB7  Esc close");
 
-    const PlanePoint TitleSizePx = Surface.MeasureText(Title, TitleSize);
-    float ContentWidth = std::max(Width - Padding * 2.0f, TitleSizePx.X);
-    float RowHeight = 0.0f;
-    for (uint32_t I = 0u; I < RowCount; ++I) { const PlanePoint M = Surface.MeasureText(Rows[I], RowSize); ContentWidth = std::max(ContentWidth, M.X); RowHeight = std::max(RowHeight, M.Y); }
-
-    const float CardWidth  = ContentWidth + Padding * 2.0f;
-    const float CardHeight = Padding * 2.0f + TitleSizePx.Y + 8.0f + static_cast<float>(RowCount) * (RowHeight + RowGap) - RowGap;
-    const PlaneExtent Card = Spanning(DisplayWidth - Inset - CardWidth, TopInset + Inset, CardWidth, CardHeight);
-
-    // Notch card: CardSub background, 1 px stroke, 12 px radius (matches the FPS pill and toasts).
-    Surface.FillRectangle(Card, ColorQuad{ P.CardSub.Red, P.CardSub.Green, P.CardSub.Blue, 0.92f }, 12.0f);
-    ControlKit::OutlineRounded(Surface, Card, P.Stroke, 12.0f, 1.0f);
-
-    float Y = Card.MinimumY + Padding;
-    Surface.Text(Card.MinimumX + Padding, Y, P.Text, Title, TitleSize);
-    // Accent dot next to the title when a view other than Off is active.
-    if (View_ != DebugViewCategory::Off)
-        ControlKit::FillCircle(Surface, Card.MinimumX + Padding + TitleSizePx.X + 10.0f, Y + TitleSizePx.Y * 0.5f, 3.5f, P.Accent);
-    Y += TitleSizePx.Y + 8.0f;
-
-    for (uint32_t I = 0u; I < RowCount; ++I)
+    ImGui::SetNextWindowSize(ImVec2(390, 530), ImGuiCond_FirstUseEver);
+    ImGui::SetNextWindowPos(ImVec2(28, 90), ImGuiCond_FirstUseEver);
+    const ImVec2 Display = ImGui::GetIO().DisplaySize;
+    ImGui::SetNextWindowSizeConstraints(ImVec2(std::min(300.0f, Display.x), std::min(260.0f, Display.y)), Display);
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 18.0f);
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(18, 18));
+    ImGui::PushStyleColor(ImGuiCol_WindowBg, IM_COL32(29, 29, 29, 248));
+    if (ImGui::Begin("Statistics / Debug##native-diagnostics", &Open_, ImGuiWindowFlags_NoDocking))
     {
-        const ColorQuad Ink = I == RowCount - 1u ? P.TextDim : (I == 2u && !Occlusion_ ? ColorQuad{ 0xF5 / 255.0f, 0xA5 / 255.0f, 0x24 / 255.0f, 1.0f } : P.Text);
-        Surface.Text(Card.MinimumX + Padding, Y, Ink, Rows[I], RowSize);
-        Y += RowHeight + RowGap;
+        PointerCaptured_ = ImGui::IsWindowHovered(ImGuiHoveredFlags_RootAndChildWindows | ImGuiHoveredFlags_AllowWhenBlockedByActiveItem);
+        const ImVec2 Position = ImGui::GetWindowPos();
+        const ImVec2 Extent = ImGui::GetWindowSize();
+        ImGui::SetWindowPos(ImVec2(std::clamp(Position.x, 0.0f, std::max(0.0f, Display.x - Extent.x)),
+                                   std::clamp(Position.y, 0.0f, std::max(0.0f, Display.y - Extent.y))));
+        ImGui::TextDisabled("NATIVE / COMPLETED GPU TELEMETRY");
+        ImGui::SetNextItemWidth(-1);
+        ImGui::Combo("##metric", &Metric_, "FPS\0Frame interval\0GPU span\0");
+        ImGui::SetNextItemWidth(-1);
+        ImGui::Combo("##presentation", &Presentation_, "Stats and graph\0Stats only\0Graph only\0");
+        ImGui::SetNextItemWidth(-1);
+        ImGui::Combo("##period", &Period_, "15 seconds\0 30 seconds\0 60 seconds\0");
+        ImGui::Checkbox("Pause recording", &Paused_);
+        ImGui::SameLine();
+        if (ImGui::SmallButton("Clear")) DurationCount_ = DurationCursor_ = 0;
+        const unsigned Wanted = Period_ == 0 ? 30u : Period_ == 1 ? 60u : 120u;
+        const unsigned Count = std::min(DurationCount_, Wanted);
+        const auto Reading = [&](unsigned Position)
+        {
+            const auto& Sample = Durations_[(DurationCursor_ + 120 - Count + Position) % 120];
+            return Metric_ == 0 ? Sample.Fps : Metric_ == 1 ? Sample.Milliseconds : Sample.Gpu;
+        };
+        float Minimum = 0, Maximum = 0, Sum = 0;
+        unsigned Valid = 0;
+        for (unsigned Position = 0; Position < Count; ++Position)
+        {
+            const float Measurement = Reading(Position);
+            if (Measurement < 0) continue;
+            Minimum = Valid ? std::min(Minimum, Measurement) : Measurement;
+            Maximum = std::max(Maximum, Measurement);
+            Sum += Measurement;
+            ++Valid;
+        }
+        const char* Unit = Metric_ == 0 ? "FPS" : "ms";
+        if (Presentation_ != 2)
+        {
+            if (Count && Reading(Count - 1) >= 0)
+                ImGui::Text("%.2f %s", double(Reading(Count - 1)), Unit);
+            else ImGui::TextUnformatted(Metric_ == 2 ? "GPU timing unavailable" : "Waiting for measurements");
+            if (Valid) ImGui::TextWrapped("Mean %.2f   Min %.2f   Max %.2f %s", double(Sum / Valid), double(Minimum), double(Maximum), Unit);
+        }
+        if (Presentation_ != 1)
+        {
+            const ImVec2 Origin = ImGui::GetCursorScreenPos();
+            const ImVec2 Size(std::max(1.0f, ImGui::GetContentRegionAvail().x), std::max(70.0f, std::min(210.0f, ImGui::GetContentRegionAvail().y - 135.0f)));
+            ImGui::InvisibleButton("##duration-graph", Size);
+            auto* Commands = ImGui::GetWindowDrawList();
+            Commands->AddRectFilled(Origin, ImVec2(Origin.x + Size.x, Origin.y + Size.y), IM_COL32(20, 20, 20, 255), 12);
+            const float Ceiling = std::max(1.0f, Maximum * 1.15f);
+            const auto Coordinate = [&](unsigned Position)
+            {
+                return ImVec2(Origin.x + 8 + (Size.x - 16) * Position / std::max(1u, Count - 1),
+                              Origin.y + Size.y - 8 - (Size.y - 16) * Reading(Position) / Ceiling);
+            };
+            for (unsigned Line = 1; Line < 4; ++Line)
+                Commands->AddLine(ImVec2(Origin.x + 8, Origin.y + Size.y * Line / 4),
+                                  ImVec2(Origin.x + Size.x - 8, Origin.y + Size.y * Line / 4), IM_COL32(65, 65, 65, 130));
+            for (unsigned Position = 1; Position < Count; ++Position)
+                if (Reading(Position - 1) >= 0 && Reading(Position) >= 0)
+                    Commands->AddLine(Coordinate(Position - 1), Coordinate(Position), IM_COL32(183, 196, 155, 255), 2);
+            if (Count && ImGui::IsItemHovered())
+            {
+                const unsigned Position = unsigned(std::clamp((ImGui::GetIO().MousePos.x - Origin.x - 8) / std::max(1.0f, Size.x - 16), 0.0f, 1.0f) * (Count - 1));
+                if (Reading(Position) >= 0) ImGui::SetTooltip("%.1f seconds ago\n%.2f %s", double(Count - 1 - Position) * 0.5, double(Reading(Position)), Unit);
+                else ImGui::SetTooltip("Completed GPU timestamp unavailable");
+            }
+            ImGui::TextDisabled("0 - %.1f %s / %u samples", double(Ceiling), Unit, Count);
+        }
+        ImGui::TextWrapped(Metric_ == 2 ? "Latest completed GPU span at each sample. Excludes UI and presentation; delayed readback, never a CPU estimate." : "Half-second means of actual engine frame intervals. Includes pacing; this is not CPU work time.");
+        if (ImGui::CollapsingHeader("Renderer details"))
+        {
+            ImGui::Text("View: %s", DebugViewName(View_));
+            for (unsigned Row = 0; Row < RowCount; ++Row) ImGui::TextWrapped("%s", Rows[Row]);
+        }
     }
+    ImGui::End();
+    ImGui::PopStyleColor();
+    ImGui::PopStyleVar(2);
+}
+
+void DiagnosticInspector::RecordDurations(float Seconds, const VisibilityTelemetry& Telemetry) noexcept
+{
+    if (Paused_ || !std::isfinite(Seconds) || Seconds <= 0 || Seconds > 1)
+    {
+        IntervalSeconds_ = 0;
+        IntervalCount_ = 0;
+        return;
+    }
+    IntervalSeconds_ += Seconds;
+    ++IntervalCount_;
+    if (IntervalSeconds_ < 0.5f) return;
+    if (Durations_.empty()) Durations_.resize(120);
+    const float Gpu = Telemetry.Valid && std::isfinite(Telemetry.FrameMilliseconds) && Telemetry.FrameMilliseconds > 0
+                    ? Telemetry.FrameMilliseconds : -1.0f;
+    Durations_[DurationCursor_] = {IntervalCount_ / IntervalSeconds_, IntervalSeconds_ * 1000 / IntervalCount_, Gpu};
+    DurationCursor_ = (DurationCursor_ + 1) % 120;
+    DurationCount_ = std::min(120u, DurationCount_ + 1);
+    IntervalSeconds_ = 0;
+    IntervalCount_ = 0;
 }
 
 } // namespace Frontier

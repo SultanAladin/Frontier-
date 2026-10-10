@@ -1,8 +1,10 @@
 #include "FogInspectorPanel.h"
 #include "WindBindingControls.h"
+#include "WindPanelSurface.h"
 #include "ControlPanel.h"
 #include "SunReferenceDraw.h"
 #include "FogModel.h"
+#include "FogPanelSurface.h"
 #include <array>
 #include <imgui_internal.h>
 #include <cstdio>
@@ -32,12 +34,28 @@ void Cleanup(ImGuiContext*,ImGuiContextHook* H){delete static_cast<Profile*>(H->
 Profile& Cache(){constexpr ImGuiID Owner=0x464f4730;for(auto& H:ImGui::GetCurrentContext()->Hooks)if(H.Owner==Owner)return *static_cast<Profile*>(H.UserData);auto* P=new Profile;ImGuiContextHook H;H.Owner=Owner;H.Type=ImGuiContextHookType_Shutdown;H.Callback=Cleanup;H.UserData=P;ImGui::AddContextHook(ImGui::GetCurrentContext(),&H);return *P;}
 void Update(Profile& P,const Models& M,float Range){const auto& F=M.Fog;const auto& V=M.Volume;const auto& A=M.Air;std::array<float,32> K={float(M.Local),float(M.Aerial),Range,float(F.HeightEnabled),F.HeightDensity,F.FalloffHeight,F.SunScatter,float(F.AerialEnabled),F.AerialDensity,F.AerialStart,F.AerialMie,float(V.Enabled),V.Density,V.Coverage,V.Scale,V.Anisotropy,V.Centre[0],V.Centre[1],V.Centre[2],V.HalfSize[0],V.HalfSize[1],V.HalfSize[2],A.RayleighScattering[0],A.RayleighScattering[1],A.RayleighScattering[2],A.MieScattering,A.RayleighScaleHeight,A.MieScaleHeight,F.HeightColour[0],F.HeightColour[1],F.HeightColour[2],float(V.FollowWind)};if(P.Valid&&K==P.Key)return;P.Valid=true;P.Key=K;for(int I=0;I<=64;++I){float RGB[3];Sample(M,Range*I/64,P.Values[I],RGB);}}
 void Axes(Panel& U,float X,float Y,float W,const char* N,const char* Caption){auto& P=*Find(U.Sheet,N);U.Text(X,Y,Caption,11,Muted);ImGui::SetCursorScreenPos(U.At(X,Y+24));ImGui::BeginChild(N,{W,32},ImGuiChildFlags_None,ImGuiWindowFlags_NoScrollbar|ImGuiWindowFlags_NoScrollWithMouse);U.Controls.AxisVec3("##axes",P.Axes,1,true);ImGui::EndChild();}
+void Beam(Panel& U,float X,float Y,float W,const Models& Source){
+ Models M=Source;if(M.Local)M.Volume.Enabled=true;else if(M.Aerial)M.Fog.AerialEnabled=true;else M.Fog.HeightEnabled=true;
+ const bool Live=M.Local?Source.Volume.Enabled:M.Aerial?Source.Fog.AerialEnabled:Source.Fog.HeightEnabled;
+ const float Distance=M.Local||M.Aerial?400.f:120.f,Spread=M.Local?std::max(0.f,M.Volume.Anisotropy):M.Aerial?M.Fog.AerialMie:M.Fog.SunScatter;
+ auto Transport=[&](float D,float Out[3]){if(!M.Local&&!M.Aerial)FogModel::Transmission(M.Fog,M.Air,25,25,D,Out);else{float RGB[3];Sample(M,M.Aerial?M.Fog.AerialStart+D:D,Out,RGB);}};
+ U.Text(X,Y,"BEAM CHAMBER",9,Muted);U.Text(X+W-58,Y,Live?"LIVE":"PREVIEW",9,Live?IM_COL32(170,214,183,255):IM_COL32(221,151,139,255));
+ U.Wrap(X,Y+19,W,M.Local?"Interior medium":M.Aerial?"Aerial medium after Start":"Height medium · 25 m layer");
+ const float L=X+4,R=X+W-4,CY=Y+83;for(float G:{CY-26,CY,CY+26})U.D->AddLine(U.At(L,G),U.At(R,G),IM_COL32(255,255,255,18),1);
+ float Range=Distance;for(int I=0;I<=68;++I){float D=Distance*I/68,T[3];Transport(D,T);float Mean=T[0]*.2126f+T[1]*.7152f+T[2]*.0722f,Exposure=.35f+.65f*std::pow(std::max(Mean,.000001f),.15f),F=float(I)/68,Half=3+F*F*(11+Spread*22),XX=L+(R-L)*F,A=(Live?1.f:.82f)*(.13f+std::min(2.f,Spread)*.2f)*Exposure;ImU32 C=M.Local||M.Aerial?Colour(212,227,236,A):Colour(255*M.Fog.HeightColour[0],255*M.Fog.HeightColour[1],255*M.Fog.HeightColour[2],A);U.D->AddLine(U.At(XX,CY-Half),U.At(XX,CY+Half),C,3.2f);if(Mean<=.02f&&Range==Distance)Range=D;}
+ U.D->AddLine(U.At(L,CY),U.At(R,CY),IM_COL32(238,248,255,185),1.5f);U.D->AddCircleFilled(U.At(L,CY),4,IM_COL32(255,241,202,255));
+ if(Range<Distance){float RX=L+(R-L)*Range/Distance;U.D->AddLine(U.At(RX,CY-38),U.At(RX,CY+38),IM_COL32(237,143,143,200),1);}
+ char Text[96];std::snprintf(Text,sizeof(Text),"2%% range  %s",Range<Distance?"inside diagnostic span":"beyond diagnostic span");U.Text(X,Y+133,Text,9,Muted);float T[3];Transport(Distance,T);float Mean=T[0]*.2126f+T[1]*.7152f+T[2]*.0722f;std::snprintf(Text,sizeof(Text),"%.0f%% physical at %.0f m",double(Mean*100),double(Distance));U.Text(X+W-132,Y+133,Text,9,Muted);
+}
 }
 void RecordFogInspector(ControlPanel& Controls,EditorInstance&,EditorSheet& Sheet){
- RecordWindBindingControls(Sheet);
  if(!Find(Sheet,"Density")||!Find(Sheet,"Enabled")){ImGui::TextUnformatted("Fog properties unavailable");return;}
  auto* Font=ImGui::GetFont();for(auto* F:ImGui::GetIO().Fonts->Fonts)if(!std::strcmp(F->GetDebugName(),"Sun reference / regular"))Font=F;ImGui::PushFont(Font,14);ImGui::PushID(static_cast<int>(Sheet.Appearance));ImVec2 O=ImGui::GetCursorScreenPos();O.x+=20;O.y+=20;float W=std::max(240.f,ImGui::GetContentRegionAvail().x-40);Panel U{Controls,Sheet,ImGui::GetWindowDrawList(),O,Font};Models M=Read(Sheet);char Text[160];
  U.Text(0,8,"Inspector / Environment",8,Muted);U.Text(0,48,"Fog",25);U.Text(0,83,M.Local?"LOCAL VOLUMETRIC FOG · bounded medium":M.Aerial?"AERIAL PERSPECTIVE · surface-distance fog":"HEIGHT FOG · exponential vertical density",10,Muted);
+ FogCards::FogValues Air;Air.Kind=M.Local?FogCards::FogKind::Local:M.Aerial?FogCards::FogKind::Aerial:FogCards::FogKind::Height;Air.Enabled=Find(Sheet,"Enabled")->On;Air.Density=Find(Sheet,"Density")->Figure;
+ if(M.Local){Air.Coverage=M.Volume.Coverage;Air.Anisotropy=M.Volume.Anisotropy;}else if(M.Aerial){Air.Start=M.Fog.AerialStart;Air.MieBlend=M.Fog.AerialMie;}else{Air.Falloff=M.Fog.FalloffHeight;Air.SunScatter=M.Fog.SunScatter;for(int C=0;C<3;++C)Air.Tint[C]=M.Fog.HeightColour[C];}
+ // ResolveFogShape with nothing saved: the box the Half Size axes already describe.
+ static FogCards::FogShape Shape;Shape.Wide=M.Volume.HalfSize[0]*2;Shape.Deep=M.Volume.HalfSize[1]*2;Shape.Tall=M.Volume.HalfSize[2]*2;Shape.Radius=M.Volume.HalfSize[0];
  U.Card(0,110,W,142,"Fog settings");U.Tile(24,164,112,"Enabled",&Find(Sheet,"Enabled")->On);if(M.Local)U.Tile(148,164,std::min(132.f,W-172),"Follow wind",&Find(Sheet,"Follow Wind")->On);
  float Range=M.Local?2*M.Volume.HalfSize[1]:M.Aerial?20000:500;ImGuiID ProbeID=ImGui::GetID("##probe-distance");float Probe=std::clamp(ImGui::GetStateStorage()->GetFloat(ProbeID,Range*.4f),0.f,Range);auto& P=Cache();Update(P,M,Range);float T[3],RGB[3];Sample(M,Probe,T,RGB);float Mean=T[0]*.2126f+T[1]*.7152f+T[2]*.0722f;
  U.Card(0,268,W,435,"Visibility through fog");std::snprintf(Text,sizeof(Text),"%.1f%%",double(Mean*100));U.Text(24,331,Text,32);std::snprintf(Text,sizeof(Text),"Light transmitted at %.0f m",double(Probe));U.Wrap(24,378,W-48,Text);U.Wrap(24,402,W-48,M.Local?"Sampled +Y path through the volume centre · static at time zero":"Horizontal probe at world Z = 2 m · selected medium only");
@@ -46,13 +64,37 @@ void RecordFogInspector(ControlPanel& Controls,EditorInstance&,EditorSheet& Shee
  for(int C=0;C<(M.Aerial?3:1);++C)for(int I=1;I<=64;++I)U.D->AddLine(U.At(X0+(X1-X0)*(I-1)/64,Y1-P.Values[I-1][C]*(Y1-Y0)),U.At(X0+(X1-X0)*I/64,Y1-P.Values[I][C]*(Y1-Y0)),M.Aerial?Colours[C]:IM_COL32(168,209,210,255),1.6f);
  float PX=X0+Probe/Range*(X1-X0);U.D->AddLine(U.At(PX,Y0),U.At(PX,Y1),IM_COL32(206,224,221,65));U.D->AddCircleFilled(U.At(PX,Y1-Mean*(Y1-Y0)),4,IM_COL32(217,234,230,255));ImGui::SetCursorScreenPos(U.At(X0,Y0-12));ImGui::InvisibleButton("##fog-probe",{X1-X0,Y1-Y0+24},ImGuiButtonFlags_EnableNav);if(ImGui::IsItemActive()&&ImGui::IsMouseDown(0))Probe=std::clamp((ImGui::GetIO().MousePos.x-U.At(X0,0).x)/(X1-X0)*Range,0.f,Range);if(ImGui::IsItemFocused()){float Step=Range/100;if(ImGui::IsKeyPressed(ImGuiKey_LeftArrow))Probe=std::max(0.f,Probe-Step);if(ImGui::IsKeyPressed(ImGuiKey_RightArrow))Probe=std::min(Range,Probe+Step);if(ImGui::IsKeyPressed(ImGuiKey_Home))Probe=0;}ImGui::GetStateStorage()->SetFloat(ProbeID,Probe);
  U.Text(X0,614,"0 m",10,Muted);std::snprintf(Text,sizeof(Text),"%.0f m",double(Range));U.Text(X1-54,614,Text,10,Muted);U.Wrap(24,647,W-48,"Drag the probe · arrow keys adjust diagnostic distance, not scene settings");
- bool Wide=W>=760;float CW=Wide?(W-16)/2:W,X2=Wide?CW+16:0,Y=719,Y2=Wide?Y:Y+432;
- U.Card(0,Y,CW,416,"Medium");U.Slider(24,Y+66,CW-48,"Density");U.Slider(24,Y+145,CW-48,M.Local?"Coverage":M.Aerial?"Start":"Falloff Height");U.Slider(24,Y+224,CW-48,M.Local?"Feature Scale":M.Aerial?"Mie Blend":"Sun Scatter");if(M.Local)U.Slider(24,Y+303,CW-48,"Anisotropy");else U.Wrap(24,Y+324,CW-48,M.Aerial?"Uses the current atmosphere coefficients. Mie blend moves from spectral Rayleigh extinction toward grey aerosol extinction.":"Height fog uses the reference exp(-optical depth²) law. Falloff is the e-folding height; sun scatter changes in-scattered light, not extinction.");
- U.Card(X2,Y2,CW,416,M.Local?"Local bounds":M.Aerial?"Spectral transmission":"Height and tint");
- if(M.Local){auto& V=M.Volume;std::snprintf(Text,sizeof(Text),"%.0f × %.0f × %.0f m",double(V.HalfSize[0]*2),double(V.HalfSize[1]*2),double(V.HalfSize[2]*2));U.Wrap(X2+24,Y2+64,CW-48,Text);Canvas C=Fit(U.D,U.At(X2+24,Y2+95),{CW-48,162},340,200);float Max=std::max({V.HalfSize[0],V.HalfSize[1],V.HalfSize[2],.1f});float SX=V.HalfSize[0]/Max*85,SY=V.HalfSize[1]/Max*45,SZ=V.HalfSize[2]/Max*80;auto Q=[&](int I){float X=I&1?SX:-SX,T0=I&2?SY:-SY,Z=I&4?SZ:-SZ;return ImVec2(170+X+T0,100+T0*.5f-Z);};for(int I=0;I<8;++I)for(int Bit:{1,2,4})if(!(I&Bit))C.Line(Q(I),Q(I|Bit),Colour(159,194,193,.65f));C.Line({170-SY,100-SY*.5f},{170+SY,100+SY*.5f},Colour(217,233,228),1.8f);C.Text(170,194,"Centre probe · +Y direction",Muted,9);
-  Axes(U,X2+24,Y2+270,CW-48,"Centre","Centre · world X / Y / Z (m)");Axes(U,X2+24,Y2+343,CW-48,"Half Size","Half extents · X / Y / Z (m)");
- }else if(M.Aerial){for(int C=0;C<3;++C){std::snprintf(Text,sizeof(Text),"%s     %.1f%%",C==0?"RED":C==1?"GREEN":"BLUE",double(T[C]*100));U.Text(X2+24,Y2+76+C*61,Text,22,Colours[C]);}U.Wrap(X2+24,Y2+277,CW-48,"At the selected probe distance. These values come from the same analytic extinction used by the CPU surface renderer.");}
- else{U.Wrap(X2+24,Y2+64,CW-48,"Relative density versus height above world Z = 0");float L=X2+50,R=X2+CW-30,Top=Y2+112,Bottom=Y2+265;U.D->AddLine(U.At(L,Top),U.At(L,Bottom),IM_COL32(130,164,165,100));U.D->AddLine(U.At(L,Bottom),U.At(R,Bottom),IM_COL32(130,164,165,100));for(int I=1;I<=64;++I){float H0=(I-1)*3000.f/64,H1=I*3000.f/64;U.D->AddLine(U.At(L+std::exp(-H0/M.Fog.FalloffHeight)*(R-L),Bottom-H0/3000*(Bottom-Top)),U.At(L+std::exp(-H1/M.Fog.FalloffHeight)*(R-L),Bottom-H1/3000*(Bottom-Top)),IM_COL32(168,209,210,255),1.5f);}U.Text(X2+24,Top-16,"3 km",9,Muted);U.Text(X2+24,Bottom+9,"0 m",9,Muted);U.Text(R-54,Bottom+9,"100%",9,Muted);U.Text(X2+24,Y2+329,"Fog tint · linear RGB",11,Muted);ImGui::SetCursorScreenPos(U.At(X2+24,Y2+353));ImGui::BeginChild("Colour",{CW-48,32},ImGuiChildFlags_None,ImGuiWindowFlags_NoScrollbar);Controls.ColourChip("##fog-colour",Find(Sheet,"Colour")->ColourTint);ImGui::EndChild();}
- float End=Y2+432;U.Card(0,End,W,132,"Neutral-light reference");for(int C=0;C<3;++C)RGB[C]=std::clamp(RGB[C],0.f,1.f);U.D->AddRectFilled(U.At(24,End+67),U.At(70,End+108),Colour(255*RGB[0],255*RGB[1],255*RGB[2]),8);U.Wrap(88,End+67,W-112,"A neutral target through this medium under fixed probe lighting. Not a scene-camera render; changing scattering may change this swatch without changing transmission.");End+=154;U.Wrap(0,End,W,"Live CPU/GPU fog controls. Local fog uses its selected wind source; analytic fog has no horizontal noise to advect.");ImGui::SetCursorScreenPos(U.At(0,End+86));ImGui::Dummy({W,1});ImGui::PopID();ImGui::PopFont();
+ bool Wide=W>=760;float CW=Wide?(W-16)/2:W,X2=Wide?CW+16:0,Y=719,MediumH=M.Local?620:560,Y2=Wide?Y:Y+MediumH+16;
+ U.Card(0,Y,CW,MediumH,"Medium");U.Slider(24,Y+66,CW-48,"Density");U.Slider(24,Y+145,CW-48,M.Local?"Coverage":M.Aerial?"Start":"Falloff Height");U.Slider(24,Y+224,CW-48,M.Local?"Feature Scale":M.Aerial?"Mie Blend":"Sun Scatter");if(M.Local)U.Slider(24,Y+303,CW-48,"Anisotropy");else U.Wrap(24,Y+294,CW-48,M.Aerial?"Uses the selected atmosphere coefficients; Mie blend moves from spectral Rayleigh extinction toward grey aerosol extinction.":"Falloff is the e-folding height; Sun Scatter changes in-scattered light, not extinction.");FogCards::PaintChamber(U.D,U.Font,U.At(24,Y+(M.Local?390:350)),CW-48,Air);
+ float TechH=M.Local?56+FogCards::VolumeHeight(U.Font,CW-48,Shape)+24:M.Aerial?416:56+FogCards::ProfileHeight(U.Font,CW-48)+18+46+24;U.Card(X2,Y2,CW,TechH,M.Local?"Fog volume shape":M.Aerial?"Spectral transmission":"Height and tint");
+ if(M.Local){FogCards::PaintVolume(U.D,U.Font,U.At(X2+24,Y2+56),CW-48,Shape,M.Volume.Centre,&Shape);
+ }else if(M.Aerial){Models Preview=M;Preview.Fog.AerialEnabled=true;float ST[3],SRGB[3];Sample(Preview,Probe,ST,SRGB);float Tau=-std::log(std::max(ST[1],.000001f)),Mix=std::clamp(M.Fog.AerialMie,0.f,1.f);ImGuiID SpectrumID=ImGui::GetID("##fog-spectrum-wavelength");float Wave=std::clamp(ImGui::GetStateStorage()->GetFloat(SpectrumID,550),380.f,780.f);auto Spectral=[&](float L){float Shape=(1-Mix)*std::pow(550/L,4.f)+Mix*std::pow(550/L,1.3f);return 100*std::exp(-Tau*Shape);};std::snprintf(Text,sizeof(Text),"%.0f nm     %.1f%%",double(Wave),double(Spectral(Wave)));U.Text(X2+24,Y2+67,Text,27);U.Wrap(X2+24,Y2+106,CW-48,"Atmosphere source · active medium coefficients");float L=X2+46,R=X2+CW-26,Top=Y2+150,Bottom=Y2+305;for(int I=0;I<3;++I){float YY=Top+(Bottom-Top)*I*.5f;U.D->AddLine(U.At(L,YY),U.At(R,YY),IM_COL32(147,178,182,28));}for(int I=1;I<=80;++I){float A=380+(I-1)*5,B=380+I*5;U.D->AddLine(U.At(L+(R-L)*(I-1)/80,Bottom-Spectral(A)/100*(Bottom-Top)),U.At(L+(R-L)*I/80,Bottom-Spectral(B)/100*(Bottom-Top)),IM_COL32(158,184,208,255),1.6f);}float WX=L+(R-L)*(Wave-380)/400;U.D->AddLine(U.At(WX,Top),U.At(WX,Bottom),IM_COL32(229,215,189,100));U.D->AddCircleFilled(U.At(WX,Bottom-Spectral(Wave)/100*(Bottom-Top)),4,IM_COL32(207,225,235,255));ImGui::SetCursorScreenPos(U.At(L,Top));ImGui::InvisibleButton("##aerial-spectrum",{R-L,Bottom-Top},ImGuiButtonFlags_EnableNav);if(ImGui::IsItemActive()&&ImGui::IsMouseDown(0))Wave=std::clamp(380+(ImGui::GetIO().MousePos.x-U.At(L,0).x)/(R-L)*400,380.f,780.f);if(ImGui::IsItemFocused()){if(ImGui::IsKeyPressed(ImGuiKey_LeftArrow))Wave=std::max(380.f,Wave-4);if(ImGui::IsKeyPressed(ImGuiKey_RightArrow))Wave=std::min(780.f,Wave+4);if(ImGui::IsKeyPressed(ImGuiKey_Home))Wave=380;if(ImGui::IsKeyPressed(ImGuiKey_End))Wave=780;}ImGui::GetStateStorage()->SetFloat(SpectrumID,Wave);U.Text(L,Bottom+13,"380 nm",9,Muted);U.Text(R-42,Bottom+13,"780 nm",9,Muted);U.Wrap(X2+24,Y2+353,CW-48,"Illustrative wavelength response at the shared Distance probe; physical RGB transmission remains in Visibility.");}
+ else{float Authored[2]={Air.Density,Air.Falloff};FogCards::PaintProfile(U.D,U.Font,U.At(X2+24,Y2+56),CW-48,Air,&Authored[0],&Authored[1]);if(Authored[0]!=Air.Density)Find(Sheet,"Density")->Figure=Authored[0];if(Authored[1]!=Air.Falloff)Find(Sheet,"Falloff Height")->Figure=Authored[1];float ChipY=Y2+56+FogCards::ProfileHeight(U.Font,CW-48)+18;U.Text(X2+24,ChipY,"Fog tint \u00b7 linear RGB",11,Muted);ImGui::SetCursorScreenPos(U.At(X2+24,ChipY+14));ImGui::BeginChild("Colour",{CW-48,32},ImGuiChildFlags_None,ImGuiWindowFlags_NoScrollbar);Controls.ColourChip("##fog-colour",Find(Sheet,"Colour")->ColourTint);ImGui::EndChild();}
+ float End=std::max(Y+MediumH,Y2+TechH+16)+16;
+ // WindPanel.jsx WindBinding: the field select, the editor shortcut and the live composite preview.
+ {
+  static WindCards::WindMotes Motes;
+  auto* Source=Find(Sheet,"Wind Source");
+  WindCards::BindingValues Bound;
+  // Wind Source always resolves: entry 0 is the shared Global wind, not the browser's still-air blank.
+  const unsigned Pick=Source&&Source->Picked<Source->OptionCount?Source->Picked:0;
+  Bound.Assigned=Source!=nullptr;
+  Bound.FieldName=Source?Source->Options[Pick]:nullptr;
+  Bound.Following=Find(Sheet,"Follow Wind")?Find(Sheet,"Follow Wind")->On:true;
+  // No authored WindField reaches the native sheet, so ResolveWind's own fallback pair stands in.
+  const WindCards::WindComposite Air=WindCards::Resolve(7.f,250.f,.25f);
+  const float Body=WindCards::BindingBodyHeight(U.Font,W-48,Bound);
+  U.Card(0,End,W,49+Body+104,"Wind binding");
+  auto Hits=WindCards::PaintBindingBody(U.D,U.Font,U.At(24,End+49),W-48,Bound,Air,Motes,ImGui::GetIO().DeltaTime,IM_COL32(34,34,34,255));
+  if(Source&&Source->OptionCount>1){
+   ImGui::SetCursorScreenPos({Hits.Select.x,Hits.Select.y});
+   if(ImGui::InvisibleButton("##fog-wind-source",{Hits.Select.z-Hits.Select.x,Hits.Select.w-Hits.Select.y}))
+    Source->Picked=(Source->Picked+1)%Source->OptionCount;
+  }
+  ImGui::SetCursorScreenPos(U.At(24,End+49+Body+12));
+  ImGui::BeginChild("##fog-wind-binding",{W-48,76},ImGuiChildFlags_None,ImGuiWindowFlags_NoScrollbar|ImGuiWindowFlags_NoScrollWithMouse);RecordWindBindingControls(Sheet);ImGui::EndChild();
+  End+=49+Body+104+16;
+ }
+ U.Wrap(0,End,W,"Live CPU/GPU fog controls. Local fog uses its selected wind source; analytic fog has no horizontal noise to advect.");ImGui::SetCursorScreenPos(U.At(0,End+86));ImGui::Dummy({W,1});ImGui::PopID();ImGui::PopFont();
 }
 }

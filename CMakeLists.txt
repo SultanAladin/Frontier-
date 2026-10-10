@@ -1,6 +1,6 @@
 #============================================================================================================================================
 # Frontier/CMakeLists.txt — Linux/Cross-Platform CMake (for IDE integration and Linux builds only)
-#   Windows builds use Projects/Project-Zero/Build/ToolchainSequence.ps1 (MSVC direct toolchain).
+#   Windows builds use Tools/Build/ToolchainSequence.ps1 (MSVC direct toolchain).
 #   Dependencies: python3 Tools/Bootstrap.py. Engine/editor sources are already consolidated.
 #============================================================================================================================================
 
@@ -16,6 +16,14 @@ if(FRONTIER_FLUID_ONLY)
     add_subdirectory(Projects/Project-Fluid)
     return()
 endif()
+# The gas host, beside FRONTIER_FLUID_ONLY and for the same reason: the gas solver is header-only and needs
+# no Vulkan, so a machine working on it should not have to satisfy a renderer to compile it.
+option(FRONTIER_GAS_ONLY "Build the standalone gas host without a GPU SDK" OFF)
+if(FRONTIER_GAS_ONLY)
+    enable_testing()
+    add_subdirectory(Projects/Project-Gas)
+    return()
+endif()
 option(FRONTIER_PROOF_ONLY "Build native editor/renderer verification without a GPU SDK" OFF)
 if(FRONTIER_PROOF_ONLY)
     include(Tools/Build/NativeProof.cmake)
@@ -23,14 +31,14 @@ if(FRONTIER_PROOF_ONLY)
 endif()
 
 # ─── Editor authoring tools ────────────────────────────────────────────────────────────────────────────────────────────────────────────────
-# Standalone C++ tools live outside the runtime Project-Zero source batch. SolidArc is the first modelling/CAD tool;
+# Standalone C++ tools live outside the runtime Frontier host source batch. SolidArc is the first modelling/CAD tool;
 # future siblings sit beside it under Editor/AuthoringTools/{TexturePainting,Baking,Terrain}.
 add_subdirectory(Editor/AuthoringTools/Modelling/SolidArc EXCLUDE_FROM_ALL)
 # ─── Reject Windows CMake builds — use ToolchainSequence.ps1 instead ────────────────────────────────────────────────────────────────────────
 if(WIN32 AND MSVC)
     message(FATAL_ERROR
         "[Frontier] Windows builds must use the direct MSVC toolchain:\n"
-        "  pwsh -File Projects\\Project-Zero\\Build\\ToolchainSequence.ps1\n"
+        "  pwsh -File Tools\\Build\\ToolchainSequence.ps1\n"
         "CMake is supported on Linux / macOS only.")
 endif()
 
@@ -86,6 +94,10 @@ set(IMGUI_SOURCES
     "${IMGUI_SRC}/backends/imgui_impl_vulkan.cpp"
 )
 
+if(WIN32)
+    list(APPEND IMGUI_SOURCES "${IMGUI_SRC}/backends/imgui_impl_win32.cpp" "${IMGUI_SRC}/backends/imgui_impl_dx11.cpp")
+endif()
+
 # ─── Vulkan ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 find_package(Vulkan REQUIRED)
 
@@ -94,16 +106,30 @@ find_program(GLSLC_EXECUTABLE glslc HINTS "$ENV{VULKAN_SDK}/bin" "/usr/bin" "/us
 find_program(SLANGC_EXECUTABLE slangc HINTS "$ENV{VULKAN_SDK}/bin" "/usr/bin" "/usr/local/bin")
 
 set(SHADER_ROOT "${CMAKE_SOURCE_DIR}/Engine/Shaders")
-set(SHADER_INCLUDES "${SHADER_ROOT}/PatchSelection.slang" "${SHADER_ROOT}/PatchPolicy.shared.h" "${SHADER_ROOT}/PresentationDither.slang" "${SHADER_ROOT}/WeatherMedia.slang" "${SHADER_ROOT}/CloudShadow.slang" "${SHADER_ROOT}/SkyRecords.slang" "${SHADER_ROOT}/MoonRecords.slang" "${SHADER_ROOT}/PostRecords.slang" "${CMAKE_SOURCE_DIR}/Engine/DisplayPresentation/LensFlareKernel.h" "${SHADER_ROOT}/SceneRecords.slang" "${SHADER_ROOT}/RayGeneration.slang" "${SHADER_ROOT}/TraversalCWBVH.slang"
+set(SHADER_INCLUDES "${SHADER_ROOT}/ViewportIntegrator.slang" "${SHADER_ROOT}/RayQueryTraversal.slang" "${SHADER_ROOT}/ReSTIRViewport.slang" "${SHADER_ROOT}/DistanceFieldGatherBody.slang" "${SHADER_ROOT}/DistanceFieldCaptureBody.slang" "${SHADER_ROOT}/DistanceFieldMaterial.slang" "${SHADER_ROOT}/DistanceFieldTransport.slang" "${SHADER_ROOT}/DistanceFieldGIResolveBody.slang" "${SHADER_ROOT}/SceneMaterialResolve.slang" "${SHADER_ROOT}/DistanceFieldRecords.slang" "${SHADER_ROOT}/GlobalDistanceField.slang" "${SHADER_ROOT}/SurfaceCacheRecords.slang" "${SHADER_ROOT}/PatchSelection.slang" "${SHADER_ROOT}/PatchPolicy.shared.h" "${SHADER_ROOT}/PresentationDither.slang" "${SHADER_ROOT}/WeatherMedia.slang" "${SHADER_ROOT}/CloudShadow.slang" "${SHADER_ROOT}/SkyRecords.slang" "${SHADER_ROOT}/MoonRecords.slang" "${SHADER_ROOT}/PostRecords.slang" "${CMAKE_SOURCE_DIR}/Engine/DisplayPresentation/LensFlareKernel.h" "${SHADER_ROOT}/SceneRecords.slang" "${SHADER_ROOT}/RayGeneration.slang" "${SHADER_ROOT}/TraversalCWBVH.slang"
                     "${SHADER_ROOT}/InterfaceRecords.slang" "${SHADER_ROOT}/InterfaceSignedDistance.slang"
                     "${SHADER_ROOT}/ShadowRecords.slang" "${SHADER_ROOT}/ShadowSample.slang"
                     "${SHADER_ROOT}/OutlineRecords.slang" "${SHADER_ROOT}/GizmoRecords.slang")
 set(SHADER_TABLE
     "FluidExtract.slang|compute|FluidExtract.spv"
+    "GasVolumeRaymarch.slang|compute|GasVolumeRaymarch.spv"
     "../../Projects/Project-Fluid/Shaders/ParticleClear.slang|compute|FluidParticleClear.spv"
     "../../Projects/Project-Fluid/Shaders/ParticleSplat.slang|compute|FluidParticleSplat.spv"
     "../../Projects/Project-Fluid/Shaders/SurfaceResolve.slang|compute|FluidSurfaceResolve.spv"
     "ReSTIRViewport.slang|compute|ReSTIRViewport.spv"
+    "RasterViewport.slang|compute|RasterViewport.spv"
+    "RayQueryViewport.slang|compute|RayQueryViewport.spv"
+    "SurfelIrradianceUpdate.slang|compute|SurfelIrradianceUpdate.spv"
+    "SurfelCommit.slang|compute|SurfelCommit.spv"
+    "DistanceFieldConstruct.slang|compute|DistanceFieldConstruct.spv"
+    "DistanceFieldCapture.slang|compute|DistanceFieldCapture.spv"
+    "DistanceFieldCaptureFixed.slang|compute|DistanceFieldCaptureFixed.spv"
+    "DistanceFieldRadiance.slang|compute|DistanceFieldRadiance.spv"
+    "DistanceFieldGather.slang|compute|DistanceFieldGather.spv"
+    "DistanceFieldGatherFixed.slang|compute|DistanceFieldGatherFixed.spv"
+    "DistanceFieldGIResolveFixed.slang|compute|DistanceFieldGIResolveFixed.spv"
+    "DistanceFieldGIResolve.slang|compute|DistanceFieldGIResolve.spv"
+    "SurfelGIResolve.slang|compute|SurfelGIResolve.spv"
     "ClusterCull.slang|compute|ClusterCull.spv"
     "HiZReduce.slang|compute|HiZReduce.spv"
     "AtrousDenoise.slang|compute|AtrousDenoise.spv"
@@ -141,7 +167,7 @@ if(GLSLC_EXECUTABLE OR SLANGC_EXECUTABLE)
                 COMMAND "${GLSLC_EXECUTABLE}" "-DFRONTIER_SHADER_TOOLCHAIN=1" "-I${CMAKE_SOURCE_DIR}/Engine" "-I${SHADER_ROOT}"
                         --target-env=vulkan1.2 "-fshader-stage=${STAGE}" -o "${OUT}" "${STAGED}"
                 DEPENDS "${SRC}" ${SHADER_INCLUDES}
-                COMMENT "[Project-Zero] Lowering ${SRC_NAME} -> ${OUT_NAME} (${STAGE})"
+                COMMENT "[Frontier] Lowering ${SRC_NAME} -> ${OUT_NAME} (${STAGE})"
                 VERBATIM)
         else()
             add_custom_command(
@@ -149,14 +175,14 @@ if(GLSLC_EXECUTABLE OR SLANGC_EXECUTABLE)
                 COMMAND "${SLANGC_EXECUTABLE}" "${SRC}" "-DFRONTIER_SHADER_TOOLCHAIN=1" "-I${CMAKE_SOURCE_DIR}/Engine" "-I${SHADER_ROOT}"
                         -target spirv -profile glsl_450 -stage ${STAGE} -entry main -o "${OUT}"
                 DEPENDS "${SRC}" ${SHADER_INCLUDES}
-                COMMENT "[Project-Zero] Lowering ${SRC_NAME} -> ${OUT_NAME} (${STAGE})"
+                COMMENT "[Frontier] Lowering ${SRC_NAME} -> ${OUT_NAME} (${STAGE})"
                 VERBATIM)
         endif()
         list(APPEND SPV_OUTPUTS "${OUT}")
     endforeach()
     add_custom_target(ReSTIRViewportSpirv DEPENDS ${SPV_OUTPUTS})
 else()
-    message(WARNING "[Project-Zero] neither glslc nor slangc found - Engine/Shaders/*.spv must be pre-compiled.")
+    message(WARNING "[Frontier] neither glslc nor slangc found - Engine/Shaders/*.spv must be pre-compiled.")
     add_custom_target(ReSTIRViewportSpirv)
 endif()
 set(FRONTIER_ENGINE_SOURCES
@@ -178,6 +204,9 @@ set(FRONTIER_ENGINE_SOURCES
     Engine/ContentInterchange/SceneCodec.cpp
     Engine/ContentInterchange/ShaderBallStructure.cpp
     Engine/ContentInterchange/ShowcaseStructure.cpp
+    # ShowcaseStructure::BringGridMesh calls ShaderBallGeometry::LoadResolved — without this TU the
+    #    exe link fails with an unresolved external.
+    Engine/ContentInterchange/ShaderBallGeometry.cpp
     Engine/ContentInterchange/AssetResolution.cpp
     Engine/ContentInterchange/MaterialSwatchStructure.cpp
     Engine/ContentInterchange/FbxCodec.cpp
@@ -190,6 +219,7 @@ set(FRONTIER_ENGINE_SOURCES
     Engine/DisplayPresentation/IconArt.cpp
     Engine/DisplayPresentation/IconPresentation.cpp
     Engine/DisplayPresentation/VectorCodec.cpp
+    Engine/DisplayPresentation/SurfelReference.cpp
     Engine/DisplayPresentation/FontCodec.cpp
     Engine/DisplayPresentation/ConfigurationRegistry.cpp
     Engine/DisplayPresentation/ControlCentreHost.cpp
@@ -201,9 +231,16 @@ set(FRONTIER_ENGINE_SOURCES
     Engine/DisplayPresentation/ControlKit.cpp
     Engine/DisplayPresentation/TextEntryState.cpp
     Engine/Editor/EditorHost.cpp
+    Engine/Editor/ControlPanel.cpp              # the panel widgets every inspector draws through
+    Engine/Editor/ShadeTick.cpp                 # EditorHost.h declares it
+    Engine/DisplayPresentation/CelestialSolver.cpp   # sun, moon and air mass for the sky inspectors
+    Engine/GeometricRaster/StarCatalogueIndex.cpp    # the star catalogue CelestialSequence loads
     Engine/Editor/OutlinerPanel.cpp
     Engine/Editor/ViewportPanel.cpp
     Engine/Editor/InspectorPanel.cpp
+    Engine/Editor/ConstructWorld.cpp
+    Engine/Editor/SolidArcInspectorPanel.cpp
+    Engine/Editor/TyreInspectorPanel.cpp
     Engine/Editor/SunInspectorPanel.cpp
     Engine/Editor/LensFlareInspectorPanel.cpp
     Engine/Editor/AtmosphereSkyInspectorPanel.cpp
@@ -213,6 +250,8 @@ set(FRONTIER_ENGINE_SOURCES
     Engine/Editor/FogInspectorPanel.cpp
     Engine/Editor/WeatherInspectorPanel.cpp
     Engine/Editor/CameraInspectorPanel.cpp
+    Engine/Editor/LightInspectorPanel.cpp
+    Engine/Editor/PostProcessInspectorPanel.cpp
 
     Engine/Editor/SunInspectorPanel.cpp
     Engine/Editor/LensFlareInspectorPanel.cpp
@@ -251,55 +290,63 @@ set(FRONTIER_ENGINE_INCLUDES
 )
 
 #============================================================================================================================================
-# Project-Zero — Windowed ReSTIR GI Renderer (Vulkan + GLFW + ImGui + ThorVG + Slang)
+#============================================================================================================================================
+# Frontier.exe — one windowed engine host (Vulkan + GLFW + ImGui + ThorVG + Slang)
 #============================================================================================================================================
 
-set(PROJECT_ZERO_SOURCES
+set(FRONTIER_HOST_SOURCES
     Projects/Project-Fluid/Source/SurfaceReconstruction.cpp
     Projects/Project-Fluid/Source/GpuSurfaceData.cpp
     Projects/Project-Fluid/Source/GpuSurfaceExtractor.cpp
     Projects/Project-Fluid/Source/FluidGpuTest.cpp
     Projects/Project-Fluid/Source/VulkanFluidMain.cpp
-    Projects/Project-Zero/Source/WaterBodySequence.cpp
     Projects/Project-Fluid/Source/PbfFluid.cpp
     Projects/Project-Fluid/Source/PondWave.cpp
     ${FRONTIER_ENGINE_SOURCES}
+    Engine/ProjectInterchange/ProjectSpecification.cpp
+    Engine/ProjectInterchange/CodeInterchange.cpp
+    Engine/Host/FrontierExecution.cpp
+    Engine/Host/FrontierHost.cpp
+    Engine/Host/ProjectOpeningSequence.cpp
+    Engine/Host/FrontierRuntime.cpp
+    Engine/Host/WaterBodySequence.cpp
+    Engine/Host/InterfaceTrialSequence.cpp
+    Engine/Host/InstanceMotionSequence.cpp
+    Engine/Host/PerformanceTelemetrySequence.cpp
+    Engine/Host/PhysicsInstanceSequence.cpp
+    Engine/Host/InterfaceAudioSequence.cpp
+    Engine/Host/CrankClickIntegrator.cpp
+    Engine/Host/DynoSequence.cpp
+    Engine/Host/CelestialSequence.cpp
+    Engine/Host/CommandLine.cpp
+    Engine/Host/ShowroomStructure.cpp
+    Engine/Host/RayTracingSolver.cpp
+    Engine/Host/FlyThroughSolver.cpp
+    Engine/Host/EditorFeedSequence.cpp
     Engine/DeviceExchange/SwapchainExchange.cpp
+    Engine/DeviceExchange/RayQueryExchange.cpp
+    Engine/GeometricRaster/DistanceFieldStructure.cpp
+    Engine/DeviceExchange/DistanceFieldGIStage.cpp
+    Engine/DeviceExchange/SurfelGIStage.cpp
     Engine/DeviceExchange/RayTracingCapabilitySet.cpp
     Engine/DeviceExchange/VisibilityExchange.cpp
     Engine/DeviceExchange/InterfaceExchange.cpp
     Engine/DeviceExchange/GizmoExchange.cpp
-    Projects/Project-Zero/Source/InterfaceTrialSequence.cpp
-    Projects/Project-Zero/Source/InstanceMotionSequence.cpp
-    Projects/Project-Zero/Source/PerformanceTelemetrySequence.cpp
-    Projects/Project-Zero/Source/PhysicsInstanceSequence.cpp
-    Projects/Project-Zero/Source/InterfaceAudioSequence.cpp
-    Projects/Project-Dyno/Source/CrankClickIntegrator.cpp
-    Projects/Project-Dyno/Source/DynoSequence.cpp
     Engine/PlatformInterchange/AudioExchange.cpp
     Engine/PlatformInterchange/MiniaudioTranslation.cpp
     Engine/PlatformInterchange/WaveCodec.cpp
     Engine/PhysicalDynamics/RigidBodySolver.cpp
-    Projects/Project-Zero/Source/CelestialSequence.cpp
-    Projects/Project-Zero/Source/CommandLine.cpp   # P4: the launch line both hosts parse (-Project/-Level/-Build/-Config/+Location)
-    Projects/Project-Zero/Source/ShowroomStructure.cpp
     Engine/DisplayPresentation/DiagnosticInspector.cpp
     Engine/DisplayPresentation/ReSTIRIntegrator.cpp
     Engine/DisplayPresentation/ShadingTableCodec.cpp
     Engine/ContentInterchange/ShaderballPreview.cpp
     Engine/DisplayPresentation/RenderScheduler.cpp
-    Projects/Project-Zero/Source/RayTracingSolver.cpp
-    Projects/Project-Zero/Source/FlyThroughSolver.cpp
-    Projects/Project-Zero/Source/GameExecution.cpp
     ${IMGUI_SOURCES}
 )
 
-# Fail fast with NAMES if the source list ever rots again, mirroring the guard in
-#    Projects/Project-Zero/Build/ToolchainSequence.ps1. Without it a stale entry surfaces as a wall of cascading
-#    compiler errors (was: 73 C1083s on Windows, 2026-09-04) instead of one legible message. Only repo-relative
-#    paths are checked; ${...} entries are generator expressions or submodule paths resolved elsewhere.
+# Only shared engine and host translation units belong here. Project code images declare their own compact batches below.
 set(FRONTIER_MISSING_SOURCES "")
-foreach(FrontierSource IN LISTS PROJECT_ZERO_SOURCES)
+foreach(FrontierSource IN LISTS FRONTIER_HOST_SOURCES)
     if(NOT FrontierSource MATCHES "^\\$" AND NOT IS_ABSOLUTE "${FrontierSource}")
         if(NOT EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/${FrontierSource}")
             list(APPEND FRONTIER_MISSING_SOURCES "${FrontierSource}")
@@ -308,29 +355,32 @@ foreach(FrontierSource IN LISTS PROJECT_ZERO_SOURCES)
 endforeach()
 if(FRONTIER_MISSING_SOURCES)
     string(REPLACE ";" "\n    " FRONTIER_MISSING_REPORT "${FRONTIER_MISSING_SOURCES}")
-    message(FATAL_ERROR "missing source files in the translation batch:\n    ${FRONTIER_MISSING_REPORT}")
+    message(FATAL_ERROR "missing source files in the Frontier host translation batch:\n    ${FRONTIER_MISSING_REPORT}")
 endif()
 
-add_executable(Project-Zero ${PROJECT_ZERO_SOURCES})
-# Ship SVG sources + vector compatibility artwork; never offline baked icon pixels.
+add_executable(Frontier ${FRONTIER_HOST_SOURCES})
+set_target_properties(Frontier PROPERTIES OUTPUT_NAME "Frontier")
 file(GLOB FRONTIER_ICON_SOURCES CONFIGURE_DEPENDS "${CMAKE_SOURCE_DIR}/EngineContent/Icons/*.svg")
-add_custom_command(TARGET Project-Zero POST_BUILD
-    COMMAND ${CMAKE_COMMAND} -E make_directory "$<TARGET_FILE_DIR:Project-Zero>/EngineContent/Icons"
-    COMMAND ${CMAKE_COMMAND} -E copy_if_different ${FRONTIER_ICON_SOURCES} "$<TARGET_FILE_DIR:Project-Zero>/EngineContent/Icons"
-    COMMAND ${CMAKE_COMMAND} -E copy_directory "${CMAKE_SOURCE_DIR}/EngineContent/Icons/ThorVG" "$<TARGET_FILE_DIR:Project-Zero>/EngineContent/Icons/ThorVG"
-    COMMENT "Staging ThorVG SVG icons" VERBATIM)
+add_custom_command(TARGET Frontier POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E make_directory "$<TARGET_FILE_DIR:Frontier>/EngineContent/Icons"
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different ${FRONTIER_ICON_SOURCES} "$<TARGET_FILE_DIR:Frontier>/EngineContent/Icons"
+    COMMAND ${CMAKE_COMMAND} -E copy_directory "${CMAKE_SOURCE_DIR}/EngineContent/Icons/ThorVG" "$<TARGET_FILE_DIR:Frontier>/EngineContent/Icons/ThorVG"
+    COMMENT "Staging Frontier SVG icons" VERBATIM)
 
-target_compile_definitions(Project-Zero PRIVATE PROJECT_FLUID_EMBEDDED)
-add_dependencies(Project-Zero ReSTIRViewportSpirv)
-set_source_files_properties(Engine/GeometricRaster/TraversalIndex.cpp PROPERTIES COMPILE_OPTIONS "-mavx2;-mfma;-msse4.2")   # tinybvh SIMD build
-set_source_files_properties(Engine/GeometricRaster/InstanceAcceleration.cpp PROPERTIES COMPILE_OPTIONS "-mavx2;-mfma;-msse4.2")   # D6/D9: tiny_bvh.h's SIMD types, and the same flags the traversal batch is compiled with
+add_dependencies(Frontier ReSTIRViewportSpirv)
+set_source_files_properties(Engine/GeometricRaster/TraversalIndex.cpp PROPERTIES COMPILE_OPTIONS "-mavx2;-mfma;-msse4.2")
+set_source_files_properties(Engine/GeometricRaster/InstanceAcceleration.cpp PROPERTIES COMPILE_OPTIONS "-mavx2;-mfma;-msse4.2")
 set_source_files_properties(Engine/ContentInterchange/ShaderballPreview.cpp PROPERTIES COMPILE_DEFINITIONS SHADERBALL_PREVIEW_LIB
-    INCLUDE_DIRECTORIES "${CMAKE_CURRENT_SOURCE_DIR}/Engine/DisplayPresentation;${CMAKE_CURRENT_SOURCE_DIR}/Engine/Shaders;${CMAKE_CURRENT_SOURCE_DIR}/Engine/ContentInterchange")   # M7b preview TU (FRONTIER_CPU_PORT is vestigial — no ifdefs — and intentionally not passed; was Exhibits/Workbench/Materials/ShaderballExhibit.cpp — the app must not reach into the workbench)
+    INCLUDE_DIRECTORIES "${CMAKE_CURRENT_SOURCE_DIR}/Engine/DisplayPresentation;${CMAKE_CURRENT_SOURCE_DIR}/Engine/Shaders;${CMAKE_CURRENT_SOURCE_DIR}/Engine/ContentInterchange")
+set_source_files_properties(Engine/PlatformInterchange/MiniaudioTranslation.cpp PROPERTIES COMPILE_OPTIONS "-w")
 
-target_include_directories(Project-Zero PRIVATE
+target_include_directories(Frontier PRIVATE
     ${FRONTIER_ENGINE_INCLUDES}
-    ${CMAKE_CURRENT_SOURCE_DIR}/Projects/Project-Zero/Source
-    ${CMAKE_CURRENT_SOURCE_DIR}/Projects/Project-Dyno/Source
+    ${CMAKE_CURRENT_SOURCE_DIR}/Engine/Host
+    # The editor panels include their neighbours and the sky solver by bare name, the way the MSVC
+    #    route already puts both folders on the include path.
+    ${CMAKE_CURRENT_SOURCE_DIR}/Engine/Editor
+    ${CMAKE_CURRENT_SOURCE_DIR}/Engine/DisplayPresentation
     ${EXT}/miniaudio
     ${Vulkan_INCLUDE_DIRS}
     ${IMGUI_SRC}
@@ -343,28 +393,40 @@ target_include_directories(Project-Zero PRIVATE
     ${EXT}/ufbx
     ${EXT}/fast_obj
 )
-
-target_link_libraries(Project-Zero PRIVATE Jolt)   # D4: rigid bodies drive instance transforms
-set_source_files_properties(Engine/PlatformInterchange/MiniaudioTranslation.cpp PROPERTIES COMPILE_OPTIONS "-w")   # third-party TU
-target_compile_definitions(Project-Zero PRIVATE
-    FRONTIER_DEVELOPMENT
-    FRONTIER_ENABLE_GLFW
-)
-
-target_link_libraries(Project-Zero PRIVATE
+target_link_libraries(Frontier PRIVATE
+    Jolt
     ${Vulkan_LIBRARIES}
     glfw
     thorvg_static
-    pthread dl
+    pthread
+    dl
+)
+target_compile_definitions(Frontier PRIVATE
+    PROJECT_FLUID_EMBEDDED
+    FRONTIER_DEVELOPMENT
+    FRONTIER_ENABLE_GLFW
 )
 if(WIN32)
-    target_link_libraries(Project-Zero PRIVATE psapi)   # TelemetryMetrics "Show RAM Usage" (GetProcessMemoryInfo)
+    target_link_libraries(Frontier PRIVATE psapi d3d11 dxgi d3dcompiler dwmapi imm32 ole32 uuid windowscodecs)
 endif()
 
+# Project code images contain project semantics only. They do not compile the window, device, renderer, editor, or host.
+add_library(ProjectZero SHARED Projects/Project-Zero/Source/ProjectZeroInterchange.cpp)
+include(Projects/Project-Drive/Build/ProjectDrive.cmake)
+foreach(ProjectCodeImage IN ITEMS ProjectZero ProjectDrive)
+    target_include_directories(${ProjectCodeImage} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/Engine/ProjectInterchange)
+    set_target_properties(${ProjectCodeImage} PROPERTIES PREFIX "" SUFFIX ".dll")
+endforeach()
+set_target_properties(ProjectZero PROPERTIES
+    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_SOURCE_DIR}/Projects/Project-Zero/Build"
+    LIBRARY_OUTPUT_DIRECTORY "${CMAKE_SOURCE_DIR}/Projects/Project-Zero/Build")
+set_target_properties(ProjectDrive PROPERTIES
+    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_SOURCE_DIR}/Projects/Project-Drive/Build"
+    LIBRARY_OUTPUT_DIRECTORY "${CMAKE_SOURCE_DIR}/Projects/Project-Drive/Build")
+
 #============================================================================================================================================
-# Project-Zero-CpuReference — Headless CPU reference (sandbox stand-in; the product renderer is the Vulkan + Slang
-#   stack built by Projects/Project-Zero/Build/ToolchainSequence.ps1). Explicit file list: never glob Source/ —
-#   GameExecution.cpp (the Vulkan entry point) lives there.
+# Project-Zero-CpuReference — headless CPU reference. It remains a separate non-windowed verification route while
+#   Frontier.exe is the product Vulkan/Slang host. Its explicit batch intentionally excludes all window ownership.
 #============================================================================================================================================
 
 set(PROJECT_ZERO_CPU_SOURCES
@@ -461,25 +523,32 @@ target_link_libraries(Jolt PUBLIC pthread)
 # Deliberately does NOT link FrontierEngine: the testbed is a console proof of the RigidBodySolver seam and needs neither Vulkan nor
 #    GLFW, so it stays buildable when the graphics submodules are uninitialised.
 
-add_executable(Project-Physics
-    Engine/DeviceExchange/OrientationClassifier.cpp
-    Engine/DeviceExchange/DiagnosticMetrics.cpp
-    Engine/PhysicalDynamics/RigidBodySolver.cpp
-    Projects/Project-Physics/Source/DropSceneStructure.cpp
-    Projects/Project-Physics/Source/GameExecution.cpp
-)
-target_include_directories(Project-Physics PRIVATE
-    ${FRONTIER_ENGINE_INCLUDES}
-    ${CMAKE_CURRENT_SOURCE_DIR}/Projects/Project-Physics/Source
-)
-target_compile_definitions(Project-Physics PRIVATE FRONTIER_DEVELOPMENT "$<$<CONFIG:Debug>:FRONTIER_DEBUG=1>")
-target_compile_options(Project-Physics PRIVATE -Wall -Wextra -Wno-psabi)
-target_link_libraries(Project-Physics PRIVATE Jolt pthread)
+# The testbed's own sources are not in every checkout of this repository, and a missing source file
+#    is a configure-time error that takes the whole tree down with it, so it is declared only when
+#    it is actually here.
+if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/Projects/Project-Physics/Source/DropSceneStructure.cpp")
+    add_executable(Project-Physics
+        Engine/DeviceExchange/OrientationClassifier.cpp
+        Engine/DeviceExchange/DiagnosticMetrics.cpp
+        Engine/PhysicalDynamics/RigidBodySolver.cpp
+        Projects/Project-Physics/Source/DropSceneStructure.cpp
+        Projects/Project-Physics/Source/GameExecution.cpp
+    )
+    target_include_directories(Project-Physics PRIVATE
+        ${FRONTIER_ENGINE_INCLUDES}
+        ${CMAKE_CURRENT_SOURCE_DIR}/Projects/Project-Physics/Source
+    )
+    target_compile_definitions(Project-Physics PRIVATE FRONTIER_DEVELOPMENT "$<$<CONFIG:Debug>:FRONTIER_DEBUG=1>")
+    target_compile_options(Project-Physics PRIVATE -Wall -Wextra -Wno-psabi)
+    target_link_libraries(Project-Physics PRIVATE Jolt pthread)
+else()
+    message(STATUS "[Frontier] Project-Physics sources absent - the Jolt testbed is not declared")
+endif()
 
 # Standalone fluid research host alongside the native application.
 add_subdirectory(Projects/Project-Fluid)
 if(FRONTIER_FLUID_OPENMP)
     find_package(OpenMP REQUIRED COMPONENTS CXX)
-    # Project-Zero compiles the fluid sources directly, rather than linking Core.
-    target_link_libraries(Project-Zero PRIVATE OpenMP::OpenMP_CXX)
+    # Frontier.exe compiles shared fluid preview support directly, rather than linking Core.
+    target_link_libraries(Frontier PRIVATE OpenMP::OpenMP_CXX)
 endif()
