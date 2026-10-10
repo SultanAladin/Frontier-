@@ -158,8 +158,8 @@ def Main():
           "a gas domain's \u2197 reads Open FluidEditor on both sides")
     Check("Open ParticleEditor" in Panel and '"Open ParticleEditor"' in Surface,
           "\u2713 and a gas emitter's reads Open ParticleEditor on both sides")
-    Check("all 85 settings \u00b7 presets \u00b7 flipbook bake" in Panel
-          and "all 85 settings - presets - flipbook bake" in Surface,
+    Check("all 85 settings \u00b7 presets \u00b7 flipbook precompute" in Panel
+          and "all 85 settings - presets - flipbook precompute" in Surface,
           "the domain's subtitle agrees, allowing for the port's ASCII separators")
     Check("52 presets \u00b7 sparks \u00b7 debris \u00b7 fibres \u00b7 lightning" in Panel
           and "52 presets - sparks - debris - fibres - lightning" in Surface,

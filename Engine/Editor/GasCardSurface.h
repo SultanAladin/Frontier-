@@ -967,7 +967,7 @@ inline float PaintGasCard(ImDrawList* Draw, ImFont* Light, ImFont* Regular, ImVe
         //    chosen by what the row is -- not two buttons, and not one editor pretending to be both.
         const char* Title = Subject.Emitter ? "Open ParticleEditor" : "Open FluidEditor";
         const char* Under = Subject.Emitter ? "52 presets - sparks - debris - fibres - lightning"
-                                            : "all 85 settings - presets - flipbook bake";
+                                            : "all 85 settings - presets - flipbook precompute";
         const ImVec2 TitleSized = Light->CalcTextSizeA(12.0f, FLT_MAX, 0.0f, Title);
         const ImVec2 UnderSized = Light->CalcTextSizeA(NoteSize, FLT_MAX, 0.0f, Under);
         Draw->AddText(Light, 12.0f, { Spot.x + (Wide - TitleSized.x) * 0.5f, Cursor + 13.0f }, ActionInk, Title);
