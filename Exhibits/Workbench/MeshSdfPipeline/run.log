@@ -1,0 +1,33 @@
+== Part A: bake accuracy and instance sampling (CPU exact)
+PASS  OBJ loads as 12 triangles from 6 quads 
+PASS  outside the field bounds the sample never exceeds the true distance (conservative) 
+PASS  trilinear sample of the baked cube matches the exact box SDF (max error 0.0218, cell 0.0774)
+PASS  sign: inside the cube is negative 
+PASS  sign: outside the cube is positive, about 2 units away 
+PASS  bake writes a .fsdf file 
+PASS  load returns the identical field (round trip) 
+PASS  instance transform inverts 
+PASS  moved, scaled and rotated instance samples the shared field correctly (8594 in-bounds points, max error 0.0682, tolerance 0.2323)
+PASS  non-uniform scale: sample is conservative (outside never over, inside never deeper) (outside: 0 over, worst 0.0000; inside (238 pts): 0 over, worst 0.0000; slack 0.0582)
+
+== Part B: dirty cells per frame, 3600 frames, 3 clip levels of 32^3 (exact cell counts, not GPU time)
+PASS  culling by bounds keeps the composited minimum exact (1267 points compared, 0 mismatches)
+old: 98304 cell writes per frame (full volume rebuilt on 3600 of 3600 frames)
+new: 618.3 cell writes per frame (static field 297.8, movable field 320.5)
+reduction: 159.0x fewer cell writes; decision cost 184.0 ns per frame (CPU)
+PASS  dirty-cell path writes fewer cells than the full rebuild (new 618.3 vs old 98304 per frame)
+PASS  moving car never writes the static field (3000 frames with the car moving and no camera shift)
+
+== Part C: import index, cache hits, stale and missing detection, runtime never bakes
+PASS  import bakes each of the 3 meshes once and writes the index (indexed 3, baked 3)
+PASS  second import is all cache hits (no bake) 
+PASS  runtime loads a.obj from the index, identical to the imported field 
+PASS  edited source is reported stale, not silently rebuilt (stale SDF for c.obj: source changed since import)
+PASS  mesh with no import entry is reported, not baked 
+PASS  runtime loads performed zero bakes (counter unchanged) 
+
+== Part D: GPU bake and dirty-cell composite, CPU exact mirror of MeshSdf.slang (device run NOT performed)
+PASS  mirror of BakeMain matches the CPU bake at every grid node (max abs diff 0.00e+00 over 32768 nodes)
+PASS  composite writes exactly the dirty cells and no others (written 891, dirty box 891, touched 891 of 32768)
+PASS  mirror of CompositeMain matches the CPU per-instance minimum (max abs diff 0.00e+00 over 891 cells)
+GREEN - 0 failure(s)

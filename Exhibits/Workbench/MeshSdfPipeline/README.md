@@ -1,7 +1,7 @@
 # Mesh SDF pipeline: import-time bake, local instance sampling, dirty cells (CPU exact)
 
-**Status: GPU kernels written and compiled to SPIR-V; CPU exact mirror verified. Nothing has run on a GPU yet, and the engine still
-runs the old per-frame path (see "Not done").**
+**Status: GPU kernels compiled to SPIR-V, Vulkan host written and syntax-checked, CPU exact mirror verified (proof GREEN, 19 checks plus Part D).
+Nothing has run on a GPU yet. The engine still runs the old per-frame path (see "Not done").**
 
 ## What is built and verified here
 
@@ -17,7 +17,12 @@ runs the old per-frame path (see "Not done").**
 | Import step over a content tree: `BakeMeshSdf --dir` bakes each `.obj` once and writes `sdf_index.tsv` (source path, hash, file, resolution) | `BakeDirectory` in `MeshDistanceField.h` | proof Part C: 3 meshes baked, second import is 3 cache hits |
 | Runtime loader: load only, never bake. Stale (source edited after import) and missing entries are reported, not rebuilt | `RuntimeLoad` | proof Part C: a.obj loads identical; edited c.obj reported stale; d.obj reported with no entry; bake counter unchanged at runtime |
 
-## GPU kernels (written, compiled, not executed)
+## GPU kernels and Vulkan host (compiled, not executed)
+
+Host: `Engine/GeometricRaster/MeshSdfVulkan.h/.cpp` picks a device (discrete preferred, every candidate logged), creates the two
+pipelines, and submits each dispatch with a fence. Its device check is `Tools/Bake/MeshSdfDeviceCheck.cpp`: it bakes a unit cube at 32^3
+and composites three instances on the device, then compares both with the CPU reference at 1e-3. Status: **not run** (no Vulkan
+driver in the build sandbox); it has only passed a syntax-only compile.
 
 Source: `Engine/GeometricRaster/Shaders/MeshSdf.slang`. Build gate: `Tools/Build/BuildMeshSdfSpirv.py`, which compiles both entries
 to SPIR-V through the Slang C API. Slang validates the SPIR-V inside the compile, and the gate writes
@@ -57,9 +62,8 @@ These are **cell counts**, not GPU milliseconds. The decision cost on the CPU is
 
 ## Not done (say so before anyone ships this)
 
-0. **Vulkan host dispatch.** Nothing creates the buffers, descriptors or pipelines for `BakeMain` or `CompositeMain`, and nothing
-   submits them. This sandbox has no Vulkan driver (no ICD, and apt and the Mesa package are unreachable), so this code cannot be
-   run or tested here. It needs a device run on the user's RX 9060 XT.
+0. **Device run.** The Vulkan host and `MeshSdfDeviceCheck.cpp` exist, but nothing has executed them. The build sandbox has no Vulkan
+   driver, so the device check needs a run on the user's RX 9060 XT before any GPU number is claimed.
 
 1. **GPU compositing kernel.** The compute shader that writes only the dirty cells, and the toroidal slab fill on the GPU, are not written.
 2. **Engine switch-over.** `DistanceFieldStructure::RefreshInstances` and `DistanceFieldConstruct.slang` still rebuild the whole volume on every change. The new kernels are not wired into the running engine.
@@ -70,7 +74,9 @@ These are **cell counts**, not GPU milliseconds. The decision cost on the CPU is
 ## Reproduce
 
 ```
-g++ -std=c++20 -O2 -I../../../Engine/GeometricRaster proof.cpp -o proof && ./proof
+g++ -std=c++20 -O2 -I../../../Engine/GeometricRaster proof.cpp -o proof && ./proof > run.log
+/tmp/venv/bin/python build_proofs.py   # needs matplotlib, numpy, pillow
+# Device run (not yet performed): see Tools/Bake/MeshSdfDeviceCheck.cpp for the build line
 PATH=/tmp/venv/bin:$PATH python3 ../../../Tools/Build/BuildMeshSdfSpirv.py   # Slang SPIR-V gate
 python3 build_proofs.py
 g++ -std=c++20 -O2 ../../../Tools/Bake/BakeMeshSdf.cpp -o bake && ./bake --dir <content root> <cache dir>
