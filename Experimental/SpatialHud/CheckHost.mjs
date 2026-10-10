@@ -71,7 +71,7 @@ function StubPass(descriptor) {
     };
     Record.passes.push(entry);
     return {
-        setChain(pipeline) { entry.pipeline = pipeline; },
+        setPipeline(pipeline) { entry.pipeline = pipeline; },
         setBindGroup(slot, group) { entry.bindGroup = group; },
         draw(count, instances, first, firstInstance) {
             entry.draws.push({
@@ -91,7 +91,7 @@ function StubDevice() {
             Record.shader = code;
             return { getCompilationInfo: async () => ({ messages: [] }) };
         },
-        createRenderChain(descriptor) {
+        createRenderPipeline(descriptor) {
             // 🔴 Record what the pipeline actually DECLARES, so a bind group can be checked
             //    against it. A real device rejects an entry for a binding the shader never
             //    mentions, and that rejection only ever happens in the browser.
@@ -106,7 +106,7 @@ function StubDevice() {
             Record.pipelines.push(pipeline);
             return pipeline;
         },
-        createStore(descriptor) {
+        createBuffer(descriptor) {
             Record.buffers.push(descriptor);
             return { ...descriptor, __store: Record.buffers.length - 1, destroy() {} };
         },
@@ -122,7 +122,7 @@ function StubDevice() {
             finish: () => Stub('commands'),
         }),
         queue: {
-            writeStore(buffer, offset, source) {
+            writeBuffer(buffer, offset, source) {
                 Record.writes.push({ buffer, offset, length: source.length ?? 0 });
             },
             submit() {},
@@ -190,7 +190,7 @@ export function InstallStubs(frameLimit = 2) {
     globalThis.devicePixelRatio = 1;
 
     // The usage enums are globals the browser provides, and they are plain bit flags. Without
-    // them every createStore call is a ReferenceError — which is itself the first thing this
+    // them every createBuffer call is a ReferenceError — which is itself the first thing this
     // harness found, so they are clearly worth having right.
     globalThis.GPUBufferUsage = {
         MAP_READ: 1, MAP_WRITE: 2, COPY_SRC: 4, COPY_DST: 8, INDEX: 16, VERTEX: 32,

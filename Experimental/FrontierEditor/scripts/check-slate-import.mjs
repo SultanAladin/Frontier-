@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import {execFileSync} from 'node:child_process';
 import {JSDOM} from 'jsdom';
 import {createCanvas,loadImage} from '@napi-rs/canvas';
-const raw=JSON.parse(execFileSync('python3',['scripts/slate-reviewed-source.py'],{encoding:'utf8',maxStore:4*1024*1024}));
+const raw=JSON.parse(execFileSync('python3',['scripts/slate-reviewed-source.py'],{encoding:'utf8',maxBuffer:4*1024*1024}));
 const layouts=JSON.parse(fs.readFileSync('vendor/slate-new-icons/layout.json','utf8'));
 const selection=JSON.parse(fs.readFileSync('vendor/slate-new-icons/selection.json','utf8'));
 const kept=raw.filter(a=>selection.includes(a.id));
