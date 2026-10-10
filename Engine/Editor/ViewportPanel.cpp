@@ -18,9 +18,41 @@
 #include <cstdio>
 #include <cstring>
 
+#ifdef _WIN32
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+#include <windows.h>
+#include <cwchar>
+#endif
+
 namespace Frontier {
 
 namespace {
+// Open the separately linked CAD authoring window without blocking Frontier's event loop.
+bool OpenSolidArcWindow() noexcept
+{
+#ifdef _WIN32
+    wchar_t Executable[32768]{};
+    const DWORD Length = GetModuleFileNameW(nullptr, Executable, 32768);
+    if (Length == 0 || Length >= 32768) return false;
+    wchar_t* Separator = std::wcsrchr(Executable, L'\\');
+    if (!Separator) return false;
+    constexpr wchar_t Suffix[] = L"\\SolidArc\\SolidArc.exe";
+    if (size_t(Separator - Executable) + sizeof(Suffix) / sizeof(wchar_t) > 32768) return false;
+    std::wcscpy(Separator, Suffix);
+    STARTUPINFOW Startup{};
+    Startup.cb = sizeof(Startup);
+    PROCESS_INFORMATION Process{};
+    if (!CreateProcessW(Executable, nullptr, nullptr, nullptr, FALSE, 0, nullptr, nullptr, &Startup, &Process)) return false;
+    CloseHandle(Process.hThread);
+    CloseHandle(Process.hProcess);
+    return true;
+#else
+    return false;
+#endif
+}
+
 
 //------------------------------------------------------------------------------------------------------------------------
 //                                                          TOKENS
@@ -1308,6 +1340,7 @@ void ViewportPanel::RecordBar() noexcept
     ImGui::PushStyleVar(ImGuiStyleVar_PopupRounding, 12.0f);
     ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(8.0f, 8.0f));
     ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(8.0f, 4.0f));
+    bool SolidArcFailed = false;
     if (ImGui::BeginPopup("##addmenu"))
     {
         ImGui::PushFont(Small);
@@ -1351,7 +1384,20 @@ void ViewportPanel::RecordBar() noexcept
             if (ImGui::MenuItem("Torus")) {}
             ImGui::EndMenu();
         }
+        if (ImGui::BeginMenu("Authoring Tools"))
+        {
+            if (ImGui::MenuItem("Open in SolidArc") && !OpenSolidArcWindow())
+                SolidArcFailed = true;
+            ImGui::EndMenu();
+        }
         ImGui::PopFont();
+        ImGui::EndPopup();
+    }
+    if (SolidArcFailed) ImGui::OpenPopup("SolidArc unavailable");
+    if (ImGui::BeginPopupModal("SolidArc unavailable", nullptr, ImGuiWindowFlags_AlwaysAutoResize))
+    {
+        ImGui::TextUnformatted("Build Frontier Release with SolidArc and keep SolidArc/ beside Frontier.exe.");
+        if (ImGui::Button("OK")) ImGui::CloseCurrentPopup();
         ImGui::EndPopup();
     }
     ImGui::PopStyleVar(3);

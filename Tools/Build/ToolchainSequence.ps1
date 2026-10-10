@@ -75,6 +75,8 @@ function Import-ToolchainEnvironment
         'C:\Program Files\Microsoft Visual Studio\18\Professional\VC\Auxiliary\Build\vcvarsall.bat'
         'C:\Program Files\Microsoft Visual Studio\18\Enterprise\VC\Auxiliary\Build\vcvarsall.bat'
         'C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Auxiliary\Build\vcvarsall.bat'
+        'C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Auxiliary\Build\vcvarsall.bat'
+        'C:\Program Files\Microsoft Visual Studio\2022\Professional\VC\Auxiliary\Build\vcvarsall.bat'
         'C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools\VC\Auxiliary\Build\vcvarsall.bat'
     )
 
@@ -917,6 +919,13 @@ Invoke-ProjectCodeImage 'Project-Drive' 'ProjectDrive' $DriveSimulation.sources
 # Project-owned content must exist before the shared host attempts to decode its opening scene.
 & python (Join-Path $RepositoryRoot 'Tools\Build\BuildDriveContent.py')
 if ($LASTEXITCODE -ne 0) { throw 'Project-Drive content generation/import verification failed' }
+
+if ($Development -and $Configuration -eq 'Release')
+{
+    Write-Building 'Building the SolidArc window alongside Frontier...'
+    & python (Join-Path $RepositoryRoot 'Tools\Build\BuildSolidArcApplication.py')
+    if ($LASTEXITCODE -ne 0) { throw 'SolidArc Windows GUI build failed' }
+}
 
 if ($Run)
 {

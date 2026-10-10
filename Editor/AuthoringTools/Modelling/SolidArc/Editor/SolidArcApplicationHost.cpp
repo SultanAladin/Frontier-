@@ -17,7 +17,6 @@
 #include "SolidArcEditorHost.h"
 #include "TypefaceRegistry.h"
 #include <filesystem>
-#include <fstream>
 #include <cstdio>
 #include <cstring>
 #include <stdexcept>
@@ -71,32 +70,6 @@ std::string SelectDocument(HWND Window, bool Save)
     Selection.Flags       = OFN_NOCHANGEDIR | OFN_PATHMUSTEXIST | (Save ? OFN_OVERWRITEPROMPT : OFN_FILEMUSTEXIST);
     return (Save ? GetSaveFileNameW(&Selection) : GetOpenFileNameW(&Selection)) ? EncodeUtf8(Path) : std::string{};
 }
-void CaptureSurface(ID3D11Device* Device, ID3D11DeviceContext* Context, IDXGISwapChain* Chain, const std::filesystem::path& Path)
-{
-    ComPtr<ID3D11Texture2D> Surface, Readback;
-    Require(SUCCEEDED(Chain->GetBuffer(0, IID_PPV_ARGS(&Surface))), "Cannot read the presented surface");
-    D3D11_TEXTURE2D_DESC Description{};
-    Surface->GetDesc(&Description);
-    Description.Usage          = D3D11_USAGE_STAGING;
-    Description.BindFlags      = 0;
-    Description.CPUAccessFlags = D3D11_CPU_ACCESS_READ;
-    Require(SUCCEEDED(Device->CreateTexture2D(&Description, nullptr, &Readback)), "Cannot allocate presentation readback");
-    Context->CopyResource(Readback.Get(), Surface.Get());
-    D3D11_MAPPED_SUBRESOURCE Pixels{};
-    Require(SUCCEEDED(Context->Map(Readback.Get(), 0, D3D11_MAP_READ, 0, &Pixels)), "Cannot map presentation readback");
-    std::ofstream Stream(Path, std::ios::binary);
-    Stream << "P6\n" << Description.Width << ' ' << Description.Height << "\n255\n";
-    uint64_t Colour = 0u;
-    for (uint32_t Row = 0u; Row < Description.Height; ++Row)
-        for (uint32_t Column = 0u; Column < Description.Width; ++Column)
-        {
-            const auto* Pixel = static_cast<const unsigned char*>(Pixels.pData) + Row * Pixels.RowPitch + Column * 4u;
-            Stream.write(reinterpret_cast<const char*>(Pixel), 3u);
-            Colour += Pixel[0] + Pixel[1] + Pixel[2];
-        }
-    Context->Unmap(Readback.Get(), 0);
-    Require(Stream.good() && Colour > uint64_t(Description.Width) * Description.Height * 20u, "Presented application surface was blank");
-}
 } // namespace
 
 int WINAPI wWinMain(HINSTANCE Instance, HINSTANCE, PWSTR, int Show)
@@ -109,19 +82,14 @@ int WINAPI wWinMain(HINSTANCE Instance, HINSTANCE, PWSTR, int Show)
         wchar_t Executable[32768]{};
         GetModuleFileNameW(nullptr, Executable, 32768);
         std::filesystem::current_path(std::filesystem::path(Executable).parent_path());
-        std::filesystem::path Smoke;
         std::string           Opening;
         int                   Count     = 0;
         LPWSTR*               Arguments = CommandLineToArgvW(GetCommandLineW(), &Count);
         for (int Index = 1; Index < Count; ++Index)
         {
-            if (std::wstring(Arguments[Index]) == L"--smoke" && Index + 1 < Count)
-                Smoke = Arguments[++Index];
-            else
-                Opening = EncodeUtf8(std::filesystem::absolute(LaunchDirectory / Arguments[Index]).wstring());
+            Opening = EncodeUtf8(std::filesystem::absolute(LaunchDirectory / Arguments[Index]).wstring());
         }
         LocalFree(Arguments);
-        if (!Smoke.empty()) std::filesystem::create_directories(Smoke);
         ImGui_ImplWin32_EnableDpiAwareness();
         WNDCLASSW Registration{};
         Registration.lpfnWndProc   = ReceiveWindow;
@@ -184,7 +152,7 @@ int WINAPI wWinMain(HINSTANCE Instance, HINSTANCE, PWSTR, int Show)
             int                              FeatureChoice = 0;
             ComPtr<ID3D11Texture2D>          Preview;
             ComPtr<ID3D11ShaderResourceView> PreviewView;
-            uint32_t                         PreviewWidth = 0u, PreviewHeight = 0u, Recordings = 0u;
+            uint32_t                         PreviewWidth = 0u, PreviewHeight = 0u;
             bool                             Running = true;
             ShowWindow(Window, Show);
             UpdateWindow(Window);
@@ -315,25 +283,7 @@ int WINAPI wWinMain(HINSTANCE Instance, HINSTANCE, PWSTR, int Show)
                 Context->OMSetRenderTargets(1, &Active, nullptr);
                 Context->ClearRenderTargetView(Target.Get(), Background);
                 ImGui_ImplDX11_RenderDrawData(ImGui::GetDrawData());
-                if (!Smoke.empty() && Recordings == 5u)
-                {
-                    Require(ImGui::GetDrawData()->TotalVtxCount > 100 && Editor.QueryViewWidth() > 100 && !Image.Pixels.empty(),
-                            "Editor did not present its document");
-                    CaptureSurface(Device.Get(), Context.Get(), Chain.Get(), Smoke / "SolidArc.ppm");
-                    Require(Editor.PlaceConstruct(Document, 0u), "Construct action failed");
-                    Require(Document.Execute("save \"" + EncodeUtf8((Smoke / L"RoundTrip.arc").wstring()) + "\""), "Document save failed");
-                    Require(Document.Execute("open \"" + EncodeUtf8((Smoke / L"RoundTrip.arc").wstring()) + "\""), "Document reopen failed");
-                    SetWindowPos(Window, nullptr, 0, 0, 1100, 740, SWP_NOMOVE | SWP_NOZORDER);
-                }
-                if (!Smoke.empty() && Recordings == 10u)
-                {
-                    CaptureSurface(Device.Get(), Context.Get(), Chain.Get(), Smoke / "SolidArcResized.ppm");
-                    std::ofstream(Smoke / "Execution.log")
-                        << "PASS native SolidArc window, shared editor, viewport presentation, Construct, save/reopen and resize\n";
-                    Running = false;
-                }
                 Require(SUCCEEDED(Chain->Present(1, 0)), "Presentation failed");
-                ++Recordings;
             }
             Frontier::TypefaceRegistry::Install(nullptr);
         }

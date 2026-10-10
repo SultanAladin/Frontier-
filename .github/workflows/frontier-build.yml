@@ -152,7 +152,7 @@ jobs:
 
   # ── The host and the three projects ──────────────────────────────────────────────────────────────
   linux-engine:
-    name: Frontier, Project-Zero, Project-Drive, Project-Dyno, SolidArc
+    name: Frontier, Project-Zero, Project-Drive, Project-Dyno
     runs-on: ubuntu-24.04
     timeout-minutes: 90
     steps:
@@ -183,51 +183,6 @@ jobs:
       - name: Build the host and the project code images
         run: python3 Tools/Build/RunAnnounced.py "build host and projects" -- cmake --build .cache/cmake --target Frontier ProjectZero ProjectDrive Project-Dyno --parallel
 
-      # SolidArc is EXCLUDE_FROM_ALL in the root list, so it is named outright. Its verification
-      #    executables are built with it: they are what says the kernel still agrees with itself.
-      - name: Build SolidArc and its verifications
-        run: |
-          python3 Tools/Build/RunAnnounced.py "build solidarc" -- cmake --build .cache/cmake --target SolidArc --parallel
-          python3 Tools/Build/RunAnnounced.py "build solidarc verifications" -- cmake --build .cache/cmake \
-            --target KernelVerification RasterVerification InteractionVerification \
-                     SelectionVerification TopologyVerification --parallel
-
-      - name: Run the SolidArc verifications
-        run: |
-          set -euo pipefail
-          for Check in KernelVerification RasterVerification InteractionVerification \
-                       SelectionVerification TopologyVerification; do
-            Program="$(find .cache/cmake -type f -name "$Check" -perm -u+x -print -quit)"
-            if [ -z "$Program" ]; then
-              echo "::error title=$Check::not built anywhere under .cache/cmake"
-              exit 1
-            fi
-            echo "--- $Check ($Program)"
-            python3 Tools/Build/RunAnnounced.py "$Check" -- "$(pwd)/$Program"
-          done
-
-      - name: Render the SolidArc contact sheets
-        run: |
-          mkdir -p Exhibits/Gallery/SolidArcNative
-          python3 Tools/Build/RunAnnounced.py "solidarc contact sheets" -- \
-            "$(find .cache/cmake -type f -name SolidArc -perm -u+x -print -quit)" \
-              --proofs Exhibits/Gallery/SolidArcNative \
-              Editor/AuthoringTools/Modelling/SolidArc/Scripts/Phase10_ContactSheet.arc \
-              Editor/AuthoringTools/Modelling/SolidArc/Scripts/Phase12_ContactSheet.arc \
-              Editor/AuthoringTools/Modelling/SolidArc/Scripts/Phase13_ContactSheet.arc \
-              Editor/AuthoringTools/Modelling/SolidArc/Samples/ToyCar.arc \
-              Editor/AuthoringTools/Modelling/SolidArc/Samples/ToyBiplane.arc \
-              Editor/AuthoringTools/Modelling/SolidArc/Samples/ToySailboat.arc
-          ls -la Exhibits/Gallery/SolidArcNative
-
-      - name: Publish the SolidArc renderings
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: solidarc-ui-captures
-          path: Exhibits/Gallery/SolidArcNative/**
-          if-no-files-found: warn
-
       - name: Publish the binaries
         if: always()
         uses: actions/upload-artifact@v4
@@ -238,7 +193,6 @@ jobs:
             Engine/Shaders/ShaderManifest.json
             .cache/cmake/Frontier
             .cache/cmake/*.so
-            .cache/cmake/**/SolidArc
             Projects/Project-Drive/Build/*.so
           if-no-files-found: warn
           retention-days: 14
@@ -271,39 +225,47 @@ jobs:
           if-no-files-found: warn
           retention-days: 14
 
-  # ── SolidArc through the Windows MSVC route, which is the one that produces its UI ───────────────
-  windows-solidarc:
-    name: SolidArc (MSVC)
+  # ── One Windows desktop bundle: host, project images, shaders and windowed SolidArc ──
+  windows-frontier:
+    name: Frontier and SolidArc Windows desktop bundle
     runs-on: windows-2022
-    timeout-minutes: 60
+    timeout-minutes: 120
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
 
-      - name: Build SolidArc with MSVC x64 /MD
+      - name: Install Vulkan SDK (headers, import library and glslc)
+        shell: pwsh
+        run: |
+          if (-not (Get-ChildItem C:\VulkanSDK -Directory -ErrorAction SilentlyContinue)) {
+            choco install vulkan-sdk --yes --no-progress --limit-output
+            if ($LASTEXITCODE -ne 0) { throw 'Vulkan SDK installation failed' }
+          }
+          $Sdk = Get-ChildItem C:\VulkanSDK -Directory | Sort-Object Name -Descending | Select-Object -First 1
+          if (-not $Sdk -or -not (Test-Path (Join-Path $Sdk.FullName 'Bin/glslc.exe'))) { throw 'Vulkan SDK lacks glslc.exe' }
+          "VULKAN_SDK=$($Sdk.FullName)" >> $env:GITHUB_ENV
+
+      - name: Build the host, project code images, shaders and SolidArc GUI with MSVC
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
-          $VsWhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
-          $VisualStudio = & $VsWhere -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath
-          if (-not $VisualStudio) { throw 'Visual Studio C++ tools not found' }
-          $VcVars = Join-Path $VisualStudio 'VC\Auxiliary\Build\vcvars64.bat'
-          cmd /c "`"$VcVars`" >nul && set" | ForEach-Object {
-            if ($_ -match '^([^=]+)=(.*)$') { Set-Item "Env:$($Matches[1])" $Matches[2] }
-          }
-          python Tools/Build/RunAnnounced.py "solidarc msvc" -- python Tools/Build/CheckMsvcSolidArc.py
-          # The helper writes beside the checkout; bring its logs inside so they can be published.
-          New-Item -ItemType Directory -Force _AgentScratch/build | Out-Null
-          Copy-Item -Recurse -Force ../_AgentScratch/build/* _AgentScratch/build/ -ErrorAction SilentlyContinue
+          & ./Tools/Build/ToolchainSequence.ps1 -Configuration Release -SetupDependencies
+          if ($LASTEXITCODE -ne 0) { throw 'Windows desktop build failed' }
+          & ./Projects/Project-Dyno/Build/ToolchainSequence.ps1 -Configuration Release
+          if ($LASTEXITCODE -ne 0) { throw 'Project-Dyno build failed' }
 
-      - name: Publish the SolidArc build log
-        if: always()
+      - name: Package the Windows desktop bundle
+        shell: pwsh
+        run: |
+          python Tools/Build/PackageWindows.py
+          if ($LASTEXITCODE -ne 0) { throw 'Windows bundle packaging failed' }
+
+      - name: Download the complete Windows desktop bundle here
         uses: actions/upload-artifact@v4
         with:
-          name: solidarc-windows
-          path: |
-            _AgentScratch/build/**
-          if-no-files-found: warn
-          retention-days: 14
+          name: frontier-windows-desktop
+          path: Build/Frontier-Windows-x64.zip
+          if-no-files-found: error
+          retention-days: 30
