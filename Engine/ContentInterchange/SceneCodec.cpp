@@ -29,7 +29,7 @@ namespace {
 const cgltf_accessor* FindAttribute(const cgltf_primitive& Primitive, cgltf_attribute_type Type, int Set = 0) noexcept
 {
     for (cgltf_size I = 0; I < Primitive.attributes_count; ++I)
-        if (Primitive.attributes[I].type == Type && Primitive.attributes[I].index == Set) return Primitive.attributes[I].record;
+        if (Primitive.attributes[I].type == Type && Primitive.attributes[I].index == Set) return Primitive.attributes[I].data;
     return nullptr;
 }
 
@@ -84,15 +84,15 @@ bool SceneCodec::Decode(const std::string& Path, SceneStructure& Out, TextureInd
         CameraRecord R; R.Name = C.name ? C.name : "";
         if (C.type == cgltf_camera_type_perspective)
         {
-            R.VerticalFieldOfView = C.record.perspective.yfov;
-            R.AspectRatio = C.record.perspective.has_aspect_ratio ? C.record.perspective.aspect_ratio : 0.0f;
-            R.NearPlane = C.record.perspective.znear * Config.UniformScale;
-            R.FarPlane  = C.record.perspective.has_zfar ? C.record.perspective.zfar * Config.UniformScale : 0.0f;
+            R.VerticalFieldOfView = C.data.perspective.yfov;
+            R.AspectRatio = C.data.perspective.has_aspect_ratio ? C.data.perspective.aspect_ratio : 0.0f;
+            R.NearPlane = C.data.perspective.znear * Config.UniformScale;
+            R.FarPlane  = C.data.perspective.has_zfar ? C.data.perspective.zfar * Config.UniformScale : 0.0f;
         }
         else
         {
-            R.Orthographic = true; R.OrthographicHalfHeight = C.record.orthographic.ymag * Config.UniformScale;
-            R.NearPlane = C.record.orthographic.znear * Config.UniformScale; R.FarPlane = C.record.orthographic.zfar * Config.UniformScale;
+            R.Orthographic = true; R.OrthographicHalfHeight = C.data.orthographic.ymag * Config.UniformScale;
+            R.NearPlane = C.data.orthographic.znear * Config.UniformScale; R.FarPlane = C.data.orthographic.zfar * Config.UniformScale;
         }
         (void)Out.RegisterCamera(R, kPlacementNone);
     }
@@ -164,16 +164,16 @@ bool SceneCodec::Decode(const std::string& Path, SceneStructure& Out, TextureInd
         const Matrix4x4 Local = Ancestor == kPlacementNone ? World : ProjectionFromColumns(LocalColumns);
         const uint32_t Placement = Out.RegisterPlacement(Node.name ? Node.name : ("node_" + std::to_string(N)), Ancestor, Local, World);
         PlacementOf[N] = Placement;
-        if (Node.extras.record != nullptr && std::strstr(Node.extras.record, "frontier_dynamic") != nullptr)
+        if (Node.extras.data != nullptr && std::strstr(Node.extras.data, "frontier_dynamic") != nullptr)
             Out.AssignPlacementDynamic(Placement, true);
         if (Node.camera) Out.AttachCamera(Placement, static_cast<uint32_t>(Node.camera - Packet->cameras));
         if (Node.light)  Out.AttachPunctualLuminaire(Placement, static_cast<uint32_t>(Node.light - Packet->lights));
-        if (!Node.topology) continue;
+        if (!Node.mesh) continue;
         const uint32_t FirstInstance = static_cast<uint32_t>(Out.QueryInstances().size());
 
-        for (cgltf_size P = 0; P < Node.topology->primitives_count; ++P)
+        for (cgltf_size P = 0; P < Node.mesh->primitives_count; ++P)
         {
-            const cgltf_primitive& Primitive = Node.topology->primitives[P];
+            const cgltf_primitive& Primitive = Node.mesh->primitives[P];
             if (Primitive.type != cgltf_primitive_type_triangles) { ++Skipped; continue; }
 
             auto Found = Decoded.find(&Primitive);

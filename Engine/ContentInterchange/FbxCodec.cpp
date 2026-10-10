@@ -38,12 +38,12 @@ Matrix4x4 ProjectionFromUfbx(const ufbx_matrix& M) noexcept
 uint32_t RegisterFbxTexture(const ufbx_texture* T, bool Linear, TextureIndex* Textures) noexcept
 {
     if (!Textures || !T) return kMaterialTextureNone;
-    if (T->content.size > 0u && T->content.record)
-        return Textures->RegisterEncoded(std::string(T->name.record, T->name.length), static_cast<const uint8_t*>(T->content.record), T->content.size, Linear);
+    if (T->content.size > 0u && T->content.data)
+        return Textures->RegisterEncoded(std::string(T->name.data, T->name.length), static_cast<const uint8_t*>(T->content.data), T->content.size, Linear);
     if (T->filename.length > 0u)
-        return Textures->RegisterPath(std::string(T->filename.record, T->filename.length), Linear);
+        return Textures->RegisterPath(std::string(T->filename.data, T->filename.length), Linear);
     if (T->absolute_filename.length > 0u)
-        return Textures->RegisterPath(std::string(T->absolute_filename.record, T->absolute_filename.length), Linear);
+        return Textures->RegisterPath(std::string(T->absolute_filename.data, T->absolute_filename.length), Linear);
     return kMaterialTextureNone;
 }
 
@@ -74,15 +74,15 @@ bool FbxCodec::Decode(const std::string& Path, SceneStructure& Out, TextureIndex
     const FbxTextureResolver Resolve = [&](const void* T, bool Linear) { return RegisterFbxTexture(static_cast<const ufbx_texture*>(T), Linear, Textures); };
     std::unordered_map<const ufbx_material*, uint32_t> MaterialSlot;
     for (size_t I = 0; I < Scene->materials.count; ++I)
-        MaterialSlot[Scene->materials.record[I]] = Out.RegisterMaterial(MaterialCodec::DecodeFbx(Scene->materials.record[I], MaterialConfig, Resolve));
+        MaterialSlot[Scene->materials.data[I]] = Out.RegisterMaterial(MaterialCodec::DecodeFbx(Scene->materials.data[I], MaterialConfig, Resolve));
     const uint32_t FallbackSlot = Out.RegisterMaterial(MaterialCodec::DecodeFbx(nullptr, MaterialConfig, nullptr));
 
     // Cameras and lights (ufbx order), attached below.
     std::unordered_map<const ufbx_camera*, uint32_t> CameraSlot;
     for (size_t I = 0; I < Scene->cameras.count; ++I)
     {
-        const ufbx_camera& C = *Scene->cameras.record[I];
-        CameraRecord R; R.Name = std::string(C.name.record, C.name.length);
+        const ufbx_camera& C = *Scene->cameras.data[I];
+        CameraRecord R; R.Name = std::string(C.name.data, C.name.length);
         R.AspectRatio = static_cast<float>(C.aspect_ratio);
         R.NearPlane   = static_cast<float>(C.near_plane) * Config.UniformScale;
         R.FarPlane    = static_cast<float>(C.far_plane)  * Config.UniformScale;
@@ -93,8 +93,8 @@ bool FbxCodec::Decode(const std::string& Path, SceneStructure& Out, TextureIndex
     std::unordered_map<const ufbx_light*, uint32_t> LightSlot;
     for (size_t I = 0; I < Scene->lights.count; ++I)
     {
-        const ufbx_light& L = *Scene->lights.record[I];
-        PunctualLuminaireRecord R; R.Name = std::string(L.name.record, L.name.length);
+        const ufbx_light& L = *Scene->lights.data[I];
+        PunctualLuminaireRecord R; R.Name = std::string(L.name.data, L.name.length);
         R.Category = L.type == UFBX_LIGHT_DIRECTIONAL ? PunctualLuminaireCategory::Directional : L.type == UFBX_LIGHT_SPOT ? PunctualLuminaireCategory::Spot : PunctualLuminaireCategory::Point;
         R.Colour[0] = static_cast<float>(L.color.x); R.Colour[1] = static_cast<float>(L.color.y); R.Colour[2] = static_cast<float>(L.color.z);
         R.Intensity = static_cast<float>(L.intensity);   // ufbx already divides "Intensity" by 100 → ~[-] multiplier; ⚠️ not photometric (FBX has no unit)
@@ -116,7 +116,7 @@ bool FbxCodec::Decode(const std::string& Path, SceneStructure& Out, TextureIndex
         std::vector<uint32_t> Scratch(std::max<size_t>(Hull.max_face_triangles * 3u, 3u));
         for (size_t P = 0; P < Hull.material_parts.count; ++P)
         {
-            const ufbx_mesh_part& Part = Hull.material_parts.record[P];
+            const ufbx_mesh_part& Part = Hull.material_parts.data[P];
             if (Part.num_triangles == 0u) continue;
             std::vector<VertexRecord> Vertices; Vertices.reserve(Part.num_triangles * 3u);
             std::vector<uint32_t>     Indices;  Indices.reserve(Part.num_triangles * 3u);
@@ -124,7 +124,7 @@ bool FbxCodec::Decode(const std::string& Path, SceneStructure& Out, TextureIndex
             std::map<std::array<float, 12>, uint32_t> Weld;
             for (size_t F = 0; F < Part.face_indices.count; ++F)
             {
-                const ufbx_face Face = Hull.faces.record[Part.face_indices.record[F]];
+                const ufbx_face Face = Hull.faces.data[Part.face_indices.data[F]];
                 if (Face.num_indices < 3u) { ++Skipped; continue; }
                 const uint32_t TriangleCount = ufbx_triangulate_face(Scratch.data(), Scratch.size(), &Hull, Face);
                 for (uint32_t T = 0; T < TriangleCount * 3u; ++T)
@@ -167,25 +167,25 @@ bool FbxCodec::Decode(const std::string& Path, SceneStructure& Out, TextureIndex
     std::unordered_map<const ufbx_node*, uint32_t> PlacementOf;
     for (size_t N = 0; N < Scene->nodes.count; ++N)
     {
-        const ufbx_node& Node = *Scene->nodes.record[N];
+        const ufbx_node& Node = *Scene->nodes.data[N];
         if (Node.is_root) continue;   // the ufbx root carries only the axis conversion; engine roots are its children
         const uint32_t Ancestor = (Node.parent && !Node.parent->is_root) ? PlacementOf[Node.parent] : kPlacementNone;
         const Matrix4x4 World = MultiplyProjection(Scale, ProjectionFromUfbx(Node.node_to_world));
         const Matrix4x4 Local = Ancestor == kPlacementNone ? World : ProjectionFromUfbx(Node.node_to_parent);
-        const uint32_t Placement = Out.RegisterPlacement(std::string(Node.name.record, Node.name.length), Ancestor, Local, World);
+        const uint32_t Placement = Out.RegisterPlacement(std::string(Node.name.data, Node.name.length), Ancestor, Local, World);
         PlacementOf[&Node] = Placement;
         if (Node.camera) Out.AttachCamera(Placement, CameraSlot[Node.camera]);
         if (Node.light)  Out.AttachPunctualLuminaire(Placement, LightSlot[Node.light]);
-        if (!Node.topology) continue;
+        if (!Node.mesh) continue;
 
         const uint32_t FirstInstance = static_cast<uint32_t>(Out.QueryInstances().size());
         const Matrix4x4 GeometryWorld = MultiplyProjection(Scale, ProjectionFromUfbx(Node.geometry_to_world));   // includes the geometric (pivot) transform
-        for (DecodedPart& Part : DecodeGeometry(*Node.topology))
+        for (DecodedPart& Part : DecodeGeometry(*Node.mesh))
         {
             // Per-node material override: node.materials[] wins over topology.materials[] when present.
             const ufbx_material* Material = nullptr;
-            if (Part.MaterialPart < Node.materials.count)       Material = Node.materials.record[Part.MaterialPart];
-            else if (Part.MaterialPart < Node.topology->materials.count) Material = Node.topology->materials.record[Part.MaterialPart];
+            if (Part.MaterialPart < Node.materials.count)       Material = Node.materials.data[Part.MaterialPart];
+            else if (Part.MaterialPart < Node.mesh->materials.count) Material = Node.mesh->materials.data[Part.MaterialPart];
             const auto Slot = Material ? MaterialSlot.find(Material) : MaterialSlot.end();
             const uint32_t MaterialIndex = Slot != MaterialSlot.end() ? Slot->second : FallbackSlot;
             const uint32_t Flags = (Material && Material->features.double_sided.enabled) ? InstanceFlagDoubleSided : 0u;

@@ -115,7 +115,7 @@ inline float HeadHeight() { return Grind(HeadTitle) + HeadGap + Grind(HeadSub) +
 
 inline float TrackedWidth(ImFont* Face, float Size, const char* Body, float Extra)
 {
-    ImFontBaked* Precomputed = Face->GetFontPrecomputed(Grind(Size));
+    ImFontBaked* Precomputed = Face->GetFontBaked(Grind(Size));
     float Run = 0.0f;
     for (const char* Scan = Body; *Scan;)
     {
@@ -139,7 +139,7 @@ inline float Tracked(ImDrawList* Draw, ImFont* Face, float X, float Y, float Siz
         const int Used = ImTextCharFromUtf8(&Point, Scan, nullptr);
         if (Used <= 0) break;
         if (Paint) Draw->AddText(Face, Grind(Size), { Pen, Y }, Colour, Scan, Scan + Used);
-        ImFontBaked* Precomputed = Face->GetFontPrecomputed(Grind(Size));
+        ImFontBaked* Precomputed = Face->GetFontBaked(Grind(Size));
         Pen += Precomputed->GetCharAdvance(static_cast<ImWchar>(Point)) + Extra;
         Scan += Used;
     }

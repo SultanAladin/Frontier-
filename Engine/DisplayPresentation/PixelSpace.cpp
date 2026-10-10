@@ -182,20 +182,20 @@ void PixelSpace::PopTypeface() noexcept
 uint32_t PixelSpace::BeginGroup() const noexcept
 {
     if (!Commands) return 0u;
-    return static_cast<uint32_t>(List(Commands)->VtxStore.Size);
+    return static_cast<uint32_t>(List(Commands)->VtxBuffer.Size);
 }
 
 void PixelSpace::EndGroup(uint32_t Mark, float OffsetX, float OffsetY, float GroupScale, float PivotX, float PivotY, float Alpha) noexcept
 {
     if (!Commands) return;
     ImDrawList* Draw = List(Commands);
-    const int End = Draw->VtxStore.Size;
+    const int End = Draw->VtxBuffer.Size;
     const float A = std::clamp(Alpha, 0.0f, 1.0f);
     // Vertices are already physical; the group parameters arrive in logical pixels.
     const float Px = PivotX * this->Scale, Py = PivotY * this->Scale, Ox = OffsetX * this->Scale, Oy = OffsetY * this->Scale;
     for (int Index = static_cast<int>(Mark); Index < End; ++Index)
     {
-        ImDrawVert& Vertex = Draw->VtxStore[Index];
+        ImDrawVert& Vertex = Draw->VtxBuffer[Index];
         Vertex.pos.x = Px + (Vertex.pos.x - Px) * GroupScale + Ox;
         Vertex.pos.y = Py + (Vertex.pos.y - Py) * GroupScale + Oy;
         if (A < 1.0f)

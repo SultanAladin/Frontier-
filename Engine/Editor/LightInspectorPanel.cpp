@@ -417,10 +417,10 @@ void PaintStudy(const Study& S, const Emitter& L)
     else if (L.Kind == LightKind::Spot)
     {
         const float Half = ImClamp(std::tan(L.Angle * Pi / 360.0f) * 220.0f, 12.0f, 145.0f);
-        const int First = S.Draw->VtxStore.Size;
+        const int First = S.Draw->VtxBuffer.Size;
         ImVec2 Wedge[3] = { S.At(190, 49), S.At(190 + Half, 211), S.At(190 - Half, 211) };
         S.Draw->AddConvexPolyFilled(Wedge, 3, IM_COL32_WHITE);
-        ShadeDown(S.Draw, First, S.Draw->VtxStore.Size, S.At(0, 50).y, S.At(0, 215).y,
+        ShadeDown(S.Draw, First, S.Draw->VtxBuffer.Size, S.At(0, 50).y, S.At(0, 215).y,
                   S.Tint(0.015f), S.Tint(0.06f + ImMin(0.2f, Shine / 1000.0f)));
         S.Draw->AddPolyline(Wedge, 3, S.Tint(0.45f), ImDrawFlags_Closed, 1.0f);
         DashedLine(S.Draw, S.At(190 - Half * (1.0f - L.Penumbra), 211), S.At(190, 49), S.Tint(0.65f), S.Of(3), S.Of(5));
@@ -470,9 +470,9 @@ void PaintStudy(const Study& S, const Emitter& L)
         const float Thick = ImClamp(7.0f + L.Radius * 85.0f, 7.0f, 28.0f);
         const float Left = 190.0f - Run * 0.5f;
         SoftEdge(S.Draw, S.At(Left, 104 - Thick), S.At(Left + Run, 104 + Thick), S.Of(Thick), S.Tint(0.4f), S.Of(20.0f));
-        const int First = S.Draw->VtxStore.Size;
+        const int First = S.Draw->VtxBuffer.Size;
         S.Draw->AddRectFilled(S.At(Left, 104 - Thick), S.At(Left + Run, 104 + Thick), IM_COL32_WHITE, S.Of(Thick));
-        ShadeDown(S.Draw, First, S.Draw->VtxStore.Size, S.At(0, 104 - Thick).y, S.At(0, 104 + Thick).y,
+        ShadeDown(S.Draw, First, S.Draw->VtxBuffer.Size, S.At(0, 104 - Thick).y, S.At(0, 104 + Thick).y,
                   S.Tint(0.1f), S.Tint(0.15f));
         S.Draw->AddRect(S.At(Left, 104 - Thick), S.At(Left + Run, 104 + Thick), S.Tint(0.7f), S.Of(Thick), 0, 1.0f);
         for (float X : { Left + 7.0f, Left + Run - 7.0f })

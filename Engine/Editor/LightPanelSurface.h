@@ -132,7 +132,7 @@ inline void DashedLine(ImDrawList* Draw, ImVec2 From, ImVec2 To, ImU32 Colour, f
 inline void ShadeDown(ImDrawList* Draw, int First, int Last, float TopY, float FootY, ImU32 Top, ImU32 Foot)
 {
     const float Reach = ImMax(FootY - TopY, 0.0001f);
-    for (ImDrawVert* Vertex = Draw->VtxStore.Packet + First; Vertex < Draw->VtxStore.Packet + Last; ++Vertex)
+    for (ImDrawVert* Vertex = Draw->VtxBuffer.Data + First; Vertex < Draw->VtxBuffer.Data + Last; ++Vertex)
     {
         const float Share = ImClamp((Vertex->pos.y - TopY) / Reach, 0.0f, 1.0f);
         const int Red   = int(((Top >>  0) & 0xff) + (((Foot >>  0) & 0xff) - int((Top >>  0) & 0xff)) * Share);

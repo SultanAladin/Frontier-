@@ -126,7 +126,7 @@ VkAccelerationStructureGeometryKHR RayQueryExchange::PlacementGeometry() const
     VkAccelerationStructureGeometryKHR Geometry{ VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_KHR };
     Geometry.geometryType = VK_GEOMETRY_TYPE_INSTANCES_KHR;
     Geometry.geometry.instances.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_INSTANCES_DATA_KHR;
-    Geometry.geometry.instances.record.deviceAddress = Placements.Address;
+    Geometry.geometry.instances.data.deviceAddress = Placements.Address;
     return Geometry;
 }
 
