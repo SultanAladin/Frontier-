@@ -620,6 +620,8 @@ const char* MatcapName(uint8_t Layer) noexcept
     return Layer < SlangMirror::MatcapLayers ? Names[Layer] : "?";
 }
 int MatcapCount() noexcept { return SlangMirror::MatcapLayers; }
+// The studio sheet both raster paths read: the same cached layers the software path samples, so the Vulkan path cannot drift from it.
+const std::vector<float>& PrecomputedMatcapTexels() noexcept { return SM::Sheet().Texels; }
 
 bool WritePng(const std::string& Path, const RasterImage& Image) noexcept
 {

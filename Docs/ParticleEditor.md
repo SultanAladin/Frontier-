@@ -292,7 +292,7 @@ This is the trap the rename invites, so it is asserted numerically rather than c
 
 It pays for itself on performance too. Flow fields sum into one 3D velocity texture per frame and sample
 in O(1) however many there are — which is exactly what `buildWind` already does. Acceleration fields
-cannot: the useful ones are unbounded, and a bounded box would clip them. `Bakeable()` makes that
+cannot: the useful ones are unbounded, and a bounded box would clip them. `Precomputable()` makes that
 queryable so the engine does not re-derive it and the two cannot disagree.
 
 ### What the checks found
@@ -367,7 +367,7 @@ Four things the panel says out loud, each of them structural rather than somethi
 3. **A kind with no shader path is listed and says so.** A control that silently does nothing is worse
    than one that admits it.
 4. **The cost card counts what sums into the lattice against what is evaluated per receiver**, read
-   through `ForceBakeable` so the panel and the engine cannot disagree about which fields are cheap.
+   through `ForcePrecomputable` so the panel and the engine cannot disagree about which fields are cheap.
 
 Routing: `EditorSheetAppearance::ForceFields` → `RowPanel::ForceField` → `InspectorPanel::RecordForceFields()`.
 🔴 Unlike a gas domain, the fields are **one set for the scene, not a slot per instance** — a field is a

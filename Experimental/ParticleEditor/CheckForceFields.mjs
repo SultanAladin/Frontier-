@@ -7,7 +7,7 @@
 // easy to quietly break later, so it is asserted here with numbers.
 import {
   Contribution, Reach, Falloff, Falls, ForceFieldKinds, KindById, BaseField,
-  Awake, ActsOn, Reaching, SampleField, Resolve, Advance, Bakeable,
+  Awake, ActsOn, Reaching, SampleField, Resolve, Advance, Precomputable,
 } from "./js/forcefields.js";
 
 let Checks = 0;
@@ -171,7 +171,7 @@ Banner("What can be baked into the lattice, and what cannot");
     BaseField("attract"),
     { ...BaseField("current"), Acts: ["water"] },
   ];
-  const { Precomputed, Live } = Bakeable(Fields);
+  const { Precomputed, Live } = Precomputable(Fields);
   Check(Precomputed.length === 2 && Precomputed.every((One) => KindById(One.Kind).Give === Contribution.Flow),
         "the unselective flow fields sum into one velocity lattice, however many there are");
   Check(Live.some((One) => One.Kind === "gravity") && Live.some((One) => One.Kind === "attract"),

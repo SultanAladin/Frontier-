@@ -293,23 +293,23 @@ export function Advance(Velocity, Acting, Coupling, Step) {
 // 📦 Which fields can be summed into the flow lattice, and which must be evaluated per receiver.
 //    This is the performance consequence of the taxonomy, made queryable so the engine does not have to
 //    re-derive it and the two cannot disagree.
-export function Bakeable(Fields) {
-  const Baked = [], Live = [];
+export function Precomputable(Fields) {
+  const Precomputed = [], Live = [];
   for (const Field of Fields || []) {
     const Kind = KindById(Field.Kind);
     if (!Kind) continue;
     // A flow field can be summed into the lattice only if nothing about it is per-receiver: an Acts list
     //    makes it selective, and a selective field cannot share one texture with the fields it excludes.
     const Selective = Field.Acts && Field.Acts.length > 0;
-    if (Kind.Give === Contribution.Flow && !Selective) Baked.push(Field);
+    if (Kind.Give === Contribution.Flow && !Selective) Precomputed.push(Field);
     else Live.push(Field);
   }
-  return { Baked, Live };
+  return { Precomputed, Live };
 }
 
 PE.Forces = {
   Contribution, Reach, Falloff, Falls, ForceFieldKinds, KindById, BaseField,
-  Awake, ActsOn, Reaching, SampleField, Resolve, Advance, Bakeable,
+  Awake, ActsOn, Reaching, SampleField, Resolve, Advance, Precomputable,
 };
 
 // ─── Reaching the GPU ───────────────────────────────────────────────────────────────────────────────────

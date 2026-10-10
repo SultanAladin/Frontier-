@@ -757,11 +757,11 @@ import "./handoff.js";
     }
     root.append(card("Add", null, Adders));
 
-    const { Baked, Live } = PE.Forces.Bakeable(state.forces);
+    const { Precomputed, Live } = PE.Forces.Precomputable(state.forces);
     root.append(card("Cost", "WHAT THIS SCENE PAYS",
       el("div", { class: "stat-grid" },
         el("div", { class: "stat" }, el("span", { class: "stat-k", text: "Summed into the lattice" }),
-          el("span", { class: "stat-v", text: String(Baked.length) })),
+          el("span", { class: "stat-v", text: String(Precomputed.length) })),
         el("div", { class: "stat" }, el("span", { class: "stat-k", text: "Evaluated per receiver" }),
           el("span", { class: "stat-v", text: String(Live.length) }))),
       note("Flow fields sum into one velocity texture and then cost one sample each step no matter how many there are. Acceleration fields cannot: the useful ones are unbounded and a bounded texture would clip them, so each is evaluated per receiver per step.")));
