@@ -570,12 +570,12 @@ export class EngineCore {
     const fuelR = hiss * 0.8 + pump * 0.95;
 
     // NOS: pressurized-bottle hiss (only audible while flowing).
-    const nosN = this.nosBP.run(rng() * 2 - 1) * this.nosLevel * 0.05;
+    const nosN = this.nosBP.run(rng() * 2 - 1) * this.nosLevel * 0.03;
     const nosL = nosN;
     const nosR = nosN * 0.96;
 
     // Wind.
-    const wn = this.windBP.run(rng() * 2 - 1) * this.windGain * 2;
+    const wn = this.windBP.run(rng() * 2 - 1) * this.windGain;
     const windL = wn;
     const windR = wn * 0.98;
 
