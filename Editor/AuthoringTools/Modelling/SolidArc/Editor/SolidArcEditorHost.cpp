@@ -8,6 +8,7 @@
 #include "../../../../../Engine/Editor/SunInspectorPanel.h"
 #include "../../../../../Engine/DisplayPresentation/FidelityClassifier.h"
 #include "../../../../../Engine/DisplayPresentation/IconPresentation.h"
+#include "../Interaction/SnapResolution.h"
 
 #include <imgui.h>
 #include <imgui_internal.h>
@@ -281,22 +282,17 @@ uint32_t SolidArcEditorHost::QueryConstructTileCount() noexcept
     return kConstructTileCount;
 }
 
-bool SolidArcEditorHost::PlaceConstruct(ConsoleHost& Host, uint32_t Tile) noexcept
+bool SolidArcEditorHost::PlaceConstruct(ConsoleHost& Host, uint32_t Tile, double X, double Y) noexcept
 {
-    const uint32_t Slot   = ConstructPlaced_;
-    const double   Radius = 2.6 + 0.9 * static_cast<double>(Slot / 8u);
-    const double   Angle  = (static_cast<double>(Slot % 8u) + 0.5 * static_cast<double>((Slot / 8u) & 1u)) * 0.78539816339;
-    const std::string Command = ConstructCommand(Tile, Radius * std::cos(Angle), Radius * std::sin(Angle));
+    const std::string Command = ConstructCommand(Tile, X, Y);
     if (Command.empty())
         return false;
     const size_t Before = Host.AllFigures().size();
     const bool   Done   = Host.Execute(Command);
     if (Done && Host.AllFigures().size() > Before)
     {
-        ++ConstructPlaced_;
         ConstructPlacedName_ = Host.AllFigures().back().Name;
         Host.Execute("select " + ConstructPlacedName_);
-        Host.Execute("view fit");
         return true;
     }
     return false;
@@ -304,14 +300,24 @@ bool SolidArcEditorHost::PlaceConstruct(ConsoleHost& Host, uint32_t Tile) noexce
 
 void SolidArcEditorHost::SeatView(ConsoleHost& Host) noexcept
 {
+    Host.AssignLatticeCell(0.01); // web SolidArc's 10 mm XY construction grid
     // The raster takes the size of the view it fills, in device pixels. The optional smooth preview uses four
     //    working samples per pixel; fast editing uses one to avoid multiplying CPU raster cost on every gesture.
     const float Scale = std::max(1.0f, ImGui::GetIO().DisplayFramebufferScale.x);
     const float Width = Viewport_.QueryViewWidth() * Scale;
     const float Height = Viewport_.QueryViewHeight() * Scale;
+    // The CAD viewport never invokes ProjectDrive/ReSTIR. Bound the CPU raster's
+    // pixel work and use a smaller interactive budget while navigating/dragging;
+    // picking and ray projection both use the same scaled target coordinates.
+    const ViewportCadContact& Contact = Viewport_.QueryCadContact();
+    const bool Interactive = GizmoDragging_ || Contact.Start || Contact.Move || (Contact.Left && !Contact.End);
+    const double Budget = Interactive ? 460000.0 : 1100000.0;
+    const double Ratio = Width > 0.0f && Height > 0.0f
+        ? std::min(1.0, std::sqrt(Budget / (double(Width) * double(Height)))) : 1.0;
     if (Width >= 32.0f && Height >= 32.0f)
-        Host.SeatSurface(static_cast<uint32_t>(Width + 0.5f), static_cast<uint32_t>(Height + 0.5f), PreviewSamples_);
-    Host.ResizeGizmoAtView(110.0 * Scale);
+        Host.SeatSurface(static_cast<uint32_t>(Width * Ratio + 0.5),
+                         static_cast<uint32_t>(Height * Ratio + 0.5), Interactive ? 1u : PreviewSamples_);
+    Host.ResizeGizmoAtView(110.0 * Scale * Ratio);
 }
 
 void SolidArcEditorHost::AdvanceViewport(ConsoleHost& Host) noexcept
@@ -320,7 +326,7 @@ void SolidArcEditorHost::AdvanceViewport(ConsoleHost& Host) noexcept
     const double Width = static_cast<double>(Host.Raster().Width());
     const double Height = static_cast<double>(Host.Raster().Height());
     const float Scale = std::max(1.0f, ImGui::GetIO().DisplayFramebufferScale.x);
-    if (Contact.Start && Contact.Left && !Contact.Orbit && !Contact.Pan)
+    if (ConstructTile_ < 0 && Contact.Start && Contact.Left && !Contact.Orbit && !Contact.Pan)
     {
         GizmoDragging_ = Host.BeginGizmoAtView(Contact.U * Width, Contact.V * Height);
         if (GizmoDragging_) Viewport_.CaptureCadGizmo();
@@ -329,7 +335,7 @@ void SolidArcEditorHost::AdvanceViewport(ConsoleHost& Host) noexcept
     {
         if (GizmoDragging_)
             Host.DragGizmoAtView(Contact.U * Width, Contact.V * Height, Contact.Snap);
-        else if (!Contact.Box)
+        else if (!Contact.Box && (ConstructTile_ < 0 || Contact.Pan || Contact.Orbit))
         {
             if (Contact.Pan)
                 Host.Camera().Pan(Contact.DeltaX * Scale, -Contact.DeltaY * Scale, Height);
@@ -348,6 +354,69 @@ void SolidArcEditorHost::AdvanceViewport(ConsoleHost& Host) noexcept
         }
         else if (Contact.Cancel) Viewport_.DiscardCadPick();
     }
+    if (ConstructTile_ >= 0)
+    {
+        Viewport_.DiscardCadPick();
+        // A construction gesture intersects the actual camera ray with the XY workplane. Missing
+        // (edge-on) rays cannot produce a figure; no origin/ring default is substituted.
+        Vec3 Hit;
+        ConstructCursorValid_ = Contact.Hover && SnapResolution::PlaneHit(Contact.U * Width, Contact.V * Height,
+            Host.Camera(), Host.Raster().Width(), Host.Raster().Height(), Workplane::XY(), Hit);
+        if (ConstructCursorValid_)
+        {
+            ConstructCursorX_ = Hit.X;
+            ConstructCursorY_ = Hit.Y;
+        }
+        if (ConstructTile_ >= 1 && ConstructTile_ <= 11)
+        {
+            // The existing CAD ToolSession owns sketch previews, snaps, point prompts, Enter and Esc.
+            // Only send real pointer positions over the view; its tool never fabricates coordinates.
+            if (ConstructCursorValid_ && (AimCellX_ != int32_t(Contact.U * Width) || AimCellY_ != int32_t(Contact.V * Height)))
+            {
+                Host.MoveToolPointer(Contact.U * Width, Contact.V * Height, Contact.Snap);
+                AimCellX_ = int32_t(Contact.U * Width);
+                AimCellY_ = int32_t(Contact.V * Height);
+            }
+            if (Contact.End && Contact.Left && !Contact.Travelled && !Contact.Orbit && !Contact.Pan && ConstructCursorValid_)
+            {
+                char Line[96];
+                std::snprintf(Line, sizeof(Line), "click %.2f %.2f%s", Contact.U * Width, Contact.V * Height,
+                    Contact.Snap ? " --ctrl" : "");
+                Host.Execute(Line);
+                ConstructAnchorSet_ = true;
+                if (!Host.HasActiveTool()) { ConstructTile_ = -1; ConstructAnchorSet_ = false; }
+            }
+        }
+        else if (Contact.End && Contact.Left && !Contact.Travelled && !Contact.Orbit && !Contact.Pan && ConstructCursorValid_)
+        {
+            ConstructX_ = ConstructCursorX_;
+            ConstructY_ = ConstructCursorY_;
+            ConstructAnchorSet_ = true;
+        }
+        if (!ImGui::GetIO().WantTextInput && ImGui::IsKeyPressed(ImGuiKey_Escape, false))
+        {
+            if (Host.HasActiveTool()) Host.Execute("tool cancel");
+            ConstructTile_ = -1;
+            ConstructAnchorSet_ = false;
+        }
+        else if (!ImGui::GetIO().WantTextInput && ImGui::IsKeyPressed(ImGuiKey_Enter, false))
+        {
+            if (Host.HasActiveTool() && ConstructAnchorSet_)
+            {
+                Host.Execute("key enter");
+                if (!Host.HasActiveTool()) { ConstructTile_ = -1; ConstructAnchorSet_ = false; }
+            }
+            else if (ConstructAnchorSet_ && PlaceConstruct(Host, uint32_t(ConstructTile_), ConstructX_, ConstructY_))
+            {
+                ConstructTile_ = -1;
+                ConstructAnchorSet_ = false;
+                Outliner_.AssignPicks(nullptr, 0u);
+                MirrorPicked_.clear();
+                MirrorSelected_.clear();
+            }
+        }
+    }
+
     if (Contact.Wheel != 0.0f && !GizmoDragging_) Host.Camera().Dolly(Contact.Wheel);
     if (GizmoDragging_) Viewport_.DiscardCadPick();
 
@@ -358,7 +427,7 @@ void SolidArcEditorHost::AdvanceViewport(ConsoleHost& Host) noexcept
         Host.Execute(Rail == 0u ? "gizmo translate" : Rail == 1u ? "gizmo rotate" : "gizmo scale");
     }
     ImGuiIO& IO = ImGui::GetIO();
-    if (!IO.WantTextInput && !IO.KeyCtrl && !IO.KeySuper && !Viewport_.QueryConstructOpen())
+    if (ConstructTile_ < 0 && !IO.WantTextInput && !IO.KeyCtrl && !IO.KeySuper && !Viewport_.QueryConstructOpen())
     {
         const bool Shift = IO.KeyShift;
         if (ImGui::IsKeyPressed(ImGuiKey_G, false)) Viewport_.AssignSolidArcGizmo(0u);
@@ -436,17 +505,17 @@ void SolidArcEditorHost::ReconcileSelection(ConsoleHost& Host) noexcept
     const double ViewH = static_cast<double>(Host.Raster().Height());
     float U = 0.0f, V = 0.0f, U1 = 0.0f, V1 = 0.0f;
     bool Extend = false, Subtract = false;
-    if (Viewport_.QueryViewTap(&U, &V, &Extend))
+    if (ConstructTile_ < 0 && Viewport_.QueryViewTap(&U, &V, &Extend))
     {
         Host.SelectAtView(U * ViewW, V * ViewH, Extend);
         Acted = true;
     }
-    if (Viewport_.QueryViewBox(&U, &V, &U1, &V1, &Extend, &Subtract))
+    if (ConstructTile_ < 0 && Viewport_.QueryViewBox(&U, &V, &U1, &V1, &Extend, &Subtract))
     {
         Host.SelectBoxAtView(U * ViewW, V * ViewH, U1 * ViewW, V1 * ViewH, Extend, Subtract);
         Acted = true;
     }
-    if (float AimU = 0.0f, AimV = 0.0f; !GizmoDragging_ && Viewport_.QueryViewAim(&AimU, &AimV))
+    if (float AimU = 0.0f, AimV = 0.0f; ConstructTile_ < 0 && !GizmoDragging_ && Viewport_.QueryViewAim(&AimU, &AimV))
     {
         const int32_t CellX = static_cast<int32_t>(AimU * ViewW);
         const int32_t CellY = static_cast<int32_t>(AimV * ViewH);
@@ -465,7 +534,7 @@ void SolidArcEditorHost::ReconcileSelection(ConsoleHost& Host) noexcept
         Host.HoverNothing();
         Host.AimGizmoAtView(-1000.0, -1000.0);
     }
-    if (!IO.WantTextInput && !Viewport_.QueryConstructOpen())
+    if (ConstructTile_ < 0 && !IO.WantTextInput && !Viewport_.QueryConstructOpen())
     {
         if (IO.KeyCtrl && ImGui::IsKeyPressed(ImGuiKey_A, false))
         {
@@ -504,6 +573,39 @@ void SolidArcEditorHost::ReconcileSelection(ConsoleHost& Host) noexcept
             if (Line.size() > 6u)
                 Host.Execute(Line);
             Acted = true;
+        }
+    }
+
+    // Plasticity-style edge operations: B starts a rounded bevel (fillet), C a flat
+    // chamfer. Act only on explicitly selected edges; never bevel every edge of a body
+    // because a user pressed a shortcut while the whole body was selected.
+    if (ConstructTile_ < 0 && !IO.WantTextInput && !IO.KeyCtrl && !IO.KeySuper && !Viewport_.QueryConstructOpen())
+    {
+        const bool Bevel = ImGui::IsKeyPressed(ImGuiKey_B, false);
+        const bool Chamfer = ImGui::IsKeyPressed(ImGuiKey_C, false);
+        if (Bevel || Chamfer)
+        {
+            bool HadEdges = false;
+            bool Succeeded = false;
+            for (const SceneFigure& Figure : Scene.Figures())
+            {
+                if (Figure.Hidden || Figure.Locked || Figure.Classification != FigureClassification::Body || Figure.SelectedEdges.empty()) continue;
+                std::string Edges;
+                for (int Edge : Figure.SelectedEdges)
+                {
+                    if (!Edges.empty()) Edges += ',';
+                    Edges += std::to_string(Edge);
+                }
+                HadEdges = true;
+                const std::string Command = std::string(Bevel ? "fillet " : "chamfer ")
+                    + std::to_string(Figure.Identity) + " 0.1 --edges=" + Edges;
+                if (Host.Execute(Command)) Succeeded = true;
+                break; // the operation can replace the figure, invalidating this iteration
+            }
+            Toasts_.Push(Bevel ? "Bevel (B)" : "Chamfer (C)",
+                !HadEdges ? "Select one or more body edges first" :
+                Succeeded ? "Applied to selected edges" : "Kernel refused this edge set; see console");
+            Acted = Succeeded;
         }
     }
 
@@ -620,18 +722,51 @@ void SolidArcEditorHost::Record(ConsoleHost& Host) noexcept
     Outliner_.Record(Rows_.data(), RowCount_);
     Viewport_.Record(Rows_.data(), RowCount_);
 
-    // A Construct tile was chosen: place its figure at the next free spot on the workplane, a ring around the origin that
-    //    widens as it fills, and seat the pick on it so the inspector shows what was just made.
+    // Choosing a tile only ARMS the tool. No geometry is created until the user supplies
+    // viewport coordinates. A sketch uses the same modal tool session as the console.
     if (uint32_t Tile = 0u; Viewport_.QueryConstructPick(&Tile))
-        if (PlaceConstruct(Host, Tile))
+    {
+        if (Host.HasActiveTool()) Host.Execute("tool cancel");
+        ConstructTile_ = int32_t(Tile);
+        ConstructAnchorSet_ = false;
+        AimCellX_ = AimCellY_ = -1;
+        if (Tile >= 1u && Tile <= 11u)
         {
-            RowCount_ = BuildSolidArcOutliner(Host, Rows_.data(), Bindings_.data(), kMaxEditorInstances, &Readout_);
-            Outliner_.AssignPicks(nullptr, 0u);
-            MirrorPicked_.clear();
-            MirrorSelected_.clear();
+            constexpr const char* Names[] = { "line", "polyline", "rect", "centerrect", "slot",
+                "circle", "arc", "ellipse", "polygon", "spline", "cpcurve" };
+            if (!Host.Execute(std::string("tool ") + Names[Tile - 1u])) ConstructTile_ = -1;
         }
+    }
 
     AdvanceViewport(Host);
+    // Viewport-local drafting feedback lives in the UI layer; it never costs a scene
+    // tessellation and remains legible when the software CAD raster is downscaled.
+    if (ConstructTile_ >= 0)
+    {
+        const ImVec2 Origin(Viewport_.QueryViewOriginX(), Viewport_.QueryViewOriginY());
+        const ImVec2 Extent(Viewport_.QueryViewWidth(), Viewport_.QueryViewHeight());
+        ImDrawList* Draw = ImGui::GetForegroundDrawList();
+        Draw->PushClipRect(Origin, ImVec2(Origin.x + Extent.x, Origin.y + Extent.y), true);
+        const char* Label = kConstructTiles[ConstructTile_].Label;
+        char Prompt[192];
+        std::snprintf(Prompt, sizeof(Prompt), "%s  |  %s  |  Enter: finish  Esc: cancel",
+            Label, ConstructAnchorSet_ ? "Anchor chosen" : "Click workplane to draw/place");
+        Draw->AddRectFilled(ImVec2(Origin.x + 14, Origin.y + 16),
+            ImVec2(Origin.x + std::min(Extent.x - 14.0f, 470.0f), Origin.y + 45), IM_COL32(15, 20, 30, 218), 6.0f);
+        Draw->AddText(ImVec2(Origin.x + 23, Origin.y + 23), IM_COL32(246, 204, 117, 255), Prompt);
+        if (ConstructCursorValid_)
+        {
+            const ImVec2 P(Origin.x + Viewport_.QueryCadContact().U * Extent.x,
+                           Origin.y + Viewport_.QueryCadContact().V * Extent.y);
+            Draw->AddLine(ImVec2(Origin.x, P.y), ImVec2(Origin.x + Extent.x, P.y), IM_COL32(79, 216, 224, 65));
+            Draw->AddLine(ImVec2(P.x, Origin.y), ImVec2(P.x, Origin.y + Extent.y), IM_COL32(79, 216, 224, 65));
+            Draw->AddCircle(P, 6.0f, IM_COL32(255, 180, 84, 255));
+            char Coordinates[80];
+            std::snprintf(Coordinates, sizeof(Coordinates), "XY  %.3f, %.3f", ConstructCursorX_, ConstructCursorY_);
+            Draw->AddText(ImVec2(P.x + 12, P.y + 10), IM_COL32(255, 230, 190, 255), Coordinates);
+        }
+        Draw->PopClipRect();
+    }
     ReconcileSelection(Host);
 
     const uint32_t Picked = Outliner_.QueryPicked();

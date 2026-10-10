@@ -77,7 +77,7 @@ public:
 
     /// 📦 Places one Construct tile's figure exactly as a click on it does; true when a figure was added. The proof's
     ///    seam: the menu click calls the same path.
-    bool PlaceConstruct(ConsoleHost& Host, uint32_t Tile) noexcept;
+    bool PlaceConstruct(ConsoleHost& Host, uint32_t Tile, double X, double Y) noexcept;
     [[nodiscard]] static uint32_t QueryConstructTileCount() noexcept;
     [[nodiscard]] const std::string& QueryConstructPlacedName() const noexcept { return ConstructPlacedName_; }
     [[nodiscard]] bool QueryConstructOpen() const noexcept { return Viewport_.QueryConstructOpen(); }
@@ -125,8 +125,12 @@ private:
     RasterImage ViewImage_ = {};
     uint64_t    ViewRevision_ = 0u;
     uint32_t    PreviewSamples_ = 1u; // software AA is optional; default to responsive editing
-    uint32_t    ConstructPlaced_ = 0u;      // tiles placed so far: the next one takes the next spot on the ring
-    std::string ConstructPlacedName_;       // the figure the last placement made
+    int32_t     ConstructTile_ = -1;         // -1 = selection; otherwise an armed construction tile
+    bool        ConstructAnchorSet_ = false; // placement requires a deliberate viewport click
+    bool        ConstructCursorValid_ = false;
+    double      ConstructX_ = 0.0, ConstructY_ = 0.0;
+    double      ConstructCursorX_ = 0.0, ConstructCursorY_ = 0.0;
+    std::string ConstructPlacedName_;
 
     // One selection, three views of it: the outliner's pick, the document's selected figures, and the view's taps and boxes.
     //    The mirrors hold what each side last agreed on, so a change on any one side is the one to carry to the others.

@@ -87,7 +87,8 @@ public:
     // Console shortcuts: supply a world point / typed text directly (scripts drive the tool without a pointer).
     bool SupplyPoint(Vec3 P) noexcept;
     bool SupplyText(std::string_view Text) noexcept;                                    // "3", "2,4", "@1,1", "r2.5", "a30", "n6"
-    bool Confirm() noexcept;                                                            // Enter / LMB with nothing pending
+    bool Confirm() noexcept;
+    void ResizeViewport(uint32_t Width, uint32_t Height) noexcept; // dynamic CAD preview resolution                                                            // Enter / LMB with nothing pending
     void Attach(const Workplane& P) noexcept { Ctx.Plane = P; Rebuild(); }
 
 private:

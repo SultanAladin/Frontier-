@@ -1925,6 +1925,7 @@ void ViewportPanel::RecordView() noexcept
     {
         const ImGuiIO& Contact = ImGui::GetIO();
         const bool CanvasHover = ImGui::IsWindowHovered() && ImGui::IsMouseHoveringRect(Min, Max) && !BillboardHover;
+        CadContact_.Hover = CanvasHover;
         const ImVec2 Pointer = Contact.MousePos;
         const float SpanX = std::max(1.0f, Max.x - Min.x);
         const float SpanY = std::max(1.0f, Max.y - Min.y);

@@ -136,7 +136,11 @@ void ConsoleHost::SeatSurface(uint32_t Width, uint32_t Height, uint32_t Samples)
 {
     if (Width < 16u || Height < 16u) return;
     Surface->AssignSamples(Samples);
-    if (Width != Surface->Width() || Height != Surface->Height()) Surface->Resize(Width, Height);
+    if (Width != Surface->Width() || Height != Surface->Height())
+    {
+        Surface->Resize(Width, Height);
+        Tool.ResizeViewport(Width, Height);
+    }
 }
 
 //------------------------------------------------------------------------------------------------------------------------
@@ -1234,10 +1238,11 @@ uint64_t ConsoleHost::PictureSignature() const noexcept
         for (size_t I = 0; I < Count; ++I) { Sum ^= P[I]; Sum *= 1099511628211ull; }
     };
     auto Put = [&](auto Value) { Mix(&Value, sizeof Value); };
-    Put(Revision); Put(Surface->Width()); Put(Surface->Height()); Put(Surface->QuerySamples());
+    Put(Revision); Put(Surface->Width()); Put(Surface->Height()); Put(Surface->QuerySamples()); Put(LatticeCell);
     Put(HoverPick); Put(static_cast<int>(Mode)); Put(static_cast<int>(Shading)); Put(ShowControlCages); Put(ShowIsoCurves); Put(ShowBoundaryEdges); Put(ShowFeatureCurves); Put(ShowDimensions); Put(GizmoShown);
     // A tool preview and the gizmo's hovered grip follow the pointer, so the pointer belongs in the signature too.
-    Put(PointerX); Put(PointerY); Put(Tool.Active());
+    Put(Tool.Active());
+    if (Tool.Active()) { Put(PointerX); Put(PointerY); } // idle hover should not redraw a full CPU frame
     Put(static_cast<int>(GizmoRig.CurrentLayout())); Put(static_cast<int>(GizmoRig.Hovered()));
     Put(GizmoRig.Dragging()); Mix(GizmoRig.Drag().Delta.M, sizeof GizmoRig.Drag().Delta.M);
     const ViewRecord Seen = View.ToViewRecord(Surface->Width(), Surface->Height(), 1.0);
@@ -1272,7 +1277,7 @@ bool ConsoleHost::RenderIfChanged() noexcept
 void ConsoleHost::Render() noexcept
 {
     Surface->BeginTarget(Backdrop);
-    Surface->BindView(View.ToViewRecord(Surface->Width(), Surface->Height(), 1.0));
+    Surface->BindView(View.ToViewRecord(Surface->Width(), Surface->Height(), LatticeCell));
     Surface->DrawLattice();
 
     for (const SceneFigure& Figure : Scene.Figures())

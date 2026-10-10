@@ -1151,7 +1151,8 @@ int Frontier::RunFrontierRuntime(
                     std::snprintf(ShadowLine, sizeof(ShadowLine),
                                   "Shadow path: ReSTIR mesh rays (%s); shadow maps idle. Inline shadow rays are "
                                   "included in GpuReSTIRMs; GpuShadowMs=0 is expected.",
-                                  Frontier::RayTracingCapabilitySet::TierName(Surface.QueryRayTracingTier()));
+                                  Surface.QueryRayTracingTier() == Frontier::RayTracingTierCategory::RayQuery
+                                      ? "hardware inline ray queries" : "software BVH traversal");
                 else if (RenderPath == 1u && Surface.QueryDistanceFieldGIReady())
                     std::snprintf(ShadowLine, sizeof(ShadowLine),
                                   "Shadow path: Distance Field GI direct-light visibility; mesh reflections %s.",
@@ -1468,6 +1469,9 @@ int Frontier::RunFrontierRuntime(
 
     Startup.Mark("FrameLoopReady"); uint32_t StartupFrames=0;
     bool OpeningCompleted = false;
+#ifdef FRONTIER_DEVELOPMENT
+    bool InteractiveRayBudgetLastFrame = false;
+#endif
     auto LastMemorySample = Frontier::HostRuntime::StartupLog::Now();
     uint32_t PreviousTransport = 0u;
     std::vector<Frontier::InstanceRecord> ProjectRestInstances;
@@ -2887,8 +2891,42 @@ int Frontier::RunFrontierRuntime(
         // Celestial uploads above may reset history AFTER Dispatch was assembled.
         // Seat lighting/sky/post resets in this frame; weather uses clean history below.
         auto FinalDispatch = Dispatch;
+#ifdef FRONTIER_DEVELOPMENT
+        // Editing must not spend the full still-frame ReSTIR budget on every mouse
+        // movement. This is a per-frame push-constant override, not a Control Centre
+        // setting: releasing the grip immediately restores the chosen quality.
+        const bool InteractiveRayBudget = GizmoDragging
+            && (FinalDispatch.FeatureFlags & Frontier::DispatchFeatureRaytracing) != 0u;
+        if (InteractiveRayBudget != InteractiveRayBudgetLastFrame)
+        {
+            Integrator.ResetAccumulation(InteractiveRayBudget ? "gizmo preview" : "gizmo preview ended");
+            Logger.RecordMessage(Frontier::DiagnosticSeverity::Information, "RenderPath",
+                InteractiveRayBudget ? "Dragging: temporary one-candidate, one-bounce ray preview."
+                                     : "Dragging ended: restored configured ReSTIR quality.");
+        }
+        InteractiveRayBudgetLastFrame = InteractiveRayBudget;
+        if (InteractiveRayBudget)
+        {
+            FinalDispatch.CandidatesPerPixel = 1u;
+            FinalDispatch.ExtraCandidateCount = 0u;
+            FinalDispatch.SpatialTapCount = 0u;
+            FinalDispatch.DenoiseLevelCount = std::min(FinalDispatch.DenoiseLevelCount, 2u);
+            FinalDispatch.MaxGiBounces = std::min(FinalDispatch.MaxGiBounces, 1u);
+            FinalDispatch.MaxReflectionBounces = std::min(FinalDispatch.MaxReflectionBounces, 1u);
+        }
+#endif
         FinalDispatch.AccumulationIndex = Integrator.QueryAccumulationIndex();
         Surface.RecordAndPresent(FinalDispatch);
+        if (Surface.QueryFrameFailed())
+        {
+            char Failure[256];
+            std::snprintf(Failure, sizeof(Failure), "%s failed with VkResult %d%s; halting without recycling GPU sync objects.",
+                Surface.QueryFrameFailureOperation(), Surface.QueryFrameFailureCode(),
+                Surface.QueryFrameFailureCode() == -4 ? " (VK_ERROR_DEVICE_LOST)" : "");
+            Logger.RecordMessage(Frontier::DiagnosticSeverity::Fatal, "VulkanFrame", Failure);
+            Logger.FlushSink();
+            break;
+        }
         if (!OpeningCompleted && Surface.HasPresentedFrame())
         {
             Frontier::CompleteProjectOpening(argc, argv);

@@ -3318,9 +3318,19 @@ void SwapchainExchange::BuildSurfelSamples(const SceneStructure& Scene) noexcept
 
 void SwapchainExchange::RecordAndPresent(const DispatchConfiguration& Dispatch) noexcept
 {
+    if (FrameFailed) return; // never reuse a semaphore/fence after a failed frame
     const uint32_t ActiveSlot = Vulkan->ActiveSlot;
-
-    vkWaitForFences(Vulkan->Device, 1u, &Vulkan->CycleFences[ActiveSlot], VK_TRUE, UINT64_MAX);
+    auto Failed = [&](const char* Operation, VkResult Result) noexcept
+    {
+        std::cerr << "[SwapchainExchange] " << Operation << " failed: VkResult "
+                  << static_cast<int>(Result) << (Result == VK_ERROR_DEVICE_LOST ? " (VK_ERROR_DEVICE_LOST)" : "")
+                  << ". Rendering stopped; inspect the driver/validation logs.\n";
+        FrameFailed = true;
+        FrameFailureOperation = Operation;
+        FrameFailureCode = static_cast<int32_t>(Result);
+    };
+    const VkResult CycleWait = vkWaitForFences(Vulkan->Device, 1u, &Vulkan->CycleFences[ActiveSlot], VK_TRUE, UINT64_MAX);
+    if (CycleWait != VK_SUCCESS) { Failed("vkWaitForFences(cycle)", CycleWait); return; }
 
     // 🔴 A pending resize is handled BEFORE the acquire, not after it. Acquiring and then abandoning the frame
     //    leaves the acquire semaphore SIGNALLED with nothing ever waiting on it, and the next acquire on the
@@ -3330,9 +3340,14 @@ void SwapchainExchange::RecordAndPresent(const DispatchConfiguration& Dispatch) 
     if (ResizePending)
     {
         ResizePending = false;
-        (void)RebuildSwapchain();
+        if (!RebuildSwapchain()) Failed("RebuildSwapchain(resize)", VK_ERROR_INITIALIZATION_FAILED);
         return;
     }
+
+    // Do not acquire/signal a semaphore for a frame that cannot be submitted.
+    // Returning after acquire used to leave it signalled, then reuse it on the next frame.
+    if (!Vulkan->TriangleBuffer || !Vulkan->MaterialBuffer || !TraversalResident || !Visibility.IsReady() || !VisibilityFrameValid)
+        return;
 
     uint32_t ImageOrdinal = 0u;
     const VkResult AcquireResult = vkAcquireNextImageKHR(
@@ -3342,32 +3357,28 @@ void SwapchainExchange::RecordAndPresent(const DispatchConfiguration& Dispatch) 
     // An out-of-date acquire does not signal, so rebuilding here is safe.
     if (AcquireResult == VK_ERROR_OUT_OF_DATE_KHR)
     {
-        (void)RebuildSwapchain();
+        if (!RebuildSwapchain()) Failed("RebuildSwapchain(acquire)", VK_ERROR_INITIALIZATION_FAILED);
         return;
     }
 
     if (AcquireResult != VK_SUCCESS && AcquireResult != VK_SUBOPTIMAL_KHR)
     {
-        std::cerr << "[SwapchainExchange] vkAcquireNextImageKHR failed (VkResult " << static_cast<int>(AcquireResult) << ").\n";
-        return;
-    }
-
-    if (!Vulkan->TriangleBuffer || !Vulkan->MaterialBuffer || !TraversalResident || !Visibility.IsReady() || !VisibilityFrameValid)
-    {
-        // Descriptors for bindings 1/2/4-7 are unwritten until the scene is uploaded; dispatching now would be UB.
-        std::cerr << "[SwapchainExchange] RecordAndPresent called before UploadScene / AssignVisibilityFrame - frame skipped.\n";
+        Failed("vkAcquireNextImageKHR", AcquireResult);
         return;
     }
 
     if (Vulkan->ImageOrdinalFences[ImageOrdinal] != VK_NULL_HANDLE)
-        vkWaitForFences(Vulkan->Device, 1u, &Vulkan->ImageOrdinalFences[ImageOrdinal], VK_TRUE, UINT64_MAX);
-    Vulkan->ImageOrdinalFences[ImageOrdinal] = Vulkan->CycleFences[ActiveSlot];
+    {
+        const VkResult ImageWait = vkWaitForFences(Vulkan->Device, 1u, &Vulkan->ImageOrdinalFences[ImageOrdinal], VK_TRUE, UINT64_MAX);
+        if (ImageWait != VK_SUCCESS) { Failed("vkWaitForFences(image)", ImageWait); return; }
+    }
 
     void* PrevReservoirs = SwapReservoirParity();   // R6: prev = last frame's curr before recording the new frame
     Visibility.AssignReservoirView(PrevReservoirs);   // R6 row 3: resolve binding 13 follows the kernel's prev buffer (M/W/Age views)
     RecordComputeCommands(ImageOrdinal, Dispatch);
 
-    vkResetFences(Vulkan->Device, 1u, &Vulkan->CycleFences[ActiveSlot]);
+    const VkResult Reset = vkResetFences(Vulkan->Device, 1u, &Vulkan->CycleFences[ActiveSlot]);
+    if (Reset != VK_SUCCESS) { Failed("vkResetFences(cycle)", Reset); return; }
 
     // The first touch of the acquired image is the blit (transfer stage), then the ImGui colour pass.
     VkPipelineStageFlags WaitStage = VK_PIPELINE_STAGE_TRANSFER_BIT | VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
@@ -3379,7 +3390,9 @@ void SwapchainExchange::RecordAndPresent(const DispatchConfiguration& Dispatch) 
     Submit.pCommandBuffers      = &Vulkan->ComputeCommands[ImageOrdinal];
     Submit.signalSemaphoreCount = 1u;
     Submit.pSignalSemaphores    = &Vulkan->ReleaseSemaphores[ImageOrdinal];
-    (void)vkQueueSubmit(Vulkan->GraphicsQueue, 1u, &Submit, Vulkan->CycleFences[ActiveSlot]);
+    const VkResult Submitted = vkQueueSubmit(Vulkan->GraphicsQueue, 1u, &Submit, Vulkan->CycleFences[ActiveSlot]);
+    if (Submitted != VK_SUCCESS) { Failed("vkQueueSubmit(graphics)", Submitted); return; }
+    Vulkan->ImageOrdinalFences[ImageOrdinal] = Vulkan->CycleFences[ActiveSlot];
 
     VkPresentInfoKHR PresentInfo{ VK_STRUCTURE_TYPE_PRESENT_INFO_KHR };
     PresentInfo.waitSemaphoreCount = 1u;
@@ -3397,30 +3410,16 @@ void SwapchainExchange::RecordAndPresent(const DispatchConfiguration& Dispatch) 
     if (PresentResult == VK_ERROR_OUT_OF_DATE_KHR || PresentResult == VK_SUBOPTIMAL_KHR || ResizePending)
     {
         ResizePending = false;
-        (void)RebuildSwapchain();
+        if (!RebuildSwapchain()) { Failed("RebuildSwapchain(present)", VK_ERROR_INITIALIZATION_FAILED); return; }
+    }
+    else if (PresentResult != VK_SUCCESS)
+    {
+        Failed("vkQueuePresentKHR", PresentResult);
+        return;
     }
 
     Vulkan->ActiveSlot = (ActiveSlot + 1u) % kCycleSlotCount;
-}
-
-//------------------------------------------------------------------------------------------------------------------------
-//                                           RECORD COMPUTE COMMANDS
-//------------------------------------------------------------------------------------------------------------------------
-
-void SwapchainExchange::RecordComputeCommands(uint32_t ImageOrdinal, const DispatchConfiguration& Dispatch) noexcept
-{
-    VkCommandBuffer Command = Vulkan->ComputeCommands[ImageOrdinal];
-
-    VkCommandBufferBeginInfo BeginInfo{ VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO };
-    BeginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
-    (void)vkBeginCommandBuffer(Command, &BeginInfo);
-    if ((Dispatch.FeatureFlags & DispatchFeatureRaytracing) != 0u) Vulkan->RayQueries.RecordRefit(Command);
-    if (!Vulkan->PendingTraversal.empty())
-    {
-        VkMemoryBarrier Transfer{ VK_STRUCTURE_TYPE_MEMORY_BARRIER };
-        Transfer.srcAccessMask = VK_ACCESS_SHADER_READ_BIT;
-        Transfer.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
-        vkCmdPipelineBarrier(Command, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT,
+}E_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT,
                              0u, 1u, &Transfer, 0u, nullptr, 0u, nullptr);
         for (const auto& Upload : Vulkan->PendingTraversal)
             for (VkDeviceSize Offset = 0u; Offset < Upload.Bytes.size(); Offset += 65536u)

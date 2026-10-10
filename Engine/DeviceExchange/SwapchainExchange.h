@@ -332,6 +332,9 @@ public:
     void                        AssignSelectionOutline(const uint32_t* PickedInstances, uint32_t PickedCount) noexcept;
 
     void                        RecordAndPresent(const DispatchConfiguration& Dispatch) noexcept;
+    [[nodiscard]] bool          QueryFrameFailed() const noexcept { return FrameFailed; }
+    [[nodiscard]] const char*   QueryFrameFailureOperation() const noexcept { return FrameFailureOperation; }
+    [[nodiscard]] int32_t       QueryFrameFailureCode() const noexcept { return FrameFailureCode; }
 
     void                        SignalResize() noexcept { ResizePending = true; }
 
@@ -482,6 +485,9 @@ private:
     VisibilityFrameConfiguration VisibilityFrame{};
     bool                    VisibilityFrameValid = false;
     bool                    PresentedFrame = false;
+    bool                    FrameFailed = false; // terminal submit/acquire/fence/present error; never recycle an unsignalled slot
+    const char*             FrameFailureOperation = "";
+    int32_t                 FrameFailureCode = 0;
     ShadowFrameConfiguration ShadowFrame{};        // R10: GI-off shadow settings (tier technique + resolution override)
     bool                    ShadowFrameValid = false;
 

@@ -172,6 +172,22 @@ void ConsoleHost::DrawToolPreview() noexcept
     }
 }
 
+// Live pointer movement is a presentation gesture, not a document command.
+// Sending it through Execute() took a full undo snapshot, area rebuild and
+// parametric regeneration on every pixel of motion (then invalidated the raster).
+void ConsoleHost::MoveToolPointer(double X, double Y, bool SuppressSnap) noexcept
+{
+    if (!Tool.Active()) return;
+    PointerX = X;
+    PointerY = Y;
+    InputEvent Event{};
+    Event.Action = InputAction::PointerMove;
+    Event.PixelX = X;
+    Event.PixelY = Y;
+    Event.Modifiers = SuppressSnap ? ModifierCtrl : ModifierNone;
+    (void)Tool.Receive(Event);
+}
+
 void ConsoleHost::RegisterInteraction() noexcept
 {
     auto Add = [&](const char* Verb, const char* Help, Command Fn) { Commands[Verb] = std::move(Fn); Usage[Verb] = Help; };

@@ -66,6 +66,7 @@ struct ViewportOrbit
 struct ViewportCadContact
 {
     bool Start = false, Move = false, End = false, Cancel = false;
+    bool Hover = false;
     bool Left = false, Pan = false, Orbit = false, Box = false, Travelled = false;
     bool Snap = false;
     float U = 0.0f, V = 0.0f, DeltaX = 0.0f, DeltaY = 0.0f, Wheel = 0.0f;

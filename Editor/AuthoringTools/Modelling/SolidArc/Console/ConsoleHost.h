@@ -51,6 +51,8 @@ public:
     [[nodiscard]] const TransformGizmo& Gizmo() const noexcept { return GizmoRig; }
     [[nodiscard]] const UndoSequence&  Timeline() const noexcept { return Undo; }
     [[nodiscard]] SelectMode            CurrentSelectMode() const noexcept { return Mode; }
+    [[nodiscard]] bool                  HasActiveTool() const noexcept { return Tool.Active(); }
+    void MoveToolPointer(double X, double Y, bool SuppressSnap) noexcept;
 
     // ---- Dimension public types (Phase 13) --------------------------------------------------
     // The free function that formats dim labels lives in ConsoleHost.cpp's anonymous namespace and needs
@@ -104,6 +106,7 @@ public:
     // The editor's view. The host seats the raster at the size the view draws (so no pixel is stretched) with a working
     //    pixel count per visible pixel (the anti-aliasing), then selects through the pick plane at view pixels.
     void SeatSurface(uint32_t Width, uint32_t Height, uint32_t Samples) noexcept;
+    void AssignLatticeCell(double Metres) noexcept { if (Metres > 0.0 && Metres < 10.0) LatticeCell = Metres; }
     bool SelectAtView(double X, double Y, bool Extend) noexcept { return SelectAtPixel(X, Y, Extend); }
     int  SelectBoxAtView(double X0, double Y0, double X1, double Y1, bool Extend, bool Subtract) noexcept { return SelectInRectangle(X0, Y0, X1, Y1, Extend, Subtract); }
     void HoverAtView(double X, double Y) noexcept { HoverAtPixel(X, Y); }
@@ -237,6 +240,7 @@ private:
     std::unique_ptr<SoftwareRaster>      Surface;
     [[nodiscard]] uint64_t               PictureSignature() const noexcept;
     uint64_t                             DrawnSignature = 0;                           // [-] the picture's signature at the last RenderIfChanged
+    double                               LatticeCell = 1.0; // native editor overrides to 10 mm; scripts retain 1 m
     uint32_t                             Revision = 0;                                 // [-] bumps on every command, which may change anything
     std::map<std::string, Command>       Commands;
     std::map<std::string, std::string>   Usage;
