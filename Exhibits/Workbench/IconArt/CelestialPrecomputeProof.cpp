@@ -1,4 +1,4 @@
-#include "BakedIconArt.h"
+#include "PrecomputedIconArt.h"
 #include <iostream>
 #include <iterator>
 #include <stdexcept>

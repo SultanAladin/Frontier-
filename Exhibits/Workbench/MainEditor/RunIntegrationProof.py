@@ -11,7 +11,7 @@ if not args.reuse_target:
  subprocess.run(['git','apply',str(R/'Tools/Build/Patches/MainEditorIntegration.patch')],cwd=T,env=dict(os.environ,GIT_CEILING_DIRECTORIES=str(T)),check=True)
 shutil.copy2(R/'Engine/Editor/ViewportBillboards.h',T/'Engine/Editor/ViewportBillboards.h')
 shutil.copy2(R/'Projects/Project-Zero/Source/EditorInspectorSequence.h',T/'Projects/Project-Zero/Source/EditorInspectorSequence.h')
-for name in ['IconArt.cpp','IconPresentation.cpp','BakedIconArt.h']:shutil.copy2(R/'Engine/DisplayPresentation'/name,T/'Engine/DisplayPresentation'/name)
+for name in ['IconArt.cpp','IconPresentation.cpp','PrecomputedIconArt.h']:shutil.copy2(R/'Engine/DisplayPresentation'/name,T/'Engine/DisplayPresentation'/name)
 if not (R/'.cache/icon-art/release/libthorvg.a').exists():subprocess.run(['python3',str(R/'Exhibits/Workbench/IconArt/BuildProof.py')],cwd=R,check=True)
 base=json.loads((R/'Exhibits/Gallery/SunFullPanel/ReleaseCommands.json').read_text());template=base[0][:base[0].index('-c')]
 # Reconstruct the application syntax command from source paths, not a stale report

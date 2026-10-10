@@ -22,7 +22,7 @@
 
 #pragma once
 
-#include "BaseMeshSurface.h"
+#include "BaseGeometrySurface.h"
 #include "WindInstrumentSurface.h"
 #include <cstdio>
 #include <cstring>

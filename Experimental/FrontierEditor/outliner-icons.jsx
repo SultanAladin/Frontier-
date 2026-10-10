@@ -11,7 +11,7 @@ import precipitation from './ui-icons/outliner-precipitation.svg?url';
 import forest from './custom-icons/forest.svg?url';
 import terrain from './custom-icons/terrain.svg?url';
 import liquid from './custom-icons/fluid-glass.svg?url';
-import mesh from './custom-icons/editor-mesh.svg?url';
+import mesh from './custom-icons/editor-geometry.svg?url';
 import material from './custom-icons/editor-material.svg?url';
 import camera from './custom-icons/camera.svg?url';
 import flare from './custom-icons/lens-flare.svg?url';

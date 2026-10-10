@@ -3,7 +3,7 @@
 //============================================================================================================================================
 // 📦 Welding, triangle recording and the watertightness ledger behind TyreGeometryStructure.
 
-#include "TyreMeshStructure.h"
+#include "TyreGeometryStructure.h"
 
 #include <algorithm>
 #include <cmath>

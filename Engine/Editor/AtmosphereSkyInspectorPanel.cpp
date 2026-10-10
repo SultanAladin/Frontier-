@@ -2,7 +2,7 @@
 #include "ControlPanel.h"
 #include "CurvePanel.h"
 #include "EnvironmentProjection.h"
-#include "SkyBakePreview.h"
+#include "SkyPrecomputePreview.h"
 #include "SunColourTemperature.h"
 #include "SunReferenceDraw.h"
 #include <imgui_internal.h>

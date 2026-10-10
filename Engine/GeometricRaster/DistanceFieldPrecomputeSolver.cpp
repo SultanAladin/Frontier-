@@ -3,7 +3,7 @@
 //============================================================================================================================================
 // 📦 Exact triangle topology to 3D Signed Distance Field voxel generation solver with accelerated spatial binning.
 
-#include "DistanceFieldBakeSolver.h"
+#include "DistanceFieldPrecomputeSolver.h"
 #include "../ContentInterchange/ShaderBallGeometry.h"
 #include <vector>
 #include <cmath>

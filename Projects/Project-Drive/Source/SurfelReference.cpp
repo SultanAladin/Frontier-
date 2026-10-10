@@ -23,7 +23,7 @@
 #include "GeometricRaster/VisibilityRaster.h"
 #include "DisplayPresentation/AtmosphereModel.h"
 #include "DisplayPresentation/CelestialTier.h"
-#include "ControlVehicleMesh.inl"
+#include "ControlVehicleGeometry.inl"
 
 #include <algorithm>
 #include <chrono>

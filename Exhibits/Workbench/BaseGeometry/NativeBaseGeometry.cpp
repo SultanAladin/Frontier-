@@ -10,7 +10,7 @@
 //    old name sniff did not. And the marker geometry is pinned vertex by vertex against the eleven SVG
 //    path commands in CheckerViewport.jsx.
 
-#include "BaseMeshSurface.h"
+#include "BaseGeometrySurface.h"
 #include "CpuDraw.h"
 #include "PngWriteCounterpart.h"
 #include <filesystem>

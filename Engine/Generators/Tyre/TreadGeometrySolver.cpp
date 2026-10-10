@@ -3,7 +3,7 @@
 //============================================================================================================================================
 // 📦 Grid-clipped floors, extruded groove walls, and the mapping from the unrolled domain onto the carcass.
 
-#include "TreadMeshSolver.h"
+#include "TreadGeometrySolver.h"
 #include "TyreProfileSpecification.h"
 
 #include "clipper2/clipper.h"

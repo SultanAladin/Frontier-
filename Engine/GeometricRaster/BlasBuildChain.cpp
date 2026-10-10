@@ -5,7 +5,7 @@
 //    `BuildBlasDispatchPlan` / `BuildBlasRefitPlan` (BlasDevicePayload.cpp), which §⑨i checks against the tree the CPU
 //    mirror actually builds. If the plan and the kernels disagree about the stage order, the gate catches it there — this
 //    file only turns each plan entry into a dispatch and puts a barrier between them.
-#include "BlasBuildPipeline.h"
+#include "BlasBuildChain.h"
 #include "../DeviceExchange/TelemetryProbe.h"   // dev/debug-only shader-load timing; compiles out of ship builds
 
 #include <algorithm>

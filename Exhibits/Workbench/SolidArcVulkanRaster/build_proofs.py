@@ -82,7 +82,7 @@ def write_three_panel(raw_dir: Path) -> None:
         ax.axis("off")
     fig.suptitle("SolidArc raster pipelines · CPU exact mirror of the Slang bodies (frame 18 of 72)", fontsize=11)
     fig.tight_layout()
-    fig.savefig(HERE / "three_pipelines.png")
+    fig.savefig(HERE / "three_chains.png")
     plt.close(fig)
 
 

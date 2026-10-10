@@ -14,7 +14,7 @@ env=dict(os.environ,GIT_CEILING_DIRECTORIES=str(T));patch=R/'Tools/Build/Patches
 if subprocess.run(['git','apply','--reverse','--check',str(patch)],cwd=T,env=env,capture_output=True).returncode:
  subprocess.run(['git','apply',str(patch)],cwd=T,env=env,check=True)
 shutil.copy2(R/'Engine/Editor/NativeConstructPanel.h',T/'Engine/Editor/NativeConstructPanel.h')
-for name in ['IconArt.cpp','BakedIconArt.h']:shutil.copy2(R/'Engine/DisplayPresentation'/name,T/'Engine/DisplayPresentation'/name)
+for name in ['IconArt.cpp','PrecomputedIconArt.h']:shutil.copy2(R/'Engine/DisplayPresentation'/name,T/'Engine/DisplayPresentation'/name)
 commands=json.loads((R/'Exhibits/Gallery/MainEditorNative/ReleaseCommands.json').read_text())
 B=R/'.cache'/('native-construct-asan' if a.sanitize else 'native-construct');B.mkdir(exist_ok=True)
 for c in commands:

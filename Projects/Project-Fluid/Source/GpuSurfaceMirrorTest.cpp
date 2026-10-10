@@ -1,4 +1,4 @@
-#include "GpuSurfaceData.h"
+#include "GpuSurfacePayload.h"
 #include <iostream>
 #include <stdexcept>
 #include <map>
