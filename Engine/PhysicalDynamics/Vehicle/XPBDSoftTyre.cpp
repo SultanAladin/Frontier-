@@ -9,6 +9,29 @@
 
 namespace Frontier::Vehicle {
 
+float XPBDSoftTyre::StoredEdgeEnergy() const noexcept
+{
+    float energy = 0.0f;
+    for (const Edge& e : ConstraintEdges)
+    {
+        if (e.compliance <= 0.0f) continue;
+        const float C = (NodeRecords[e.a].Position - NodeRecords[e.b].Position).Length() - e.rest;
+        energy += 0.5f * C * C / e.compliance;
+    }
+    return energy;
+}
+
+float XPBDSoftTyre::NodeKineticEnergy() const noexcept
+{
+    float energy = 0.0f;
+    for (const SoftTyreNode& n : NodeRecords)
+    {
+        if (n.InverseMass <= 0.0f) continue;
+        energy += 0.5f * (1.0f / n.InverseMass) * n.Velocity.LengthSq();
+    }
+    return energy;
+}
+
 namespace { constexpr float kPi = 3.14159265358979323846f; }
 
 //------------------------------------------------------------------------------------------------------------------------

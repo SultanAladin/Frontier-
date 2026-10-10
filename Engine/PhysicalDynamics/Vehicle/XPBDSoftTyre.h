@@ -351,6 +351,10 @@ public:
     }
 
     [[nodiscard]] const std::vector<SoftTyreNode>& Nodes() const noexcept { return NodeRecords; }
+    // Read-only energy audit: stored XPBD spring energy of the carcass, Σ ½·C²/α over its constraint edges [J].
+    [[nodiscard]] float StoredEdgeEnergy() const noexcept;
+    // Read-only energy audit: node kinetic energy Σ ½·m·v² [J] (kinematic nodes carry no mass and are skipped).
+    [[nodiscard]] float NodeKineticEnergy() const noexcept;
     [[nodiscard]] const SoftTyreParameters&        Params() const noexcept { return Parameters; }
     [[nodiscard]] const TyreReaction&              Reaction() const noexcept { return ContactReaction; }
     [[nodiscard]] const SoftTyreResidual&          Residual() const noexcept { return ConstraintResidual; }
