@@ -158,7 +158,7 @@ private:
     int  SelectInRectangle(double X0, double Y0, double X1, double Y1, bool Toggle, bool Subtract) noexcept;
     void HoverAtPixel(double X, double Y) noexcept;
     [[nodiscard]] Vec3 SelectionPivot() const noexcept;                                 // figure bounds centre or selected-pole centroid
-    void ApplyDeltaToSelection(const Mat4& Delta) noexcept;
+    bool ApplyDeltaToSelection(const Mat4& Delta) noexcept;
     void DrawToolPreview() noexcept;
     // ---- Dimension overlay (Phase 13) --------------------------------------------------------
     void DrawDimensions() noexcept;                                                     // render every non-hidden dim on the overlay pass
@@ -212,7 +212,6 @@ private:
     bool                                 GizmoShown = true;                             // [-] drawn whenever a selection exists
     std::vector<std::pair<uint32_t, SceneFigure>> GizmoOriginals;                         // [-] figure as they were when the drag began
     void RefreshGizmoPivot() noexcept;
-    void ApplyGizmoDelta(const Mat4& Delta) noexcept;
     SnapSettings                         Snap;
     HotkeyChart                          Hotkeys = HotkeyChart::Defaults();
     double                               PointerX = 0.0, PointerY = 0.0;                // [px] synthetic pointer

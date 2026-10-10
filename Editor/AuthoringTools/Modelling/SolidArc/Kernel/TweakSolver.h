@@ -49,6 +49,10 @@ public:
     [[nodiscard]] static Deliver<BrepBody> TranslateEdge(const BrepBody& Body, int Edge, Vec3 Delta, bool AllowWarp) noexcept;
     [[nodiscard]] static Deliver<BrepBody> TranslateVertex(const BrepBody& Body, int Vertex, Vec3 Delta, bool AllowWarp) noexcept;
 
+    // Affine edit of a selected vertex set (faces/edges/vertices); rejects topology it cannot refit.
+    [[nodiscard]] static Deliver<BrepBody> TransformVertices(const BrepBody& Body, const std::vector<int>& Vertices,
+                                                               const Mat4& Transform, bool AllowWarp) noexcept;
+
     // Uniformly rotate or scale one planar face about its vertex centroid while retaining the original topology. Adjacent
     // natural quads are re-fitted; a resulting bilinear warp requires AllowWarp. Curved faces and non-planar trim edits
     // refuse rather than silently approximate their surfaces.

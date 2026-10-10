@@ -28,6 +28,59 @@ namespace Frontier
 
 namespace
 {
+// Return ONLY components in the active rail mode. Figure.Selected may still be true
+// after entering edit mode to show its cage; it is not permission to move the body.
+std::vector<int> SelectedBodyVertices(const SceneFigure& Figure, SelectMode Mode) noexcept
+{
+    std::vector<int> Vertices;
+    if (Figure.Classification != FigureClassification::Body) return Vertices;
+    if (Mode == SelectMode::Face)
+        for (int Face : Figure.SelectedFaces)
+        {
+            const auto Part = TweakSolver::FaceVertices(Figure.Body, Face);
+            Vertices.insert(Vertices.end(), Part.begin(), Part.end());
+        }
+    else if (Mode == SelectMode::Edge)
+        for (int Edge : Figure.SelectedEdges)
+        {
+            const auto Part = TweakSolver::EdgeVertices(Figure.Body, Edge);
+            Vertices.insert(Vertices.end(), Part.begin(), Part.end());
+        }
+    else if (Mode == SelectMode::Control)
+        for (int Vertex : Figure.SelectedPoles)
+            if (Vertex >= 0 && Vertex < static_cast<int>(Figure.Body.Vertices.size())) Vertices.push_back(Vertex);
+    std::sort(Vertices.begin(), Vertices.end());
+    Vertices.erase(std::unique(Vertices.begin(), Vertices.end()), Vertices.end());
+    return Vertices;
+}
+
+Deliver<BrepBody> TransformSelectedComponents(const SceneFigure& Figure, SelectMode Mode, const Mat4& Affine) noexcept
+{
+    const auto Vertices = SelectedBodyVertices(Figure, Mode);
+    if (Vertices.empty())
+        return Deliver<BrepBody>::Reject(RefusalReason::Unsupported, "select a face, edge or vertex first");
+    const Mat4 Identity;
+    bool TranslationOnly = true;
+    for (int Index = 0; Index < 12; ++Index)
+        TranslationOnly &= std::fabs(Affine.M[Index] - Identity.M[Index]) < 1e-10;
+    if (!TranslationOnly) return TweakSolver::TransformVertices(Figure.Body, Vertices, Affine, true);
+    const Vec3 Movement{Affine.M[12], Affine.M[13], Affine.M[14]};
+    if (Mode == SelectMode::Face && Figure.SelectedFaces.size() == 1)
+        return TweakSolver::TranslateFace(Figure.Body, Figure.SelectedFaces.front(), Movement, true);
+    if (Mode == SelectMode::Edge && Figure.SelectedEdges.size() == 1)
+        return TweakSolver::TranslateEdge(Figure.Body, Figure.SelectedEdges.front(), Movement, true);
+    if (Mode == SelectMode::Control && Vertices.size() == 1)
+        return TweakSolver::TranslateVertex(Figure.Body, Vertices.front(), Movement, true);
+    return TweakSolver::TranslateVertices(Figure.Body, Vertices, Movement, true);
+}
+
+bool ActiveGizmoSelection(const SceneFigure& Figure, SelectMode Mode) noexcept
+{
+    if (Mode == SelectMode::Whole) return Figure.Selected;
+    if (Figure.Classification == FigureClassification::Body) return !SelectedBodyVertices(Figure, Mode).empty();
+    return Mode == SelectMode::Control && !Figure.SelectedPoles.empty();
+}
+
 const float Backdrop[4] = { 0.0f, 0.0f, 0.0f, 1.0f };                              // Phase 20: black background per user request
 const char* ClassName(FigureClassification K) noexcept { return K == FigureClassification::Curve ? "curve" : "surface"; }
 
@@ -1195,6 +1248,9 @@ uint64_t ConsoleHost::PictureSignature() const noexcept
         Put(Figure.Identity); Put(Figure.Hidden); Put(Figure.Selected); Put(Figure.Construction); Put(Figure.Matcap); Put(static_cast<int>(Figure.Feature));
         Mix(Figure.Tint, sizeof Figure.Tint);
         Put(Figure.SelectedPoles.size()); Put(Figure.SelectedFaces.size()); Put(Figure.SelectedEdges.size());
+        for (int Index : Figure.SelectedPoles) Put(Index);
+        for (int Index : Figure.SelectedFaces) Put(Index);
+        for (int Index : Figure.SelectedEdges) Put(Index);
         const Box3 Reach = Figure.Bounds();
         Put(Reach.Low.X); Put(Reach.Low.Y); Put(Reach.Low.Z); Put(Reach.High.X); Put(Reach.High.Y); Put(Reach.High.Z);
     }
@@ -1273,7 +1329,8 @@ void ConsoleHost::Render() noexcept
     Surface->BeginOverlay();
     DrawToolPreview();
     DrawDimensions();
-    if (GizmoShown && (Scene.SelectedCount() + Scene.SelectedPoleCount() + Scene.SelectedFaceCount() + Scene.SelectedEdgeCount() > 0) && !Tool.Active())
+    if (GizmoShown && std::any_of(Scene.Figures().begin(), Scene.Figures().end(),
+        [this](const SceneFigure& Figure) { return ActiveGizmoSelection(Figure, Mode); }) && !Tool.Active())
     {
         if (!GizmoRig.Dragging()) RefreshGizmoPivot();
         GizmoRig.AimAt(View);
@@ -1331,7 +1388,7 @@ void ConsoleHost::DrawBody(const SceneFigure& Figure) noexcept
         D.PickIdentity = SceneDocument::PickOf(Figure.Identity, SceneDocument::PickPart::Face, int(F));
         const bool FaceSel = Figure.FaceSelected(int(F));
         const bool FaceHover = FigureHover && (Mode == SelectMode::Face ? SceneDocument::FaceOf(HoverPick) == int(F) : Mode == SelectMode::Whole);
-        D.Highlight = (Figure.Selected || FaceSel) ? 2.0f : (FaceHover ? 1.0f : 0.0f);
+        D.Highlight = ((Mode == SelectMode::Whole && Figure.Selected) || FaceSel) ? 2.0f : (FaceHover ? 1.0f : 0.0f);
         D.Matcap = Figure.MatcapForFace(int(F));                                        // per-face override, else whole-figure
         // Emissive studios (headlight/taillight) glow a little in the preview so lights read as lit.
         if (D.Matcap == 12 || D.Matcap == 13) D.Emissive = 0.6f;
@@ -1352,6 +1409,19 @@ void ConsoleHost::DrawBody(const SceneFigure& Figure) noexcept
         D.PickIdentity = SceneDocument::PickOf(Figure.Identity, SceneDocument::PickPart::Edge, int(E));
         Surface->DrawSegments(Seg, D);
     }
+    if (Mode == SelectMode::Control || !Figure.SelectedPoles.empty())
+    {
+        for (size_t V = 0; V < B.Vertices.size(); ++V)
+        {
+            PointStream Point; Point.Append(B.Vertices[V].Point, PointGlyph::Square);
+            DrawRecord D = ScenePresentation::Tinted(0.95f, 0.80f, 0.30f);
+            D.PickIdentity = SceneDocument::PickOf(Figure.Identity, static_cast<int>(V));
+            D.Highlight = Figure.PoleSelected(static_cast<int>(V)) ? 2.0f : 0.0f;
+            D.PointSize = Figure.PoleSelected(static_cast<int>(V)) ? 10.0f : 8.0f;
+            Surface->DrawPoints(Point, D);
+        }
+    }
+
 }
 
 void ConsoleHost::DrawControlPoints(const SceneFigure& Figure) noexcept
@@ -1375,22 +1445,20 @@ void ConsoleHost::DrawControlPoints(const SceneFigure& Figure) noexcept
 
 Vec3 ConsoleHost::SelectionPivot() const noexcept
 {
-    if (Mode == SelectMode::Control && Scene.SelectedPoleCount() > 0)
+    Vec3 Sum{}; size_t Count = 0;
+    if (Mode == SelectMode::Control)
     {
-        Vec3 Sum; int N = 0;
-        for (const SceneFigure& I : Scene.Figures()) for (int P : I.SelectedPoles) { Sum = Sum + I.PolePosition(P); ++N; }
-        return Sum * (1.0 / N);
+        for (const SceneFigure& Figure : Scene.Figures())
+            for (int Pole : Figure.SelectedPoles)
+                if (Pole >= 0 && Pole < Figure.PoleCount()) { Sum = Sum + Figure.PolePosition(Pole); ++Count; }
     }
-    if (Scene.SelectedFaceCount() + Scene.SelectedEdgeCount() > 0)
+    else if (Mode == SelectMode::Face || Mode == SelectMode::Edge)
     {
-        Box3 B;
-        for (const SceneFigure& I : Scene.Figures())
-        {
-            for (int F : I.SelectedFaces) B.Include(I.Body.Faces[F].Surface.Bounds());
-            for (int E : I.SelectedEdges) B.Include(I.Body.Edges[E].Curve.Bounds());
-        }
-        if (!B.Empty()) return B.Centre();
+        for (const SceneFigure& Figure : Scene.Figures())
+            for (int Vertex : SelectedBodyVertices(Figure, Mode))
+                { Sum = Sum + Figure.Body.Vertices[Vertex].Point; ++Count; }
     }
+    if (Count) return Sum * (1.0 / Count);
     const auto Bounds = Scene.Bounds(true);
     return Bounds.Empty() ? Plane.Origin : Bounds.Centre();
 }
@@ -1402,25 +1470,43 @@ void ConsoleHost::RefreshGizmoPivot() noexcept
     GizmoRig.AimAt(View);
 }
 
-void ConsoleHost::ApplyDeltaToSelection(const Mat4& Delta) noexcept
+bool ConsoleHost::ApplyDeltaToSelection(const Mat4& Delta) noexcept
 {
-    for (auto& [Id, Original] : GizmoOriginals)
-        if (SceneFigure* I = Scene.Find(Id))
+    // Solve against drag-start geometry and apply atomically: no unsupported edit
+    // may silently turn into a whole-object transform or leave a partial preview.
+    std::vector<std::pair<uint32_t, BrepBody>> Bodies;
+    for (const auto& [Id, Original] : GizmoOriginals)
+    {
+        if (Mode == SelectMode::Whole || Original.Classification != FigureClassification::Body) continue;
+        Deliver<BrepBody> Result = TransformSelectedComponents(Original, Mode, Delta);
+        if (!Result) return false;
+        Bodies.emplace_back(Id, std::move(Result.Payload));
+    }
+    for (const auto& [Id, Original] : GizmoOriginals)
+        if (SceneFigure* Figure = Scene.Find(Id))
         {
-            if (Mode == SelectMode::Control && !Original.SelectedPoles.empty())
+            if (Mode == SelectMode::Whole)
             {
-                for (int P : Original.SelectedPoles) I->MovePole(P, Delta.TransformPoint(Original.PolePosition(P)));
+                SceneFigure Fresh = Original; Fresh.Transform(Delta);
+                Figure->Curve = std::move(Fresh.Curve); Figure->Surface = std::move(Fresh.Surface); Figure->Body = std::move(Fresh.Body);
             }
-            else { SceneFigure Fresh = Original; Fresh.Transform(Delta); I->Curve = std::move(Fresh.Curve); I->Surface = std::move(Fresh.Surface); I->Body = std::move(Fresh.Body); }
+            else if (Original.Classification == FigureClassification::Body)
+            {
+                const auto Found = std::find_if(Bodies.begin(), Bodies.end(), [Id](const auto& Entry) { return Entry.first == Id; });
+                if (Found != Bodies.end()) Figure->Body = std::move(Found->second);
+            }
+            else if (Mode == SelectMode::Control)
+                for (int Pole : Original.SelectedPoles)
+                    if (Pole >= 0 && Pole < Original.PoleCount()) Figure->MovePole(Pole, Delta.TransformPoint(Original.PolePosition(Pole)));
         }
+    return true;
 }
-
-void ConsoleHost::ApplyGizmoDelta(const Mat4& Delta) noexcept { ApplyDeltaToSelection(Delta); }
 
 int ConsoleHost::AimGizmoAtView(double Horizontal, double Vertical) noexcept
 {
     if (!GizmoShown || Tool.Active() || GizmoRig.Dragging()) return 0;
-    const bool Selected = Scene.SelectedCount() + Scene.SelectedPoleCount() + Scene.SelectedFaceCount() + Scene.SelectedEdgeCount() > 0;
+    const bool Selected = std::any_of(Scene.Figures().begin(), Scene.Figures().end(),
+                                      [this](const SceneFigure& Figure) { return ActiveGizmoSelection(Figure, Mode); });
     if (!Selected) { GizmoRig.MarkHovered(GizmoGrip::None); return 0; }
     RefreshGizmoPivot();
     const auto Grip = GizmoRig.Locate(Horizontal, Vertical, View, Surface->Width(), Surface->Height());
@@ -1432,13 +1518,11 @@ bool ConsoleHost::BeginGizmoAtView(double Horizontal, double Vertical) noexcept
 {
     if (!AimGizmoAtView(Horizontal, Vertical)) return false;
     for (const auto& Figure : Scene.Figures())
-        if (Figure.Locked && (Figure.Selected || !Figure.SelectedPoles.empty() || !Figure.SelectedEdges.empty() || !Figure.SelectedFaces.empty()))
-            return false;
+        if (Figure.Locked && ActiveGizmoSelection(Figure, Mode)) return false;
     if (!GizmoRig.BeginDrag(Horizontal, Vertical, View, Surface->Width(), Surface->Height())) return false;
     GizmoOriginals.clear();
     for (const auto& Figure : Scene.Figures())
-        if (Figure.Selected || !Figure.SelectedPoles.empty() || !Figure.SelectedEdges.empty() || !Figure.SelectedFaces.empty())
-            GizmoOriginals.emplace_back(Figure.Identity, Figure);
+        if (ActiveGizmoSelection(Figure, Mode)) GizmoOriginals.emplace_back(Figure.Identity, Figure);
     return true;
 }
 
@@ -1446,7 +1530,12 @@ bool ConsoleHost::DragGizmoAtView(double Horizontal, double Vertical, bool Snapp
 {
     if (!GizmoRig.Dragging()) return false;
     GizmoRig.UpdateDrag(Horizontal, Vertical, Snapping, View, Surface->Width(), Surface->Height());
-    ApplyGizmoDelta(GizmoRig.Drag().Delta);
+    if (!ApplyDeltaToSelection(GizmoRig.Drag().Delta))
+    {
+        for (const auto& [Id, Original] : GizmoOriginals)
+            if (auto* Figure = Scene.Find(Id)) *Figure = Original;
+        return false;
+    }
     return true;
 }
 
@@ -1467,7 +1556,7 @@ bool ConsoleHost::FinishGizmoAtView(bool Cancel) noexcept
     std::ostringstream Command;
     Command << std::setprecision(17) << "transform selected";
     for (double Cell : Drag.Delta.M) Command << ' ' << Cell;
-    if (Mode == SelectMode::Control) Command << " --components";
+    if (Mode != SelectMode::Whole) Command << " --components";
     return Execute(Command.str());
 }
 
@@ -4276,11 +4365,37 @@ void ConsoleHost::Register() noexcept
         bool Translation = true;
         for (int Index = 0; Index < 12; ++Index)
             Translation &= std::fabs(Affine.M[Index] - Identity.M[Index]) < 1e-12;
+        // Component mode is a fixed-topology edit, not an object transform. Prepare
+        // every body before committing any of them so an unsupported B-rep refuses
+        // without moving a different selected figure.
+        const bool Components = Input.Switch("components");
+        std::vector<std::pair<SceneFigure*, BrepBody>> Bodies;
+        if (Components && Mode != SelectMode::Whole)
+            for (auto* Figure : Targets)
+            {
+                if (Figure->Classification != FigureClassification::Body) continue;
+                if (SelectedBodyVertices(*Figure, Mode).empty()) continue;
+                Deliver<BrepBody> Result = TransformSelectedComponents(*Figure, Mode, Affine);
+                if (!Result) return Refuse("transform %s: %s", Figure->Name.c_str(), Result.Denial.Detail);
+                Bodies.emplace_back(Figure, std::move(Result.Payload));
+            }
+        if (Components && Mode != SelectMode::Whole && Bodies.empty() &&
+            std::none_of(Targets.begin(), Targets.end(), [](const SceneFigure* F) { return !F->SelectedPoles.empty(); }))
+            return Refuse("transform: select a face, edge or vertex before using component mode");
         for (auto* Figure : Targets)
         {
-            if (Input.Switch("components") && !Figure->SelectedPoles.empty())
+            if (Components && Mode != SelectMode::Whole)
             {
-                for (int Pole : Figure->SelectedPoles) Figure->MovePole(Pole, Affine.TransformPoint(Figure->PolePosition(Pole)));
+                if (Figure->Classification == FigureClassification::Body)
+                {
+                    const auto Found = std::find_if(Bodies.begin(), Bodies.end(), [Figure](const auto& Entry) { return Entry.first == Figure; });
+                    if (Found == Bodies.end()) continue;
+                    Figure->Body = std::move(Found->second);
+                }
+                else if (Mode == SelectMode::Control && !Figure->SelectedPoles.empty())
+                    for (int Pole : Figure->SelectedPoles)
+                        Figure->MovePole(Pole, Affine.TransformPoint(Figure->PolePosition(Pole)));
+                else continue;
                 Figure->Blueprint.Form = SceneFigure::ParametricForm::None;
                 Figure->Recipe = FigureRecipe();
             }
@@ -4289,8 +4404,6 @@ void ConsoleHost::Register() noexcept
                 const bool Derived = Figure->Recipe.Live() ||
                     (Figure->Blueprint.Form >= SceneFigure::ParametricForm::Extrude && Figure->Blueprint.Form <= SceneFigure::ParametricForm::ChamferEdge);
                 TransformFigure(*Figure, Affine);
-                // A primitive blueprint cannot generally represent affine-scaled or rotated NURBS. Keep the actual
-                // authored geometry instead of allowing a later dimension edit to snap it back to its old recipe.
                 if (!Translation || Derived) Figure->Blueprint.Form = SceneFigure::ParametricForm::None;
             }
             AutoEmitDimensions(*Figure);

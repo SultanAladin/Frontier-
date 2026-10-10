@@ -8,6 +8,8 @@
 #include "ConsoleHost.h"
 #include "Presentation/ScenePresentation.h"
 #include <cstring>
+#include <iomanip>
+#include <sstream>
 
 namespace Frontier
 {
@@ -17,8 +19,10 @@ ToolSession::Context ConsoleHost::ToolContext() const noexcept
     ToolSession::Context C;
     C.Camera = &View; C.Scene = &Scene; C.Snap = &Snap; C.Plane = Plane;
     C.Width = Surface->Width(); C.Height = Surface->Height();
-    Box3 B = Scene.Bounds(true);
-    C.SelectionPivot = B.Empty() ? Plane.Origin : SelectionPivot();
+    const bool Selected = Mode == SelectMode::Whole ? Scene.SelectedCount() > 0 :
+                          Mode == SelectMode::Face ? Scene.SelectedFaceCount() > 0 :
+                          Mode == SelectMode::Edge ? Scene.SelectedEdgeCount() > 0 : Scene.SelectedPoleCount() > 0;
+    C.SelectionPivot = Selected ? SelectionPivot() : Plane.Origin;
     return C;
 }
 
@@ -33,6 +37,17 @@ void ConsoleHost::OnToolResult(const ToolResult& Result) noexcept
     }
     if (Result.Curves.empty())                                                         // transform
     {
+        if (Mode != SelectMode::Whole)
+        {
+            // Synthetic modal tools use the same transactional component edit as the
+            // windowed gizmo. A face/edge/vertex tool must never fall through to I.Transform().
+            std::ostringstream Command;
+            Command << std::setprecision(17) << "transform selected";
+            for (double Cell : Result.Transform.M) Command << ' ' << Cell;
+            Command << " --components";
+            if (!Execute(Command.str())) ToolReportedRefusal = true;
+            return;
+        }
         int N = 0, Poles = 0;
         for (SceneFigure& I : Scene.Figures())
         {
@@ -72,13 +87,14 @@ bool ConsoleHost::Dispatch(const InputEvent& E) noexcept
         }
         return Refuse("%s is not bound", DescribeKeyChord(E.KeyCode, E.Modifiers).c_str());
     }
-    const bool GizmoLive = GizmoShown && (Scene.SelectedCount() + Scene.SelectedPoleCount() + Scene.SelectedFaceCount() + Scene.SelectedEdgeCount() > 0);
+    const bool GizmoLive = GizmoShown && (Mode == SelectMode::Whole ? Scene.SelectedCount() > 0 :
+        Mode == SelectMode::Face ? Scene.SelectedFaceCount() > 0 :
+        Mode == SelectMode::Edge ? Scene.SelectedEdgeCount() > 0 : Scene.SelectedPoleCount() > 0);
     if (E.Action == InputAction::PointerMove && GizmoLive)
     {
         if (GizmoRig.Dragging())
         {
-            GizmoRig.UpdateDrag(E.PixelX, E.PixelY, E.Ctrl(), View, Surface->Width(), Surface->Height());
-            ApplyGizmoDelta(GizmoRig.Drag().Delta);
+            (void)DragGizmoAtView(E.PixelX, E.PixelY, E.Ctrl());
             Row("gizmo %s%s", GizmoRig.Drag().Readout.c_str(), E.Ctrl() ? "  [snap]" : "");
             return true;
         }
@@ -91,23 +107,17 @@ bool ConsoleHost::Dispatch(const InputEvent& E) noexcept
     if (E.Action == InputAction::PointerMove && !Tool.Active()) { HoverAtPixel(E.PixelX, E.PixelY); return false; }
     if (E.Action == InputAction::PointerPress && E.Button == PointerButton::Left && GizmoLive)
     {
-        RefreshGizmoPivot();
-        if (GizmoRig.BeginDrag(E.PixelX, E.PixelY, View, Surface->Width(), Surface->Height()))
+        if (BeginGizmoAtView(E.PixelX, E.PixelY))
         {
-            GizmoOriginals.clear();
-            for (const SceneFigure& I : Scene.Figures()) if (I.Selected || !I.SelectedPoles.empty() || !I.SelectedFaces.empty() || !I.SelectedEdges.empty()) GizmoOriginals.emplace_back(I.Identity, I);
             Row("gizmo grab %s", GizmoGripName(GizmoRig.Drag().Grip));
             return true;
         }
     }
     if (E.Action == InputAction::PointerRelease && GizmoRig.Dragging())
     {
-        GizmoDrag D = GizmoRig.EndDrag();
-        ApplyGizmoDelta(D.Delta);
-        GizmoOriginals.clear();
-        RefreshGizmoPivot();
-        Row("gizmo release %s", D.Readout.c_str());
-        Undo.Settle(Scene);                                                           // closes the entry opened at the grab
+        const std::string Readout = GizmoRig.Drag().Readout;
+        (void)FinishGizmoAtView(false);
+        Row("gizmo release %s", Readout.c_str());
         return true;
     }
     if (E.Action == InputAction::PointerPress && E.Button == PointerButton::Left)

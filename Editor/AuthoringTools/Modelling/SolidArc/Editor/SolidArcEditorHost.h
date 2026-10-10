@@ -56,6 +56,8 @@ public:
     void ShowDocumentCommands() noexcept { DocumentCommands_ = true; LayoutSeated_ = false; }
 
     [[nodiscard]] const RasterImage& QueryPresentedImage() const noexcept { return ViewImage_; }
+    [[nodiscard]] uint64_t QueryPresentedRevision() const noexcept { return ViewRevision_; }
+    void SetPreviewSamples(uint32_t Samples) noexcept { PreviewSamples_ = Samples == 2u ? 2u : 1u; }
     [[nodiscard]] uint32_t QueryPickedFigureIdentity() const noexcept;
 
     /// 📦 The proof's pick seam: seats the pick on the first row of the role (named Label when it is not null); false when none.
@@ -121,6 +123,8 @@ private:
     EditorReadout Readout_ = {};
     EditorSheet PickedSheet_ = {};
     RasterImage ViewImage_ = {};
+    uint64_t    ViewRevision_ = 0u;
+    uint32_t    PreviewSamples_ = 1u; // software AA is optional; default to responsive editing
     uint32_t    ConstructPlaced_ = 0u;      // tiles placed so far: the next one takes the next spot on the ring
     std::string ConstructPlacedName_;       // the figure the last placement made
 

@@ -97,10 +97,12 @@ struct SceneFigure
     [[nodiscard]] bool FaceSelected(int I) const noexcept { for (int F : SelectedFaces) if (F == I) return true; return false; }
     [[nodiscard]] bool EdgeSelected(int I) const noexcept { for (int E : SelectedEdges) if (E == I) return true; return false; }
 
-    [[nodiscard]] int  PoleCount() const noexcept { return Classification == FigureClassification::Curve ? int(Curve.Poles.size()) : Classification == FigureClassification::Surface ? int(Surface.Poles.size()) : 0; }
-    [[nodiscard]] Vec3 PolePosition(int Index) const noexcept { return (Classification == FigureClassification::Curve ? Curve.Poles[Index] : Surface.Poles[Index]).Divide(); }
+    [[nodiscard]] int  PoleCount() const noexcept { return Classification == FigureClassification::Curve ? int(Curve.Poles.size()) : Classification == FigureClassification::Surface ? int(Surface.Poles.size()) : Classification == FigureClassification::Body ? int(Body.Vertices.size()) : 0; }
+    [[nodiscard]] Vec3 PolePosition(int Index) const noexcept { return Classification == FigureClassification::Body ? Body.Vertices[Index].Point :
+               (Classification == FigureClassification::Curve ? Curve.Poles[Index] : Surface.Poles[Index]).Divide(); }
     void MovePole(int Index, Vec3 P) noexcept
     {
+        if (Classification == FigureClassification::Body) return; // B-rep edits must use TweakSolver to refit adjacent faces/edges.
         Vec4& H = Classification == FigureClassification::Curve ? Curve.Poles[Index] : Surface.Poles[Index];
         H.X = P.X * H.W; H.Y = P.Y * H.W; H.Z = P.Z * H.W;
     }

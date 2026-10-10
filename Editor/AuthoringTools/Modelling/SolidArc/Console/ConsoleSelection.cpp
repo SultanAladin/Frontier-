@@ -26,7 +26,10 @@ namespace
 void ConsoleHost::HoverAtPixel(double X, double Y) noexcept
 {
     if (X < 0 || Y < 0 || X >= Surface->Width() || Y >= Surface->Height()) return;
-    Render();
+    // The native editor rendered the pick plane before routing this frame's pointer.
+    // Re-rendering here and again for the new highlight doubled the expensive CPU AA work
+    // on every mouse move. An unpainted standalone host still needs its first pick plane.
+    if (DrawnSignature == 0) (void)RenderIfChanged();
     uint32_t Pick = Surface->Pick(uint32_t(X), uint32_t(Y));
     const auto Part = SceneDocument::PartOf(Pick);
     if (Mode == SelectMode::Whole || Mode == SelectMode::Face) { if (Part == SceneDocument::PickPart::Pole || Part == SceneDocument::PickPart::Edge) Pick = SceneDocument::PickOf(SceneDocument::IdentityOf(Pick)); }
@@ -48,7 +51,7 @@ void ConsoleHost::HoverAtPixel(double X, double Y) noexcept
 
 bool ConsoleHost::SelectAtPixel(double X, double Y, bool Toggle) noexcept
 {
-    Render();
+    (void)RenderIfChanged();
     uint32_t Pick = Surface->Pick(uint32_t(X), uint32_t(Y));
     uint32_t Id = SceneDocument::IdentityOf(Pick); int Pole = SceneDocument::PoleOf(Pick);
     SceneFigure* Figure = Scene.Find(Id);
@@ -103,7 +106,7 @@ bool ConsoleHost::SelectAtPixel(double X, double Y, bool Toggle) noexcept
 
 int ConsoleHost::SelectInRectangle(double X0, double Y0, double X1, double Y1, bool Toggle, bool Subtract) noexcept
 {
-    Render();
+    (void)RenderIfChanged();
     if (!Toggle && !Subtract) Scene.ClearSelection();
     const uint32_t Ax = uint32_t(std::clamp(std::min(X0, X1), 0.0, double(Surface->Width() - 1)));
     const uint32_t Bx = uint32_t(std::clamp(std::max(X0, X1), 0.0, double(Surface->Width() - 1)));

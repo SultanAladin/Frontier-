@@ -68,3 +68,13 @@ add_library(SolidArcConsoleKit STATIC
     Console/ConsoleSelection.cpp
 )
 target_link_libraries(SolidArcConsoleKit PUBLIC SolidArcPresentation)
+
+# Optional native regression for the windowed rail's shared selection/gizmo seam.
+# The default standalone route remains reusable libraries; Windows still builds the real UI.
+option(SOLIDARC_BUILD_MODE_TESTS "Build SolidArc selection-mode transform regression" OFF)
+if(SOLIDARC_BUILD_MODE_TESTS)
+    enable_testing()
+    add_executable(SolidArcModeTransformVerification Verification/ModeTransformVerification.cpp)
+    target_link_libraries(SolidArcModeTransformVerification PRIVATE SolidArcConsoleKit)
+    add_test(NAME SolidArcModeTransform COMMAND SolidArcModeTransformVerification)
+endif()

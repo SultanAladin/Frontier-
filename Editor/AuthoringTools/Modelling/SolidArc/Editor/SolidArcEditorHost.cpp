@@ -304,13 +304,13 @@ bool SolidArcEditorHost::PlaceConstruct(ConsoleHost& Host, uint32_t Tile) noexce
 
 void SolidArcEditorHost::SeatView(ConsoleHost& Host) noexcept
 {
-    // The raster takes the size of the view it fills, in device pixels, so nothing is stretched; each of its pixels is
-    //    four working samples, which is what takes the stair-steps off the edges.
+    // The raster takes the size of the view it fills, in device pixels. The optional smooth preview uses four
+    //    working samples per pixel; fast editing uses one to avoid multiplying CPU raster cost on every gesture.
     const float Scale = std::max(1.0f, ImGui::GetIO().DisplayFramebufferScale.x);
     const float Width = Viewport_.QueryViewWidth() * Scale;
     const float Height = Viewport_.QueryViewHeight() * Scale;
     if (Width >= 32.0f && Height >= 32.0f)
-        Host.SeatSurface(static_cast<uint32_t>(Width + 0.5f), static_cast<uint32_t>(Height + 0.5f), 2u);
+        Host.SeatSurface(static_cast<uint32_t>(Width + 0.5f), static_cast<uint32_t>(Height + 0.5f), PreviewSamples_);
     Host.ResizeGizmoAtView(110.0 * Scale);
 }
 
@@ -469,15 +469,33 @@ void SolidArcEditorHost::ReconcileSelection(ConsoleHost& Host) noexcept
     {
         if (IO.KeyCtrl && ImGui::IsKeyPressed(ImGuiKey_A, false))
         {
-            Host.Execute("select all");
+            if (Host.CurrentSelectMode() == SelectMode::Whole) Host.Execute("select all");
+            else
+            {
+                Scene.ClearSelection();
+                for (SceneFigure& Figure : Scene.Figures())
+                {
+                    if (Figure.Hidden || Figure.Locked) continue;
+                    if (Host.CurrentSelectMode() == SelectMode::Face && Figure.Classification == FigureClassification::Body)
+                        for (int F = 0; F < static_cast<int>(Figure.Body.Faces.size()); ++F) Figure.SelectedFaces.push_back(F);
+                    else if (Host.CurrentSelectMode() == SelectMode::Edge && Figure.Classification == FigureClassification::Body)
+                        for (int E = 0; E < static_cast<int>(Figure.Body.Edges.size()); ++E) Figure.SelectedEdges.push_back(E);
+                    else if (Host.CurrentSelectMode() == SelectMode::Control)
+                    {
+                        for (int P = 0; P < Figure.PoleCount(); ++P) Figure.SelectedPoles.push_back(P);
+                        Figure.Selected = !Figure.SelectedPoles.empty();
+                    }
+                }
+            }
             Acted = true;
         }
-        else if (ImGui::IsKeyPressed(ImGuiKey_Escape, false) && Scene.SelectedCount() > 0)
+        else if (ImGui::IsKeyPressed(ImGuiKey_Escape, false) &&
+            (Scene.SelectedCount() + Scene.SelectedFaceCount() + Scene.SelectedEdgeCount() + Scene.SelectedPoleCount()) > 0)
         {
             Host.Execute("select none");
             Acted = true;
         }
-        else if (ImGui::IsKeyPressed(ImGuiKey_Delete, false) && Scene.SelectedCount() > 0)
+        else if (ImGui::IsKeyPressed(ImGuiKey_Delete, false) && Host.CurrentSelectMode() == SelectMode::Whole && Scene.SelectedCount() > 0)
         {
             std::string Line = "delete";
             for (const SceneFigure& Figure : Scene.Figures())
@@ -558,7 +576,10 @@ void SolidArcEditorHost::Record(ConsoleHost& Host) noexcept
     SeatView(Host);
     // The raster is dear and the picture rarely changes: draw and read it back only when it has.
     if (Host.RenderIfChanged() || ViewImage_.Pixels.empty())
+    {
         ViewImage_ = Host.Raster().Readback();
+        ++ViewRevision_;
+    }
     // The roster is rebuilt from the document each frame, so a folder's fold would reset. Carry it by folder label.
     ShutFolders_.clear();
     for (uint32_t Index = 0u; Index < RowCount_; ++Index)

@@ -946,7 +946,13 @@ bool BuildSolidArcInspectorSheet(const ConsoleHost& Host,
     EditorPropertyGroup* Transform = AddGroup(*Sheet, "Transform", "World space");
     if (Transform != nullptr)
     {
-        if (!Bounds.Empty())
+        if (Host.CurrentSelectMode() != SelectMode::Whole)
+        {
+            // These fields are OBJECT transforms. Never let them quietly move the whole solid
+            // when the rail is editing a face, edge or vertex instead.
+            AddReadout(*Transform, "Component editing", "Use the viewport gizmo");
+        }
+        else if (!Bounds.Empty())
         {
             AddAxis(*Transform, "Position", Draft.Pivot, true);
             AddAxis(*Transform, "Rotation", Vec3(Draft.Rotation[0], Draft.Rotation[1], Draft.Rotation[2]), true);
@@ -1097,11 +1103,13 @@ void ApplySolidArcInspectorSheet(ConsoleHost& Host,
                 Host.Execute(Line);
                 return;
             }
-            if (Property.Category == EditorPropertyCategory::AxisVec3 && Property.Editable)
+            if (Property.Category == EditorPropertyCategory::AxisVec3 && Property.Editable &&
+                Host.CurrentSelectMode() == SelectMode::Whole)
             {
                 ApplyTransformAxis(*Figure, Property);
             }
-            else if (Property.Category == EditorPropertyCategory::Slider && std::strcmp(Property.Label, "Uniform scale") == 0)
+            else if (Host.CurrentSelectMode() == SelectMode::Whole && Property.Category == EditorPropertyCategory::Slider &&
+                     std::strcmp(Property.Label, "Uniform scale") == 0)
             {
                 TransformDraft& Draft = DraftFor(*Figure);
                 const float Target = std::max(Property.Figure, 0.01f);

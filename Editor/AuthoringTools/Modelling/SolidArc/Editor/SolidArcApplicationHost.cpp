@@ -17,6 +17,7 @@
 #include "SolidArcEditorHost.h"
 #include "TypefaceRegistry.h"
 #include <filesystem>
+#include <chrono>
 #include <cstdio>
 #include <cstring>
 #include <stdexcept>
@@ -114,7 +115,8 @@ int WINAPI wWinMain(HINSTANCE Instance, HINSTANCE, PWSTR, int Show)
         D3D_FEATURE_LEVEL Level{};
         HRESULT Created = D3D11CreateDeviceAndSwapChain(nullptr, D3D_DRIVER_TYPE_HARDWARE, nullptr, 0, nullptr, 0, D3D11_SDK_VERSION,
                                                         &Configuration, &Chain, &Device, &Level, &Context);
-        if (FAILED(Created))
+        bool SoftwareD3D11 = FAILED(Created);
+        if (SoftwareD3D11)
             Created = D3D11CreateDeviceAndSwapChain(nullptr, D3D_DRIVER_TYPE_WARP, nullptr, 0, nullptr, 0, D3D11_SDK_VERSION, &Configuration,
                                                     &Chain, &Device, &Level, &Context);
         Require(SUCCEEDED(Created), "Neither hardware nor software D3D11 presentation is available");
@@ -153,6 +155,13 @@ int WINAPI wWinMain(HINSTANCE Instance, HINSTANCE, PWSTR, int Show)
             ComPtr<ID3D11Texture2D>          Preview;
             ComPtr<ID3D11ShaderResourceView> PreviewView;
             uint32_t                         PreviewWidth = 0u, PreviewHeight = 0u;
+            uint64_t                         UploadedRevision = 0u;
+            bool                             SmoothPreview = false;
+            using FrameClock = std::chrono::steady_clock;
+            double EditorMs = 0.0, UploadMs = 0.0, PresentMs = 0.0;
+            auto Milliseconds = [](FrameClock::time_point Start) {
+                return std::chrono::duration<double, std::milli>(FrameClock::now() - Start).count();
+            };
             bool                             Running = true;
             ShowWindow(Window, Show);
             UpdateWindow(Window);
@@ -185,8 +194,10 @@ int WINAPI wWinMain(HINSTANCE Instance, HINSTANCE, PWSTR, int Show)
                 ImGuiIO& Contact = ImGui::GetIO();
                 Editor.TickShade(Contact.MousePos.x, Contact.MousePos.y, Contact.MouseDown[0], Contact.MouseWheel, Contact.DeltaTime);
                 ImGui::NewFrame();
+                const auto EditorStart = FrameClock::now();
                 Editor.Record(Document);
-                ImGui::SetNextWindowSize(ImVec2(760, 235), ImGuiCond_FirstUseEver);
+                EditorMs = EditorMs * 0.9 + Milliseconds(EditorStart) * 0.1;
+                ImGui::SetNextWindowSize(ImVec2(850, 285), ImGuiCond_FirstUseEver);
                 if (ImGui::Begin("Document commands"))
                 {
                     if (ImGui::Button("Open .arc"))
@@ -241,6 +252,12 @@ int WINAPI wWinMain(HINSTANCE Instance, HINSTANCE, PWSTR, int Show)
                         Notice     = Document.Execute(Command) ? std::string("Executed: ") + Command : std::string("Refused: ") + Command;
                         Command[0] = 0;
                     }
+                    if (ImGui::Checkbox("Smooth preview (4x CPU samples)", &SmoothPreview))
+                        Editor.SetPreviewSamples(SmoothPreview ? 2u : 1u);
+                    ImGui::SameLine();
+                    ImGui::TextDisabled("Fast preview is the default; high-DPI software AA costs CPU time.");
+                    ImGui::TextDisabled("Frame stages (smoothed): editor CPU %.1f ms | upload %.1f ms | present %.1f ms | D3D11 %s",
+                                        EditorMs, UploadMs, PresentMs, SoftwareD3D11 ? "WARP" : "hardware");
                     ImGui::TextDisabled("Viewport: drag orbit | Shift+drag pan | wheel dolly | Alt+drag orbit | Ctrl+drag box");
                     ImGui::TextDisabled("Tab catalogue (L, Shift+L, R, C, A, E, P) | G move | Shift+R rotate | S scale | F fit");
                     ImGui::TextDisabled("1 body | 2 face | 3 edge | 4 vertex | Numpad 7/1/3 views | Numpad 5 projection");
@@ -270,12 +287,18 @@ int WINAPI wWinMain(HINSTANCE Instance, HINSTANCE, PWSTR, int Show)
                         PreviewWidth  = Image.Width;
                         PreviewHeight = Image.Height;
                     }
-                    D3D11_MAPPED_SUBRESOURCE Pixels{};
-                    Require(SUCCEEDED(Context->Map(Preview.Get(), 0, D3D11_MAP_WRITE_DISCARD, 0, &Pixels)), "Viewport upload failed");
-                    for (uint32_t Row = 0; Row < Image.Height; ++Row)
-                        memcpy(static_cast<char*>(Pixels.pData) + Row * Pixels.RowPitch, Image.Pixels.data() + size_t(Row) * Image.Width * 4u,
-                               Image.Width * 4u);
-                    Context->Unmap(Preview.Get(), 0);
+                    if (UploadedRevision != Editor.QueryPresentedRevision())
+                    {
+                        const auto UploadStart = FrameClock::now();
+                        D3D11_MAPPED_SUBRESOURCE Pixels{};
+                        Require(SUCCEEDED(Context->Map(Preview.Get(), 0, D3D11_MAP_WRITE_DISCARD, 0, &Pixels)), "Viewport upload failed");
+                        for (uint32_t Row = 0; Row < Image.Height; ++Row)
+                            memcpy(static_cast<char*>(Pixels.pData) + Row * Pixels.RowPitch, Image.Pixels.data() + size_t(Row) * Image.Width * 4u,
+                                   Image.Width * 4u);
+                        Context->Unmap(Preview.Get(), 0);
+                        UploadedRevision = Editor.QueryPresentedRevision();
+                        UploadMs = UploadMs * 0.9 + Milliseconds(UploadStart) * 0.1;
+                    }
                     for (ImDrawList* Commands : ImGui::GetDrawData()->CmdLists)
                         for (ImDrawCmd& Draw : Commands->CmdBuffer)
                             if (!Draw.TexRef._TexData && Draw.TexRef._TexID == ImTextureID(reinterpret_cast<uintptr_t>(Image.Pixels.data())))
@@ -286,7 +309,9 @@ int WINAPI wWinMain(HINSTANCE Instance, HINSTANCE, PWSTR, int Show)
                 Context->OMSetRenderTargets(1, &Active, nullptr);
                 Context->ClearRenderTargetView(Target.Get(), Background);
                 ImGui_ImplDX11_RenderDrawData(ImGui::GetDrawData());
+                const auto PresentStart = FrameClock::now();
                 Require(SUCCEEDED(Chain->Present(1, 0)), "Presentation failed");
+                PresentMs = PresentMs * 0.9 + Milliseconds(PresentStart) * 0.1;
             }
             Frontier::TypefaceRegistry::Install(nullptr);
         }

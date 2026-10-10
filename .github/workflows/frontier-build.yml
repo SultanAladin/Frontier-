@@ -183,6 +183,12 @@ jobs:
       - name: Build the host and the project code images
         run: python3 Tools/Build/RunAnnounced.py "build host and projects" -- cmake --build .cache/cmake --target Frontier ProjectZero ProjectDrive Project-Dyno --parallel
 
+      - name: SolidArc component-selection and gizmo regression
+        run: |
+          cmake -S Editor/AuthoringTools/Modelling/SolidArc -B .cache/solidarc-mode -G Ninja -DCMAKE_BUILD_TYPE=Release -DSOLIDARC_BUILD_MODE_TESTS=ON
+          cmake --build .cache/solidarc-mode --target SolidArcModeTransformVerification --parallel 2
+          ctest --test-dir .cache/solidarc-mode --output-on-failure
+
       - name: Publish the binaries
         if: always()
         uses: actions/upload-artifact@v4

@@ -267,16 +267,12 @@ namespace
         return true;
     }
 
-    Deliver<BrepBody> TransformFaceTargets(const BrepBody& Body, int Face, const Mat4& Transform,
+    Deliver<BrepBody> TransformComponentTargets(const BrepBody& Body, const std::vector<int>& Moved, const Mat4& Transform,
                                             bool AllowWarp, const char* Operation) noexcept
     {
         const BodyReport Before = Body.Validate();
         if (!Before.Solid()) return Deliver<BrepBody>::Reject(RefusalReason::Unsupported, "transform tweak needs a closed solid");
-        if (Face < 0 || Face >= static_cast<int>(Body.Faces.size()))
-            return Deliver<BrepBody>::Reject(RefusalReason::Unsupported, "face index out of range");
-
-        const std::vector<int> Moved = TweakSolver::FaceVertices(Body, Face);
-        if (Moved.empty()) return Deliver<BrepBody>::Reject(RefusalReason::Unsupported, "face has no vertices to transform");
+        if (Moved.empty()) return Deliver<BrepBody>::Reject(RefusalReason::Unsupported, "no vertices selected for component transform");
         const double Reach = Scale(Body);
         std::vector<char> IsMoved(Body.Vertices.size(), 0);
         std::vector<Vec3> Targets(Body.Vertices.size());
@@ -284,7 +280,7 @@ namespace
         for (int Vertex : Moved)
         {
             if (Vertex < 0 || Vertex >= static_cast<int>(Body.Vertices.size()))
-                return Deliver<BrepBody>::Reject(RefusalReason::Unsupported, "face vertex index out of range");
+                return Deliver<BrepBody>::Reject(RefusalReason::Unsupported, "component vertex index out of range");
             IsMoved[Vertex] = 1;
             Targets[Vertex] = Transform.TransformPoint(Body.Vertices[Vertex].Point);
         }
@@ -556,6 +552,12 @@ Deliver<BrepBody> TweakSolver::TranslateVertex(const BrepBody& Body, int Vertex,
     return TranslateVertices(Body, { Vertex }, Delta, AllowWarp);
 }
 
+Deliver<BrepBody> TweakSolver::TransformVertices(const BrepBody& Body, const std::vector<int>& Vertices,
+                                                 const Mat4& Transform, bool AllowWarp) noexcept
+{
+    return TransformComponentTargets(Body, Vertices, Transform, AllowWarp, "transform");
+}
+
 Deliver<BrepBody> TweakSolver::RotateFace(const BrepBody& Body, int Face, Vec3 Axis, double Angle, bool AllowWarp) noexcept
 {
     if (!std::isfinite(Angle) || std::fabs(Angle) <= ScalarCriteria::AngularTolerance)
@@ -567,7 +569,7 @@ Deliver<BrepBody> TweakSolver::RotateFace(const BrepBody& Body, int Face, Vec3 A
     for (int Vertex : Vertices) Pivot = Pivot + Body.Vertices[Vertex].Point;
     Pivot = Pivot * (1.0 / static_cast<double>(Vertices.size()));
     const Mat4 Transform = Mat4::Translation(Pivot) * Mat4::Rotation(Axis.Normalised(), Angle) * Mat4::Translation(-Pivot);
-    return TransformFaceTargets(Body, Face, Transform, AllowWarp, "rotation");
+    return TransformComponentTargets(Body, Vertices, Transform, AllowWarp, "rotation");
 }
 
 Deliver<BrepBody> TweakSolver::ScaleFace(const BrepBody& Body, int Face, double Factor, bool AllowWarp) noexcept
@@ -580,7 +582,7 @@ Deliver<BrepBody> TweakSolver::ScaleFace(const BrepBody& Body, int Face, double 
     for (int Vertex : Vertices) Pivot = Pivot + Body.Vertices[Vertex].Point;
     Pivot = Pivot * (1.0 / static_cast<double>(Vertices.size()));
     const Mat4 Transform = Mat4::Translation(Pivot) * Mat4::Scaling({ Factor, Factor, Factor }) * Mat4::Translation(-Pivot);
-    return TransformFaceTargets(Body, Face, Transform, AllowWarp, "scale");
+    return TransformComponentTargets(Body, Vertices, Transform, AllowWarp, "scale");
 }
 
 } // namespace Frontier
