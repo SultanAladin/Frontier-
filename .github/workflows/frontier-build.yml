@@ -251,10 +251,22 @@ jobs:
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
-          & ./Tools/Build/ToolchainSequence.ps1 -Configuration Release -SetupDependencies
-          if ($LASTEXITCODE -ne 0) { throw 'Windows desktop build failed' }
-          & ./Projects/Project-Dyno/Build/ToolchainSequence.ps1 -Configuration Release
-          if ($LASTEXITCODE -ne 0) { throw 'Project-Dyno build failed' }
+          $Transcript = Join-Path $env:RUNNER_TEMP 'frontier-windows-build.log'
+          Start-Transcript -Path $Transcript | Out-Null
+          try {
+            & ./Tools/Build/ToolchainSequence.ps1 -Configuration Release -SetupDependencies
+            if ($LASTEXITCODE -ne 0) { throw 'Windows desktop build failed' }
+            & ./Projects/Project-Dyno/Build/ToolchainSequence.ps1 -Configuration Release
+            if ($LASTEXITCODE -ne 0) { throw 'Project-Dyno build failed' }
+          }
+          catch {
+            $Failure = $_.Exception.Message
+            Stop-Transcript | Out-Null
+            $Tail = (Get-Content $Transcript -Tail 45) -join '%0A'
+            Write-Host "::error title=Windows MSVC build failed::$($Failure.Replace('%','%25'))%0A$Tail"
+            throw
+          }
+          Stop-Transcript | Out-Null
 
       - name: Package the Windows desktop bundle
         shell: pwsh
