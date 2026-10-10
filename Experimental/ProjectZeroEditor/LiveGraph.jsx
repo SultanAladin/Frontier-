@@ -61,7 +61,7 @@ export function Plot({
     if (Drag.current) Change?.(Next);
   };
   return (
-    <div className="live-plot" record-live-plot={Name}>
+    <div className="live-plot" data-live-plot={Name}>
       <div className="live-plot-value">
         <span>
           {Format(X)} <small>{XUnit}</small>
@@ -167,7 +167,7 @@ export function Plot({
                 />
               )}
               <path
-                record-series={Line.Name}
+                data-series={Line.Name}
                 d={Points}
                 stroke={Line.Colour || "#d9d5cb"}
                 strokeWidth="1.6"
@@ -270,7 +270,7 @@ export function PropertyGraph({ Children, Title }) {
     Pick(Index);
   };
   return (
-    <div className="property-graph" record-property-graph={Title}>
+    <div className="property-graph" data-property-graph={Title}>
       <button
         className="graph-disclosure"
         aria-expanded={Open}

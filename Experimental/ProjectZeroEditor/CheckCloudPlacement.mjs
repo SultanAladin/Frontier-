@@ -30,7 +30,7 @@ const Open = async (Id) => {
   await Page.locator(".inspector-scroll").waitFor();
 };
 const Frame = (Slice) =>
-  Page.frameLocator(`[record-reference-slice="${Slice}"] iframe`);
+  Page.frameLocator(`[data-reference-slice="${Slice}"] iframe`);
 try {
   await Open("clouds");
   await Frame("summary").locator(".cl-hero").waitFor();

@@ -232,7 +232,7 @@ private:
         Perf_.open(log);if(!Perf_)Fail("Cannot create fluid preview performance log");
         Perf_<<"frame,particles,sim_steps,physics_wall_ms,pca_ms,prepare_ms,extract_wall_ms,update_wall_ms,gpu_field_ms,gpu_edges_ms,gpu_triangles_ms,indices,overflow\n";
         VkPhysicalDeviceProperties properties;vkGetPhysicalDeviceProperties(Physical_,&properties);
-        std::cerr<<"[FluidPreview] GPU="<<properties.deviceName<<" allocation_bytes="<<Extractor_->AllocatedBytes()<<" CSV="<<log<<"\nCPU physics/PCA; GPU raw topology extraction. Display uses particle optics, NOT the extracted topology.\n";
+        std::cerr<<"[FluidPreview] GPU="<<properties.deviceName<<" allocation_bytes="<<Extractor_->AllocatedBytes()<<" CSV="<<log<<"\nCPU physics/PCA; GPU raw mesh extraction. Display uses particle optics, NOT the extracted mesh.\n";
 #endif
         UploadParticles();
         std::cout << "Project Fluid / Flux controls: Space pause, R reset, S stir, P toggle pour, 1-4 materials, Esc quit\n";

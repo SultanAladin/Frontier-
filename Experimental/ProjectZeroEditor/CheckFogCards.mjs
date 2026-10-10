@@ -84,7 +84,7 @@ try {
       "Wind binding",
     ])
       assert.equal(
-        await Page.locator(`[record-card="${Title}"]`).count(),
+        await Page.locator(`[data-card="${Title}"]`).count(),
         1,
         `${Model.Id} must contain ${Title}`,
       );

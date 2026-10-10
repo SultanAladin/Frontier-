@@ -154,7 +154,7 @@ void Refresh()
         EOS_Lobby_Attribute* Attribute = nullptr;
         if (EOS_LobbyDetails_CopyMemberAttributeByKey(Details, &Key, &Attribute) == EOS_EResult::EOS_Success && Attribute)
         {
-            Player.Ready = Attribute->Packet && Attribute->Packet->ValueType == EOS_ELobbyAttributeType::EOS_AT_BOOLEAN && Attribute->Packet->Value.AsBool == EOS_TRUE;
+            Player.Ready = Attribute->Data && Attribute->Data->ValueType == EOS_ELobbyAttributeType::EOS_AT_BOOLEAN && Attribute->Data->Value.AsBool == EOS_TRUE;
             EOS_Lobby_Attribute_Release(Attribute);
         }
         if (!Player.Local)
@@ -162,8 +162,8 @@ void Refresh()
             Key.AttrKey = "display_name"; Attribute = nullptr;
             if (EOS_LobbyDetails_CopyMemberAttributeByKey(Details, &Key, &Attribute) == EOS_EResult::EOS_Success && Attribute)
             {
-                if (Attribute->Packet && Attribute->Packet->ValueType == EOS_ELobbyAttributeType::EOS_AT_STRING && Attribute->Packet->Value.AsUtf8)
-                    Player.Name.assign(Attribute->Packet->Value.AsUtf8, std::min<size_t>(64, std::strlen(Attribute->Packet->Value.AsUtf8)));
+                if (Attribute->Data && Attribute->Data->ValueType == EOS_ELobbyAttributeType::EOS_AT_STRING && Attribute->Data->Value.AsUtf8)
+                    Player.Name.assign(Attribute->Data->Value.AsUtf8, std::min<size_t>(64, std::strlen(Attribute->Data->Value.AsUtf8)));
                 EOS_Lobby_Attribute_Release(Attribute);
             }
         }
@@ -180,10 +180,10 @@ void Refresh()
             EOS_Lobby_Attribute* V = nullptr;
             if (EOS_LobbyDetails_CopyAttributeByKey(Details, &A, &V) == EOS_EResult::EOS_Success && V)
             {
-                if (V->Packet && V->Packet->ValueType == EOS_ELobbyAttributeType::EOS_AT_STRING && V->Packet->Value.AsUtf8)
+                if (V->Data && V->Data->ValueType == EOS_ELobbyAttributeType::EOS_AT_STRING && V->Data->Value.AsUtf8)
                 {
-                    if (std::strcmp(KeyName, "session_id") == 0) Room.SessionId = V->Packet->Value.AsUtf8;
-                    else RemoteState = V->Packet->Value.AsUtf8;
+                    if (std::strcmp(KeyName, "session_id") == 0) Room.SessionId = V->Data->Value.AsUtf8;
+                    else RemoteState = V->Data->Value.AsUtf8;
                 }
                 EOS_Lobby_Attribute_Release(V);
             }
@@ -520,8 +520,8 @@ void ParseLobbyDetails(EOS_HLobbyDetails Details, LobbySearchResult& Out)
         EOS_Lobby_Attribute* V = nullptr;
         if (EOS_LobbyDetails_CopyAttributeByKey(Details, &A, &V) == EOS_EResult::EOS_Success && V)
         {
-            if (V->Packet && V->Packet->ValueType == EOS_ELobbyAttributeType::EOS_AT_STRING && V->Packet->Value.AsUtf8)
-                *Value = V->Packet->Value.AsUtf8;
+            if (V->Data && V->Data->ValueType == EOS_ELobbyAttributeType::EOS_AT_STRING && V->Data->Value.AsUtf8)
+                *Value = V->Data->Value.AsUtf8;
             EOS_Lobby_Attribute_Release(V);
         }
     }
@@ -585,10 +585,10 @@ void ParseSessionDetails(EOS_HSessionDetails Details, SessionSearchResult& Out)
         EOS_SessionDetails_Attribute* V = nullptr;
         if (EOS_SessionDetails_CopySessionAttributeByKey(Details, &A, &V) == EOS_EResult::EOS_Success && V)
         {
-            if (V->Packet && V->Packet->ValueType == EOS_ESessionAttributeType::EOS_AT_STRING && V->Packet->Value.AsUtf8)
+            if (V->Data && V->Data->ValueType == EOS_ESessionAttributeType::EOS_AT_STRING && V->Data->Value.AsUtf8)
             {
-                if (std::strcmp(Key, "map") == 0) Out.MapName = V->Packet->Value.AsUtf8;
-                else Out.ModeName = V->Packet->Value.AsUtf8;
+                if (std::strcmp(Key, "map") == 0) Out.MapName = V->Data->Value.AsUtf8;
+                else Out.ModeName = V->Data->Value.AsUtf8;
             }
             EOS_SessionDetails_Attribute_Release(V);
         }

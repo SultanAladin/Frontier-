@@ -20,7 +20,7 @@ for(const id of ids){
   const pixels=x.getImageData(0,0,size,size).record;assert.ok(pixels.some((v,i)=>i%4===3&&v>0));assert.equal(pixels[3],0);
   if(size===256&&process.env.PREVIEW_WEATHER){const p=createCanvas(320,320),ctx=p.getContext('2d');ctx.fillStyle='#202020';ctx.fillRect(0,0,320,320);ctx.drawImage(c,32,32);fs.writeFileSync('/tmp/'+id+'.png',p.toBuffer('image/png'));}
  }
- const card=d.querySelector(`[record-id="${id}"]`);assert.ok(card&&!card.hidden);card.click();
+ const card=d.querySelector(`[data-id="${id}"]`);assert.ok(card&&!card.hidden);card.click();
  assert.equal(d.querySelector('.detail-meta span').textContent,'256 × 256 viewBox');
  const all=[...d.querySelectorAll('[id]')].map(e=>e.id);assert.equal(all.length,new Set(all).size);
  assert.equal(raw,fs.readFileSync('dist/custom-icons/'+id+'.svg','utf8'));

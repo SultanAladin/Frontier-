@@ -87,9 +87,9 @@ void RasterizeList(const ImDrawList* List, const unsigned char* Sheet, int Sheet
             //    offset. Ignoring it does not drop the overflow — it silently reads the WRONG vertices,
             //    which is why a long preset grid used to go blank partway down instead of failing loudly.
             const unsigned int Base = Cmd.VtxOffset;
-            const ImDrawVert& A = List->VtxStore[Base + List->IdxStore[Offset + E + 0u]];
-            const ImDrawVert& B = List->VtxStore[Base + List->IdxStore[Offset + E + 1u]];
-            const ImDrawVert& D = List->VtxStore[Base + List->IdxStore[Offset + E + 2u]];
+            const ImDrawVert& A = List->VtxBuffer[Base + List->IdxBuffer[Offset + E + 0u]];
+            const ImDrawVert& B = List->VtxBuffer[Base + List->IdxBuffer[Offset + E + 1u]];
+            const ImDrawVert& D = List->VtxBuffer[Base + List->IdxBuffer[Offset + E + 2u]];
 
             float MinX = A.pos.x, MaxX = A.pos.x, MinY = A.pos.y, MaxY = A.pos.y;
             MinX = B.pos.x < MinX ? B.pos.x : MinX;  MaxX = B.pos.x > MaxX ? B.pos.x : MaxX;

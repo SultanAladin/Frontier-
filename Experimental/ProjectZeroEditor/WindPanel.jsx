@@ -178,7 +178,7 @@ export function WindCanvas({
   }, []);
   return (
     <div className="wind-visual">
-      <canvas ref={Canvas} role="img" aria-label={Label} record-active={Active} />
+      <canvas ref={Canvas} role="img" aria-label={Label} data-active={Active} />
       <div className="wind-legend">
         <span>0 m/s</span>
         <i />
@@ -196,7 +196,7 @@ export function WindInspector({ Values, Change, Open, Hidden }) {
   const Field = ResolveWind(Values),
     [Playing, Play] = useState(true);
   return (
-    <section className="property-card wind-inspector" record-card="Wind field">
+    <section className="property-card wind-inspector" data-card="Wind field">
       <div className="wind-section-head">
         <div>
           <span className="eyebrow">COMBINED FLOW</span>
@@ -267,7 +267,7 @@ export function WindBinding({
     Subject = Fields.find((Item) => Item.Id === Id),
     Following = Values["Follow Wind"] ?? true;
   return (
-    <section className="property-card wind-binding" record-card="Wind binding">
+    <section className="property-card wind-binding" data-card="Wind binding">
       <h3>Wind binding</h3>
       <label>
         Wind field

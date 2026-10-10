@@ -34,11 +34,11 @@ Page.on("requestfailed", (Request) => {
 });
 const Address =
   process.env.FRONTIER_EDITOR_URL || "http://127.0.0.1:4173/ProjectZeroEditor/";
-const Card = (Title) => `[record-card="${Title}"]`;
+const Card = (Title) => `[data-card="${Title}"]`;
 const Frame = (Slice) =>
   Page.frameLocator(
     Slice
-      ? `[record-reference-slice="${Slice}"] iframe`
+      ? `[data-reference-slice="${Slice}"] iframe`
       : 'iframe[title^="Reference inspector"]',
   ).first();
 const Node = (Entry) =>
@@ -167,7 +167,7 @@ const Sections = {
     Card("Optical preview"),
     Card("Visibility"),
     Card("Bow response"),
-    Card("Precompute / image"),
+    Card("Bake / image"),
   ],
 };
 const PrecomputeCards = {
@@ -175,7 +175,7 @@ const PrecomputeCards = {
   atmosphere: ["Atmosphere bake", "Baked atmosphere"],
   flare: ["Lens flare image"],
   stars: ["Star field bake"],
-  rainbow: ["Precompute / image"],
+  rainbow: ["Bake / image"],
   geometry: ["Fracture"],
 };
 try {

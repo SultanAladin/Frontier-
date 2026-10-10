@@ -28,7 +28,7 @@ try{
   }else authority=await readFile(path.join(root,'Experimental/FrontierEditor',['local-cloud','local-fog','folder-environment','folder-generic'].includes(name)?'ui-icons':'custom-icons',name+'.svg'));
   if(!svg.equals(authority))throw Error('Shipped SVG differs from approved source: '+name);
   const result=await page.evaluate(async source=>{
-   const img=new Image();img.src='record:image/svg+xml;base64,'+source;await img.decode();
+   const img=new Image();img.src='data:image/svg+xml;base64,'+source;await img.decode();
    const canvas=document.createElement('canvas');canvas.width=canvas.height=256;
    const ctx=canvas.getContext('2d',{willReadFrequently:true});ctx.drawImage(img,0,0,256,256);
    return {pixels:Array.from(ctx.getImageData(0,0,256,256).record),png:canvas.toDataURL('image/png').split(',')[1]};

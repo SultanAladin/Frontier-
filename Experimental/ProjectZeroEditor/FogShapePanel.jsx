@@ -105,7 +105,7 @@ export default function FogShapePanel({ Values, Change }) {
   return (
     <section
       className="property-card fog-shape-card"
-      record-card="Fog volume shape"
+      data-card="Fog volume shape"
     >
       <h3>Fog volume shape</h3>
       <label className="fog-shape-choice">
@@ -131,7 +131,7 @@ export default function FogShapePanel({ Values, Change }) {
         className="fog-shape-preview"
         role="img"
         aria-label={`${Shape.Type} fog volume preview`}
-        record-shape={Shape.Type}
+        data-shape={Shape.Type}
         viewBox="0 0 320 250"
       >
         <defs>
@@ -247,8 +247,8 @@ export default function FogShapePanel({ Values, Change }) {
                 {List.map((Value, Index) => (
                   <td
                     key={Index}
-                    record-bound={`${Label}-${["X", "Y", "Z"][Index]}`}
-                    record-value={Value}
+                    data-bound={`${Label}-${["X", "Y", "Z"][Index]}`}
+                    data-value={Value}
                   >
                     {Round(Value)}
                   </td>

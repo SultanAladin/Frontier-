@@ -732,7 +732,7 @@ void T37_FbxFullHouse()
 {
     static ufbx_material M; std::memset(&M, 0, sizeof M);
     static ufbx_texture Tex[4]; std::memset(Tex, 0, sizeof Tex);
-    M.name.record = "full"; M.name.length = 4;
+    M.name.data = "full"; M.name.length = 4;
     ufbx_material_pbr_maps& P = M.pbr;
     SetReal(P.base_factor, 0.9); SetVec3(P.base_color, 0.2, 0.3, 0.4);
     P.base_color.texture = &Tex[0]; P.base_color.texture_enabled = true;

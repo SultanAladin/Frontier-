@@ -632,7 +632,7 @@ int main()
         //    match the predicted variance, and be far below the unfiltered spread.
         // The closed form assumes weights that do not depend on the record. The shader's luminance weight DOES depend on it
         //    (that is its whole point: a difference large relative to the noise is an edge), so the propagation check
-        //    makes it inert and the record-dependent case is left to §C5.3 and the §E A/B.
+        //    makes it inert and the data-dependent case is left to §C5.3 and the §E A/B.
         DenoiseMirror::RunConfiguration PropagationConfig = Config;
         PropagationConfig.LuminanceScale = 1.0e6f;
         constexpr uint32_t kTrials = 512u;
@@ -671,7 +671,7 @@ int main()
         const double Theory = SumW2 / (SumW * SumW);
         std::printf("[denoise] variance: unfiltered %.6g, filtered %.6g (ratio %.4f, theory %.4f)\n",
                     UnfilteredVariance, FilteredVariance, Ratio, Theory);
-        Check(std::fabs(Ratio - Theory) < 0.20 * Theory, "C6.3 Monte-Carlo: filtered/unfiltered spread = Σw²/(Σw)² with record-independent weights (±20 %, 512 trials)");
+        Check(std::fabs(Ratio - Theory) < 0.20 * Theory, "C6.3 Monte-Carlo: filtered/unfiltered spread = Σw²/(Σw)² with data-independent weights (±20 %, 512 trials)");
         Check(std::fabs(UnfilteredVariance - kNoiseVariance) < 0.20 * kNoiseVariance, "C6.4 Monte-Carlo: the unfiltered spread matches the input variance (±20 %)");
     }
 

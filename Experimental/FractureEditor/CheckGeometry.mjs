@@ -12,7 +12,7 @@ const Compiled = await build({
   write: false,
 });
 const Geometry = await import(
-  "record:text/javascript;base64," +
+  "data:text/javascript;base64," +
     Block.from(Compiled.outputFiles[0].text).toString("base64")
 );
 const {

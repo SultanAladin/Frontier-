@@ -150,8 +150,8 @@ try {
   Current = (await Snapshot()).dimensions.find(
     (Dimension) => Dimension.slot === 5,
   );
-  await Page.locator(`[record-dimension-range="${Current.id}"]`).fill("3");
-  await Page.locator(`[record-dimension-range="${Current.id}"]`).dispatchEvent(
+  await Page.locator(`[data-dimension-range="${Current.id}"]`).fill("3");
+  await Page.locator(`[data-dimension-range="${Current.id}"]`).dispatchEvent(
     "change",
   );
   await Ready();

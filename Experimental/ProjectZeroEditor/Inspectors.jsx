@@ -163,7 +163,7 @@ export function Icon({ Name, Size = 24 }) {
     return (
       <span
         className="native-icon precipitation-symbol"
-        record-native-icon={Name}
+        data-native-icon={Name}
         style={{ color: "#91b7cd", display: "inline-flex" }}
       >
         <ActionIcon Name="rain" Size={Size} />
@@ -177,7 +177,7 @@ export function Icon({ Name, Size = 24 }) {
       height={Size}
       src={Source}
       alt=""
-      record-native-icon={Name}
+      data-native-icon={Name}
     />
   ) : (
     <Glyph Name={Name} Size={Size} />
@@ -286,7 +286,7 @@ export function Control({
   return (
     <label
       className={"field " + (Compact ? "compact" : "")}
-      record-native-property={Label}
+      data-native-property={Label}
     >
       <span>{Label}</span>
       <div className="slider-pill">
@@ -344,7 +344,7 @@ export function Card({
     <section
       className={"property-card " + (Wide ? "span-two " : "") + Class}
       style={{ minHeight: Height, "--accent": Accent || "#bababa" }}
-      record-card={Title}
+      data-card={Title}
     >
       <h3>
         {Mark && <Glyph Name={Mark} Size={16} />}
@@ -374,7 +374,7 @@ export function Tile({
       onClick={Action}
       aria-pressed={Disabled ? undefined : !!On}
       aria-label={Label}
-      record-quick-action={Label}
+      data-quick-action={Label}
     >
       <span className="quick-icon-seat">
         <ActionIcon Name={QuickSymbol(Label, Context, IconName)} Size={26} />
@@ -590,7 +590,7 @@ export function Inspector({
   const Capabilities = () => (
     <section
       className="generic-card entity-capabilities"
-      record-card="Quick controls"
+      data-card="Quick controls"
     >
       <h4>QUICK CONTROLS</h4>
       <div className="tiles">
@@ -731,7 +731,7 @@ export function Inspector({
               ? "environment-live"
               : "")
           }
-          record-panel={Subject.Panel}
+          data-panel={Subject.Panel}
         >
           {Subject.ReferenceOnly && Subject.Panel === "light" ? (
             <>
@@ -1557,7 +1557,7 @@ export function Inspector({
         <Card Title="Bow response" Height={458}>
           {Fields("Intensity", "Width", "Secondary", "Minimum Path")}
         </Card>
-        <Precompute Title="Precompute / image" />
+        <Precompute Title="Bake / image" />
       </>
     );
   } else if (["clouds", "local-cloud"].includes(Subject.Panel)) {
@@ -1583,7 +1583,7 @@ export function Inspector({
         </Card>
         <section
           className="cloud-coverage-replacement"
-          record-card="Cloud coverage"
+          data-card="Cloud coverage"
         >
           {CloudCoverageCards}
           {F("Coverage")}
@@ -1731,7 +1731,7 @@ export function Inspector({
     <GraphContext.Provider value={{ Panel: Subject.Panel }}>
       <div
         className={"specialized-inspector environment-live " + Subject.Panel}
-        record-panel={Subject.Panel}
+        data-panel={Subject.Panel}
       >
         {Content}
       </div>

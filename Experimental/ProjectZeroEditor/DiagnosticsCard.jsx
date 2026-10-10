@@ -229,8 +229,8 @@ export default function DiagnosticsCard({
       className="diagnostic-overlay debug-card workspace-card"
       aria-label="Viewport performance diagnostics"
       style={{ left: Box.X, top: Box.Y, width: Box.Width, height: Box.Height }}
-      record-metric={Prefs.Metric}
-      record-paused={!!Frozen}
+      data-metric={Prefs.Metric}
+      data-paused={!!Frozen}
       onPointerMove={Move}
       onPointerUp={() => (Drag.current = null)}
       onPointerCancel={() => (Drag.current = null)}

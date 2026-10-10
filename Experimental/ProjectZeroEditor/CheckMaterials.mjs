@@ -43,7 +43,7 @@ const Window = Page.getByRole("dialog", {
   exact: true,
 });
 const Channel = async (Id) =>
-  Window.locator(`[record-material-channel="${Id}"]`).click();
+  Window.locator(`[data-material-channel="${Id}"]`).click();
 const Mode = async (Name) =>
   Window.getByRole("button", { name: Name, exact: true }).click();
 const Canvas = () => Window.locator("canvas");

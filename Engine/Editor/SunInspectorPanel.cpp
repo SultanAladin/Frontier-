@@ -60,8 +60,8 @@ struct Panel {
     }
     void Rule(float X,float Y,float W)const {D->AddLine(At(X,Y),At(X+W,Y),Colour(255,255,255,12/255.f));}
     void Surface(float X,float Y,float W,float H,float Round=22)const {
-        int First=D->VtxStore.Size;D->AddRectFilled(At(X,Y),At(X+W,Y+H),Colour(255,255,255),Round);
-        ImGui::ShadeVertsLinearColorGradientKeepAlpha(D,First,D->VtxStore.Size,At(X,Y),At(X+W,Y+H),Colour(37,37,37),Colour(32,32,32));
+        int First=D->VtxBuffer.Size;D->AddRectFilled(At(X,Y),At(X+W,Y+H),Colour(255,255,255),Round);
+        ImGui::ShadeVertsLinearColorGradientKeepAlpha(D,First,D->VtxBuffer.Size,At(X,Y),At(X+W,Y+H),Colour(37,37,37),Colour(32,32,32));
         D->AddRect(At(X,Y),At(X+W,Y+H),Colour(52,52,52),Round);
     }
     void Card(float X,float Y,float W,float H,const char* Title,Mark M,ImU32 Accent)const {
@@ -226,9 +226,9 @@ void RecordSunInspector(ControlPanel& Controls,EditorInstance& Row,EditorSheet& 
     const ImDrawListFlags SavedDrawFlags=U.D->Flags;U.D->Flags &= ~ImDrawListFlags_AntiAliasedFill;
     for(int I=0;I<4;++I){
         ImVec2 A=U.At(IX+24+(R-48)*Off[I],TY+148),B=U.At(IX+24+(R-48)*Off[I+1],TY+164);
-        int First=U.D->VtxStore.Size;
+        int First=U.D->VtxBuffer.Size;
         U.D->AddRectFilled(A,B,IM_COL32_WHITE,8,I==0?ImDrawFlags_RoundCornersLeft:I==3?ImDrawFlags_RoundCornersRight:ImDrawFlags_RoundCornersNone);
-        ImGui::ShadeVertsLinearColorGradientKeepAlpha(U.D,First,U.D->VtxStore.Size,A,{B.x,A.y},Stops[I],Stops[I+1]);
+        ImGui::ShadeVertsLinearColorGradientKeepAlpha(U.D,First,U.D->VtxBuffer.Size,A,{B.x,A.y},Stops[I],Stops[I+1]);
     }
     U.D->Flags=SavedDrawFlags;
     U.Text(IX+24,TY+168,"Warm",10,Muted);U.Text(IX+R-47,TY+168,"Cool",10,Muted);
@@ -345,7 +345,7 @@ void RecordSunInspector(ControlPanel& Controls,EditorInstance& Row,EditorSheet& 
     U.Surface(0,End,W,CardHeight,22);
     // Export targets always follow authoring, previews and native settings.
     float PrecomputeY=End+CardHeight+22;
-    U.Text(0,PrecomputeY,"PRECOMPUTING / TEXTURES",10,Muted);
+    U.Text(0,PrecomputeY,"BAKING / TEXTURES",10,Muted);
     U.Text(0,PrecomputeY+20,"Native target bindings pending",10,Muted);
     const float PrecomputeW=Two?(W-12)/2:W;
     U.Precompute(0,PrecomputeY+44,PrecomputeW,"Sun lighting bake","sun-lighting-bake");

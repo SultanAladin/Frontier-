@@ -44,7 +44,7 @@ if (
 const Fonts = ["Light", "Regular"]
   .map(
     (Weight, Index) =>
-      `@font-face{font-family:'DM Sans';font-style:normal;font-weight:${Index ? 400 : 300};font-display:swap;src:url(record:font/ttf;base64,${fs.readFileSync(path.join(Folder, "../../EngineContent/Fonts/SunReference", "DMSans-" + Weight + ".ttf")).toString("base64")}) format('truetype')}`,
+      `@font-face{font-family:'DM Sans';font-style:normal;font-weight:${Index ? 400 : 300};font-display:swap;src:url(data:font/ttf;base64,${fs.readFileSync(path.join(Folder, "../../EngineContent/Fonts/SunReference", "DMSans-" + Weight + ".ttf")).toString("base64")}) format('truetype')}`,
   )
   .join("\n");
 const FontNotice = fs

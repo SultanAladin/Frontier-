@@ -80,8 +80,8 @@ struct Panel {
     void Text(float X,float Y,const char* T,float Size=12,ImU32 C=Ink){D->AddText(Font,Size,At(X,Y),C,T);}
     void Wrap(float X,float Y,float W,const char* T){D->AddText(Font,11,At(X,Y),Muted,T,nullptr,W);}
     void Card(float X,float Y,float W,float H,const char* Title){
-        int Start=D->VtxStore.Size;D->AddRectFilled(At(X,Y),At(X+W,Y+H),IM_COL32_WHITE,22);
-        ImGui::ShadeVertsLinearColorGradientKeepAlpha(D,Start,D->VtxStore.Size,At(X,Y),At(X+W,Y+H),IM_COL32(37,37,37,255),IM_COL32(32,32,32,255));
+        int Start=D->VtxBuffer.Size;D->AddRectFilled(At(X,Y),At(X+W,Y+H),IM_COL32_WHITE,22);
+        ImGui::ShadeVertsLinearColorGradientKeepAlpha(D,Start,D->VtxBuffer.Size,At(X,Y),At(X+W,Y+H),IM_COL32(37,37,37,255),IM_COL32(32,32,32,255));
         D->AddRect(At(X,Y),At(X+W,Y+H),IM_COL32(52,52,52,255),22);
         Mark M=std::strcmp(Title,"Flare composite")==0?Mark::Sun:std::strcmp(Title,"Flare layers")==0?Mark::Sparkles:std::strcmp(Title,"Lens flare image")==0?Mark::Precompute:Mark::Orbit;
         Icon(D,At(X+23,Y+21),M,Accent,17);
@@ -132,7 +132,7 @@ void RecordLensFlareInspector(ControlPanel& Controls,EditorInstance& Row,EditorS
     U.Card(0,121+HeaderShift,W,162,"Lens flare image");
     U.D->AddImageRounded(Cache.Texture.GetTexRef(),U.At(24,185+HeaderShift),U.At(132,232.25f+HeaderShift),{0,0},{1,1},IM_COL32_WHITE,12);
     U.Button(148,174+HeaderShift,Wide?170:W-172,"##use-baked",W<360?"Use image":"Use baked image",false,true);
-    if(Wide){if(U.Button(330,174+HeaderShift,158,"##bake-flare","Precompute / export HDR"))ExportLensFlarePreview("Exports/LensFlare.pfm");U.Wrap(148,222+HeaderShift,W-172,"One cached image feeds this thumbnail and the composite. Scene baked-image playback is not wired yet.");}
+    if(Wide){if(U.Button(330,174+HeaderShift,158,"##bake-flare","Bake / export HDR"))ExportLensFlarePreview("Exports/LensFlare.pfm");U.Wrap(148,222+HeaderShift,W-172,"One cached image feeds this thumbnail and the composite. Scene baked-image playback is not wired yet.");}
     else {if(U.Button(148,214+HeaderShift,W-172,"##bake-flare","Export HDR"))ExportLensFlarePreview("Exports/LensFlare.pfm");}
         U.O=Saved;
     };

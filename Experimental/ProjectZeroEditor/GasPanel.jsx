@@ -369,7 +369,7 @@ export function GasInspector({
       <Card Title="Appearance">{F("Density", "Albedo", "Fire", "Exposure")}</Card>
 
       {/* ② Children. Emitters only — see the header of GasSpecification.js for why a collider is not here. */}
-      <section className="generic-card gas-children" record-card="Hierarchy">
+      <section className="generic-card gas-children" data-card="Hierarchy">
         <h4>HIERARCHY</h4>
         {Children.length === 0 ? (
           <p className="gas-note">
@@ -443,7 +443,7 @@ export function GasEmitterInspector({ Values, Change, Parent, SelectParent, Open
 
       <Card Title="Emission">{F("Radius", "Emission Rate", "Smoke", "Temperature", "Fuel", "Rise Speed", "Swirl")}</Card>
 
-      <section className="generic-card gas-children" record-card="Domain">
+      <section className="generic-card gas-children" data-card="Domain">
         <h4>DOMAIN</h4>
         {Parent ? (
           <>

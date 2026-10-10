@@ -7,7 +7,7 @@ import ConstructMenu,{nativeWorld,constructItems,NativeEntityInspector} from './
 import OutlinerIcon from './outliner-icons.jsx';
 import {CloudControls,FogControls} from './atmosphere-shared-controls.jsx';
 import LocalVolumeInspector,{localVolumeObjects} from './local-volumes.jsx';
-import PrecomputeQuickTiles from './precompute-quick-tiles.jsx';
+import PrecomputeQuickTiles from './bake-quick-tiles.jsx';
 import MaterialInspector from './material-inspector.jsx';
 import {materialDefaults} from './material-model.js';
 import ObjectInspector,{geometryDefaults} from './object-inspector.jsx';

@@ -292,7 +292,7 @@ export default function AssetPanel({
           <nav
             className="asset-category-rail"
             aria-label="Asset categories"
-            record-drawer-scroll
+            data-drawer-scroll
           >
             {AssetKinds.map((Name) => (
               <button
@@ -323,14 +323,14 @@ export default function AssetPanel({
               <h2>{Kind === "All" ? "All assets" : Kind}</h2>
               <span>{Visible.length} results</span>
             </header>
-            <div className={"asset-catalogue " + View} record-drawer-scroll>
+            <div className={"asset-catalogue " + View} data-drawer-scroll>
               {Visible.map((Asset) => (
                 <button
                   className={
                     "asset-cell " + (Asset.Id === Selection ? "selected" : "")
                   }
                   key={Asset.Id}
-                  record-asset-id={Asset.Id}
+                  data-asset-id={Asset.Id}
                   aria-label={"Select asset " + Asset.Name}
                   aria-pressed={Asset.Id === Selection}
                   onClick={() => {
@@ -393,7 +393,7 @@ export default function AssetPanel({
               )}
             </div>
           </section>
-          <aside className="asset-preview" record-drawer-scroll>
+          <aside className="asset-preview" data-drawer-scroll>
             {Current ? (
               <>
                 <div className="asset-preview-heading">

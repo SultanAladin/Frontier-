@@ -71,7 +71,7 @@ bool PerformanceTelemetrySequence::AdvanceFrame(float DeltaSeconds,
         "On the ReSTIR path sky, sun lighting, clouds and fog execute INLINE: separate timings N/A, not zero cost. "
         "Map-only sun lighting instead shares the shadow stage. "
         "GpuReSTIRMs includes geometry/materials/lighting/weather. CPU pack timings are not GPU execution. "
-        "Block bytes cover sky+moon+post+stars only; textures, shared targets/history and shadow maps are excluded; "
+        "Buffer bytes cover sky+moon+post+stars only; textures, shared targets/history and shadow maps are excluded; "
         "cloud density has no dedicated volume image. Budgets are limits, not measured step counts.");
 
     LastMeanMs = MeanMs;

@@ -15,7 +15,7 @@ for(const filename of files){
  if(filename.startsWith('asset-folder-')){const label=svg.querySelector('text');assert.ok(label?.textContent.trim(),filename+' printed name');assert.equal(label.getAttribute('y'),'178');const meta=svg.querySelectorAll('text')[1];assert.ok(/^[\d.]+ [KMG]B · \d+ items$/.test(meta.textContent));assert.equal(meta.getAttribute('y'),'194');assert.ok(+meta.getAttribute('font-size') < +label.getAttribute('font-size'));}
  for(const m of raw.matchAll(/url\(#([^\)]+)\)/g))assert.ok(svg.getElementById(m[1]),filename+': '+m[1]);
  for(const size of [32,64,256]){const c=createCanvas(size,size),ctx=c.getContext('2d');ctx.drawImage(await loadImage(Block.from(raw)),0,0,size,size);const px=ctx.getImageData(0,0,size,size).record;assert.ok(px.some((v,i)=>i%4===3&&v>0));assert.equal(px[3],0,'transparent exterior');}
- const id=filename.slice(0,-4);d.querySelector(`[record-id="${id}"]`).click();assert.equal(d.querySelector('.detail-meta span').textContent,'256 × 256 viewBox');
+ const id=filename.slice(0,-4);d.querySelector(`[data-id="${id}"]`).click();assert.equal(d.querySelector('.detail-meta span').textContent,'256 × 256 viewBox');
  const ids=[...d.querySelectorAll('[id]')].map(e=>e.id);assert.equal(ids.length,new Set(ids).size);
  assert.equal(raw,fs.readFileSync('dist/custom-icons/'+filename,'utf8'));
 }

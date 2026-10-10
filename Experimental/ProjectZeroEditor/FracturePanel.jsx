@@ -23,7 +23,7 @@ export default function FracturePanel({ Subject, Values, Change, Expand }) {
   const Assign = (Key, Value) =>
     Change("Fracture", { ...Settings, [Key]: Value });
   return (
-    <section className="generic-card fracture-card" record-card="Fracture">
+    <section className="generic-card fracture-card" data-card="Fracture">
       <header>
         <div>
           <h3>Fracture</h3>

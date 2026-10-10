@@ -323,7 +323,7 @@ export default function ActionIcon({ Name, Size = 24 }) {
   return (
     <svg
       className="action-icon"
-      record-action-icon={Name}
+      data-action-icon={Name}
       width={Size}
       height={Size}
       viewBox="0 0 24 24"

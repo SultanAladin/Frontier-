@@ -35,9 +35,9 @@ void Check(bool Condition, const char* Claim)
 // The surrounding card is the one the native fog inspector already draws; only its contents are new.
 void CardChrome(ImDrawList* Draw, ImFont* Face, ImVec2 Spot, float Wide, float Tall, const char* Title)
 {
-    const int First = Draw->VtxStore.Size;
+    const int First = Draw->VtxBuffer.Size;
     Draw->AddRectFilled(Spot, { Spot.x + Wide, Spot.y + Tall }, IM_COL32_WHITE, 22.0f);
-    ImGui::ShadeVertsLinearColorGradientKeepAlpha(Draw, First, Draw->VtxStore.Size, Spot,
+    ImGui::ShadeVertsLinearColorGradientKeepAlpha(Draw, First, Draw->VtxBuffer.Size, Spot,
                                                   { Spot.x + Wide, Spot.y + Tall }, IM_COL32(37, 37, 37, 255),
                                                   IM_COL32(32, 32, 32, 255));
     Draw->AddRect(Spot, { Spot.x + Wide, Spot.y + Tall }, IM_COL32(52, 52, 52, 255), 22.0f);

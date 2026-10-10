@@ -410,7 +410,7 @@ try {
   const ConfirmClose = (Dialog) => Dialog.accept();
   Page.on("dialog", ConfirmClose);
   for (const Identity of [3, 4, 5])
-    await Page.locator(`[record-close-document="${Identity}"]`).click();
+    await Page.locator(`[data-close-document="${Identity}"]`).click();
   Page.off("dialog", ConfirmClose);
   Assert.equal(
     await Page.evaluate(() => fluidEditor.Engine === OriginalFluidEngine),
@@ -435,7 +435,7 @@ try {
   await Page.locator("#speed-select").selectOption("0.5");
   Assert.equal((await Snapshot()).parameters.timeScale, 0.5);
   for (const Tool of ["flamethrower", "detonate", "orbit"]) {
-    await Page.locator(`[record-tool="${Tool}"]`).click();
+    await Page.locator(`[data-tool="${Tool}"]`).click();
     Assert.equal((await Snapshot()).parameters.interactionMode, Tool);
   }
   for (const Kind of ["shrapnel", "salvo", "collide", "mushroom"]) {

@@ -138,7 +138,7 @@ int main()
         Check(std::strcmp(Text, "DYNAMIC / GEOMETRY") == 0, "the eyebrow names the execution mode");
         Specimen.Settings.Run = Mode::Precomputed;
         ExecutionLabel(Specimen, Text, sizeof(Text));
-        Check(std::strcmp(Text, "PRECOMPUTED / GEOMETRY") == 0, "uppercased, as Refresh uppercases it");
+        Check(std::strcmp(Text, "BAKED / GEOMETRY") == 0, "uppercased, as Refresh uppercases it");
         Specimen.Settings.Enabled = false;
         ExecutionLabel(Specimen, Text, sizeof(Text));
         Check(std::strcmp(Text, "DISABLED / GEOMETRY") == 0, "and says DISABLED when the card's switch is off");

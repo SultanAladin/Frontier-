@@ -40,7 +40,7 @@ void Svg(const SceneStructure& s,const std::string& path,float distance,bool pre
  std::sort(faces.begin(),faces.end(),[](auto a,auto b){return a.depth>b.depth;});std::ofstream out(path);out<<"<svg xmlns='http://www.w3.org/2000/svg' width='720' height='760' viewBox='0 0 720 760'><rect width='720' height='760' fill='#16191f'/><g font-family='sans-serif' fill='#eee'><text x='28' y='38' font-size='23'>Patch Geometry — CPU reference</text><text x='28' y='65' font-size='14'>"<<(preview?"Native coarse selection":"Original native sphere")<<" · "<<faces.size()<<" triangles · not a GPU capture</text></g>";
  for(auto& f:faces){out<<"<polygon points='";for(int k=0;k<3;++k)out<<f.p[k*2]<<","<<f.p[k*2+1]<<" ";uint32_t hash=f.patch*2654435761u;hash^=hash>>16;hash*=0x7feb352du;hash^=hash>>15;hash*=0x846ca68bu;hash^=hash>>16;
  out<<"' fill='rgb("<<int((hash&255)*.8f+51)<<","<<int(((hash>>8)&255)*.8f+51)<<","<<int(((hash>>16)&255)*.8f+51)<<")' stroke='#18202a' stroke-width='.75'/>";}
- out<<"<text x='28' y='732' fill='#b4bbc7' font-size='13' font-family='sans-serif'>Camera distance "<<distance<<" m; display magnified; original ray topology unchanged.</text></svg>";
+ out<<"<text x='28' y='732' fill='#b4bbc7' font-size='13' font-family='sans-serif'>Camera distance "<<distance<<" m; display magnified; original ray mesh unchanged.</text></svg>";
 }
 int main(int argc,char**argv){try{
  Check(sizeof(ClusterRecord)==64&&offsetof(ClusterRecord,CoarseFirstIndex)==48,"runtime/persistent ABI");

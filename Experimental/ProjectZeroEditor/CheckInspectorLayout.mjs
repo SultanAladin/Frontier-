@@ -104,7 +104,7 @@ try {
     "Height and tint",
     "Wind binding",
   ])
-    assert.equal(await Page.locator(`[record-card="${Title}"]`).count(), 1);
+    assert.equal(await Page.locator(`[data-card="${Title}"]`).count(), 1);
   assert.equal(
     await Page.locator('[data-card="Medium"] > .fog-shared-beam').count(),
     1,
@@ -164,7 +164,7 @@ try {
     await Page.screenshot({ path: path.join(Proof, Id + ".png") });
     await Page.setViewportSize({ width: 1024, height: 768 });
     assert(
-      await Page.locator(`[record-panel="${Id}"]`).evaluate(
+      await Page.locator(`[data-panel="${Id}"]`).evaluate(
         (Node) => Node.scrollWidth <= Node.clientWidth + 1,
       ),
     );

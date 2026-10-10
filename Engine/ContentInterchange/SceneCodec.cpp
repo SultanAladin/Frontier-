@@ -637,7 +637,7 @@ bool EncodeSpanned(const std::string& Path, const std::vector<TriangleIndex>& Tr
          << "\"materials\":[" << MaterialsJson.str() << "],"
          << "\"accessors\":[" << Accessors.str() << "],"
          << "\"bufferViews\":[" << Views.str() << "],"
-         << "\"buffers\":[{\"byteLength\":" << Block.size() << ",\"uri\":\"record:application/octet-stream;base64," << Base64(Block) << "\"}]}\n";
+         << "\"buffers\":[{\"byteLength\":" << Block.size() << ",\"uri\":\"data:application/octet-stream;base64," << Base64(Block) << "\"}]}\n";
     return static_cast<bool>(File);
 }
 
@@ -762,7 +762,7 @@ bool SceneCodec::Encode(const std::string& Path, const std::vector<TriangleIndex
          << "\"materials\":[" << MaterialsJson.str() << "],"
          << "\"accessors\":[" << Accessors.str() << "],"
          << "\"bufferViews\":[" << Views.str() << "],"
-         << "\"buffers\":[{\"byteLength\":" << Block.size() << ",\"uri\":\"record:application/octet-stream;base64," << Base64(Block) << "\"}]}\n";
+         << "\"buffers\":[{\"byteLength\":" << Block.size() << ",\"uri\":\"data:application/octet-stream;base64," << Base64(Block) << "\"}]}\n";
     return static_cast<bool>(File);
 }
 

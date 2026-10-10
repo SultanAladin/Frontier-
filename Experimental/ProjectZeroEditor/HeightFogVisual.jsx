@@ -43,7 +43,7 @@ export default function HeightFogVisual({ V, Change }) {
   };
 
   return (
-    <div className="height-density-visual" record-enabled={Enabled}>
+    <div className="height-density-visual" data-enabled={Enabled}>
       <div className="height-density-status">
         <span>
           <i /> {Enabled ? "Live density profile" : "Authored preview"}

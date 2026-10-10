@@ -32,7 +32,7 @@ constexpr ImU32 ChamberFill  = IM_COL32( 25,  25,  25, 255);   // [-] .fog-share
 constexpr ImU32 ChamberEdge  = IM_COL32(255, 255, 255,  18);   // [-] .fog-shared-beam border-top #ffffff12
 constexpr ImU32 ChamberKey   = IM_COL32(119, 125, 120, 255);   // [-] .fog-shared-beam header #777d78
 constexpr ImU32 ChamberLive  = IM_COL32(207, 211, 206, 255);   // [-] header strong #cfd3ce
-constexpr ImU32 ChamberIdle  = IM_COL32(215, 154, 143, 255);   // [-] [record-enabled=false] strong #d79a8f
+constexpr ImU32 ChamberIdle  = IM_COL32(215, 154, 143, 255);   // [-] [data-enabled=false] strong #d79a8f
 constexpr ImU32 ChamberSmall = IM_COL32(102, 109, 104, 255);   // [-] .fog-shared-beam > small #666d68
 constexpr ImU32 ChamberText  = IM_COL32(147, 154, 149, 255);   // [-] .fog-shared-beam svg text #939a95
 constexpr ImU32 ChamberRule  = IM_COL32(255, 255, 255,  16);   // [-] chamber gridline #ffffff10
@@ -170,7 +170,7 @@ inline void ShadeColumn(ImDrawList* Draw, int First, int Last, float TopY, float
     const float Reach = std::max(0.0001f, FootY - TopY);
     for (int Index = First; Index < Last; ++Index)
     {
-        ImDrawVert& Vertex = Draw->VtxStore[Index];
+        ImDrawVert& Vertex = Draw->VtxBuffer[Index];
         const float Share  = std::clamp((Vertex.pos.y - TopY) / Reach, 0.0f, 1.0f);
         ImU32 Mixed = 0;
         for (int Channel = 0; Channel < 4; ++Channel)
@@ -261,7 +261,7 @@ inline float Tracked(const Frame& F, float X, float Y, float Size, ImU32 Colour,
 {
     const float  Lifted = Size * F.ScaleY;
     const float  Step   = Extra * F.ScaleX;
-    ImFontBaked* Precomputed  = F.Face->GetFontPrecomputed(Lifted);
+    ImFontBaked* Precomputed  = F.Face->GetFontBaked(Lifted);
     float Run = 0.0f;
     for (const char* Walk = Body; *Walk;)
     {
@@ -543,14 +543,14 @@ inline float PaintProfile(ImDrawList* Draw, ImFont* Face, ImVec2 Spot, float Wid
     }
 
     //  The filled area carries a vertical gradient over the bounding box of the filled path itself ------
-    const int First = F.Draw->VtxStore.Size;
+    const int First = F.Draw->VtxBuffer.Size;
     for (int Index = 1; Index <= 60; ++Index)
     {
         const float A = static_cast<float>(Index - 1) * 50.0f, B = static_cast<float>(Index) * 50.0f;
         F.Draw->AddQuadFilled(F.At(Across(A), Up(Curve(A))), F.At(Across(B), Up(Curve(B))),
                               F.At(Across(B), ProfileBottom), F.At(Across(A), ProfileBottom), IM_COL32_WHITE);
     }
-    ShadeColumn(F.Draw, First, F.Draw->VtxStore.Size, F.At(0.0f, Up(Density)).y, F.At(0.0f, ProfileBottom).y,
+    ShadeColumn(F.Draw, First, F.Draw->VtxBuffer.Size, F.At(0.0f, Up(Density)).y, F.At(0.0f, ProfileBottom).y,
                 Blend(Tint, Live ? 0.42f : 0.28f), Blend(Tint, 0.025f));
     for (int Index = 0; Index <= 60; ++Index)
     {

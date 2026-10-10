@@ -59,7 +59,7 @@ try {
     await Slice("coverage").locator(".cl-cover").waitFor();
     assert.equal(
       await Page.locator(
-        `[record-panel="${Id}"] > header + .reference-inspector-copy`,
+        `[data-panel="${Id}"] > header + .reference-inspector-copy`,
       ).count(),
       1,
     );

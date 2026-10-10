@@ -182,8 +182,8 @@ export default function DrawerPanel({
     <section
       ref={Root}
       className={`drawer-shell ${Edge} ${ClassName} ${Open || Progress > 0 ? "open" : ""} ${Travel !== null ? "dragging" : ""}`}
-      record-drawer={Edge}
-      record-stage={Progress === 0 ? "closed" : Progress === 1 ? "full" : "half"}
+      data-drawer={Edge}
+      data-stage={Progress === 0 ? "closed" : Progress === 1 ? "full" : "half"}
       style={{
         "--drawer-visible": `${Math.max(0, Extent * Progress)}px`,
         transform: `translateY(${(Edge === "top" ? -1 : 1) * Extent * (1 - Progress)}px)`,

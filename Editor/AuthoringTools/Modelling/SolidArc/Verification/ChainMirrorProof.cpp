@@ -219,7 +219,7 @@ int main(int Argc, char** Argv)
     };
 
     SoftwareRaster Raster(Width, Height);
-    std::fprintf(stderr, "[ChainMirror] CPU exact mirror · %ux%u · %d frames/pipeline · timings are CPU wall-clock, not GPU\n",
+    std::fprintf(stderr, "[PipelineMirror] CPU exact mirror · %ux%u · %d frames/pipeline · timings are CPU wall-clock, not GPU\n",
                  Width, Height, Frames);
 
     const Scene Scenes[3] = { MakeSurfaceScene(), MakeLineScene(), MakePointScene() };

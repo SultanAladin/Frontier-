@@ -369,7 +369,7 @@ int Frontier::RunFrontierRuntime(
                 const auto Water=Frontier::HostRuntime::AppendPondSnapshot(Level);
                 Level.Finalise(Decode.SlabLimit,nullptr);
                 std::cerr << "[Water] Ripple snapshot: " << Water.InstanceCount
-                          << " topology instance(s), normal scene picking/materials; simulation is not live.\n";
+                          << " mesh instance(s), normal scene picking/materials; simulation is not live.\n";
             } catch (const std::exception& E) {
                 std::cerr << "[Water] Cannot register water body: " << E.what() << "\n";
                 Logger.TerminateSink();return 1;
@@ -1104,7 +1104,7 @@ int Frontier::RunFrontierRuntime(
             Logger.RecordMessage(Frontier::DiagnosticSeverity::Information, "SdfGI",
                 Surface.QueryDistanceFieldGIReady()
                     ? "Distance Field GI ready: scene-derived three-level clipmaps, GPU Jacobi radiance propagation, "
-                      "SDF diffuse/shadows and topology-BVH reflections/refraction."
+                      "SDF diffuse/shadows and mesh-BVH reflections/refraction."
                     : "Distance Field GI resources unavailable; retaining the existing GI fallback.");
         }
 
@@ -2737,8 +2737,8 @@ int Frontier::RunFrontierRuntime(
                     Surface.UploadTextures(Textures);
                     Celestial.AssignSkyDomeSlot(DomeSlot);
                     Logger.RecordMessage(Frontier::DiagnosticSeverity::Information, "Sky",
-                                         FromFile ? "Precomputed dome resident from SkyDome.environment - the bake was skipped; escaped rays fetch, the sun/stars/moons/horizon stay analytic."
-                                                  : "Precomputed dome resident: 256x512 RGBA16F in the bindless table (persisted for the next launch) - escaped rays fetch, the sun/stars/moons/horizon stay analytic.");
+                                         FromFile ? "Baked dome resident from SkyDome.environment - the bake was skipped; escaped rays fetch, the sun/stars/moons/horizon stay analytic."
+                                                  : "Baked dome resident: 256x512 RGBA16F in the bindless table (persisted for the next launch) - escaped rays fetch, the sun/stars/moons/horizon stay analytic.");
                 }
             }
 

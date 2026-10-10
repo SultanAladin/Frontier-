@@ -250,7 +250,7 @@ function Atlas({ V, Change }) {
   return (
     <section
       className="property-card atmosphere-atlas"
-      record-card="Atmosphere atlas"
+      data-card="Atmosphere atlas"
     >
       <h3>
         Atmosphere atlas <small>AUTHORING PALETTE</small>
@@ -358,7 +358,7 @@ function Atlas({ V, Change }) {
             key={P.Name}
             role="button"
             tabIndex={0}
-            record-preset={P.Name}
+            data-preset={P.Name}
             aria-label={"Apply " + P.Name}
             onClick={() => Apply(P)}
             onKeyDown={(E) => {
@@ -584,7 +584,7 @@ function Space({ V, Change, Expand, Turn, Orbit }) {
   return (
     <section
       className="property-card atmosphere-space"
-      record-card="Atmosphere from space"
+      data-card="Atmosphere from space"
     >
       <header>
         <h3>Atmosphere from space</h3>

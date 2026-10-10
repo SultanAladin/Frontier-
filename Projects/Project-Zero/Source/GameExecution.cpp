@@ -349,7 +349,7 @@ int main(int argc, char** argv)
                 const auto Water=Frontier::ProjectZero::AppendPondSnapshot(Level);
                 Level.Finalise(Decode.SlabLimit,nullptr);
                 std::cerr << "[Water] Ripple snapshot: " << Water.InstanceCount
-                          << " topology instance(s), normal scene picking/materials; simulation is not live.\n";
+                          << " mesh instance(s), normal scene picking/materials; simulation is not live.\n";
             } catch (const std::exception& E) {
                 std::cerr << "[Water] Cannot register water body: " << E.what() << "\n";
                 Logger.TerminateSink();return 1;
@@ -2518,8 +2518,8 @@ int main(int argc, char** argv)
                     Surface.UploadTextures(Textures);
                     Celestial.AssignSkyDomeSlot(DomeSlot);
                     Logger.RecordMessage(Frontier::DiagnosticSeverity::Information, "Sky",
-                                         FromFile ? "Precomputed dome resident from SkyDome.environment - the bake was skipped; escaped rays fetch, the sun/stars/moons/horizon stay analytic."
-                                                  : "Precomputed dome resident: 256x512 RGBA16F in the bindless table (persisted for the next launch) - escaped rays fetch, the sun/stars/moons/horizon stay analytic.");
+                                         FromFile ? "Baked dome resident from SkyDome.environment - the bake was skipped; escaped rays fetch, the sun/stars/moons/horizon stay analytic."
+                                                  : "Baked dome resident: 256x512 RGBA16F in the bindless table (persisted for the next launch) - escaped rays fetch, the sun/stars/moons/horizon stay analytic.");
                 }
             }
 

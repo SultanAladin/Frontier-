@@ -7,7 +7,7 @@ import {JSDOM} from 'jsdom';
 const bundle=await build({entryPoints:['src.jsx'],bundle:true,write:false,format:'iife',loader:{'.css':'empty'},define:{'process.env.NODE_ENV':'"test"'},plugins:[{
  name:'svg-test-loader',setup(b){
   b.onResolve({filter:/\.svg\?(url|raw)$/},args=>({path:path.resolve(args.resolveDir,args.path),namespace:'test-svg'}));
-  b.onLoad({filter:/.*/,namespace:'test-svg'},args=>{const [file,query]=args.path.split('?'),raw=fs.readFileSync(file,'utf8');return {contents:'export default '+JSON.stringify(query==='raw'?raw:'record:image/svg+xml;charset=utf-8,'+encodeURIComponent(raw)),loader:'js'}});
+  b.onLoad({filter:/.*/,namespace:'test-svg'},args=>{const [file,query]=args.path.split('?'),raw=fs.readFileSync(file,'utf8');return {contents:'export default '+JSON.stringify(query==='raw'?raw:'data:image/svg+xml;charset=utf-8,'+encodeURIComponent(raw)),loader:'js'}});
  }
 }]});
 const dom=new JSDOM('<div id="root"></div>',{url:'http://localhost:5173',runScripts:'outside-only',pretendToBeVisual:true});
@@ -25,11 +25,11 @@ assert.ok(d.querySelector('.bake-image-switch.property-switch.is-off'));
 assert.equal(d.querySelector('.bake-image-switch .switch-state').textContent,'OFF');
 assert.equal(d.querySelector('.bake-image-switch svg').getAttribute('stroke'),'currentColor');
 d.querySelector('[aria-label="Bake Sun lighting"]').click();await tick();
-const image=kind=>d.querySelector(`.tree img[record-icon-kind="${kind}"]`);
+const image=kind=>d.querySelector(`.tree img[data-icon-kind="${kind}"]`);
 for(const kind of ['sun','moon','stars','sky','cloud','air','forest','terrain','liquid','cube','material','camera','folder','collection','precip'])assert.ok(image(kind),kind+' SVG present');
 for(const img of d.querySelectorAll('.outliner img')){
  assert.equal(img.alt,'');assert.equal(img.getAttribute('aria-hidden'),'true');
- assert.ok(img.src.startsWith('record:image/svg+xml'));
+ assert.ok(img.src.startsWith('data:image/svg+xml'));
  const svg=decodeURIComponent(img.src.split(',').slice(1).join(','));
  assert.ok(!svg.includes('<image'));
  if(img.dataset.iconKind==='folder')assert.ok(!svg.includes('<text'),'no fake gallery counts in real folders');
@@ -51,7 +51,7 @@ for(const name of ['Environment','World','Water Bodies','Scene','Materials']){
 assert.equal(new Set(folderSources).size,5);
 row('Environment').click();await tick();
 assert.ok(d.querySelector('.organization-member-link img[data-icon-kind="sun"]'));
-assert.ok(d.querySelector('.organization-member-link img[record-icon-kind="local-fog"]'));
+assert.ok(d.querySelector('.organization-member-link img[data-icon-kind="local-fog"]'));
 row('Terrain').click();await tick();
 assert.equal(d.querySelector('.object-title .eyebrow').textContent,'Landscape');
 assert.equal(d.querySelector('.object-title h1').textContent,'Terrain');

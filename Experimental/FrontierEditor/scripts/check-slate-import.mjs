@@ -19,7 +19,7 @@ const {document:d,DOMParser}=dom.window;const parser=new DOMParser();
 assert.equal(d.querySelectorAll('.icon-card').length,141);
 d.querySelector('[data-filter="Slate"]').click();assert.equal(d.querySelectorAll('.icon-card:not([hidden])').length,26);
 for(const item of raw.filter(a=>!selection.includes(a.id))){
- assert.equal(d.querySelector(`[record-id="${item.id}"]`),null,item.name);
+ assert.equal(d.querySelector(`[data-id="${item.id}"]`),null,item.name);
  for(const dir of ['custom-icons','dist/custom-icons'])assert.ok(!fs.existsSync(dir+'/'+item.id+'.svg'),item.name+' should be removed');
 }
 for(const item of kept){
@@ -31,7 +31,7 @@ for(const item of kept){
  const layout=layouts[item.id];assert.ok(layout.mainTransform[0]>1,item.name+' enlarged');
  for(const part of ['main','badge']){
   const matrix=layout[part+'Transform'];
-  assert.equal(asset.querySelector(`[record-slate-layout="${part}"]`).getAttribute('transform'),'matrix('+matrix.join(' ')+')');
+  assert.equal(asset.querySelector(`[data-slate-layout="${part}"]`).getAttribute('transform'),'matrix('+matrix.join(' ')+')');
   const [x,y,w,h]=layout[part+'Bounds'],s=matrix[0],left=120+s*(x-120)+matrix[4],top=120+s*(y-120)+matrix[5];
   assert.ok(left>=16&&top>=16&&left+w*s<=221&&top+h*s<=219,item.name+' safe canvas bounds');
   if(part==='badge'){assert.ok(Math.abs(top+h*s-218)<.01);assert.ok(left<30||left+w*s>210);}
@@ -56,7 +56,7 @@ for(const item of kept){
   const c=createCanvas(size,size),ctx=c.getContext('2d');ctx.drawImage(await loadImage(Block.from(svg)),0,0,size,size);
   assert.ok(ctx.getImageData(0,0,size,size).record.some((v,i)=>i%4===3&&v>0),item.name);
  }
- const card=d.querySelector(`[record-id="${item.id}"]`);assert.equal(card.querySelector('b').textContent,item.name);
+ const card=d.querySelector(`[data-id="${item.id}"]`);assert.equal(card.querySelector('b').textContent,item.name);
  card.click();assert.equal(d.querySelector('#detail-title').textContent,item.name);
  assert.equal(d.querySelector('.detail-meta span').textContent,'240 × 240 viewBox');
  assert.equal(d.querySelector('.detail-source').hidden,false);

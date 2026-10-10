@@ -56,7 +56,7 @@ export default function FolderInspector({
   return (
     <div
       className="folder-inspector"
-      record-panel="group"
+      data-panel="group"
       style={{ "--collection-tint": Values.Tint || "#9bacb4" }}
     >
       <header className="collection-heading">
@@ -96,7 +96,7 @@ export default function FolderInspector({
           <i />
           Collection contents
         </h2>
-        <div className="workspace-number" record-collection-total={Total}>
+        <div className="workspace-number" data-collection-total={Total}>
           {Count(Total)}
           <small>entries</small>
         </div>

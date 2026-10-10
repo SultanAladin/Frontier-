@@ -74,7 +74,7 @@ const DragGrip = async (
   await Ready();
 };
 const EditCell = async (Row, Axis, Value) => {
-  const Input = Page.locator(`[record-transform="${Row}"][record-axis="${Axis}"]`);
+  const Input = Page.locator(`[data-transform="${Row}"][data-axis="${Axis}"]`);
   await Input.fill(String(Value));
   await Input.press("Tab");
   await Ready();
@@ -361,7 +361,7 @@ try {
     ["Solid", 5],
     ["Surface", 5],
   ]) {
-    await Page.locator(`[record-section="${Section}"]`).click();
+    await Page.locator(`[data-section="${Section}"]`).click();
     Assert.equal(await Page.locator("[data-construct]").count(), Amount);
   }
   await Page.keyboard.press("Escape");

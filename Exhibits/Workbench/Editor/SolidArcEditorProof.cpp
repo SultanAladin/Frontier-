@@ -85,8 +85,8 @@ void RasterizeList(const ImDrawList* List,
                    ImVec2 Origin,
                    ImVec2 PixelScale) noexcept
 {
-    const ImDrawVert* Corners = List->VtxStore.Packet;
-    const ImDrawIdx*  Order   = List->IdxStore.Packet;
+    const ImDrawVert* Corners = List->VtxBuffer.Data;
+    const ImDrawIdx*  Order   = List->IdxBuffer.Data;
     for (int Command = 0; Command < List->CmdBuffer.Size; ++Command)
     {
         const ImDrawCmd* Cmd = &List->CmdBuffer[Command];

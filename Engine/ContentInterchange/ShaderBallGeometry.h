@@ -35,7 +35,7 @@
 namespace Frontier {
 
 // Where the converter writes, relative to the repository root.
-inline constexpr const char* kShaderBallAssetPath = "Exhibits/Assets/ShaderBall/ShaderBall.topology";
+inline constexpr const char* kShaderBallAssetPath = "Exhibits/Assets/ShaderBall/ShaderBall.mesh";
 
 // The seated height the converter targets, in metres. Published so the grid can size its spacing against the
 //    topology rather than against a number repeated in two files.

@@ -241,7 +241,7 @@ export default function ShaderballPanel({ Material, Compact = false }) {
         <canvas
           ref={Canvas}
           aria-label="Material preview on repository shader ball"
-          record-preview-status={Status}
+          data-preview-status={Status}
         />
       </div>
       <div className="preview-controls">

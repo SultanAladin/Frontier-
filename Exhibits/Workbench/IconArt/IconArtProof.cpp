@@ -97,7 +97,7 @@ void Verify(const fs::path& Root,const fs::path& Scratch){
     auto U32=[&](uint32_t N){for(int I=0;I<4;++I)Precompute+=char((N>>(8*I))&255);};
     U32(256);U32(256);U32(uint32_t(RedSource.size()));Precompute+=RedSource;
     for(int I=0;I<256*256;++I){Precompute+=char(0);Precompute+=char(0);Precompute+=char(255);Precompute+=char(255);}
-    Write(Scratch/"no-bakes/Precomputed/sun.rgba",Precompute);IconArt NoPrecompute(Scratch/"no-bakes");
+    Write(Scratch/"no-bakes/Baked/sun.rgba",Precompute);IconArt NoPrecompute(Scratch/"no-bakes");
     const auto Red=NoPrecompute.Rasterize(IconSymbol::Sun,40,40);
     Require(Byte(*Red,20,20,0)==255&&Byte(*Red,20,20,2)==0&&NoPrecompute.Statistics().Rasterizations==1,"valid offline bake ignored; ThorVG renders SVG source");
     Require(tvg::Initializer::init(0)==tvg::Result::Success,"existing host can retain ThorVG lifetime");

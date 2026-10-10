@@ -203,7 +203,7 @@ try {
   assert(Content.Geometry.length > 1);
   assert.equal(Content.Signature, Signature);
   Checks.push(
-    "Precomputed mode refuses missing geometry; IndexedDB bake/replay and actual JSON download agree",
+    "Baked mode refuses missing geometry; IndexedDB bake/replay and actual JSON download agree",
   );
   await Sphere.reload();
   await Sphere.waitForFunction(() => window.FrontierFracture?.snapshot().Precomputed);

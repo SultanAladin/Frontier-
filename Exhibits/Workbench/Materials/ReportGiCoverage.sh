@@ -30,7 +30,7 @@ for Size in "240 135" "128 72"; do
 
     Surface=$(sed -n "s/^\[restir\] frame *$Frames: \([0-9]*\) surface pixels.*/\1/p" "$Work/$W.log" | tail -1)
     Direct=$(sed -n "s/^\[restir\] frame *$Frames:.*mean M \([0-9.]*\) (max M [0-9]*), shaded M \([0-9.]*\).*/\1 \2/p" "$Work/$W.log" | tail -1)
-    Gi=$(sed -n "s/^\[restir gi\] frame *$Frames: indirect slots on \([0-9.]*\)% of surface pixels, mean M \([0-9.]*\), shaded M \([0-9.]*\).*/\1 \2 \3/p" "$Work/$W.log" | tail -1)
+    Gi=$(sed -n "s/^\[restir gi\] frame *$Frames: indirect pool on \([0-9.]*\)% of surface pixels, mean M \([0-9.]*\), shaded M \([0-9.]*\).*/\1 \2 \3/p" "$Work/$W.log" | tail -1)
     Reasons=$(sed -n "s/^\[restir gi\] reasons: bad \([0-9]*\) escape \([0-9]*\) emitter \([0-9]*\) unlit \([0-9]*\) unusable \([0-9]*\) vertex \([0-9]*\).*/\1 \2 \3 \4 \5 \6/p" "$Work/$W.log" | tail -1)
     Temporal=$(sed -n "s/^\[restir gi\] temporal: tried \([0-9]*\), refused for a MISSING previous vertex record \([0-9]*\), merged \([0-9]*\).*/\1 \2 \3/p" "$Work/$W.log" | tail -1)
 

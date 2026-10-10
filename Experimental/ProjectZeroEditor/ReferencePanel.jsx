@@ -173,8 +173,8 @@ export default function ReferencePanel({
   return (
     <section
       className="reference-inspector-copy"
-      record-reference-kind={TypeOf(Subject)}
-      record-reference-slice={Slice}
+      data-reference-kind={TypeOf(Subject)}
+      data-reference-slice={Slice}
     >
       <iframe
         ref={Frame}

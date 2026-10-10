@@ -60,7 +60,7 @@ export default function ConstructPanel({ Catalogue, Add, Close }) {
     if (Picked) BackButton.current?.focus();
     else if (LastChoice.current)
       Dialog.current
-        ?.querySelector(`[record-construct-id="${LastChoice.current}"]`)
+        ?.querySelector(`[data-construct-id="${LastChoice.current}"]`)
         ?.focus();
   }, [Picked]);
 
@@ -172,7 +172,7 @@ export default function ConstructPanel({ Catalogue, Add, Close }) {
                   {Candidates.map((Subject) => (
                     <button
                       key={Subject.Id}
-                      record-construct-id={Subject.Id}
+                      data-construct-id={Subject.Id}
                       className="construct-entity"
                       aria-label={Subject.Name}
                       onClick={() => Pick(Subject)}

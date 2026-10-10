@@ -46,7 +46,7 @@ int RunFluidGpuTest(int argc,char** argv){
   if(steps==0)throw std::runtime_error("Fluid steps must be positive");
   std::filesystem::create_directories(folder);std::ofstream csv(folder/"performance.csv");summary.open(folder/"summary.txt");if(!csv||!summary)throw std::runtime_error("Cannot create fluid logs");
   auto log=[&](const std::string& s){std::cerr<<"[FluidTest] "<<s<<'\n';summary<<s<<'\n';summary.flush();};
-  log(std::string("mode=")+(cpu?"CPU GPU-layout mirror":"Vulkan GPU extraction")+"; CPU solver/PCA; raw topology, no topology smoothing; NOT live Project-Zero scene water");
+  log(std::string("mode=")+(cpu?"CPU GPU-layout mirror":"Vulkan GPU extraction")+"; CPU solver/PCA; raw mesh, no mesh smoothing; NOT live Project-Zero scene water");
   Device device;std::unique_ptr<GpuSurfaceExtractor> extractor;
   if(!cpu){const auto initStart=Clock::now();device.Init(gpu);log(std::string("device=")+device.Properties.deviceName+" type="+std::to_string(device.Properties.deviceType)+" driver="+std::to_string(device.Properties.driverVersion));
    if(!std::filesystem::exists(shader)){const auto alternative=std::filesystem::path(argv[0]).parent_path()/shader;if(std::filesystem::exists(alternative))shader=alternative.string();}

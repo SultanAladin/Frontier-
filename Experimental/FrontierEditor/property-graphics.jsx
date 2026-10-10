@@ -16,7 +16,7 @@ export function Iris({opening,label='Lens iris'}) {
  const size=useAnimatedValue(opening),id=useId().replace(/:/g,'');
  const point=(angle,r)=>[110+Math.cos(angle)*r,110+Math.sin(angle)*r];
  const radius=10+size*47;
- return <svg className="iris-graphic" viewBox="0 0 220 220" role="img" aria-label={label} record-opening={opening.toFixed(3)}>
+ return <svg className="iris-graphic" viewBox="0 0 220 220" role="img" aria-label={label} data-opening={opening.toFixed(3)}>
  <defs><radialGradient id={id}><stop stopColor="#434047"/><stop offset="1" stopColor="#232225"/></radialGradient></defs>
  <circle cx="110" cy="110" r="97" fill="#171717" stroke="#525052"/>
  <circle cx="110" cy="110" r="88" fill={`url(#${id})`} stroke="#454247"/>

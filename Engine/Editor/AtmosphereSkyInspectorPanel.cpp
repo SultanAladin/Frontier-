@@ -44,8 +44,8 @@ struct Panel {
     void Text(float X,float Y,const char* T,float Size=12,ImU32 C=Ink){D->AddText(Font,Size,At(X,Y),C,T);}
     void Wrap(float X,float Y,float W,const char* T){D->AddText(Font,11,At(X,Y),Muted,T,nullptr,W);}
     void Card(float X,float Y,float W,float H,const char* Title){
-        int Start=D->VtxStore.Size;D->AddRectFilled(At(X,Y),At(X+W,Y+H),IM_COL32_WHITE,22);
-        ImGui::ShadeVertsLinearColorGradientKeepAlpha(D,Start,D->VtxStore.Size,At(X,Y),At(X+W,Y+H),IM_COL32(37,37,37,255),IM_COL32(32,32,32,255));
+        int Start=D->VtxBuffer.Size;D->AddRectFilled(At(X,Y),At(X+W,Y+H),IM_COL32_WHITE,22);
+        ImGui::ShadeVertsLinearColorGradientKeepAlpha(D,Start,D->VtxBuffer.Size,At(X,Y),At(X+W,Y+H),IM_COL32(37,37,37,255),IM_COL32(32,32,32,255));
         D->AddRect(At(X,Y),At(X+W,Y+H),IM_COL32(52,52,52,255),22);
         Mark M=std::strcmp(Title,"Flare composite")==0?Mark::Sun:std::strcmp(Title,"Flare layers")==0?Mark::Sparkles:std::strcmp(Title,"Atmosphere bake")==0?Mark::Precompute:Mark::Orbit;
         if(Title[0])Icon(D,At(X+23,Y+21),M,Accent,17);
@@ -107,9 +107,9 @@ U.Text(0,97,"BAKING",10,Muted);
     U.D->AddRectFilled(U.At(24,179),U.At(24+TileW,285),IM_COL32(32,32,32,255),16);U.D->AddRect(U.At(24,179),U.At(24+TileW,285),Fetch->On?IM_COL32(50,50,50,255):IM_COL32(73,50,50,255),16);
     U.D->AddCircleFilled(U.At(24+TileW/2,208),15.5f,Key,32);Icon(U.D,U.At(24+TileW/2-9,199),Mark::Precompute,Fetch->On?IM_COL32(22,50,30,255):IM_COL32(55,29,28,255),18);
     const char* ToggleText="Use baked image";U.Text(24+(TileW-Font->CalcTextSizeA(10,10000,0,ToggleText).x)/2,236,ToggleText,10);U.Text(24+TileW/2-8,259,Fetch->On?"ON":"OFF",8,Key);
-    if(U.Button(PrecomputeX,179,std::min(158.f,W-BakeX-24),"##sky-bake",Sheet.SkyImage.Pending?"Queued":"Bake atmosphere",false,Sheet.SkyImage.Pending))Sheet.SkyImage.RequestPrecompute=true;
+    if(U.Button(PrecomputeX,179,std::min(158.f,W-PrecomputeX-24),"##sky-bake",Sheet.SkyImage.Pending?"Queued":"Bake atmosphere",false,Sheet.SkyImage.Pending))Sheet.SkyImage.RequestPrecompute=true;
     const char* State=Sheet.SkyImage.Pending?"Bake requested · waiting for renderer":!Sheet.SkyImage.Pixels?"No baked image · analytic sky":Sheet.SkyImage.Stale?"STALE BAKE · renderer uses analytic sky":!Sheet.SkyImage.Resident?"Current CPU bake · not uploaded":Fetch->On?"Current resident bake · fetch enabled":"Current bake · analytic mode selected";
-    U.Wrap(PrecomputeX,230,W-BakeX-24,State);U.Text(24,315,"RGBA16F · 256 × 512 · radiance + transmittance",10,Muted);
+    U.Wrap(PrecomputeX,230,W-PrecomputeX-24,State);U.Text(24,315,"RGBA16F · 256 × 512 · radiance + transmittance",10,Muted);
     float Y=361,BW=(W-72)/4;const char* Labels[]={W<360?"Air":"Atmosphere",W<360?"Sky":"Panorama",W<360?"Transmit":"Transmittance",W<360?"Sphere":"Full sphere"};
     // Controls first so the chosen image and aspect update together on the same frame.
     for(int I=0;I<4;++I){

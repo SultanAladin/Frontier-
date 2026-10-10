@@ -20,7 +20,7 @@ export function FogBeamChamber({ Kind, V }) {
     Preview = Enabled ? 1 : 0.82,
     Percent = (Value) => `${(Value * 100).toFixed(0)}%`;
   return (
-    <section className="fog-shared-beam" record-enabled={Enabled}>
+    <section className="fog-shared-beam" data-enabled={Enabled}>
       <header>
         <span>Beam chamber</span>
         <strong>{Enabled ? "LIVE" : "PREVIEW"}</strong>

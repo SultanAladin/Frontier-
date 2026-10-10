@@ -181,7 +181,7 @@ inline float Tracked(ImDrawList* Draw, ImFont* Face, float X, float Y, float Siz
         const int Used = ImTextCharFromUtf8(&Point, Scan, nullptr);
         if (Used <= 0) break;
         if (Paint) Draw->AddText(Face, Ground, { Pen, Y }, Colour, Scan, Scan + Used);
-        Pen += Face->GetFontPrecomputed(Ground)->GetCharAdvance(static_cast<ImWchar>(Point)) + Extra;
+        Pen += Face->GetFontBaked(Ground)->GetCharAdvance(static_cast<ImWchar>(Point)) + Extra;
         Scan += Used;
     }
     return Pen - X;
@@ -208,7 +208,7 @@ inline void Stretched(ImDrawList* Draw, ImFont* Face, float X, float Y, float Si
         const int Used = ImTextCharFromUtf8(&Point, Scan, nullptr);
         if (Used <= 0) break;
         Draw->AddText(Face, Ground, { Pen, Top }, Colour, Scan, Scan + Used);
-        Pen += Face->GetFontPrecomputed(Ground)->GetCharAdvance(static_cast<ImWchar>(Point)) * Widen;
+        Pen += Face->GetFontBaked(Ground)->GetCharAdvance(static_cast<ImWchar>(Point)) * Widen;
         Scan += Used;
     }
 }

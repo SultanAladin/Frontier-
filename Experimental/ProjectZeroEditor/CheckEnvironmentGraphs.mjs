@@ -39,7 +39,7 @@ async function Select(Name) {
   await Search.fill("");
   await Search.blur();
 }
-const Card = (Name) => Page.locator(`[record-card="${Name}"]`);
+const Card = (Name) => Page.locator(`[data-card="${Name}"]`);
 async function Drag(Graph, T) {
   await Graph.scrollIntoViewIfNeeded();
   const B = await Graph.boundingBox();
@@ -276,7 +276,7 @@ try {
   assert.equal(await Page.locator(".property-graph").count(), 0);
   assert.equal(await Page.locator(".environment-live").count(), 0);
   Checks.push(
-    "Environment/camera/light/post cards expose actual record graphs; geometry and materials excluded",
+    "Environment/camera/light/post cards expose actual data graphs; geometry and materials excluded",
   );
 
   await Select("Atmospheric Fog");

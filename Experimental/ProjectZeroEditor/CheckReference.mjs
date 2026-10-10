@@ -358,7 +358,7 @@ try {
     } else {
       assert(
         await Page.locator(
-          `[record-panel="${Id}"] > header + .reference-inspector-copy`,
+          `[data-panel="${Id}"] > header + .reference-inspector-copy`,
         ).count(),
         "Preview follows the native inspector header",
       );

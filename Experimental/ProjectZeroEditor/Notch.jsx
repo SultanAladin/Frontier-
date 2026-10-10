@@ -327,7 +327,7 @@ export default function Notch({
                 ))}
               </nav>
             )}
-            <div className="settings-body" record-drawer-scroll>
+            <div className="settings-body" data-drawer-scroll>
               {Page === "Render Settings" ? (
                 <>
                   <Card Title="Shadows">

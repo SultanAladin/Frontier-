@@ -545,7 +545,7 @@ export default function MaterialPanel({
       className={
         "material-panel " + (Compact ? "material-compact" : "material-expanded")
       }
-      record-material-owner={Subject.Id}
+      data-material-owner={Subject.Id}
     >
       <header className="material-heading">
         <div>
@@ -638,7 +638,7 @@ export default function MaterialPanel({
                 <button
                   className={Selected === Item.Id ? "active" : ""}
                   key={Item.Id}
-                  record-material-channel={Item.Id}
+                  data-material-channel={Item.Id}
                   aria-pressed={Selected === Item.Id}
                   onClick={() => Select(Item.Id)}
                 >
