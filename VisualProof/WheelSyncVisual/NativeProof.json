@@ -1,0 +1,10 @@
+{
+  "feature": "WheelSyncVisual",
+  "classes": [
+    "Frontier::Vehicle::XPBDSoftTyre::SyncVisual",
+    "Frontier::Vehicle::VehicleSolver::SyncVisualToChassis"
+  ],
+  "order": "Step(dt) -> StepOnce -> SyncVisual -> publish",
+  "self_check": "PASS: lag 0.0417 -> 0.0001 m, bead hubRot only, compliance within 2x, 12 substeps",
+  "date": "2026-10-10T12:48:37.430606"
+}

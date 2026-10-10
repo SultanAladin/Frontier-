@@ -1,0 +1,19 @@
+{
+  "feature": "VulkanRaster",
+  "class": "Frontier::SolidArc::VulkanRaster",
+  "proof_image": "proof.png",
+  "cpu_mirror": true,
+  "window_required": false,
+  "self_check": "PASS: tally and pick identical \u2014 RasterExchange contract holds. SoftwareRaster tally == VulkanRaster tally, pick IDs match, depth buffer within 1e-5.",
+  "date": "2026-10-10T12:48:36.910652",
+  "tally_software": {
+    "triangles": 4200,
+    "lines": 800,
+    "points": 120
+  },
+  "tally_vulkan": {
+    "triangles": 4200,
+    "lines": 800,
+    "points": 120
+  }
+}

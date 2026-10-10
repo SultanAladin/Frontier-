@@ -1,0 +1,9 @@
+{
+  "feature": "DistanceFieldStartup",
+  "changed": [
+    "Engine/GeometricRaster/DistanceFieldStructure.cpp",
+    "Engine/DeviceExchange/SwapchainExchange.cpp"
+  ],
+  "self_check": "PASS: RefreshInstances lightweight, no per-frame BVH rebuild, Revision bump for GPU",
+  "date": "2026-10-10T12:48:37.616998"
+}

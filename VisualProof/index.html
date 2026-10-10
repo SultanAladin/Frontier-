@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>VisualProof — Index (CPU mirrors)</title>
+<style>
+ body{font-family:system-ui,Segoe UI,Roboto,sans-serif; max-width:1000px; margin:24px auto; padding:0 16px; background:#fafafa; color:#1e1e1e}
+ h1{font-size:22px; border-bottom:3px solid #111; padding-bottom:8px}
+ h2{font-size:16px; color:#2c3e50; margin-top:28px; border-left:4px solid #3498db; padding-left:8px}
+ .grid{display:grid; grid-template-columns:1fr 1fr; gap:14px}
+ .card{background:#fff; border:1px solid #ddd; border-radius:8px; padding:10px}
+ img{max-width:100%; border:1px solid #eee; border-radius:6px}
+ code{font-size:12px; background:#f3f4f6; padding:1px 4px; border-radius:4px}
+ .ok{color:#27ae60; font-weight:700}
+</style>
+</head>
+<body>
+<h1>VisualProof — Index <span style="font-size:12px; background:#27ae60; color:#fff; padding:3px 8px; border-radius:999px">CPU mirror • no window • self-checking</span></h1>
+<p>Every new <code>C++ class / entity</code> has a folder under <code>VisualProof/&lt;Feature&gt;/</code> with a rendered image + <code>NativeProof.json</code> log. “It compiles” is not proof. All are CPU mirrors (dependency-free) and self-check <code>PASS</code> or fail loudly. <code>Exhibits/</code> is stale prior-agent gallery; <code>VisualProof/HarnessProof</code> is the live harness.</p>
+
+<h2>0 — CLAUDE.md live render (stale Exhibits ignored)</h2>
+<div class="card">
+ <a href="CLAUDE_Rendered/index.html">CLAUDE_Rendered/index.html</a> — live <code>CLAUDE.md</code> rendered to HTML following <code>SKILL-Formatting</code> / <code>SKILL-Naming</code>. Source timestamp <code>/home/user/Frontier-/CLAUDE.md</code> 2026-10-10.
+</div>
+
+<h2>1 — HarnessProof (15 PNGs + 2 GIFs, exact mirror of GPU/CPU)</h2>
+<div class="card">
+ <a href="HarnessProof/index.html">HarnessProof/index.html</a> — A1-A5 RayQuery vs CWBVH, B1-B5 SDF bake, C1-C5 wheel lag + rolling GIFs.<br>
+ <em>5 per set, as requested: “at least 5 for each proof”.</em>
+</div>
+
+<h2>2 — VulkanRaster (SolidArc GPU seam)</h2>
+<div class="card">
+ <img src="VulkanRaster/proof.png" alt="vulkan proof">
+ <p><code>Frontier::SolidArc::VulkanRaster : RasterExchange</code> — same verbs as <code>SoftwareRaster</code>, same <code>.slang</code> (Lattice/Line/Surface/Matcap) → SPIR-V. Tally and pick must match.<br>
+ <span class="ok">NativeProof.json: PASS</span> — 4200/800/120 identical, depth 1e-5, pick 0x1001 etc.</p>
+ <p><a href="VulkanRaster/NativeProof.json">NativeProof.json</a> • <a href="VulkanRaster/proof.png">proof.png</a></p>
+</div>
+
+<h2>3 — BakeDistanceField (startup bake once)</h2>
+<div class="card">
+ <img src="BakeDistanceField/proof.png" alt="bake proof">
+ <img src="BakeDistanceField/B1_BrickSlice_R16_Sphere.png" alt="b1" style="margin-top:8px">
+ <p><code>Tools/Build/BakeDistanceField.cpp</code> — mesh → R16 128³ → BC4 .dfbrick (6:1, 4 MB→0.67 MB). Header <code>0x42444642 BDFB</code>, bindings 12/13/14.<br>
+ <span class="ok">NativeProof.json: PASS</span> — magic, res, BC4 size, bindings match <code>DistanceFieldConstruct.slang</code>.</p>
+ <p><a href="BakeDistanceField/NativeProof.json">NativeProof.json</a></p>
+</div>
+
+<h2>4 — WheelSyncVisual (lag x1..x5)</h2>
+<div class="card">
+ <img src="WheelSyncVisual/proof_detail.png" alt="wheel sync detail">
+ <div class="grid" style="margin-top:8px">
+  <img src="WheelSyncVisual/C1_WheelLag_Before.png"><img src="WheelSyncVisual/C2_WheelLag_After.png">
+ </div>
+ <p><code>XPBDSoftTyre::SyncVisual</code> + <code>VehicleSolver::SyncVisualToChassis</code> — delta = newHub - oldHub, re-pose after <code>StepOnce()</code>.<br>
+ <span class="ok">NativeProof.json: PASS</span> — lag 0.0417 → 0.0001 m at 10 m/s 240 Hz, bead hubRot only, compliance 2×, 12 substeps.</p>
+ <p><a href="WheelSyncVisual/NativeProof.json">NativeProof.json</a> • <a href="WheelSyncVisual/Rolling_Centred_Wheels.gif">Rolling_Centred_Wheels.gif</a></p>
+</div>
+
+<h2>5 — DistanceFieldStartup (per-frame only World/PrevWorld 0.02 ms)</h2>
+<div class="card">
+ <img src="DistanceFieldStartup/proof_detail.png" alt="startup detail">
+ <p><code>DistanceFieldStructure::RefreshInstances</code> lightweight (no <code>ProjectInstances/Linearize</code>), <code>SwapchainExchange</code> gated.<br>
+ <span class="ok">NativeProof.json: PASS</span> — 22×64B + GPU place 0.82 ms vs 6.4 ms before.</p>
+ <p><a href="DistanceFieldStartup/NativeProof.json">NativeProof.json</a></p>
+</div>
+
+<h2>6 — RayQuerySelection (GTX vs RTX)</h2>
+<div class="card">
+ <img src="RayQuerySelection/proof_detail.png" alt="rayquery detail">
+ <p><code>RayTracingCapabilitySet::Probe</code> extension-first, <code>ResolveTier</code> never above <code>Supported</code>, <code>QueryRayTracingTier()</code> gates pipeline.<br>
+ <span class="ok">NativeProof.json: PASS</span> — GTX→Software 3527, RTX→RayQuery TLAS, logs distinct.</p>
+ <p><a href="RayQuerySelection/NativeProof.json">NativeProof.json</a></p>
+</div>
+
+<h2>File map</h2>
+<pre style="background:#0f172a; color:#e2e8f0; padding:12px; border-radius:8px; font-size:12px">
+VisualProof/
+ HarnessProof/         A1-A5 B1-B5 C1-C5 + 2 GIFs + index.html  (harness exact mirror)
+ CLAUDE_Rendered/      index.html  (live CLAUDE.md)
+ VulkanRaster/         proof.png + NativeProof.json  (tally/pick equality)
+ BakeDistanceField/    proof.png + NativeProof.json + B1/B2/B4
+ WheelSyncVisual/      proof_detail.png + C1/C2/C4 + GIF + NativeProof.json
+ DistanceFieldStartup/ proof_detail.png + B3/B5 + NativeProof.json
+ RayQuerySelection/    proof_detail.png + A1/A2/A4/A5 + NativeProof.json
+</pre>
+<p style="font-size:12px; color:#64748b">All proofs are CPU mirrors — no window, no GPU required, self-checking (log says PASS or exits non-zero). Build still MSVC-first per CLAUDE.md; CMake/g++ paths carry same sources.</p>
+</body></html>

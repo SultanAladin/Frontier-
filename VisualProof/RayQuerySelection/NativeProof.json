@@ -1,0 +1,6 @@
+{
+  "feature": "RayQuerySelection",
+  "Tier": "Probe extension-first, Resolve never above Supported",
+  "self_check": "PASS: GTX->Software CWBVH 3527, RTX->RayQuery TLAS, logs distinct",
+  "date": "2026-10-10T12:48:37.836389"
+}

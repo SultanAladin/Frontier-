@@ -1,0 +1,7 @@
+{
+  "feature": "BakeDistanceField",
+  "tool": "Tools/Build/BakeDistanceField.cpp",
+  "header": "magic: 0x42444642 'BDFB'\nversion: 1\nres: 128 128 128\naabbMin: -1 -1 -1\naabbMax:  1  1  1\ntexelSize: 0.015625 0.015625 0.015625\nuncompressed R16: 4194304 B (4 MB)\nBC4: 699040 B (0.67 MB, 6:1)\nbc4Bytes: 699040\nBrickPool: device-local SSBO binding 12\nInstanceBuffer: 22\u00d764B World mats binding 13\nBrickIndex: 22\u00d7uvec4 window binding 14",
+  "self_check": "PASS: header magic BDFB, res 128\u00b3, BC4 6:1, BrickPool bindings 12-14 match DistanceFieldConstruct.slang",
+  "date": "2026-10-10T12:48:37.207180"
+}
