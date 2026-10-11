@@ -22,16 +22,25 @@ temporal reuse and no spatial reuse. These checks test what that estimator compu
 | Closest hit, BVH vs brute, 22,000 rays | 0 hit/miss mismatches, 0 primitive mismatches, 0 distance mismatches above 1e-3 m; 7,852 both-hit, 14,148 both-miss |
 | Visibility, BVH vs brute, 12,800 receiver-light pairs | 0 mismatches |
 | RIS mean relative bias vs brute, M = 1, 2, 4, 8, 16, 32, 64 | +0.29 %, −0.33 %, −0.03 %, −0.11 %, +0.13 %, −0.07 %, +0.13 % |
-| RIS per-receiver relative spread, M = 1 → 64 | 3.4 % → 3.0 % (roughly flat; see below) |
+| RIS per-receiver relative spread, M = 1 → 64 | 3.4 % → 3.0 % with visibility; 1.9 % → 0.20 % without (see below) |
 
 **Interpretation:** the BVH agrees with brute force exactly on this scene, including the axis-aligned rays, so the
-NaN-slab hazard did not appear in this test. The RIS estimator's mean is unbiased to within about 0.3 %. Its spread did
-**not** fall with M as the usual RIS variance argument predicts. My guess is that the binary visibility of the single
-chosen light dominates the noise. I have not tested that guess. A fix or a clear explanation needs a run with the
-visibility term separated out.
+NaN-slab hazard did not appear in this test. The RIS estimator's mean is unbiased to within about 0.3 %.
+
+**Why the spread stays flat.** The spread did not fall with M, which the usual RIS variance argument predicts. The
+variant `RestirBvhCheckNoVisibility.cpp` (visibility removed from both estimate and reference, otherwise identical) tests
+the cause. Its spread falls roughly as 1/M:
+
+| M | 1 | 2 | 4 | 8 | 16 | 32 | 64 |
+|---|---|---|---|---|---|---|---|
+| spread, visibility ON | 3.4 % | 2.6 % | 3.1 % | 2.1 % | 1.8 % | 3.1 % | 3.0 % |
+| spread, visibility OFF (`out/ris_bias_vs_m_novis.csv`) | 1.9 % | 1.2 % | 0.82 % | 0.57 % | 0.44 % | 0.29 % | 0.20 % |
+
+So the binary visibility of the one selected light is the dominant noise source. Its variance does not shrink with M
+because only the selected sample is shadow-tested. The estimator is still unbiased with visibility on.
 
 ## Files
-- `RestirBvhCheck.cpp`: the checks. `build_restir_charts.py`: `out/chart_ris_bias_vs_m.png`.
+- `RestirBvhCheck.cpp`: the checks. `RestirBvhCheckNoVisibility.cpp`: the variant used for the noise test. `build_restir_charts.py`: `out/chart_ris_bias_vs_m.png`.
 - `out/restir_bvh_check.txt`, `out/ris_bias_vs_m.csv`.
 
 ## Not done
