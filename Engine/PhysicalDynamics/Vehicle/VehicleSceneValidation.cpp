@@ -19,6 +19,7 @@
 //============================================================================================================================================
 
 #include "VehicleSolver.h"
+#include "VehicleGeometry.h"
 
 #include <cmath>
 #include <cstdint>
@@ -112,15 +113,11 @@ static VehicleSolverConfiguration MakeConfig(DrivingScheme model)
 {
     VehicleSolverConfiguration c;
     c.ActiveScheme = model;
-    c.ChassisMass = 1200.0f;
-    c.Tyre = SoftTyreParameters{};                 // Phase-2 calibrated defaults (R=0.34, etc.)
-    const float zoff = -0.55f;                      // hub sits below the CoM (box floats above the wheels)
-    c.Wheels = {
-        WheelMount{ Vec3{ 1.30f,  0.78f, zoff}, /*steer*/true,  /*drive*/false, /*brake*/true },
-        WheelMount{ Vec3{ 1.30f, -0.78f, zoff}, true,  false, true },
-        WheelMount{ Vec3{-1.30f,  0.78f, zoff}, false, true,  true },
-        WheelMount{ Vec3{-1.30f, -0.78f, zoff}, false, true,  true },
-    };
+    // Mounts come from the real engine layout (MakeWheelMounts → AxleMountLocal / SuspensionMountLocal), not hand-typed
+    //    numbers. WheelMount grew a SuspensionMount field, so the old 4-field initializers no longer compiled.
+    // Production path: ApplyGeometry calibrates the struts and bars to the corner masses and sets the tyre size. Without it
+    //    the solver runs uncalibrated springs and the fixture does not settle. Same call VehicleDrivingChecks.cpp makes.
+    ApplyGeometry(c, VehicleGeometry{});
     return c;
 }
 
