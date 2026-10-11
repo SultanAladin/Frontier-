@@ -1,0 +1,4 @@
+mean(R-G) over the floor region beside the red block (rows>120, cols 110..230):
+  GI off               +0.00795
+  GI on 32 (prod)      -0.00528
+  GI reference 512     -0.00527

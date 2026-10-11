@@ -1,0 +1,16 @@
+scene: 482 triangles (floor + 40 boxes)
+BVH built: yes (nodes 48)
+Part A  BVH closest hit vs brute force, 20000 random + 2000 axis-aligned rays
+        hit/miss mismatches 0, both-hit t mismatches >1e-3 m: 0, prim mismatches: 0, max |dt| 0.00e+00 m
+        both-hit 7852, both-miss 14148
+Part B  RIS direct light, 64 point lights, 200 receivers, 4000 trials per receiver
+        visibility BVH vs brute over 12800 pairs: mismatches 0
+             M  mean rel bias       rel RMSE   mean est/ref
+             1       +0.00287        0.03418        1.00287
+             2       -0.00331        0.02629        0.99669
+             4       -0.00033        0.03145        0.99967
+             8       -0.00110        0.02087        0.99890
+            16       +0.00132        0.01799        1.00132
+            32       -0.00071        0.03113        0.99929
+            64       +0.00133        0.02973        1.00133
+        (mean rel bias = average over receivers of (estimate − brute)/brute; rel RMSE = its spread)
