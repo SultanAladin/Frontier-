@@ -591,7 +591,7 @@ function App() {
                     <div><span className="panel-overline">PROPERTIES / 02</span><b>Inspector</b></div>
                     <button className="panel-options" onClick={() => setShowSettings((Value) => !Value)}><Settings2 size={15} /></button>
                   </div>
-                  {showSettings && <div className="popover-settings"><b>Viewport preferences</b><Toggle compact label="Construction grid" value={GridEnabled} onChange={setGridEnabled} /><Toggle compact label="Triangulation overlay" value={Wireframe} onChange={setWireframe} /><Toggle compact label="AI traffic" value={TrafficEnabled} onChange={setTrafficEnabled} /></div>}
+                  {ShowSettings && <div className="popover-settings"><b>Viewport preferences</b><Toggle compact label="Construction grid" value={GridEnabled} onChange={setGridEnabled} /><Toggle compact label="Triangulation overlay" value={Wireframe} onChange={setWireframe} /><Toggle compact label="AI traffic" value={TrafficEnabled} onChange={setTrafficEnabled} /></div>}
                   <div className="inspector-scroll">
                     {ActiveWorkspace === 'traffic' && (
                       <section className="traffic-controls-card">
