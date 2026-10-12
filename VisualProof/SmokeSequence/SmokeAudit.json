@@ -1,0 +1,74 @@
+{
+  "recordedDate": "2026-10-12",
+  "passed": true,
+  "cpuOnly": true,
+  "gpuExecution": false,
+  "windowsExecution": false,
+  "thermalAssertions": 9,
+  "vehicleFixtures": [
+    {
+      "name": "holding",
+      "peakSlidingW": 0.0,
+      "largestWheelSlidingHeatJ": 0.0,
+      "domainsAcquired": 0,
+      "cellScrolls": 0,
+      "activeSnapshots": 0,
+      "quietSnapshots": 0,
+      "headingChangeRad": 0.0,
+      "ignitedWheelTicks": 0
+    },
+    {
+      "name": "lateral-drift",
+      "peakSlidingW": 73915.836,
+      "largestWheelSlidingHeatJ": 21285.754,
+      "domainsAcquired": 1,
+      "cellScrolls": 2,
+      "activeSnapshots": 24,
+      "quietSnapshots": 96,
+      "headingChangeRad": 0.343,
+      "ignitedWheelTicks": 0
+    },
+    {
+      "name": "turning-drift",
+      "peakSlidingW": 33272.613,
+      "largestWheelSlidingHeatJ": 3852.632,
+      "domainsAcquired": 1,
+      "cellScrolls": 0,
+      "activeSnapshots": 10,
+      "quietSnapshots": 110,
+      "headingChangeRad": 1.55,
+      "ignitedWheelTicks": 0
+    },
+    {
+      "name": "airborne",
+      "peakSlidingW": 0.0,
+      "largestWheelSlidingHeatJ": 0.0,
+      "domainsAcquired": 0,
+      "cellScrolls": 0,
+      "activeSnapshots": 0,
+      "quietSnapshots": 0,
+      "headingChangeRad": 3.016,
+      "ignitedWheelTicks": 0
+    },
+    {
+      "name": "diagnostic-ignition",
+      "peakSlidingW": 46375.672,
+      "largestWheelSlidingHeatJ": 8061.451,
+      "domainsAcquired": 1,
+      "cellScrolls": 3,
+      "activeSnapshots": 120,
+      "quietSnapshots": 0,
+      "headingChangeRad": 0.028,
+      "ignitedWheelTicks": 4083
+    }
+  ],
+  "liveResidentHostSnapshots": 239,
+  "brakeCasesPassed": 14,
+  "thermalBalanceResidualJ": 5.84e-07,
+  "sanitizedUnitAssertions": true,
+  "sanitizedVehicleFixtures": false,
+  "presentation": "Native density projection and scalar plots. Fine GPU residency/depth-aware composition unfinished.",
+  "nativeProofSHA256": "e9e0a3823ddc8978951f777f84cf17d6b068c0db82b7700e7d8d9ebfcc97d136",
+  "brakeAuditSHA256": "530c860c867ca75d09b31004731dcab30f2dfeff82e28df1c0607430c0bd9d08",
+  "playbackAuditSHA256": "c37a604f393f68d219f543907a7c3ebd677b13bafd2795d7cfc3f1c58fd964b2"
+}

@@ -20,6 +20,7 @@ void XPBDSoftTyre::Build(const SoftTyreParameters& params, const Vec3& hubPos, c
     SnapshotPosition = hubPos;
     SnapshotRotation = hubRot;
     Parameters = params;
+    InflationTemperatureRatio = 1.0f;
     Parameters.RingCount    = std::max<uint32_t>(2u, Parameters.RingCount);
     Parameters.SegmentCount = std::max<uint32_t>(8u, Parameters.SegmentCount);
 
@@ -261,7 +262,7 @@ void XPBDSoftTyre::Step(float dt, uint32_t substeps, const HubMotion& motion,
         if (Parameters.GasCompressible && gasVolume > 1e-6f && GasRestVolume > 1e-6f)
         {
             const float absolute = (Parameters.InflationPressure + Parameters.AtmosphericPressure)
-                                 * (GasRestVolume / gasVolume);                  // Boyle, isothermal
+                                 * InflationTemperatureRatio * (GasRestVolume / gasVolume); // ideal gas; ratio one retains Boyle
             gasGauge = absolute - Parameters.AtmosphericPressure;
         }
         gasGauge = std::max(0.0f, gasGauge);   // gas pushes; a tyre never sucks its tread inward
@@ -759,7 +760,8 @@ TyreEnergyMetrics XPBDSoftTyre::Energy() const noexcept
     const double Volume = std::max(1.0e-12, EnclosedVolume());
     if (Parameters.GasCompressible)
     {
-        const double Content = (Parameters.InflationPressure + Parameters.AtmosphericPressure) * GasRestVolume;
+        // 📝 This instantaneous gas potential is not a conserved energy when external heat changes the temperature ratio.
+        const double Content = (Parameters.InflationPressure + Parameters.AtmosphericPressure) * GasRestVolume * InflationTemperatureRatio;
         const double NeutralVolume = Content / Parameters.AtmosphericPressure;
         const double ActiveVolume = std::min(Volume, NeutralVolume);
         Reading.Gas = -Content * std::log(ActiveVolume / NeutralVolume) + Parameters.AtmosphericPressure * (ActiveVolume - NeutralVolume);

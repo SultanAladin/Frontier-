@@ -215,10 +215,25 @@ bool VehicleInstanceSequence::Construct(const Frontier::Vehicle::VehicleGeometry
 {
     Built = false;
     Instancing = Configuration;
+    DriftTransport.Reclaim();
+    PendingEmissionCount = 0u;
+    SmokeAccumulator = 0.0f;
+    if (Instancing.DriftSmokeEnabled)
+    {
+        const float Ratio = CoarseStepInterval / Instancing.SubStepSeconds;
+        if (!std::isfinite(Ratio) || Ratio < 1.0f || Ratio > 8.0f || std::abs(Ratio - std::round(Ratio)) > 0.0001f ||
+            Instancing.WheelCount > 8u)
+        {
+            std::fputs("[Drive] Smoke requires one to eight integral physics steps per gas tick and at most eight wheels.\n", stderr);
+            return false;
+        }
+    }
     ActiveConfiguration = Frontier::Vehicle::VehicleSolverConfiguration{};
     ActiveConfiguration.ActiveScheme = Frontier::Vehicle::DrivingScheme::PacejkaDrivetrain;
     Frontier::Vehicle::ApplyGeometry(ActiveConfiguration, Geometry);
     ActiveConfiguration.Aero.Enabled = true;
+    ActiveConfiguration.TyreThermal.Enabled = Instancing.TyreConditionsEnabled;
+    ActiveConfiguration.TyreThermal.IgnitionEnabled = Instancing.TyreIgnitionEnabled;
 
     SpawnPosition = Instancing.SpawnLocation;
     SpawnPosition.z = Instancing.SpawnHeight;
@@ -234,6 +249,14 @@ bool VehicleInstanceSequence::Construct(const Frontier::Vehicle::VehicleGeometry
         CollisionLocations.push_back({ControlVehicleMesh::kPositions[Index * 3u],
                                       ControlVehicleMesh::kPositions[Index * 3u + 1u],
                                       ControlVehicleMesh::kPositions[Index * 3u + 2u] - Geometry.CoMModelZ()});
+
+    CollisionMinimum = CollisionMaximum = CollisionLocations.front();
+    for (const Vec3& Point : CollisionLocations)
+    {
+        CollisionMinimum.x = std::min(CollisionMinimum.x, Point.x); CollisionMaximum.x = std::max(CollisionMaximum.x, Point.x);
+        CollisionMinimum.y = std::min(CollisionMinimum.y, Point.y); CollisionMaximum.y = std::max(CollisionMaximum.y, Point.y);
+        CollisionMinimum.z = std::min(CollisionMinimum.z, Point.z); CollisionMaximum.z = std::max(CollisionMaximum.z, Point.z);
+    }
 
     VehicleSolver::Hooks h;
     h.ReadChassis       = [this]{ return Body.State(); };
@@ -286,6 +309,9 @@ void VehicleInstanceSequence::Reconfigure(const Frontier::Vehicle::VehicleSolver
 
 void VehicleInstanceSequence::ResetToSpawn() noexcept
 {
+    DriftTransport.Reclaim();
+    PendingEmissionCount = 0u;
+    SmokeAccumulator = 0.0f;
     Accumulator          = 0.0f;
     Body.Position        = SpawnPosition;
     Body.Orientation     = SpawnOrientation;
@@ -318,12 +344,63 @@ void VehicleInstanceSequence::AdvanceVehicle(const Frontier::Vehicle::DriverInpu
         if (Body.Contacts.ArrivalPenetration > 0.0f) ActiveVehicleSolver.CorrectAttachments(BeforePosition, BeforeRotation, Body.Position, Body.Orientation);
         for (uint32_t w = 0; w < Instancing.WheelCount && w < tel.Wheels.size(); ++w)
             WheelSpin[w] += tel.Wheels[w].WheelOmega * h;   // visual spin only
+        IntegrateSmoke(h);
         Accumulator -= h;
     }
     ChassisState_ = Body.State();
 
     WriteBodyRow(Rows);
     WriteWheelRows(Rows);
+}
+
+/// 📦 Samples completed wheel contact paths at the physics rate and advances one shared domain at 60 Hz.
+/// in    Seconds [s] fixed physics interval; construction verifies integral gas/physics stepping
+/// note  emitted rates are time-weighted; legacy fixtures and no-demand spawn allocate no gas lattice
+void VehicleInstanceSequence::IntegrateSmoke(float Seconds) noexcept
+{
+    if (!Instancing.DriftSmokeEnabled) return;
+    const auto& Reading = ActiveVehicleSolver.Telemetry();
+    for (uint32_t Wheel = 0u; Wheel < Instancing.WheelCount && Wheel < Reading.WheelCount; ++Wheel)
+    {
+        GasEmission Emission = ResolveWheelSmoke(Reading, Wheel, DriftTuning);
+        if (Emission.SmokeRate <= 0.0f && Emission.TemperatureRate <= 0.0f) continue;
+        Emission.SmokeRate *= Seconds / CoarseStepInterval;
+        Emission.TemperatureRate *= Seconds / CoarseStepInterval;
+        assert(PendingEmissionCount < PendingEmissions.size());
+        PendingEmissions[PendingEmissionCount++] = Emission;
+    }
+    SmokeAccumulator += Seconds;
+    if (SmokeAccumulator + 1.0e-7f < CoarseStepInterval) return;
+    const float Placement[3] = {Body.Position.x, Body.Position.y, Body.Position.z};
+    if (!DriftTransport.Integrate(DriftTuning, PendingEmissions.data(), PendingEmissionCount,
+                                 Placement, &PrepareSmokeObstruction, this))
+        std::fputs("[Drive] Smoke request refused; the existing domain was not relabelled or reset.\n", stderr);
+    SmokeAccumulator = std::max(0.0f, SmokeAccumulator - CoarseStepInterval);
+    PendingEmissionCount = 0u;
+}
+
+/// 📦 Refreshes terrain obstruction and a conservative rigid chassis-box proxy in world-space lattice cells.
+/// note  the box is derived once from authored chassis vertices; this does not rebake or deform tyre SDFs
+void VehicleInstanceSequence::PrepareSmokeObstruction(CoarseGasField& Field, const void* Context)
+{
+    const auto& Vehicle = *static_cast<const VehicleInstanceSequence*>(Context);
+    const float Cell = VoxelSize(Field);
+    const Quat Inverse = Vehicle.Body.Conjugate();
+    for (uint32_t Z = 0u; Z < CoarseExtent; ++Z)
+    for (uint32_t Y = 0u; Y < CoarseExtent; ++Y)
+    for (uint32_t X = 0u; X < CoarseExtent; ++X)
+    {
+        const Vec3 Position{Field.Origin[0] + (X + 0.5f) * Cell, Field.Origin[1] + (Y + 0.5f) * Cell,
+                            Field.Origin[2] + (Z + 0.5f) * Cell};
+        Vec3 Surface, Normal;
+        const bool GroundSolid = Vehicle.GroundSurface && Vehicle.GroundSurface(Position, Surface, Normal) &&
+                                 Dot(Position - Surface, Normal) < 0.0f;
+        const Vec3 Local = Inverse.Rotate(Position - Vehicle.Body.Position);
+        const bool ChassisSolid = Local.x >= Vehicle.CollisionMinimum.x && Local.x <= Vehicle.CollisionMaximum.x &&
+                                  Local.y >= Vehicle.CollisionMinimum.y && Local.y <= Vehicle.CollisionMaximum.y &&
+                                  Local.z >= Vehicle.CollisionMinimum.z && Local.z <= Vehicle.CollisionMaximum.z;
+        Field.Occupancy[VoxelIndex(X, Y, Z)] = GroundSolid || ChassisSolid ? 1.0f : 0.0f;
+    }
 }
 
 //------------------------------------------------------------------------------------------------------------------------ matrix write

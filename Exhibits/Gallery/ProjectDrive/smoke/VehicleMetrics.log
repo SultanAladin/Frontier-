@@ -1,0 +1,6 @@
+PASS holding: peak sliding 0.000 W, largest per-wheel sliding heat 0.000 J, domains 0, shifts 0, active/quiet samples 0/0, yaw 0.000 rad, burning samples 0
+PASS lateral-drift: peak sliding 73915.836 W, largest per-wheel sliding heat 21285.754 J, domains 1, shifts 2, active/quiet samples 24/96, yaw 0.343 rad, burning samples 0
+PASS turning-drift: peak sliding 33272.613 W, largest per-wheel sliding heat 3852.632 J, domains 1, shifts 0, active/quiet samples 10/110, yaw 1.550 rad, burning samples 0
+PASS airborne: peak sliding 0.000 W, largest per-wheel sliding heat 0.000 J, domains 0, shifts 0, active/quiet samples 0/0, yaw 3.016 rad, burning samples 0
+PASS diagnostic-ignition: peak sliding 46375.672 W, largest per-wheel sliding heat 8061.451 J, domains 1, shifts 3, active/quiet samples 120/0, yaw 0.028 rad, burning samples 4083
+PASS actual Drive thermal/smoke C callback: 239 resident host snapshots, pause, single step, fresh-car reset and retirement

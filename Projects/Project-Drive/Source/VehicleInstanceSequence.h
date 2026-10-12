@@ -24,6 +24,8 @@
 #include "../../../Engine/PhysicalDynamics/Vehicle/VehicleSolver.h"
 #include "../../../Engine/PhysicalDynamics/Vehicle/VehicleGeometry.h"
 
+#include "../../../Engine/VolumetricDynamics/GasVehicleIntake.h"
+
 #include <cstdint>
 #include <vector>
 
@@ -39,6 +41,9 @@ struct VehicleInstanceConfiguration
     float    SpawnHeight     = 0.42f;      // [m]   CoM z so the wheels rest on the pad (hub 0.0914 below + r 0.34)
     Frontier::Vehicle::Vec3 SpawnLocation{};      // [m] - requested XY; SpawnHeight supplies initial Z
     Frontier::Vehicle::Quat SpawnRotation{};      // [-] - heading retained when fitting the support plane
+    bool TyreConditionsEnabled = false;          // [-] - preserve legacy fixture behaviour unless explicitly enabled
+    bool TyreIgnitionEnabled = false;            // [-] - sustained-overheat ignition, no random trigger
+    bool DriftSmokeEnabled = false;              // [-] - one on-demand world-space domain for this vehicle
     bool FitTerrain = true;                       // [-] - equilibrium placement before physics begins
     float    MaxFrameSeconds = 0.10f;      // [s]   clamp a long frame so a hitch never explodes the integrator
 };
@@ -120,10 +125,16 @@ public:
     [[nodiscard]] const std::vector<Frontier::Vehicle::XPBDSoftTyre>& Tyres() const noexcept
     { return ActiveVehicleSolver.Tyres(); }
 
+    [[nodiscard]] const CoarseGasField* QuerySmoke() const noexcept { return DriftTransport.QueryField(); }
+    [[nodiscard]] const SmokeMetrics& QuerySmokeMetrics() const noexcept { return DriftTransport.QueryMetrics(); }
+
     // Apply an inspector edit to the live config (rebuilds the tyres so curve/geometry edits take effect).
     void Reconfigure(const Frontier::Vehicle::VehicleSolverConfiguration& Edited) noexcept;
 
 private:
+    void IntegrateSmoke(float Seconds) noexcept;
+    static void PrepareSmokeObstruction(CoarseGasField& Field, const void* Context);
+
     void WriteBodyRow(std::vector<InstanceRecord>& Rows) noexcept;
     void WriteWheelRows(std::vector<InstanceRecord>& Rows) noexcept;
     static void ComposeTRS(const Frontier::Vehicle::Vec3& Translation, const Frontier::Vehicle::Quat& Rotation,
@@ -141,6 +152,13 @@ private:
     std::vector<Frontier::Vehicle::Vec3> CollisionLocations; // [m] - authored body vertices rebased onto the CoM
     std::vector<float>                      WheelSpin;      // [rad] integrated spin angle per wheel (visual)
     float                                   Accumulator = 0.0f;
+
+    SmokeSequence                          DriftTransport;
+    SmokeSpecification                     DriftTuning;
+    std::array<GasEmission, 64>             PendingEmissions{}; // [-] - fixed-step path samples, no large storage at spawn
+    uint32_t                               PendingEmissionCount = 0u;
+    float                                  SmokeAccumulator = 0.0f;
+    Frontier::Vehicle::Vec3                 CollisionMinimum{}, CollisionMaximum{};
 
     // Flat-triangle refit bookkeeping, mirroring PhysicsInstanceSequence.
     std::vector<TriangleIndex>              RestFacets;     // vehicle geometry captured object-local, once

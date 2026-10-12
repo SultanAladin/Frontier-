@@ -392,6 +392,19 @@ public:
     {
         return (hubRot * Quat::AxisAngle(Vec3{0.0f, 1.0f, 0.0f}, SpinAngle)).Normalized();
     }
+    /// 📦 Resolves enclosed-gas thermal pressure without rebuilding carcass particles or rest geometry.
+    /// in    Temperature          [K] current internal gas temperature
+    /// in    ReferenceTemperature [K] cold inflation temperature
+    /// out   bool                 [-] false for invalid absolute temperature; prior pressure ratio retained
+    bool ResolveGasTemperature(float Temperature, float ReferenceTemperature) noexcept
+    {
+        if (!std::isfinite(Temperature) || !std::isfinite(ReferenceTemperature) ||
+            Temperature <= 0.0f || ReferenceTemperature <= 0.0f) return false;
+        const float Ratio = Temperature / ReferenceTemperature;
+        if (!std::isfinite(Ratio) || Ratio <= 0.0f) return false;
+        InflationTemperatureRatio = Ratio;
+        return true;
+    }
     [[nodiscard]] float RestVolume() const noexcept { return GasRestVolume; }
     [[nodiscard]] double EnclosedVolume() const noexcept;
     [[nodiscard]] TyreEnergyMetrics Energy() const noexcept;
@@ -428,6 +441,7 @@ private:
     float SpokeBeta = 0.0f, ContactBeta = 0.0f, TreadBeta = 0.0f, RimBeta = 0.0f;
     float SpokeTangentialBeta = 0.0f, SpokeLateralBeta = 0.0f;   // the non-edge constraints' derived β
 
+    float InflationTemperatureRatio = 1.0f; // [-] - internal gas temperature divided by cold inflation temperature
     Vec3 SnapshotPosition{};
     Quat SnapshotRotation{};
 

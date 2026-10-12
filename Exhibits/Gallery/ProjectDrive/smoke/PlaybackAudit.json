@@ -1,0 +1,25 @@
+{
+  "passed": true,
+  "recordedDate": "2026-10-12",
+  "browserExecution": true,
+  "pages": {
+    "tyre-smoke.html": {
+      "clips": 5,
+      "pageSHA256": "1863e456556904ff38c34d4a4133e5550b2822d3768f56a0cbb3e882ac4e5645",
+      "pausedMarkup": true,
+      "uncontrolledGifImages": 0,
+      "browser": {
+        "startsPaused": true,
+        "timeAdvancesOnPlay": true,
+        "pauseFreezesTime": true,
+        "resumeContinuesTime": true,
+        "exclusivePlayback": true,
+        "pauseAll": true,
+        "hiddenDocumentEventPause": true,
+        "textRendering": true,
+        "scriptErrors": []
+      }
+    }
+  },
+  "sourceSHA256": "cbdd8e6aa25f3c1b47450f47c8f27bb15ac2d0fffe2119cf7119aa126a4ba02c"
+}

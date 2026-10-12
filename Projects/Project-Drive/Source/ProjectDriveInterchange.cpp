@@ -8,6 +8,7 @@
 #include "VehicleInstanceSequence.h"
 #include "TyreSequence.h"
 #include "../../../Engine/ProjectInterchange/GeometryInterchange.h"
+#include "../../../Engine/ProjectInterchange/SmokeInterchange.h"
 #include "ChaseCameraSolver.h"
 #include "../../../Engine/ProjectInterchange/DeploymentCodec.h"
 #include <fstream>
@@ -75,6 +76,9 @@ struct DriveSequence
                 if (Point.Archetype != "ControlVehicle") return 0u;
                 auto Candidate = std::make_unique<Frontier::Drive::VehicleInstanceSequence>();
                 Frontier::Drive::VehicleInstanceConfiguration Placement;
+                Placement.TyreConditionsEnabled = true;
+                Placement.DriftSmokeEnabled = true;
+                Placement.TyreIgnitionEnabled = true;
                 Placement.SpawnLocation = {Point.Position[0], Point.Position[1], Point.Position[2]};
                 Placement.SpawnHeight = Point.Position[2];
                 Placement.SpawnRotation = {Point.Rotation[0], Point.Rotation[1], Point.Rotation[2], Point.Rotation[3]};
@@ -325,5 +329,44 @@ extern "C" FRONTIER_CODE_IMAGE_EXPORT uint32_t FRONTIER_CODE_IMAGE_CALL ProjectG
         float* Current = Reading->CurrentPositions + Index * 3u;
         Current[0] = World.x; Current[1] = World.y; Current[2] = World.z;
     }
+    return 1u;
+}
+
+extern "C" FRONTIER_CODE_IMAGE_EXPORT uint32_t FRONTIER_CODE_IMAGE_CALL ProjectSmokeInterchange(
+    void* ProjectRecord, FrontierProjectSmokeReading* Reading)
+{
+    if (!Reading || Reading->StructureSize != sizeof(*Reading) || Reading->InterchangeNumber != 1u) return 2u;
+    const auto* Sequence = static_cast<const DriveSequence*>(ProjectRecord);
+    Reading->Extent = 0u;
+    Reading->Span = 0.0f;
+    Reading->CarrierIdentifier = Sequence ? Sequence->SpawnNumber : 0u;
+    Reading->Revision = 0u;
+    Reading->Refused = 0u;
+    Reading->WheelCount = 0u;
+    std::fill_n(Reading->Origin, 3u, 0.0f);
+    std::fill_n(Reading->Tyres, 8u, FrontierProjectTyreReading{});
+    if (!Sequence || !Sequence->Vehicle || Sequence->PreviousTransport == 0u) return 1u;
+    const auto& Telemetry = Sequence->Vehicle->Telemetry();
+    Reading->WheelCount = std::min<uint32_t>(Telemetry.WheelCount, 8u);
+    for (uint32_t Wheel = 0u; Wheel < Reading->WheelCount; ++Wheel)
+    {
+        const auto& Condition = Telemetry.Wheels[Wheel].Thermal;
+        Reading->Tyres[Wheel] = {static_cast<float>(Condition.SurfaceTemperature), static_cast<float>(Condition.CarcassTemperature),
+            static_cast<float>(Condition.GasTemperature), static_cast<float>(Condition.GaugePressure),
+            static_cast<float>(Condition.GripFactor), static_cast<float>(Condition.SlidingPower),
+            static_cast<float>(Condition.RemainingRubber), (Condition.Valid ? 1u : 0u) | (Condition.Ignited ? 2u : 0u)};
+    }
+    const auto& Metrics = Sequence->Vehicle->QuerySmokeMetrics();
+    Reading->Revision = Metrics.AdvanceNumber;
+    Reading->Refused = Metrics.Refused ? 1u : 0u;
+    const auto* Field = Sequence->Vehicle->QuerySmoke();
+    if (!Field) return 1u;
+    Reading->Extent = Frontier::CoarseExtent;
+    Reading->Span = Field->Span;
+    std::copy_n(Field->Origin, 3u, Reading->Origin);
+    if (Reading->Capacity == 0u) return 1u;
+    if (!Reading->Density || !Reading->Temperature || Reading->Capacity < Frontier::CoarseVoxelCount) return 2u;
+    std::copy(Field->Smoke.begin(), Field->Smoke.end(), Reading->Density);
+    std::copy(Field->Temperature.begin(), Field->Temperature.end(), Reading->Temperature);
     return 1u;
 }

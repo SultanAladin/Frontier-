@@ -63,6 +63,7 @@ int RunProjectFluidPreview();
 #include "ProjectOpeningSequence.h"
 #include "../ProjectInterchange/CodeInterchange.h"
 #include "GeometrySequence.h"
+#include "SmokeSequence.h"
 #include "../ProjectInterchange/ProjectSpecification.h"
 #include "../SpatialInterface/InterfaceScreenSequence.h"
 #include "../SpatialInterface/InterfaceTextProjection.h"
@@ -321,6 +322,7 @@ int Frontier::RunFrontierRuntime(
 
     Frontier::SceneStructure Level;
     Frontier::HostRuntime::GeometrySequence ProjectGeometry;
+    Frontier::HostRuntime::SmokeSequence ProjectSmoke;
     Frontier::TextureIndex   Textures;
     uint32_t MaxTextureLevels = 1u;   // R6 row 3: deepest mip chain resident (F3 scene-census row; computed once below)
     // Celestial moon atlas: bindless slots, filled right after the scene registers its own textures (below) and
@@ -1858,6 +1860,13 @@ int Frontier::RunFrontierRuntime(
             Logger.RecordMessage(Frontier::DiagnosticSeverity::Refusal, "Project geometry", ProjectRefusal.c_str());
             break;
         }
+        if (Transport == 0u) ProjectSmoke.Reclaim();
+        else if (!ProjectSmoke.Advance(ActiveInterchange, ProjectRefusal))
+        {
+            Logger.RecordMessage(Frontier::DiagnosticSeverity::Refusal, "Project smoke", ProjectRefusal.c_str());
+            break;
+        }
+        // 📝 These are host-owned coarse snapshots; fine GPU residency/depth-aware composition is a separate stage.
         ProjectMoved = ProjectMoved || GeometryChanged;
         if (Transport == 0u && PreviousTransport != 0u)
         {

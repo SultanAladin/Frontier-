@@ -65,6 +65,7 @@ void VehicleSolver::Build(const VehicleSolverConfiguration& config, const Hooks&
 
     SoftTyres.clear();
     SoftTyres.resize(ActiveConfiguration.Wheels.size());
+    WheelThermals.assign(ActiveConfiguration.Wheels.size(), ThermalMetrics{});
     for (size_t i = 0; i < ActiveConfiguration.Wheels.size(); ++i)
     {
         Vec3 MountWorld, AxisUp;
@@ -73,9 +74,12 @@ void VehicleSolver::Build(const VehicleSolverConfiguration& config, const Hooks&
         // 📝 Planar traction has one owner; do not also apply it through XPBD tread bristles.
         Parameters.FrictionCoefficient = 0.0f;
         SoftTyres[i].Build(Parameters, hub, initial.Orientation);
+        ConstructThermal(WheelThermals[i], ActiveConfiguration.TyreThermal, SoftTyres[i].RestVolume(),
+                         Parameters.InflationPressure, Parameters.AtmosphericPressure);
         SoftTyres[i].AssignRigidVelocity(initial.LinearVelocity, initial.AngularVelocity, initial.Position);
         if (i < CurrentTelemetry.Wheels.size())
         {
+            CurrentTelemetry.Wheels[i].Thermal = WheelThermals[i];
             CurrentTelemetry.Wheels[i].HubPosition = hub;
             CurrentTelemetry.Wheels[i].HubRotation = initial.Orientation;
         }
@@ -212,6 +216,7 @@ void VehicleSolver::Step(float Δτ) noexcept
     for (size_t Wheel = 0u; Wheel < StrutBarForces.size(); ++Wheel) StrutBarForces[Wheel] = AntiRollForce(Wheel);
     if (ActiveConfiguration.ActiveScheme == DrivingScheme::PacejkaDrivetrain) StepPacejka(Δτ);
     else                                                  StepSimple(Δτ);
+    IntegrateConditions(Δτ);
 }
 
 //------------------------------------------------------------------------------------------------------------------------
@@ -267,6 +272,9 @@ void VehicleSolver::StepSimple(float Δτ) noexcept
         motion.AngularVelocity = cs.AngularVelocity;
         motion.LinearVelocity = hubVel;
         motion.SpinRate       = WheelSpin[i];
+        if (ActiveConfiguration.TyreThermal.Enabled && i < WheelThermals.size() && WheelThermals[i].Valid)
+            tyre.ResolveGasTemperature(static_cast<float>(WheelThermals[i].GasTemperature),
+                                       static_cast<float>(WheelThermals[i].ReferenceTemperature));
         tyre.Step(Δτ, ActiveConfiguration.TyreSubsteps, motion, Vec3{0.0f, 0.0f, 0.0f}, ChassisHooks.Ground);
         const TyreReaction& reaction = tyre.Reaction();
 
@@ -329,6 +337,8 @@ void VehicleSolver::StepSimple(float Δτ) noexcept
         wt.HubPosition       = tyre.HubPosition();
         wt.HubRotation       = tyre.HubRotation();
         wt.ContactPoint      = patch;
+        wt.ContactVelocity   = hubVel;
+        wt.SlipVelocity      = wl * vLat;
         wt.VerticalLoad      = Fz;
         wt.LongitudinalForce = Dot(planar, wf);
         wt.LateralForce      = Dot(planar, wl);
@@ -552,6 +562,9 @@ void VehicleSolver::StepPacejka(float Δτ) noexcept
         motion.AngularVelocity = cs.AngularVelocity;
         motion.LinearVelocity = hubVel;
         motion.SpinRate       = WheelSpin[i];
+        if (ActiveConfiguration.TyreThermal.Enabled && i < WheelThermals.size() && WheelThermals[i].Valid)
+            tyre.ResolveGasTemperature(static_cast<float>(WheelThermals[i].GasTemperature),
+                                       static_cast<float>(WheelThermals[i].ReferenceTemperature));
         tyre.Step(Δτ, ActiveConfiguration.TyreSubsteps, motion, Vec3{0.0f, 0.0f, 0.0f}, ChassisHooks.Ground);
         const TyreReaction& reaction = tyre.Reaction();
 
@@ -621,7 +634,10 @@ void VehicleSolver::StepPacejka(float Δτ) noexcept
             Fy -= Power * VlatHub / SlipSquared;
             Mz -= Power * YawSlip * Reff / SlipSquared;
         }
-        const float Grip = onGnd ? std::max(0.0f, ActiveConfiguration.GripCoefficient) * Fz : 0.0f;
+        const float ConditionGrip = ActiveConfiguration.TyreThermal.Enabled && i < WheelThermals.size()
+            ? static_cast<float>(WheelThermals[i].GripFactor) : 1.0f;
+        Fx *= ConditionGrip; Fy *= ConditionGrip; Mz *= ConditionGrip;
+        const float Grip = onGnd ? std::max(0.0f, ActiveConfiguration.GripCoefficient) * ConditionGrip * Fz : 0.0f;
         const float Magnitude = std::sqrt(Fx * Fx + Fy * Fy + (Mz / Reff) * (Mz / Reff));
         if (Magnitude > Grip && Magnitude > 0.0f)
         {
@@ -736,6 +752,10 @@ void VehicleSolver::StepPacejka(float Δτ) noexcept
         wt.HubPosition       = tyre.HubPosition();
         wt.HubRotation       = tyre.HubRotation();
         wt.ContactPoint      = patch;
+        wt.ContactVelocity   = ContactVelocity;
+        wt.SlipVelocity      = wf * SlipX + wl * VlatHub;
+        wt.SpinSlipSpeed     = YawSlip;
+        wt.SlidingPower_W    = SlipSquared > 1.0e-8f ? std::max(0.0f, -PassivePower) : 0.0f;
         wt.VerticalLoad      = Fz;
         wt.LongitudinalForce = Fx;
         wt.LateralForce      = Fy;
@@ -958,9 +978,36 @@ void VehicleSolver::StepPacejka(float Δτ) noexcept
             Reading.BrakePower_W = Reading.AppliedBrakeTorque * (RelativeSpin - 0.5f * AppliedDiscImpulse * DiscResponse);
             if (Constraint.BrakeLimit > 0.0f && std::abs(RelativeSpin) < 0.001f) ++CurrentTelemetry.LockedContactCount;
             Reading.StaticContactPower_W = (Dot(Constraint.Impulse, Midpoint) + RotorImpulse * MidpointSpin) / Δτ;
+            Reading.ContactVelocity = SolvedLinear + Cross(SolvedAngular, Constraint.Point - cs.Position);
+            const Vec3 SurfaceVelocity = Reading.ContactVelocity + Cross(Constraint.SpinAxis * RelativeSpin, Constraint.Point - Reading.HubPosition);
+            Reading.SlipVelocity = Constraint.Forward * Dot(SurfaceVelocity, Constraint.Forward) +
+                                   Constraint.Left * Dot(SurfaceVelocity, Constraint.Left);
+            // 📝 Discrete capture work is not sliding heat: a sticking/static support impulse has zero final slip.
+            const float AlongSlip = Dot(Reading.SlipVelocity, Constraint.Forward);
+            const float AcrossSlip = Dot(Reading.SlipVelocity, Constraint.Left);
+            if (std::hypot(AlongSlip, AcrossSlip) > 1.0e-4f)
+                Reading.SlidingPower_W += std::max(0.0f, -(AlongImpulse * AlongSlip + AcrossImpulse * AcrossSlip) / Δτ);
         }
     }
 
+}
+
+
+void VehicleSolver::IntegrateConditions(float Seconds) noexcept
+{
+    for (size_t Corner = 0u; Corner < SoftTyres.size() && Corner < WheelThermals.size() &&
+         Corner < CurrentTelemetry.Wheels.size(); ++Corner)
+    {
+        auto& Reading = CurrentTelemetry.Wheels[Corner];
+        ThermalContact Contact;
+        Contact.SlidingPower = Reading.SlidingPower_W;
+        Contact.Airspeed = Reading.ContactVelocity.Length();
+        Contact.Volume = SoftTyres[Corner].EnclosedVolume();
+        Contact.InContact = Reading.InContact;
+        if (!IntegrateThermal(WheelThermals[Corner], ActiveConfiguration.TyreThermal, Contact, Seconds))
+            WheelThermals[Corner].Valid = false;
+        Reading.Thermal = WheelThermals[Corner];
+    }
 }
 
 

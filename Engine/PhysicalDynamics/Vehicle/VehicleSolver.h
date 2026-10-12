@@ -34,6 +34,7 @@
 #include "XPBDSoftTyre.h"
 #include "PacejkaMagicFormula.h"
 #include "TyreSlipDynamics.h"
+#include "ThermalIntegrator.h"
 #include "Drivetrain.h"
 #include "Aerodynamics.h"
 #include "BrakingSystem.h"
@@ -171,6 +172,7 @@ struct VehicleSolverConfiguration
     //   and, if Abs.Enabled, is modulated to keep each wheel near its peak-grip slip. When false, the legacy constant
     //   MaxBrakeTorquePerWheel path is used (keeps existing scenes/checks unchanged). The handbrake always uses the
     //   constant HandbrakeTorque path (mechanical, no ABS).
+    ThermalSpecification TyreThermal; // [-] - independent tyre temperatures and pressure; opt-in for existing fixtures
     bool               BrakeThermalEnabled = false;
     BrakingParameters  Brakes = BrakingParameters::DefaultGT3();
     AbsParameters      Abs;
@@ -191,6 +193,11 @@ struct WheelTelemetry
     Vec3     HubPosition;            // [m] world (rest hub, follows chassis)
     Quat     HubRotation;           // [-] world (includes steer yaw)
     Vec3     ContactPoint;          // [m] world contact-patch centre
+    Vec3     ContactVelocity{};     // [m/s] - actual world travel, including lateral drift and strut motion
+    Vec3     SlipVelocity{};        // [m/s] - tangential surface velocity relative to road
+    float    SpinSlipSpeed = 0.0f;   // [m/s] - equivalent torsional contact slip used by powered response
+    float    SlidingPower_W = 0.0f; // [W] - actual slip dissipation, excluding static support/capture work
+    ThermalMetrics Thermal;        // [-] - independent tyre heat, pressure and combustion measurements
     Vec3     NormalReaction{};      // [N] - XPBD non-penetration reaction, including kerb side faces
     Vec3     TransmittedReaction{}; // [N] - suspension/linkage normal reaction actually applied to the chassis
     Vec3     RimForce{};                 // [N] - internal tyre force on rim
@@ -289,12 +296,14 @@ private:
     [[nodiscard]] static float Clamp(float Amount, float Lower, float Upper) noexcept { return Amount < Lower ? Lower : (Amount > Upper ? Upper : Amount); }
 
     // The two driving layers Step() dispatches to (selected by ActiveConfiguration.ActiveScheme).
+    void IntegrateConditions(float Seconds) noexcept;
     void StepSimple(float Δτ) noexcept;   // Phase-3 friction-circle layer (validated fallback)
     void StepPacejka(float Δτ) noexcept;  // production drivetrain + Pacejka slip layer
 
     VehicleSolverConfiguration    ActiveConfiguration;
     Hooks                      ChassisHooks;
     std::vector<XPBDSoftTyre>  SoftTyres;
+    std::vector<ThermalMetrics> WheelThermals; // [-] - one independent reading per tyre
     DriverInput                DriverCommand;
     VehicleTelemetry           CurrentTelemetry;
     float                      SteerAngle = 0.0f;  // filtered steer (rad)

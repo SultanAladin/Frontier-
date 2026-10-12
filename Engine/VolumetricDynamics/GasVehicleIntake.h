@@ -1,12 +1,12 @@
 //==============================================================================================================================================
 //                                                         GASVEHICLEINTAKE.H
 //==============================================================================================================================================
-// 📦 The one place a real wheel's telemetry becomes a gas report — so the vehicle solver never mentions smoke and the gas never mentions wheels.
+// 📦 Resolves actual wheel contact and thermal readings into world-space burnout, drift and combustion sources.
 //
 // GasGameplayEmission.h states the hook in terms of a GasTyreContact: a patch, its travel, its slip and its
 // load. That struct was written so the tyre solver would not have to change. This file is the proof of that
 // claim: Engine/PhysicalDynamics/Vehicle/VehicleSolver.h already fills every field of it, under other names,
-// and nothing was added to WheelTelemetry for gas.
+// completed contact velocities and thermal readings also drive the combined-slip adapter below.
 //
 //    | GasTyreContact | Read from                                                  |
 //    |----------------|------------------------------------------------------------|
@@ -31,6 +31,7 @@
 #pragma once
 
 #include "GasGameplayEmission.h"
+#include "SmokeSequence.h"
 
 #include "../PhysicalDynamics/Vehicle/VehicleSolver.h"
 
@@ -89,6 +90,41 @@ inline GasEmitterComponent ConstructWheelEmitter(const Vehicle::VehicleTelemetry
                                                  uint32_t WheelIndex) noexcept
 {
     return ConstructTyreEmitter(ReadTyreContact(Telemetry, WheelIndex));
+}
+
+
+/// 📦 Resolves actual combined sliding work into one world-space drift/fire injection.
+/// in    Telemetry     [-] completed vehicle force/contact/thermal readings
+/// in    WheelIndex    [-] requested wheel; out-of-range delivers a zero-rate source
+/// in    Specification [-] smoke tuning, independent of the physical tyre specification
+/// out   GasEmission   [-] world position, velocity, density and plume heat; zero rates mean no demand
+/// note  fire may remain active in the air; fresh friction smoke requires contact and real tangential slip
+inline GasEmission ResolveWheelSmoke(
+    const Vehicle::VehicleTelemetry& Telemetry,
+    uint32_t                         WheelIndex,
+    const SmokeSpecification&        Specification) noexcept
+{
+    GasEmission Emission;
+    Emission.SmokeRate = Emission.TemperatureRate = 0.0f;
+    if (WheelIndex >= Telemetry.WheelCount || WheelIndex >= Telemetry.Wheels.size()) return Emission;
+    const auto& Wheel = Telemetry.Wheels[WheelIndex];
+    const bool Burning = Wheel.Thermal.Valid && Wheel.Thermal.Ignited && Wheel.Thermal.CombustionPower > 0.0;
+    const double Power = Wheel.Thermal.SlidingPower;
+    const bool Sliding = Wheel.InContact && std::hypot(Wheel.SlipVelocity.Length(), Wheel.SpinSlipSpeed) >= Specification.MinimumSlipSpeed &&
+                         Power > Specification.SourcePowerOnset;
+    const auto Position = Burning && !Wheel.InContact ? Wheel.HubPosition : Wheel.ContactPoint;
+    Emission.Position[0] = Position.x; Emission.Position[1] = Position.y; Emission.Position[2] = Position.z + 0.04f;
+    Emission.Radius = GasRoadTyrePatchRadius * 1.4f;
+    const double Strength = Sliding ? std::clamp((Power - Specification.SourcePowerOnset) /
+        std::max(1.0f, Specification.SourcePowerFull - Specification.SourcePowerOnset), 0.0, 4.0) : 0.0;
+    const double Warm = std::clamp((Wheel.Thermal.SurfaceTemperature - Wheel.Thermal.ReferenceTemperature) / 100.0, 0.0, 1.0);
+    Emission.SmokeRate = Specification.DensityRate * static_cast<float>(Strength * (0.5 + 0.5 * Warm)) + (Burning ? 12.0f : 0.0f);
+    Emission.TemperatureRate = Specification.SmokeHeatRate * static_cast<float>(Strength) +
+        (Burning ? static_cast<float>(Wheel.Thermal.CombustionPower) * Specification.FireHeatPowerScale : 0.0f);
+    Emission.Velocity[0] = Wheel.ContactVelocity.x * Specification.CarrierVelocityShare;
+    Emission.Velocity[1] = Wheel.ContactVelocity.y * Specification.CarrierVelocityShare;
+    Emission.Velocity[2] = Wheel.ContactVelocity.z * Specification.CarrierVelocityShare + (Burning ? 1.2f : 0.15f);
+    return Emission;
 }
 
 }   // namespace Frontier
