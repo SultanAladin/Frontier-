@@ -242,8 +242,8 @@ struct VehicleTelemetry
     uint32_t LockedContactCount = 0u;     // [-] - contacts with a disc-locked rotor
     float GearboxDriveTorque_Nm = 0.0f;   // [N·m] - motor output, separate from passive LSD transfer
     float ClutchTorque_Nm = 0.0f;         // [N·m] - motor/clutch torque before the gearbox
-    float RestingContactResidual = 0.0f; // [N·s] - final projected impulse increment
-    bool RestingContactConverged = true; // [-] - actual impulse convergence
+    float RestingContactResidual = 0.0f; // [m/s] - final Coulomb/disc stationarity residual
+    bool RestingContactConverged = true; // [-] - actual slip-speed stationarity convergence
     std::array<WheelTelemetry, 8> Wheels{};
     // Production layer (PacejkaDrivetrain) — powertrain state:
     float    EngineRPM         = 0.0f;

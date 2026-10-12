@@ -377,6 +377,10 @@ public:
     [[nodiscard]] const SoftTyreParameters&        Params() const noexcept { return Parameters; }
     [[nodiscard]] const TyreReaction&              Reaction() const noexcept { return ContactReaction; }
     [[nodiscard]] const SoftTyreResidual&          Residual() const noexcept { return ConstraintResidual; }
+    /// 📦 Material-space kinematic seats referenced by the actual closed pressure surface.
+    /// out   BeadSeats [m] negative-Y circle followed by positive-Y circle
+    /// note  Pose with HubPosition and MaterialFrame; these are not free tread particles.
+    [[nodiscard]] const std::vector<Vec3>& BeadSeats() const noexcept { return BeadLocalVertices; }
     [[nodiscard]] bool Constructed() const noexcept { return !NodeRecords.empty(); }
 
     [[nodiscard]] uint32_t Index(uint32_t ring, uint32_t seg) const noexcept { return ring * Parameters.SegmentCount + seg; }

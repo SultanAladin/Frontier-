@@ -1664,7 +1664,7 @@
       ]
     }
   ],
-  "pageSHA256": "fd3de511804878bfecb1f307897fec916e224916659f89933cb8269e5c633b60",
+  "pageSHA256": "3d191109da1a14db36616a4ff77229a95f445411a14e74021563046106032ffc",
   "physicsSourceProofSHA256": "2bbe68da9d0cdabb0ad9c1d1741caabb95a15e8ad1a4b79d8192267eb13bc2c7",
   "deformationProofSHA256": "b223844d826b5a6e5d94e5a9b1036bd0a7339f66f6ed4e8e15e95302be1d9d06",
   "charts": {
@@ -1676,5 +1676,7 @@
     "wobble-and-velocity-timing.png": "835639c2cd6ddc4152022cb3dcbd37b8408fb2d0d134b738b1cb876992b06d2f"
   },
   "reconstructionStartIsShortened": true,
-  "historicalMissingMediaReused": false
+  "historicalMissingMediaReused": false,
+  "pageSHA256BeforePlaybackControls": "fd3de511804878bfecb1f307897fec916e224916659f89933cb8269e5c633b60",
+  "playbackProofSHA256": "7bb96da454f8321bcee7f19460ee83205f4bff633a95cb00eac4656118486ea1"
 }

@@ -30,6 +30,11 @@ def Validate(Folder):
             "noIdleDriveFightingBrakes": max((abs(float(Row["gearbox_drive_torque_Nm"])) for Row in Rows if Row["phase"] == "2" and (float(Row["brake"]) > 0 or Row["handbrake"] == "1")), default=0.0) <= 0.001,
             "nativeBeadSeated": Case["nativeBeadGapM"] <= 0.00001,
             "physicalBeadMatchesRim": Case["physicalBeadGapM"] <= 0.00001,
+            "nativeEnvelopeMatchesSolvedTread": Case.get("nativeTreadGapM", math.inf) <= 0.00001,
+            "discTorqueWithinCapacity": Case.get("brakeOverCapacityNm", math.inf) <= 0.01,
+            "groundForceWithinFrictionCone": Case.get("gripOverCapacityN", math.inf) <= 0.05,
+            "coupledContactConverged": Case.get("unconvergedContactSteps", 1) == 0,
+            "heightDecomposition": max(abs(float(Row["z"]) - float(Rows[0]["z"]) - float(Row["vertical_from_uphill_m"]) - float(Row["vertical_from_normal_m"])) for Row in Rows) <= 0.00002,
             "radialExpansionBound": Case["radiusM"] <= 0.50855 * 1.05,
         }
         if Case["driven"]:
@@ -44,19 +49,33 @@ def Validate(Folder):
                 Checks["serviceBrakeStopsAndHolds"] = 0 <= Case["stopTime"] < StopAllowance and Case["finalSpeed"] < 0.01
             if Case["brakes"] == 2 and Case["heading"] in [0, 90, -90]:
                 Checks["rearBrakeStopsWhereCapacityAllows"] = 0 <= Case["stopTime"] < 3.5 and Case["finalSpeed"] < 0.01
+            if Case["brakes"] == 1 or (Case["brakes"] == 2 and Case["heading"] in [0, 90, -90]):
+                HoldRows = [Row for Row in Rows if float(Row["t"]) >= 3.5 + max(0, Case["stopTime"]) + 0.25]
+                Checks["sustainedHoldAfterStop"] = Case["stopTime"] >= 0 and bool(HoldRows) and max(float(Row["tangent_speed"]) for Row in HoldRows) < 0.05
             if abs(Case["heading"]) == 90:
                 Checks["noPropulsiveUphillCrossDrift"] = Case["driveUphillM"] <= 0.02
         else:
             Checks["gravityPointsDownhill"] = float(End["uphill_speed"]) < 0 and float(End["uphill_m"]) < 0
+        Case["maximumContactStationarityM_S"] = max(float(Row["contact_stationarity_m_s"]) for Row in Rows)
+        if Case["driven"] and Case["brakes"] == 2 and abs(Case["heading"]) == 180:
+            TailRows = [Row for Row in Rows if float(Row["t"]) >= Case["seconds"] - 0.5]
+            Case["rearOnlyGripN"] = Case["friction"] * sum(float(Row["normal_load_2_N"]) + float(Row["normal_load_3_N"]) for Row in TailRows) / len(TailRows)
+            Case["nonContactGradeDemandN"] = sum(float(Row["static_uphill_force_N"]) - float(Row["body_uphill_force_N"]) for Row in TailRows) / len(TailRows)
+            Case["downhillRearOnlyObservation"] = "stoppedAndHeld" if Case["stopTime"] >= 0 and Case["finalSpeed"] < 0.01 else "stillMovingAtRecordingEnd"
+            if Case["downhillRearOnlyObservation"] == "stoppedAndHeld":
+                HoldRows = [Row for Row in Rows if float(Row["t"]) >= 3.5 + Case["stopTime"] + 0.25]
+                Checks["rearDownhillHoldAfterStop"] = bool(HoldRows) and max(float(Row["tangent_speed"]) for Row in HoldRows) < 0.05
         Case["checks"] = Checks
         Case["passed"] = all(Checks.values())
         Violations += [{"case": Case["name"], "check": Name} for Name, Passed in Checks.items() if not Passed]
     Audit = {"passed": not Violations, "cpuOnly": True, "cases": Cases, "violations": Violations,
         "validatorSHA256": hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),
-        "motion": "Warmup 0-1.5 s; actual rear-wheel drive 1.5-3.5 s; coast/service/rear brake 3.5-7 s. No velocity/orientation commands.",
+        "motion": "Warmup 0-1.5 s; actual rear-wheel drive 1.5-3.5 s; coast/service/rear brake from 3.5 s until the case-specific 7 or 19 s recording end. No velocity/orientation commands.",
         "slopeConvention": "Plane normal (-sin(theta),0,cos(theta)); world +X is uphill, -X downhill. Heading +/-90 is parallel to contours.",
         "limitations": "Disc work/sign and moving stopping tests, not a closed whole-vehicle energy proof. Rear-only holding capacity depends on axle load; preserve physical sliding.",
-        "beadMeasurements": "Native tyre inner boundary vs solved rim; separately gas/spoke anchor vs rim. No projection-radius or velocity clamps."}
+        "beadMeasurements": "Actual closed native envelope bead/tread vertices and actual pressure-surface seats, sampled at 20 Hz against the current rim pose. No projection-radius or velocity clamps.",
+        "brakeMeasurements": "Each disc is checked independently for positive work and excess torque; complete contact force is checked against measured load and friction.",
+        "recordedDate": "2026-10-12"}
     (Folder / "SlopeAudit.json").write_text(json.dumps(Audit, indent=2) + "\n")
     print(f"Slope/brake/bead audit: {sum(Case['passed'] for Case in Cases)}/{len(Cases)} pass, {len(Violations)} failed checks", flush=True)
     for Failure in Violations:

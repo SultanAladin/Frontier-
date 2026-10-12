@@ -9,6 +9,8 @@
 #include "../../../Engine/GeometricRaster/SceneStructure.h"
 #include "../../../Engine/GeometricRaster/VisibilityRaster.h"
 #include "../../../Projects/Project-Drive/Source/ControlVehicleMesh.inl"
+#include "../../../Projects/Project-Drive/Source/ControlVehicleWheelMesh.inl"
+#include "../../../Projects/Project-Drive/Source/DriveWheelMesh.h"
 #include "../../../Projects/Project-Drive/Source/DriveCourse.h"
 #include "../../../Engine/PhysicalDynamics/Vehicle/VehicleGeometry.h"
 
@@ -121,40 +123,48 @@ int main(int Count, char** Arguments)
         Body.Append(Scene, 0u); FacetSequence Tyres, Rims;
         for (uint32_t Corner = 0u; Corner < 4u; ++Corner)
         {
+            // 📝 The diagnostic uses the native wheel emitter and authored rigid rim, not an open tread
+            //      tube or a cylindrical rim proxy. Only the supplied tread positions are deformed.
             const auto& Nodes = Particles[Corner];
-            for (uint32_t Ring = 0u; Ring + 1u < Rings; ++Ring)
+            const Quat Inverse{-Phases[Corner].x, -Phases[Corner].y, -Phases[Corner].z, Phases[Corner].w};
+            std::vector<float> Tread(static_cast<size_t>(Rings) * Segments * 3u);
+            for (uint32_t Ring = 0u; Ring < Rings; ++Ring)
                 for (uint32_t Segment = 0u; Segment < Segments; ++Segment)
                 {
-                    const uint32_t Next = (Segment + 1u) % Segments;
-                    const Vec3 A = Nodes[Ring * Segments + Segment], B = Nodes[Ring * Segments + Next];
-                    const Vec3 C = Nodes[(Ring + 1u) * Segments + Next], D = Nodes[(Ring + 1u) * Segments + Segment];
-                    Tyres.Triangle(A, B, C); Tyres.Triangle(A, C, D);
+                    const Vec3 Local = Inverse.Rotate(Nodes[(Rings - 1u - Ring) * Segments + Segment] - Hubs[Corner]);
+                    const size_t Index = (Ring * Segments + Segment) * 3u;
+                    Tread[Index]     = Local.x;
+                    Tread[Index + 1] = Local.y;
+                    Tread[Index + 2] = Local.z;
                 }
-            // 📝 Close the recorded shoulders onto the same rigid bead seats as native rendering and physics.
-            //      Omitting these annuli made the diagnostic tread look detached even when its native bead was seated.
-            const float BeadHalfWidth = 0.5f * Dimensions.TyreWidth * Frontier::Vehicle::TyreBeadWidthRatio;
-            for (uint32_t Side = 0u; Side < 2u; ++Side)
-                for (uint32_t Segment = 0u; Segment < Segments; ++Segment)
-                {
-                    const uint32_t Next = (Segment + 1u) % Segments;
-                    const uint32_t Ring = Side == 0u ? 0u : Rings - 1u;
-                    const float Sign = Side == 0u ? -1.0f : 1.0f;
-                    const float θ = 2 * π * Segment / Segments, NextAngle = 2 * π * Next / Segments;
-                    const Vec3 A = Nodes[Ring * Segments + Segment], B = Nodes[Ring * Segments + Next];
-                    const Vec3 C = Hubs[Corner] + Phases[Corner].Rotate({Dimensions.TyreRimRadius * std::cos(NextAngle), Sign * BeadHalfWidth, Dimensions.TyreRimRadius * std::sin(NextAngle)});
-                    const Vec3 D = Hubs[Corner] + Phases[Corner].Rotate({Dimensions.TyreRimRadius * std::cos(θ), Sign * BeadHalfWidth, Dimensions.TyreRimRadius * std::sin(θ)});
-                    Tyres.Triangle(A, B, C); Tyres.Triangle(A, C, D);
-                }
-            for (uint32_t Segment = 0u; Segment < Segments; ++Segment)
+            Frontier::Drive::WheelTreadLattice Lattice;
+            Lattice.RingCount    = Rings;
+            Lattice.SegmentCount = Segments;
+            Lattice.Tread        = Tread.data();
+            Lattice.RimRadius    = Dimensions.TyreRimRadius;
+            Lattice.HalfWidth    = 0.5f * Dimensions.TyreWidth;
+            Lattice.SpokeCount   = Frontier::Drive::kDriveWheelSpokeCount;
+            const auto Publish = [&](const float* Local)
             {
-                const float θ = 2 * π * Segment / Segments, Next = 2 * π * (Segment + 1u) / Segments;
-                const float Width = 0.5f * Dimensions.TyreWidth * Frontier::Vehicle::TyreBeadWidthRatio, Radius = Dimensions.TyreRimRadius;
-                const Vec3 A = Hubs[Corner] + Phases[Corner].Rotate({Radius * std::cos(θ), -Width, Radius * std::sin(θ)});
-                const Vec3 B = Hubs[Corner] + Phases[Corner].Rotate({Radius * std::cos(Next), -Width, Radius * std::sin(Next)});
-                const Vec3 C = Hubs[Corner] + Phases[Corner].Rotate({Radius * std::cos(Next), Width, Radius * std::sin(Next)});
-                const Vec3 D = Hubs[Corner] + Phases[Corner].Rotate({Radius * std::cos(θ), Width, Radius * std::sin(θ)});
-                Rims.Triangle(A, B, C); Rims.Triangle(A, C, D);
-            }
+                return Hubs[Corner] + Phases[Corner].Rotate({Local[0], Local[1], Local[2]});
+            };
+            Frontier::Drive::EmitWheelSurface(Lattice, 1u, 2u, 2u,
+                [&](const float* A, const float* B, const float* C,
+                    const float*, const float*, const float*, uint32_t Material)
+                {
+                    (Material == 1u ? Tyres : Rims).Triangle(Publish(A), Publish(B), Publish(C));
+                });
+            namespace AuthoredRim = Frontier::Drive::ControlVehicleWheelMesh;
+            const float Scale = Dimensions.TyreRimRadius / AuthoredRim::kRimRadius;
+            const auto RimPoint = [&](uint32_t Index)
+            {
+                const float* Local = AuthoredRim::kPositions + Index * 3u;
+                return Hubs[Corner] + Phases[Corner].Rotate({Local[0] * Scale, Local[1] * Scale, Local[2] * Scale});
+            };
+            for (uint32_t Triangle = 0u; Triangle < AuthoredRim::kTriangleCount; ++Triangle)
+                Rims.Triangle(RimPoint(AuthoredRim::kTriangles[Triangle * 3u]),
+                              RimPoint(AuthoredRim::kTriangles[Triangle * 3u + 1u]),
+                              RimPoint(AuthoredRim::kTriangles[Triangle * 3u + 2u]));
         }
         Tyres.Append(Scene, 1u); Rims.Append(Scene, 2u); FacetSequence Floor[2];
         if (Terrain == 0u)

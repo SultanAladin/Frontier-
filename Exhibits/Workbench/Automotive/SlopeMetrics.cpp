@@ -30,9 +30,11 @@ struct SlopeReading
 {
     double BrakeStartSpeed = 0.0, FinalSpeed = 0.0, StopTime = -1.0;
     double DriveUphill = 0.0, FinalUphill = 0.0, BrakeDisplacement = 0.0;
-    double NativeBeadGap = 0.0, PhysicalBeadGap = 0.0;
+    double NativeBeadGap = 0.0, PhysicalBeadGap = 0.0, NativeTreadGap = 0.0;
     double PositiveBrakePower = 0.0, PositiveContactPower = 0.0;
     double PeakRadius = 0.0, PeakShape = 0.0;
+    double BrakeOverCapacity = 0.0, GripOverCapacity = 0.0;
+    uint32_t UnconvergedContacts = 0u;
 };
 
 void Capture(std::ofstream& Stream, const DriveFixture& Fixture)
@@ -68,7 +70,7 @@ SlopeReading Record(const SlopeSpecification& Specification, const std::filesyst
     const uint32_t Ticks = static_cast<uint32_t>(std::round(Specification.Seconds / StepSeconds));
     constexpr uint32_t DriveTick = 360u, BrakeTick = 840u;
     std::ofstream Csv(Folder / (Specification.Name + ".csv")); Csv << std::setprecision(12);
-    Csv << "t,phase,throttle,brake,handbrake,x,y,z,vx,vy,vz,uphill_m,across_m,forward_m,uphill_speed,across_speed,forward_speed,tangent_speed,body_uphill_force_N,body_across_force_N,gravity_uphill_N,normal_load_N,normal_height_m,normal_speed,vertical_from_uphill_m,vertical_from_normal_m,brake_capacity_Nm,applied_brake_Nm,brake_power_W,contact_power_W,static_power_W,drive_power_W,native_bead_gap_m,physical_bead_gap_m,radius_m,shape_max_m,resting_converged,body_angular_speed,resting_contacts,locked_contacts,gearbox_drive_torque_Nm,clutch_torque_Nm,wheel_omega_0,wheel_omega_1,wheel_omega_2,wheel_omega_3,static_uphill_force_N,grip_force_capacity_N,brake_force_capacity_N,free_uphill_speed,solved_uphill_speed,normal_load_0_N,normal_load_1_N,normal_load_2_N,normal_load_3_N,body_x_axis_uphill,body_x_axis_across,body_roll_deg\n";
+    Csv << "t,phase,throttle,brake,handbrake,x,y,z,vx,vy,vz,uphill_m,across_m,forward_m,uphill_speed,across_speed,forward_speed,tangent_speed,body_uphill_force_N,body_across_force_N,gravity_uphill_N,normal_load_N,normal_height_m,normal_speed,vertical_from_uphill_m,vertical_from_normal_m,brake_capacity_Nm,applied_brake_Nm,brake_power_W,contact_power_W,static_power_W,drive_power_W,native_bead_gap_m,physical_bead_gap_m,radius_m,shape_max_m,resting_converged,body_angular_speed,resting_contacts,locked_contacts,gearbox_drive_torque_Nm,clutch_torque_Nm,wheel_omega_0,wheel_omega_1,wheel_omega_2,wheel_omega_3,static_uphill_force_N,grip_force_capacity_N,brake_force_capacity_N,free_uphill_speed,solved_uphill_speed,normal_load_0_N,normal_load_1_N,normal_load_2_N,normal_load_3_N,body_x_axis_uphill,body_x_axis_across,body_roll_deg,native_tread_gap_m,contact_stationarity_m_s\n";
     std::ofstream Pictures(Folder / (Specification.Name + ".frames"), std::ios::binary);
     const uint32_t Header[] = {0x54554D42u, Fixture.Configuration.Tyre.RingCount, Fixture.Configuration.Tyre.SegmentCount, Ticks / 12u};
     Pictures.write(reinterpret_cast<const char*>(Header), sizeof(Header));
@@ -95,7 +97,7 @@ SlopeReading Record(const SlopeSpecification& Specification, const std::filesyst
         const Vec3 Displacement = Body.Position - Origin;
         const Vec3 TangentVelocity = Body.LinearVelocity - Normal * Dot(Body.LinearVelocity, Normal);
         const double Speed = TangentVelocity.Length();
-        double NativeGap = 0.0, PhysicalGap = 0.0, Radius = 0.0, Shape = 0.0;
+        double NativeGap = 0.0, PhysicalGap = 0.0, NativeTreadGap = 0.0, Radius = 0.0, Shape = 0.0;
         double BrakeCapacity = 0.0, AppliedBrake = 0.0, BrakePower = 0.0, ContactPower = 0.0, StaticPower = 0.0, DrivePower = 0.0;
         for (size_t Corner = 0u; Corner < Fixture.Solver.Tyres().size(); ++Corner)
         {
@@ -103,25 +105,58 @@ SlopeReading Record(const SlopeSpecification& Specification, const std::filesyst
             const auto& Reading = Telemetry.Wheels[Corner]; const auto Energy = Tyre.Energy();
             Radius = std::max(Radius, Energy.Radius); Shape = std::max(Shape, Energy.ShapeMax);
             BrakeCapacity += Reading.RequestedBrakeTorque; AppliedBrake += std::abs(Reading.AppliedBrakeTorque);
+            Result.PositiveBrakePower = std::max(Result.PositiveBrakePower, static_cast<double>(Reading.BrakePower_W));
+            Result.BrakeOverCapacity  = std::max(Result.BrakeOverCapacity,
+                static_cast<double>(std::abs(Reading.AppliedBrakeTorque) - Reading.RequestedBrakeTorque));
+            Result.GripOverCapacity   = std::max(Result.GripOverCapacity,
+                static_cast<double>(std::hypot(Reading.LongitudinalForce, Reading.LateralForce)
+                                    - Specification.Friction * Reading.VerticalLoad));
             BrakePower += Reading.BrakePower_W; ContactPower += Reading.ContactPower_W; StaticPower += Reading.StaticContactPower_W; DrivePower += Reading.DrivePower_W;
-            Frontier::Drive::TyreSequence Projection;
-            Projection.Capture(Tyre, Tyre.HubPosition(), Tyre.HubRotation());
-            const Quat Material = Tyre.MaterialFrame();
-            for (uint32_t Side = 0u; Side < 2u; ++Side)
-                for (uint32_t Segment = 0u; Segment < Parameters.SegmentCount; Segment += 4u)
+            // 📝 Measure the published closed envelope and actual pressure-surface seats, not a fabricated
+            //      point at the known rigid radius. Sample the same 20 Hz poses captured for rendering.
+            if (Tick % 12u == 0u)
+            {
+                Frontier::Drive::TyreSequence Projection;
+                Projection.Capture(Tyre, Tyre.HubPosition(), Tyre.HubRotation());
+                std::vector<Frontier::Vector3> Vertices;
+                std::vector<Frontier::DeformationSpace::Face> Faces;
+                Projection.Envelope(Vertices, Faces, false);
+                const Quat Material = Tyre.MaterialFrame();
+                const auto& Seats = Tyre.BeadSeats();
+                assert(Seats.size() == 2u * Parameters.SegmentCount);
+                assert(Vertices.size() == (Parameters.RingCount + 2u) * Parameters.SegmentCount);
+                const auto Publish = [&](size_t Index)
                 {
-                    const float θ = 6.28318530718f * Segment / Parameters.SegmentCount;
-                    const float Sign = Side == 0u ? -1.0f : 1.0f;
-                    const Vec3 Local{Parameters.RimRadius * std::cos(θ), Sign * Parameters.Width * 0.5f * Parameters.BeadWidthRatio, Parameters.RimRadius * std::sin(θ)};
-                    const Vec3 RimPoint = Tyre.HubPosition() + Material.Rotate(Local);
-                    const auto Published = Projection.Project({Local.x, Local.y, Local.z});
-                    NativeGap = std::max(NativeGap, static_cast<double>((Vec3{Published.x, Published.y, Published.z} - RimPoint).Length()));
-                    const uint32_t Ring = Side == 0u ? 0u : Parameters.RingCount - 1u;
-                    const Vec3 Physical = Tyre.HubPosition() + Material.Rotate(Tyre.Nodes()[Ring * Parameters.SegmentCount + Segment].BeadLocal);
-                    PhysicalGap = std::max(PhysicalGap, static_cast<double>((Physical - RimPoint).Length()));
-                }
+                    const auto& Local = Vertices[Index];
+                    return Tyre.HubPosition() + Material.Rotate({Local.x, Local.y, Local.z});
+                };
+                for (uint32_t Side = 0u; Side < 2u; ++Side)
+                    for (uint32_t Segment = 0u; Segment < Parameters.SegmentCount; ++Segment)
+                    {
+                        const float θ = 6.28318530718f * Segment / Parameters.SegmentCount;
+                        const float Sign = Side == 0u ? -1.0f : 1.0f;
+                        const Vec3 Local{Parameters.RimRadius * std::cos(θ), Sign * Parameters.Width * 0.5f * Parameters.BeadWidthRatio,
+                                         Parameters.RimRadius * std::sin(θ)};
+                        const Vec3 RimPoint = Tyre.HubPosition() + Material.Rotate(Local);
+                        const size_t SeatIndex = Side * Parameters.SegmentCount + Segment;
+                        const size_t NativeIndex = (Parameters.RingCount + 1u - Side) * Parameters.SegmentCount + Segment;
+                        const Vec3 Physical = Tyre.HubPosition() + Material.Rotate(Seats[SeatIndex]);
+                        NativeGap   = std::max(NativeGap, static_cast<double>((Publish(NativeIndex) - RimPoint).Length()));
+                        PhysicalGap = std::max(PhysicalGap, static_cast<double>((Physical - RimPoint).Length()));
+                    }
+                for (uint32_t Ring = 0u; Ring < Parameters.RingCount; ++Ring)
+                    for (uint32_t Segment = 0u; Segment < Parameters.SegmentCount; ++Segment)
+                    {
+                        const size_t PhysicalIndex = (Parameters.RingCount - 1u - Ring) * Parameters.SegmentCount + Segment;
+                        const size_t NativeIndex   = Ring * Parameters.SegmentCount + Segment;
+                        NativeTreadGap = std::max(NativeTreadGap,
+                            static_cast<double>((Publish(NativeIndex) - Tyre.Nodes()[PhysicalIndex].Position).Length()));
+                    }
+            }
         }
         Result.NativeBeadGap = std::max(Result.NativeBeadGap, NativeGap); Result.PhysicalBeadGap = std::max(Result.PhysicalBeadGap, PhysicalGap);
+        Result.NativeTreadGap = std::max(Result.NativeTreadGap, NativeTreadGap);
+        if (Telemetry.RestingContactCount > 0u && !Telemetry.RestingContactConverged) ++Result.UnconvergedContacts;
         Result.PositiveBrakePower = std::max(Result.PositiveBrakePower, BrakePower);
         Result.PositiveContactPower = std::max(Result.PositiveContactPower, ContactPower + StaticPower);
         Result.PeakRadius = std::max(Result.PeakRadius, Radius); Result.PeakShape = std::max(Result.PeakShape, Shape);
@@ -144,7 +179,7 @@ SlopeReading Record(const SlopeSpecification& Specification, const std::filesyst
         const Vec3 BodyForward = Body.Orientation.Rotate({1, 0, 0});
         const Vec3 BodyLeft = Body.Orientation.Rotate({0, 1, 0});
         Csv << ',' << Dot(BodyForward, Uphill) << ',' << Dot(BodyForward, Across) << ','
-            << std::atan2(Dot(BodyLeft, Normal), Dot(Body.Orientation.Rotate({0, 0, 1}), Normal)) * 57.29577951 << '\n';
+            << std::atan2(Dot(BodyLeft, Normal), Dot(Body.Orientation.Rotate({0, 0, 1}), Normal)) * 57.29577951 << ',' << NativeTreadGap << ',' << Telemetry.RestingContactResidual << '\n';
         if (Tick > 0u && Tick % 12u == 0u) Capture(Pictures, Fixture);
     }
     return Result;
@@ -162,7 +197,7 @@ int main(int Count, char** Arguments)
     std::vector<SlopeSpecification> Specifications;
     for (float Heading : {0.0f, 180.0f, 90.0f, -90.0f})
         for (uint32_t Brakes = 0u; Brakes < 3u; ++Brakes)
-            Specifications.push_back({"moving-20-heading-" + std::to_string(static_cast<int>(Heading)) + "-brakes-" + std::to_string(Brakes), 20.0f, Heading, 0.8f, Brakes, true});
+            Specifications.push_back({"moving-20-heading-" + std::to_string(static_cast<int>(Heading)) + "-brakes-" + std::to_string(Brakes), 20.0f, Heading, 0.8f, Brakes, true, Heading == 180.0f && Brakes == 2u ? 19.0f : 7.0f});
     Specifications.push_back({"moving-35-downhill-service", 35.0f, 180.0f, 0.8f, 1u, true, 19.0f});
     Specifications.push_back({"released-20-frictionless", 20.0f, 0.0f, 0.0f, 0u, false});
     std::ofstream Results(Folder / "SlopeResults.json"); Results << std::setprecision(12) << "{\"cpuOnly\":true,\"rateHz\":240,\"snapshotRateHz\":20,\"cases\":[";
@@ -177,7 +212,8 @@ int main(int Count, char** Arguments)
                 << ",\"seconds\":" << Specification.Seconds << ",\"brakes\":" << Specification.Brakes << ",\"driven\":" << (Specification.Driven ? "true" : "false") << ",\"brakeStartSpeed\":" << Reading.BrakeStartSpeed
                 << ",\"finalSpeed\":" << Reading.FinalSpeed << ",\"stopTime\":" << Reading.StopTime << ",\"driveUphillM\":" << Reading.DriveUphill << ",\"finalUphillM\":" << Reading.FinalUphill
                 << ",\"brakeDisplacementM\":" << Reading.BrakeDisplacement << ",\"nativeBeadGapM\":" << Reading.NativeBeadGap << ",\"physicalBeadGapM\":" << Reading.PhysicalBeadGap
-                << ",\"positiveBrakePowerW\":" << Reading.PositiveBrakePower << ",\"positiveContactPowerW\":" << Reading.PositiveContactPower << ",\"radiusM\":" << Reading.PeakRadius << ",\"shapeM\":" << Reading.PeakShape << '}';
+                << ",\"brakeOverCapacityNm\":" << Reading.BrakeOverCapacity << ",\"gripOverCapacityN\":" << Reading.GripOverCapacity
+                << ",\"unconvergedContactSteps\":" << Reading.UnconvergedContacts << ",\"nativeTreadGapM\":" << Reading.NativeTreadGap << ",\"positiveBrakePowerW\":" << Reading.PositiveBrakePower << ",\"positiveContactPowerW\":" << Reading.PositiveContactPower << ",\"radiusM\":" << Reading.PeakRadius << ",\"shapeM\":" << Reading.PeakShape << '}';
         Results.flush();
         std::printf("MEASURED %s: brake %.3f -> %.3f m/s stop %.3fs drive uphill %.4fm native bead %.6fm physical bead %.6fm\n", Specification.Name.c_str(), Reading.BrakeStartSpeed, Reading.FinalSpeed, Reading.StopTime, Reading.DriveUphill, Reading.NativeBeadGap, Reading.PhysicalBeadGap); std::fflush(stdout);
     }

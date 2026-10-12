@@ -70,6 +70,28 @@ def ConfigurePage(Document, Gallery):
     Featured = Gallery / "motion/launch-left-40.mp4"
     if Featured.exists():
         Document = re.sub(r'<img class="featured"[^>]*>', '<video class="featured" controls loop muted playsinline preload="none" poster="motion/launch-left-40.png" src="motion/launch-left-40.mp4" aria-label="Play or pause the actual two-wheel flip"></video>', Document)
+    def ConfigureClip(Match):
+        Markup = Match.group(0)
+        Markup = re.sub(r"\s+preload\s*=\s*([\"'])[^\"']*\1", "", Markup)
+        Markup = re.sub(r"\s+autoplay(?:\s*=\s*([\"'])[^\"']*\1)?", "", Markup)
+        for Attribute in ["controls", "muted", "playsinline"]:
+            if not re.search(r"\b" + Attribute + r"(?:\s|=|>)", Markup):
+                Markup = Markup[:-1] + " " + Attribute + ">"
+        if not re.search(r"\bposter\s*=", Markup):
+            Recording = re.search(r"\bsrc\s*=\s*([\"'])(.*?)\1", Markup).group(2)
+            Name = Path(Recording).stem
+            if Name == "flying-and-tumbling":
+                Name = "launch-left-40"
+            elif Name == "incline-parking":
+                Name = "slope-20-heading-0-brakes-1"
+            Poster = Gallery / "motion" / (Name + ".png")
+            assert Poster.exists(), "Missing paused poster: " + Name
+            Markup = Markup[:-1] + f' poster="motion/{Name}.png">'
+        return Markup[:-1] + ' preload="none">'
+
+    Document = re.sub(r"<video\b[^>]*>", ConfigureClip, Document)
+    if 'paused-clip-layout' not in Document:
+        Document = Document.replace('</head>', '<style id="paused-clip-layout">video{display:block;width:100%;max-width:100%;height:auto}button:focus-visible{outline:3px solid #8ad6fb;outline-offset:3px}</style></head>')
     if 'single-clip-playback' not in Document:
         Document = Document.replace('</body>', PlaybackScript + '</body>')
         Document = Document.replace('<h1>', '<button type="button" onclick="PauseClips()">Pause all clips</button><p>All clips start paused. Native controls pause/resume the same recorded frames; playing one pauses the others. GIF downloads remain available.</p><h1>', 1)

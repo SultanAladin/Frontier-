@@ -371,10 +371,17 @@ void VehicleSolver::StepPacejka(float Δτ) noexcept
     };
     struct RestingConstraint
     {
-        Vec3 Point{}, Forward{}, Left{}, Impulse{};
-        float GripImpulse = 0.0f, BrakeImpulse = 0.0f;
-        size_t Corner = 0u;
-        bool Locked = false;
+        Vec3   Point{}, Forward{}, Left{}, SpinAxis{}, Impulse{};
+        float  GripImpulse        = 0.0f;
+        float  DiscImpulse        = 0.0f;
+        float  DiscLimit          = 0.0f;
+        float  BrakeLimit         = 0.0f;
+        float  ForwardLever       = 0.0f;
+        float  LeftLever          = 0.0f;
+        float  InverseSpinInertia = 0.0f;
+        float  RotorSpeed         = 0.0f;
+        float  InitialRotorSpeed  = 0.0f;
+        size_t Corner             = 0u;
     };
     std::array<RestingConstraint, 8> RestingContacts{};
     size_t RestingCount = 0u;
@@ -594,25 +601,15 @@ void VehicleSolver::StepPacejka(float Δτ) noexcept
             Fy -= ActiveConfiguration.LateralDampingCoefficient * fade * VlatHub;
 
         }
-        const float BrakeCapacity = (wheel.Braked ? DriverCommand.Brake * ActiveConfiguration.MaxBrakeTorquePerWheel : 0.0f)
-                                  + (DriverCommand.Handbrake && !wheel.Steered ? ActiveConfiguration.HandbrakeTorque : 0.0f);
-        const bool LockedBrake = BrakeCapacity > 0.0f && std::abs(WheelSpin[i]) < 0.5f;
-        // 📝 Lateral sticking is independent of wheel rolling speed. Testing total vehicle speed made
-        //      contour travel slide downhill and rear-brake stopping alternate around 0.5 m/s.
-        const bool LowSpeedLateral = std::abs(VlatHub) < 0.5f && cs.AngularVelocity.Length() < 0.5f;
-        // 📝 A locked rotor has Coulomb contact at every sliding speed. A low-speed-only eligibility gate
-        //      alternated braking on/off around its threshold and left the vehicle creeping near that speed.
-        // 📝 Keep the measured low-lateral-slip branch. Applying rigid lateral impulses to all
-        //      unlocked front rotors during a rear-brake slide worsened the partitioned wheel coupling;
-        //      that experiment is rejected rather than hiding the remaining rear-brake failures.
-        // 📝 Powered rolling keeps its existing transient Magic-Formula response. This eligibility
-        //      correction is limited to coasting/braking rather than replacing powered lateral dynamics.
-        const bool Resting = onGnd && throttleCmd < 0.05f && (LockedBrake || LowSpeedLateral)
-                           && RestingCount < RestingContacts.size();
+        const bool RollingContact = throttleCmd < 0.05f;
+        // 📝 Coasting/braking couples rotor inertia, disc friction and road friction at every slip speed.
+        //      Powered traction/cornering retain their transient Magic-Formula response.
+        const bool Resting = onGnd && RollingContact && RestingCount < RestingContacts.size();
         if (Resting)
         {
             Fy = 0.0f; Mz = 0.0f;
-            if (LockedBrake) { Fx = 0.0f; SlipDeflections[i] = {}; }
+            // 📝 Preserve the measured slip history for thermal ABS and for a later powered transition.
+            Fx = 0.0f;
         }
         const float SlipX = Vx + WheelSpin[i] * RollingLever;
         const float YawSlip = Dot(cs.AngularVelocity, ContactNormal) * Reff;
@@ -631,18 +628,6 @@ void VehicleSolver::StepPacejka(float Δτ) noexcept
             const float Scale = Grip / Magnitude; Fx *= Scale; Fy *= Scale; Mz *= Scale;
         }
         const float PassivePower = Fx * SlipX + Fy * VlatHub + (Mz / Reff) * YawSlip;
-        if (Resting)
-        {
-            const float NormalImpulse = Grip * Δτ;
-            const float LateralImpulse = LockedBrake ? NormalImpulse : std::sqrt(std::max(0.0f, NormalImpulse * NormalImpulse - Fx * Fx * Δτ * Δτ));
-            RestingContacts[RestingCount++] = {patch, wf, wl, {}, LateralImpulse,
-                BrakeCapacity * Δτ / std::max(0.01f, std::abs(RollingLever)), i, LockedBrake};
-            CurrentTelemetry.ContactGripForce_N += LateralImpulse / Δτ;
-            CurrentTelemetry.ContactBrakeForce_N += BrakeCapacity / std::max(0.01f, std::abs(RollingLever));
-            ++CurrentTelemetry.RestingContactCount;
-            if (LockedBrake) ++CurrentTelemetry.LockedContactCount;
-        }
-
         const Vec3 planar      = wf * Fx + wl * Fy;
         const Vec3 HubReaction = reaction.RimForce + planar;
         const Vec3 HubMoment = reaction.RimTorque + Cross(patch - hub, planar) + ContactNormal * Mz;
@@ -733,7 +718,8 @@ void VehicleSolver::StepPacejka(float Δτ) noexcept
         const float omega0 = WheelSpin[i];
         const float GroundTorque = Fx * RollingLever;
         float omega1 = omega0 + (driveTq + GroundTorque + Dot(reaction.RimTorque, SpinAxis)) * Δτ / Ieff;
-        const float resist = std::min(brakeTq + rollTq, std::fabs(omega1) * Ieff / Δτ);
+        const float resist = Resting ? 0.0f
+            : std::min(brakeTq + rollTq, std::fabs(omega1) * Ieff / Δτ);
         const float UnbrakedOmega = omega1;
         const float BrakeDirection = Sign(omega1);
         const float AppliedDiscTorque = std::min(brakeTq, resist);
@@ -773,11 +759,34 @@ void VehicleSolver::StepPacejka(float Δτ) noexcept
         wt.StrutForce        = strutForce;
         wt.AntiRollForce     = barForce;
 
+        if (Resting)
+        {
+            auto& Constraint = RestingContacts[RestingCount++];
+            Constraint.Point              = patch;
+            Constraint.Forward            = wf;
+            Constraint.Left               = wl;
+            Constraint.SpinAxis           = SpinAxis;
+            Constraint.GripImpulse        = Grip * Δτ;
+            Constraint.Corner             = i;
+            Constraint.ForwardLever       = RollingLever;
+            Constraint.LeftLever          = Dot(Cross(patch - hub, wl), SpinAxis);
+            Constraint.InverseSpinInertia = 1.0f / Ieff;
+            Constraint.RotorSpeed         = omega1 + Dot(cs.AngularVelocity, SpinAxis);
+            Constraint.InitialRotorSpeed  = Constraint.RotorSpeed;
+            Constraint.DiscLimit          = (brakeTq + rollTq) * Δτ;
+            Constraint.BrakeLimit         = brakeTq * Δτ;
+            CurrentTelemetry.ContactGripForce_N  += Constraint.GripImpulse / Δτ;
+            CurrentTelemetry.ContactBrakeForce_N += brakeTq / std::max(0.01f, std::abs(RollingLever));
+            ++CurrentTelemetry.RestingContactCount;
+        }
+
         CurrentTelemetry.TotalVerticalLoad += Fz;
         if (onGnd) ++CurrentTelemetry.WheelsInContact;
     }
 
     // 📝 Joint velocity-level constraints against the force/gravity predictor; no pose pin or extra damper.
+    //      Ground torque accelerates the rotor, not the chassis twice. Disc torque is the equal/opposite
+    //      internal reaction; using absolute rotor speed makes the inverse-mass quadratic reciprocal.
     if (RestingCount > 0u)
     {
         const float InverseMass = 1.0f / std::max(1.0f, ActiveConfiguration.ChassisMass);
@@ -797,72 +806,158 @@ void VehicleSolver::StepPacejka(float Δτ) noexcept
         const Vec3 FreeAngular = cs.AngularVelocity + InverseInertia(DeliveredTorque - Cross(cs.AngularVelocity, AngularMomentum)) * Δτ;
         CurrentTelemetry.ContactFreeVelocity = FreeLinear;
         Vec3 SolvedLinear = FreeLinear, SolvedAngular = FreeAngular;
-        for (uint32_t Sweep = 0u; Sweep < 32u; ++Sweep)
+        // 📝 Minimise a convex contact quadratic in its effective-mass metric, not Euclidean impulse space.
+        const auto ProjectCone = [](
+            float  Along,
+            float  Across,
+            float  Coupling,
+            float  AlongDemand,
+            float  AcrossDemand,
+            float  Limit,
+            float& AlongImpulse,
+            float& AcrossImpulse)
+        {
+            AlongImpulse = 0.0f; AcrossImpulse = 0.0f;
+            if (!(Limit > 0.0f)) return;
+            const auto SolveShift = [&](float Shift)
+            {
+                const float Determinant = (Along + Shift) * (Across + Shift) - Coupling * Coupling;
+                AlongImpulse  = ((Across + Shift) * AlongDemand - Coupling * AcrossDemand) / Determinant;
+                AcrossImpulse = ((Along + Shift) * AcrossDemand - Coupling * AlongDemand) / Determinant;
+            };
+            SolveShift(0.0f);
+            if (AlongImpulse * AlongImpulse + AcrossImpulse * AcrossImpulse <= Limit * Limit) return;
+            float Lower = 0.0f, Upper = std::hypot(AlongDemand, AcrossDemand) / Limit;
+            for (uint32_t Iteration = 0u; Iteration < 24u; ++Iteration)
+            {
+                const float Shift = 0.5f * (Lower + Upper);
+                SolveShift(Shift);
+                if (AlongImpulse * AlongImpulse + AcrossImpulse * AcrossImpulse > Limit * Limit) Lower = Shift;
+                else Upper = Shift;
+            }
+            SolveShift(Upper);
+        };
+        for (uint32_t Sweep = 0u; Sweep < 512u; ++Sweep)
         {
             float Residual = 0.0f;
             for (size_t Contact = 0u; Contact < RestingCount; ++Contact)
             {
                 auto& Constraint = RestingContacts[Contact];
                 const Vec3 Arm = Constraint.Point - cs.Position;
-                const auto Response = [&](const Vec3& Direction)
-                {
-                    return Direction * InverseMass + Cross(InverseInertia(Cross(Arm, Direction)), Arm);
-                };
-                const Vec3 ForwardResponse = Response(Constraint.Forward), LeftResponse = Response(Constraint.Left);
-                const float Along = Dot(Constraint.Forward, ForwardResponse), Across = Dot(Constraint.Left, LeftResponse);
-                const float Coupling = Dot(Constraint.Forward, LeftResponse);
+                const Vec3 ForwardMoment = Cross(Arm, Constraint.Forward) - Constraint.SpinAxis * Constraint.ForwardLever;
+                const Vec3 LeftMoment    = Cross(Arm, Constraint.Left) - Constraint.SpinAxis * Constraint.LeftLever;
+                const Vec3 InverseForward = InverseInertia(ForwardMoment), InverseLeft = InverseInertia(LeftMoment);
+                const float Along = InverseMass + Dot(ForwardMoment, InverseForward)
+                                  + Constraint.ForwardLever * Constraint.ForwardLever * Constraint.InverseSpinInertia;
+                const float Across = InverseMass + Dot(LeftMoment, InverseLeft)
+                                   + Constraint.LeftLever * Constraint.LeftLever * Constraint.InverseSpinInertia;
+                const float Coupling = Dot(ForwardMoment, InverseLeft)
+                                     + Constraint.ForwardLever * Constraint.LeftLever * Constraint.InverseSpinInertia;
                 const Vec3 Velocity = SolvedLinear + Cross(SolvedAngular, Arm);
-                const float AlongVelocity = Dot(Velocity, Constraint.Forward), AcrossVelocity = Dot(Velocity, Constraint.Left);
-                float AlongImpulse = 0.0f, AcrossImpulse = Dot(Constraint.Impulse, Constraint.Left);
-                if (Constraint.Locked)
+                const float RelativeSpin = Constraint.RotorSpeed - Dot(SolvedAngular, Constraint.SpinAxis);
+                const float AlongVelocity  = Dot(Velocity, Constraint.Forward) + RelativeSpin * Constraint.ForwardLever;
+                const float AcrossVelocity = Dot(Velocity, Constraint.Left) + RelativeSpin * Constraint.LeftLever;
+                const float PreviousAlong  = Dot(Constraint.Impulse, Constraint.Forward);
+                const float PreviousAcross = Dot(Constraint.Impulse, Constraint.Left);
+                float AlongImpulse = 0.0f, AcrossImpulse = 0.0f, DiscImpulse = 0.0f;
+                const Vec3 InverseAxis = InverseInertia(Constraint.SpinAxis);
+                const float DiscResponse = Constraint.InverseSpinInertia + Dot(Constraint.SpinAxis, InverseAxis);
+                const float AlongDisc = Constraint.ForwardLever * Constraint.InverseSpinInertia - Dot(ForwardMoment, InverseAxis);
+                const float AcrossDisc = Constraint.LeftLever * Constraint.InverseSpinInertia - Dot(LeftMoment, InverseAxis);
+                const float AlongDemand = Along * PreviousAlong + Coupling * PreviousAcross
+                                        + AlongDisc * Constraint.DiscImpulse - AlongVelocity;
+                const float AcrossDemand = Coupling * PreviousAlong + Across * PreviousAcross
+                                         + AcrossDisc * Constraint.DiscImpulse - AcrossVelocity;
+                const float DiscDemand = AlongDisc * PreviousAlong + AcrossDisc * PreviousAcross
+                                       + DiscResponse * Constraint.DiscImpulse - RelativeSpin;
+                // 📝 Eliminate the sticking disc first. If its reaction exceeds capacity, solve with the
+                //      saturated disc instead. This joins rolling, stopping and sliding without a speed gate.
+                ProjectCone(Along - AlongDisc * AlongDisc / DiscResponse,
+                            Across - AcrossDisc * AcrossDisc / DiscResponse,
+                            Coupling - AlongDisc * AcrossDisc / DiscResponse,
+                            AlongDemand - AlongDisc * DiscDemand / DiscResponse,
+                            AcrossDemand - AcrossDisc * DiscDemand / DiscResponse,
+                            Constraint.GripImpulse, AlongImpulse, AcrossImpulse);
+                DiscImpulse = (DiscDemand - AlongDisc * AlongImpulse - AcrossDisc * AcrossImpulse) / DiscResponse;
+                if (std::abs(DiscImpulse) > Constraint.DiscLimit)
                 {
-                    // 📝 An inverse-mass step followed by Euclidean radial scaling is NOT the cone's
-                    //      metric projection. It converged to large cancelling sideways self-stress while
-                    //      applying almost no longitudinal brake. Scalar projected gradient uses the largest
-                    //      eigenvalue of this 2D effective mass, so boundary friction opposes actual slip.
-                    const float Difference = Along - Across;
-                    const float Eigenvalue = 0.5f * (Along + Across + std::sqrt(Difference * Difference + 4.0f * Coupling * Coupling));
-                    if (!(Eigenvalue > 1.0e-12f)) continue;
-                    AlongImpulse = Dot(Constraint.Impulse, Constraint.Forward) - AlongVelocity / Eigenvalue;
-                    AcrossImpulse -= AcrossVelocity / Eigenvalue;
-                    const float UnprojectedAcross = AcrossImpulse;
-                    const float Magnitude = std::sqrt(AlongImpulse * AlongImpulse + AcrossImpulse * AcrossImpulse);
-                    if (Magnitude > Constraint.GripImpulse && Magnitude > 0.0f)
-                    {
-                        const float Scale = Constraint.GripImpulse / Magnitude; AlongImpulse *= Scale; AcrossImpulse *= Scale;
-                    }
-                    if (std::abs(AlongImpulse) > Constraint.BrakeImpulse)
-                    {
-                        AlongImpulse = Clamp(AlongImpulse, -Constraint.BrakeImpulse, Constraint.BrakeImpulse);
-                        const float LateralCapacity = std::sqrt(std::max(0.0f, Constraint.GripImpulse * Constraint.GripImpulse - AlongImpulse * AlongImpulse));
-                        AcrossImpulse = Clamp(UnprojectedAcross, -LateralCapacity, LateralCapacity);
-                    }
+                    DiscImpulse = Clamp(DiscImpulse, -Constraint.DiscLimit, Constraint.DiscLimit);
+                    ProjectCone(Along, Across, Coupling,
+                                AlongDemand - AlongDisc * DiscImpulse,
+                                AcrossDemand - AcrossDisc * DiscImpulse,
+                                Constraint.GripImpulse, AlongImpulse, AcrossImpulse);
                 }
-                else
-                {
-                    if (!(Across > 1.0e-12f)) continue;
-                    AcrossImpulse = Clamp(AcrossImpulse - AcrossVelocity / Across, -Constraint.GripImpulse, Constraint.GripImpulse);
-                }
-                const Vec3 Next = Constraint.Forward * AlongImpulse + Constraint.Left * AcrossImpulse;
-                const Vec3 Increment = Next - Constraint.Impulse; Constraint.Impulse = Next;
-                Residual = std::max(Residual, Increment.Length());
-                SolvedLinear += Increment * InverseMass; SolvedAngular += InverseInertia(Cross(Arm, Increment));
+                const float AlongIncrement  = AlongImpulse - PreviousAlong;
+                const float AcrossIncrement = AcrossImpulse - PreviousAcross;
+                const float DiscIncrement   = DiscImpulse - Constraint.DiscImpulse;
+                const Vec3 Increment = Constraint.Forward * AlongIncrement + Constraint.Left * AcrossIncrement;
+                Constraint.Impulse     = Constraint.Forward * AlongImpulse + Constraint.Left * AcrossImpulse;
+                Constraint.DiscImpulse = DiscImpulse;
+                SolvedLinear  += Increment * InverseMass;
+                SolvedAngular += InverseInertia(ForwardMoment * AlongIncrement + LeftMoment * AcrossIncrement
+                                              - Constraint.SpinAxis * DiscIncrement);
+                Constraint.RotorSpeed += (Constraint.ForwardLever * AlongIncrement + Constraint.LeftLever * AcrossIncrement
+                                       + DiscIncrement) * Constraint.InverseSpinInertia;
             }
-            CurrentTelemetry.RestingContactResidual = Residual;
-            CurrentTelemetry.RestingContactConverged = Residual < 1.0e-5f;
+            // 📝 Contact impulses are not unique when multiple sticking patches share a rigid body.
+            //      Convergence therefore measures the final Coulomb/disc stationarity in slip-speed units,
+            //      after the complete sweep, rather than demanding a unique redistribution of self-stress.
+            for (size_t Contact = 0u; Contact < RestingCount; ++Contact)
+            {
+                const auto& Constraint = RestingContacts[Contact];
+                const Vec3 Velocity = SolvedLinear + Cross(SolvedAngular, Constraint.Point - cs.Position);
+                const float RelativeSpin = Constraint.RotorSpeed - Dot(SolvedAngular, Constraint.SpinAxis);
+                const float AlongSlip  = Dot(Velocity, Constraint.Forward) + RelativeSpin * Constraint.ForwardLever;
+                const float AcrossSlip = Dot(Velocity, Constraint.Left) + RelativeSpin * Constraint.LeftLever;
+                const float AlongImpulse  = Dot(Constraint.Impulse, Constraint.Forward);
+                const float AcrossImpulse = Dot(Constraint.Impulse, Constraint.Left);
+                const float ImpulseSquared = AlongImpulse * AlongImpulse + AcrossImpulse * AcrossImpulse;
+                if (Constraint.GripImpulse > 0.0f)
+                {
+                    float ConeMultiplier = 0.0f;
+                    if (ImpulseSquared >= Constraint.GripImpulse * Constraint.GripImpulse * (1.0f - 2.0e-5f))
+                        ConeMultiplier = std::max(0.0f, -(AlongSlip * AlongImpulse + AcrossSlip * AcrossImpulse)
+                                                       / std::max(1.0e-20f, ImpulseSquared));
+                    Residual = std::max(Residual, std::hypot(AlongSlip + ConeMultiplier * AlongImpulse,
+                                                          AcrossSlip + ConeMultiplier * AcrossImpulse));
+                }
+                if (Constraint.DiscLimit > 0.0f)
+                {
+                    const float DiscResidual = std::abs(Constraint.DiscImpulse) < Constraint.DiscLimit * (1.0f - 1.0e-5f)
+                        ? std::abs(RelativeSpin) : std::max(0.0f, RelativeSpin * Sign(Constraint.DiscImpulse));
+                    Residual = std::max(Residual, DiscResidual * Reff);
+                }
+            }
+            CurrentTelemetry.RestingContactResidual  = Residual;
+            CurrentTelemetry.RestingContactConverged = Residual < 1.0e-4f;
             if (CurrentTelemetry.RestingContactConverged) break;
         }
         CurrentTelemetry.ContactSolvedVelocity = SolvedLinear;
         for (size_t Contact = 0u; Contact < RestingCount; ++Contact)
         {
             const auto& Constraint = RestingContacts[Contact];
+            const float AlongImpulse  = Dot(Constraint.Impulse, Constraint.Forward);
+            const float AcrossImpulse = Dot(Constraint.Impulse, Constraint.Left);
+            const float RotorImpulse = Constraint.ForwardLever * AlongImpulse + Constraint.LeftLever * AcrossImpulse;
             CurrentTelemetry.StaticContactForce += Constraint.Impulse * (1.0f / Δτ);
             TransmitForce(Constraint.Impulse * (1.0f / Δτ), Constraint.Point);
+            if (ChassisHooks.ApplyTorque)
+                TransmitTorque(Constraint.SpinAxis * (-(RotorImpulse + Constraint.DiscImpulse) / Δτ));
             auto& Reading = CurrentTelemetry.Wheels[Constraint.Corner];
-            Reading.LongitudinalForce += Dot(Constraint.Impulse, Constraint.Forward) / Δτ;
-            Reading.LateralForce += Dot(Constraint.Impulse, Constraint.Left) / Δτ;
+            Reading.LongitudinalForce += AlongImpulse / Δτ;
+            Reading.LateralForce      += AcrossImpulse / Δτ;
             const Vec3 Midpoint = (FreeLinear + SolvedLinear + Cross(FreeAngular + SolvedAngular, Constraint.Point - cs.Position)) * 0.5f;
-            Reading.StaticContactPower_W = Dot(Constraint.Impulse, Midpoint) / Δτ;
+            const float RelativeSpin = Constraint.RotorSpeed - Dot(SolvedAngular, Constraint.SpinAxis);
+            WheelSpin[Constraint.Corner] = RelativeSpin;
+            Reading.WheelOmega = RelativeSpin;
+            const float MidpointSpin = 0.5f * (Constraint.InitialRotorSpeed + Constraint.RotorSpeed
+                                             - Dot(FreeAngular + SolvedAngular, Constraint.SpinAxis));
+            const float AppliedDiscImpulse = Clamp(Constraint.DiscImpulse, -Constraint.BrakeLimit, Constraint.BrakeLimit);
+            const float DiscResponse = Constraint.InverseSpinInertia + Dot(Constraint.SpinAxis, InverseInertia(Constraint.SpinAxis));
+            Reading.AppliedBrakeTorque = AppliedDiscImpulse / Δτ;
+            Reading.BrakePower_W = Reading.AppliedBrakeTorque * (RelativeSpin - 0.5f * AppliedDiscImpulse * DiscResponse);
+            if (Constraint.BrakeLimit > 0.0f && std::abs(RelativeSpin) < 0.001f) ++CurrentTelemetry.LockedContactCount;
+            Reading.StaticContactPower_W = (Dot(Constraint.Impulse, Midpoint) + RotorImpulse * MidpointSpin) / Δτ;
         }
     }
 
