@@ -1,0 +1,1 @@
+{"renderer":"Engine/GeometricRaster/ReservoirIntegrator","gpuExecution":false,"gi":"one traced continuation; not the GPU GI reservoir pipeline","views":[{"view":0,"frames":2,"temporalReuses":181451,"spatialReuses":1259262,"invalidSamples":0,"meanRadiance":0.463345},{"view":1,"frames":2,"temporalReuses":181451,"spatialReuses":1238258,"invalidSamples":0,"meanRadiance":1.23344}]}
