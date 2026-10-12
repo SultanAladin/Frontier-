@@ -77,8 +77,13 @@ int main(int Count, char** Arguments)
     assert(Stride > 0u && First < Last);
     std::ifstream Input(Recording, std::ios::binary);
     uint32_t Header[4]; Input.read(reinterpret_cast<char*>(Header), sizeof(Header));
-    assert(Input.good() && Header[0] == 0x54554D42u && Header[1] >= 2u && Header[2] >= 8u);
+    assert(Input.good() && (Header[0] == 0x54554D42u || Header[0] == 0x54554D31u) && Header[1] >= 2u && Header[2] >= 8u);
     const uint32_t Rings = Header[1], Segments = Header[2], Frames = Header[3];
+    const uint32_t WheelCount = Header[0] == 0x54554D31u ? 1u : 4u;
+    const std::string View = Count >= 8 ? Arguments[7] : "overview";
+    const bool TyreCloseup = View == "tyre-side" || View == "tyre-oblique";
+    const uint32_t FeaturedWheel = WheelCount == 1u ? 0u : 1u;
+    assert(WheelCount == 4u || TyreCloseup);
     uint32_t Terrain = Recording.stem().string().find("air-") == 0u ? 1u : 0u;
     float Mirror = 1.0f; Vec3 Normal{0.0f, 0.0f, 1.0f};
     auto TerrainPath = Recording; TerrainPath.replace_extension(".terrain");
@@ -99,7 +104,7 @@ int main(int Count, char** Arguments)
     {
         Vec3 Position, Hubs[4]; Quat Rotation, Phases[4]; std::vector<Vec3> Particles[4];
         Input.read(reinterpret_cast<char*>(&Position), sizeof(Position)); Input.read(reinterpret_cast<char*>(&Rotation), sizeof(Rotation));
-        for (uint32_t Corner = 0u; Corner < 4u; ++Corner)
+        for (uint32_t Corner = 0u; Corner < WheelCount; ++Corner)
         {
             Input.read(reinterpret_cast<char*>(&Hubs[Corner]), sizeof(Vec3)); Input.read(reinterpret_cast<char*>(&Phases[Corner]), sizeof(Quat));
             Particles[Corner].resize(Rings * Segments); Input.read(reinterpret_cast<char*>(Particles[Corner].data()), Particles[Corner].size() * sizeof(Vec3));
@@ -110,7 +115,7 @@ int main(int Count, char** Arguments)
         Material(Scene, {0.12f, 0.37f, 0.65f}); Material(Scene, {0.08f, 0.40f, 0.18f}); Material(Scene, {0.85f, 0.40f, 0.08f});
         Material(Scene, {0.62f, 0.63f, 0.65f}); Material(Scene, {0.16f, 0.18f, 0.21f}); Material(Scene, {1.0f, 1.0f, 1.0f}, 3.0f);
         FacetSequence Body; namespace Authored = Frontier::Drive::ControlVehicleMesh;
-        for (uint32_t Triangle = 0u; Triangle < Authored::kTriangleCount; ++Triangle)
+        for (uint32_t Triangle = 0u; !TyreCloseup && Triangle < Authored::kTriangleCount; ++Triangle)
         {
             Vec3 Points[3];
             for (uint32_t Corner = 0u; Corner < 3u; ++Corner)
@@ -121,8 +126,9 @@ int main(int Count, char** Arguments)
             Body.Triangle(Points[0], Points[1], Points[2]);
         }
         Body.Append(Scene, 0u); FacetSequence Tyres, Rims;
-        for (uint32_t Corner = 0u; Corner < 4u; ++Corner)
+        for (uint32_t Corner = 0u; Corner < WheelCount; ++Corner)
         {
+            if (TyreCloseup && Corner != FeaturedWheel) continue;
             // 📝 The diagnostic uses the native wheel emitter and authored rigid rim, not an open tread
             //      tube or a cylindrical rim proxy. Only the supplied tread positions are deformed.
             const auto& Nodes = Particles[Corner];
@@ -195,13 +201,20 @@ int main(int Count, char** Arguments)
         }
         Scene.Finalise();
         Vec3 Eye = Position + Vec3{-7.0f, -8.0f, 4.0f}, Target = Position + Vec3{0, 0, 0.25f};
+        Vec3 CameraUp{0.0f, 0.0f, 1.0f};
+        if (TyreCloseup)
+        {
+            Target = Hubs[FeaturedWheel];
+            Eye = Target + Phases[FeaturedWheel].Rotate(View == "tyre-side" ? Vec3{0.0f, -1.7f, 0.0f} : Vec3{1.0f, -1.9f, 0.45f});
+            CameraUp = Phases[FeaturedWheel].Rotate({0.0f, 0.0f, 1.0f});
+        }
         if (Count >= 8 && std::string(Arguments[7]) == "bead")
         {
             Target = Hubs[1];
             Eye = Target + Phases[1].Rotate({0.0f, -2.3f, 0.4f});
         }
         const Vec3 Forward = (Target - Eye).Normalized();
-        const Vec3 Right = Cross(Forward, {0, 0, 1}).Normalized(), Up = Cross(Right, Forward).Normalized();
+        const Vec3 Right = Cross(Forward, CameraUp).Normalized(), Up = Cross(Right, Forward).Normalized();
         const float E[] = {Eye.x, Eye.y, Eye.z}, F[] = {Forward.x, Forward.y, Forward.z}, R[] = {Right.x, Right.y, Right.z}, U[] = {Up.x, Up.y, Up.z};
         Frontier::VisibilityRaster Raster; Raster.AssignFlatColouring(FlatColouring); Frontier::ShadowCriteria Shadows; Shadows.MapSide = 128u; Shadows.TapCount = 1u; Raster.AssignShadowCriteria(Shadows);
         double Luminance = 0.0;

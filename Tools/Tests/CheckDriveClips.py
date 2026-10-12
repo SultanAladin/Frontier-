@@ -37,9 +37,9 @@ def Hash(File):
     return hashlib.sha256(File.read_bytes()).hexdigest()
 
 
-def ValidateMarkup(Gallery):
+def ValidateMarkup(Gallery, Names):
     Pages = {}
-    for Name in ["brakes-and-rim.html", "flight-and-slopes.html", "index.html"]:
+    for Name in Names:
         File = Gallery / Name
         Document = File.read_text()
         Markup = PlaybackClassifier()
@@ -104,10 +104,13 @@ def ValidateBrowser(Arguments, Pages):
             Reading["browser"] = {"startsPaused": True, "timeAdvancesOnPlay": True, "pauseFreezesTime": True,
                                   "resumeContinuesTime": True, "exclusivePlayback": True, "pauseAll": True,
                                   "hiddenDocumentEventPause": True, "textRendering": True, "scriptErrors": Failures}
-            if Name == "brakes-and-rim.html":
+            if Name == Arguments.pages[0]:
                 Page.evaluate("delete document.hidden; document.dispatchEvent(new Event('visibilitychange'))")
                 Arguments.output.parent.mkdir(parents=True, exist_ok=True)
                 Page.screenshot(path=str(Arguments.output.with_suffix(".png")), full_page=False)
+                if Name == "airborne-tyres.html":
+                    Page.locator(".cards").scroll_into_view_if_needed()
+                    Page.screenshot(path=str(Arguments.output.with_name(Arguments.output.stem + "-clips").with_suffix(".png")), full_page=False)
             Page.close()
         Context.close()
         Browser.close()
@@ -116,6 +119,7 @@ def ValidateBrowser(Arguments, Pages):
 def Main():
     Parser = argparse.ArgumentParser(description=__doc__)
     Parser.add_argument("--gallery", type=Path, default=Root / "Exhibits/Gallery/ProjectDrive")
+    Parser.add_argument("--pages", nargs="+", default=["brakes-and-rim.html", "flight-and-slopes.html", "index.html"])
     Parser.add_argument("--chromium", type=Path)
     Parser.add_argument("--browser-configuration", type=Path)
     Parser.add_argument("--url", help="Gallery URL, without a filename; required for browser verification")
@@ -123,7 +127,7 @@ def Main():
     Arguments = Parser.parse_args()
     if Arguments.chromium and not Arguments.url:
         Parser.error("--url is required with --chromium")
-    Pages = ValidateMarkup(Arguments.gallery.resolve())
+    Pages = ValidateMarkup(Arguments.gallery.resolve(), Arguments.pages)
     if Arguments.chromium:
         ValidateBrowser(Arguments, Pages)
     Proof = {"passed": True, "recordedDate": "2026-10-12", "browserExecution": bool(Arguments.chromium),
