@@ -1,0 +1,16 @@
+{
+  "passed": true,
+  "branch": "arena/561c913e-frontier",
+  "verifiedRemoteEvidenceCommit": "2f45acae6ed1ee9adbf0168d0e5d1df777fe9da5",
+  "commitVerifiedThroughGitAndGithubAPI": "2f45acae6ed1ee9adbf0168d0e5d1df777fe9da5",
+  "remoteBlobsVerified": {
+    "Exhibits/Workbench/Automotive/FlightMetrics.cpp": "70c99e89cc67258c5c93f0f730815dfa3c283e14",
+    "Tools/Tests/CheckDriveFlight.py": "0712bf3a790d2df6c1e43e0db105b8d90f18bc39",
+    "Exhibits/Gallery/ProjectDrive/flight-and-slopes.html": "c296a8cc4d5bbb10e74db5fe269caec42c079468",
+    "Exhibits/Gallery/ProjectDrive/flight/ReconstructedSource.patch": "f831e5381baee5060ea198aeb21c75a5aebe5aa6",
+    "Exhibits/Gallery/ProjectDrive/flight/flying-and-tumbling.mp4": "0bd860c2e19ae488a4e9553504a86d6b867f9175"
+  },
+  "independentRemoteRecoveryAvailable": true,
+  "mainModified": false,
+  "merged": false
+}
