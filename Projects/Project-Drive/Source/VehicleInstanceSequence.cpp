@@ -8,6 +8,7 @@
 #include <cstdio>
 
 #include <algorithm>
+#include <cassert>
 #include <cmath>
 
 namespace Frontier {
@@ -20,14 +21,30 @@ using Frontier::Vehicle::QuatNormalize;
 using Frontier::Vehicle::VehicleSolver;
 
 //------------------------------------------------------------------------------------------------------------------------ chassis body (identical integrator to DriveTelemetry / FieldDemo)
+namespace
+{
+
+Vec3 RotateUnit(const Quat& Rotation, const Vec3& Direction) noexcept
+{
+    const double X = Rotation.x, Y = Rotation.y, Z = Rotation.z, W = Rotation.w;
+    const double Norm = X * X + Y * Y + Z * Z + W * W;
+    const double Projection = X * Direction.x + Y * Direction.y + Z * Direction.z;
+    const double Scalar = W * W - X * X - Y * Y - Z * Z;
+    return {static_cast<float>((Scalar * Direction.x + 2 * X * Projection + 2 * W * (Y * Direction.z - Z * Direction.y)) / Norm),
+            static_cast<float>((Scalar * Direction.y + 2 * Y * Projection + 2 * W * (Z * Direction.x - X * Direction.z)) / Norm),
+            static_cast<float>((Scalar * Direction.z + 2 * Z * Projection + 2 * W * (X * Direction.y - Y * Direction.x)) / Norm)};
+}
+
+} // namespace
+
 Quat VehicleChassisBody::Conjugate() const noexcept
 { return {-Orientation.x, -Orientation.y, -Orientation.z, Orientation.w}; }
 
 Vec3 VehicleChassisBody::WorldAngularAccel(const Vec3& torqueWorld) const noexcept
 {
-    const Vec3 tb = Conjugate().Rotate(torqueWorld);
+    const Vec3 tb = RotateUnit(Conjugate(), torqueWorld);
     const Vec3 ab{tb.x*InvInertiaDiag.x, tb.y*InvInertiaDiag.y, tb.z*InvInertiaDiag.z};
-    return Orientation.Rotate(ab);
+    return RotateUnit(Orientation, ab);
 }
 void VehicleChassisBody::ApplyForceAtPoint(const Vec3& f, const Vec3& p) noexcept
 { ForceAccum += f; TorqueAccum += Frontier::Vehicle::Cross(p - Position, f); }
@@ -41,21 +58,57 @@ void VehicleChassisBody::Integrate(float dt) noexcept
     LinearVelocity += ForceAccum*(dt/Mass);
     if (LinearDamping > 0.0f) LinearVelocity = LinearVelocity*std::exp(-LinearDamping*dt);
     Position += LinearVelocity*dt;
-    const Vec3 LocalSpin = Conjugate().Rotate(AngularVelocity);
-    const Vec3 Momentum = Orientation.Rotate({LocalSpin.x / InvInertiaDiag.x,
-                                              LocalSpin.y / InvInertiaDiag.y,
-                                              LocalSpin.z / InvInertiaDiag.z});
-    AngularVelocity += WorldAngularAccel(TorqueAccum - Frontier::Vehicle::Cross(AngularVelocity, Momentum)) * dt;
-    AngularVelocity = AngularVelocity*std::exp(-AngularDamping*dt);
-    const Quat wq{AngularVelocity.x, AngularVelocity.y, AngularVelocity.z, 0.0f};
-    const Quat dq = QuatMul(wq, Orientation);
-    Orientation = QuatNormalize(Quat{Orientation.x + 0.5f*dt*dq.x, Orientation.y + 0.5f*dt*dq.y,
-                                     Orientation.z + 0.5f*dt*dq.z, Orientation.w + 0.5f*dt*dq.w});
+    // 📝 Implicit midpoint Euler equations and their matching Cayley orientation increment.
+    const Vec3 Initial = RotateUnit(Conjugate(), AngularVelocity);
+    const Vec3 Moment = RotateUnit(Conjugate(), TorqueAccum);
+    const double Inertia[3] = {1.0 / InvInertiaDiag.x, 1.0 / InvInertiaDiag.y, 1.0 / InvInertiaDiag.z};
+    const double ω₀[3] = {Initial.x, Initial.y, Initial.z}, τ[3] = {Moment.x, Moment.y, Moment.z};
+    double ω₁[3] = {ω₀[0], ω₀[1], ω₀[2]}, Midpoint[3]{};
+    AngularConverged = false;
+    for (uint32_t Iteration = 0u; Iteration < 24u; ++Iteration)
+    {
+        for (uint32_t Axis = 0u; Axis < 3u; ++Axis) Midpoint[Axis] = 0.5 * (ω₀[Axis] + ω₁[Axis]);
+        double Jacobian[3][4]{};
+        double Scale = 1.0; AngularResidual = 0.0;
+        for (uint32_t Axis = 0u; Axis < 3u; ++Axis)
+        {
+            const uint32_t Next = (Axis + 1u) % 3u, Last = (Axis + 2u) % 3u;
+            const double Difference = Inertia[Last] - Inertia[Next];
+            const double Residual = Inertia[Axis] * (ω₁[Axis] - ω₀[Axis]) + dt * Difference * Midpoint[Next] * Midpoint[Last] - dt * τ[Axis];
+            Jacobian[Axis][Axis] = Inertia[Axis]; Jacobian[Axis][Next] = 0.5 * dt * Difference * Midpoint[Last];
+            Jacobian[Axis][Last] = 0.5 * dt * Difference * Midpoint[Next]; Jacobian[Axis][3] = -Residual;
+            AngularResidual = std::max(AngularResidual, std::abs(Residual));
+            Scale = std::max(Scale, std::abs(Inertia[Axis] * ω₀[Axis]) + std::abs(dt * τ[Axis]));
+        }
+        if (AngularResidual <= 1.0e-11 * Scale) { AngularConverged = true; break; }
+        for (uint32_t Column = 0u; Column < 3u; ++Column)
+        {
+            uint32_t Pivot = Column;
+            for (uint32_t Row = Column + 1u; Row < 3u; ++Row)
+                if (std::abs(Jacobian[Row][Column]) > std::abs(Jacobian[Pivot][Column])) Pivot = Row;
+            for (uint32_t Entry = Column; Entry < 4u; ++Entry) std::swap(Jacobian[Column][Entry], Jacobian[Pivot][Entry]);
+            const double Diagonal = Jacobian[Column][Column];
+            for (uint32_t Entry = Column; Entry < 4u; ++Entry) Jacobian[Column][Entry] /= Diagonal;
+            for (uint32_t Row = 0u; Row < 3u; ++Row)
+            {
+                if (Row == Column) continue;
+                const double Factor = Jacobian[Row][Column];
+                for (uint32_t Entry = Column; Entry < 4u; ++Entry) Jacobian[Row][Entry] -= Factor * Jacobian[Column][Entry];
+            }
+        }
+        for (uint32_t Axis = 0u; Axis < 3u; ++Axis) ω₁[Axis] += Jacobian[Axis][3];
+    }
+    // 📝 Refuse non-convergence instead of presenting an iteration ceiling as a converged solution.
+    assert(AngularConverged);
+    const Quat Increment{static_cast<float>(0.5 * dt * Midpoint[0]), static_cast<float>(0.5 * dt * Midpoint[1]), static_cast<float>(0.5 * dt * Midpoint[2]), 1.0f};
+    Orientation = (Orientation * Increment.Normalized()).Normalized();
+    AngularVelocity = RotateUnit(Orientation, {static_cast<float>(ω₁[0]), static_cast<float>(ω₁[1]), static_cast<float>(ω₁[2])});
+    if (AngularDamping > 0.0f) AngularVelocity = AngularVelocity * std::exp(-AngularDamping * dt);
     ForceAccum = Vec3{}; TorqueAccum = Vec3{};
 }
 float VehicleChassisBody::KineticEnergy() const noexcept
 {
-    const Vec3 Spin = Conjugate().Rotate(AngularVelocity);
+    const Vec3 Spin = RotateUnit(Conjugate(), AngularVelocity);
     const Vec3 Inertia{1.0f / InvInertiaDiag.x, 1.0f / InvInertiaDiag.y, 1.0f / InvInertiaDiag.z};
     return 0.5f * (Mass * Frontier::Vehicle::Dot(LinearVelocity, LinearVelocity)
          + Inertia.x * Spin.x * Spin.x + Inertia.y * Spin.y * Spin.y + Inertia.z * Spin.z * Spin.z);
@@ -259,7 +312,10 @@ void VehicleInstanceSequence::AdvanceVehicle(const Frontier::Vehicle::DriverInpu
     {
         ActiveVehicleSolver.Step(h);   // reads chassis, steps tyres, applies wheel forces
         Body.Integrate(h);
+        const Vec3 BeforePosition = Body.Position;
+        const Quat BeforeRotation = Body.Orientation;
         Body.ResolveContacts(CollisionLocations, GroundSurface, h);
+        if (Body.Contacts.ArrivalPenetration > 0.0f) ActiveVehicleSolver.CorrectAttachments(BeforePosition, BeforeRotation, Body.Position, Body.Orientation);
         for (uint32_t w = 0; w < Instancing.WheelCount && w < tel.Wheels.size(); ++w)
             WheelSpin[w] += tel.Wheels[w].WheelOmega * h;   // visual spin only
         Accumulator -= h;
@@ -300,13 +356,12 @@ void VehicleInstanceSequence::WriteWheelRows(std::vector<InstanceRecord>& Rows) 
         const auto& wt = tel.Wheels[w];
 
         // wheel = chassis · steer(about local Z) · spin(about local axle Y)   — axle authored along local Y
-        const Quat steer = Quat::AxisAngle(Vec3{0,0,1}, wt.SteerAngleRad);
-        const Quat spin  = Quat::AxisAngle(Vec3{0,1,0}, WheelSpin[w]);
-        const Quat rot   = QuatMul(Body.Orientation, QuatMul(steer, spin));
+        const auto& Tyre = ActiveVehicleSolver.Tyres()[w];
+        const Quat rot = Tyre.MaterialFrame();
 
         InstanceRecord& R = Rows[idx];
         std::copy(std::begin(R.World), std::end(R.World), std::begin(R.PreviousWorld));
-        ComposeTRS(wt.HubPosition, rot, R.World);
+        ComposeTRS(Tyre.HubPosition(), rot, R.World);
     }
 }
 

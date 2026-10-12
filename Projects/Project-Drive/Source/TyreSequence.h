@@ -17,8 +17,8 @@ public:
     void Capture(const Vehicle::XPBDSoftTyre& Tyre, Vehicle::Vec3 Hub, Vehicle::Quat HubRotation)
     {
         Parameters = Tyre.Params();
-        Position = Hub;
-        Rotation = Tyre.MaterialFrame(HubRotation);
+        Position = Tyre.HubPosition();
+        Rotation = Tyre.MaterialFrame();
         Nodes = Tyre.Nodes();
     }
 

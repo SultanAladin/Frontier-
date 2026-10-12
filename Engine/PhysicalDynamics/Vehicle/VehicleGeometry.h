@@ -35,6 +35,7 @@
 #include "SuspensionSpecification.h"
 #include "XPBDSoftTyre.h"   // Vec3
 
+#include <algorithm>
 #include <vector>
 
 namespace Frontier::Vehicle {
@@ -151,9 +152,10 @@ struct VehicleGeometry
     [[nodiscard]] float ComHeightAboveFloor() const noexcept { return CoMHeight - StaticRideHeight; }    // for ride height
     [[nodiscard]] Vec3  Inertia() const noexcept
     {
-        return { Mass * RollRadiusGyration  * RollRadiusGyration,
-                 Mass * PitchRadiusGyration * PitchRadiusGyration,
-                 Mass * YawRadiusGyration   * YawRadiusGyration };
+        const float SprungMass = std::max(1.0f, Mass - 4.0f * UnsprungMassPerWheel);
+        return { SprungMass * RollRadiusGyration  * RollRadiusGyration,
+                 SprungMass * PitchRadiusGyration * PitchRadiusGyration,
+                 SprungMass * YawRadiusGyration   * YawRadiusGyration };
     }
     [[nodiscard]] Vec3 InvInertia() const noexcept
     {

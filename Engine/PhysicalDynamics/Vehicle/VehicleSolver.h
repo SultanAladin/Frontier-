@@ -107,6 +107,7 @@ struct WheelMount
 struct VehicleSolverConfiguration
 {
     float ChassisMass = 1200.0f;                 // [kg] informational; the solver owns the real mass
+    Vec3 InvChassisInertia{}; // [1/(kg·m²)] - sprung-body principal inverse inertia
     SoftTyreParameters Tyre;                     // shared soft-tyre parameters (Phase-2 calibration by default)
     std::vector<WheelMount> Wheels;              // typically 4
 
@@ -229,6 +230,8 @@ struct VehicleTelemetry
     float TotalVerticalLoad    = 0.0f;   // [N] Σ Fz
     uint32_t WheelCount        = 0u;
     uint32_t WheelsInContact   = 0u;
+    float RestingContactResidual = 0.0f; // [N·s] - final projected impulse increment
+    bool RestingContactConverged = true; // [-] - actual impulse convergence
     std::array<WheelTelemetry, 8> Wheels{};
     // Production layer (PacejkaDrivetrain) — powertrain state:
     float    EngineRPM         = 0.0f;

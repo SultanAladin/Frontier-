@@ -69,7 +69,10 @@ void VehicleSolver::Build(const VehicleSolverConfiguration& config, const Hooks&
     {
         Vec3 MountWorld, AxisUp;
         const Vec3 hub = ResolveHub(i, initial, MountWorld, AxisUp);
-        SoftTyres[i].Build(ActiveConfiguration.Tyre, hub, initial.Orientation);
+        SoftTyreParameters Parameters = ActiveConfiguration.Tyre;
+        // 📝 Planar traction has one owner; do not also apply it through XPBD tread bristles.
+        Parameters.FrictionCoefficient = 0.0f;
+        SoftTyres[i].Build(Parameters, hub, initial.Orientation);
         SoftTyres[i].AssignRigidVelocity(initial.LinearVelocity, initial.AngularVelocity, initial.Position);
         if (i < CurrentTelemetry.Wheels.size())
         {
@@ -135,7 +138,9 @@ Vec3 VehicleSolver::ResolveHub(size_t Wheel, const ChassisState& cs, Vec3& Mount
 float VehicleSolver::IntegrateStrut(size_t Wheel, float Δτ, const Vec3& NormalReaction, const Vec3& AxisUp, float BarForce) noexcept
 {
     const SuspensionSpecification& spec = StrutFor(Wheel);
-    const float mu = std::max(1.0f, ActiveConfiguration.UnsprungMass);
+    const float TreadMass = std::max(0.0f, ActiveConfiguration.Tyre.TotalMass);
+    const float RimMass = std::max(1.0f, ActiveConfiguration.UnsprungMass - TreadMass);
+    const float mu = RimMass + TreadMass;
     float x = StrutTravel[Wheel];
     float v = StrutRate[Wheel];
 
@@ -158,7 +163,7 @@ float VehicleSolver::IntegrateStrut(size_t Wheel, float Δτ, const Vec3& Normal
     //        𝑣' = 𝑣 + (Δτ/𝑚)(F − 𝑐𝑣')   ⇒   𝑣' = (𝑣 + (Δτ/𝑚)F) / (1 + 𝑐Δτ/𝑚)
     //    makes it unconditionally stable for any rate, which is what lets the bump stop be as stiff as it needs.
     const float applied = Dot(NormalReaction, AxisUp) - other
-                        + mu * Dot(ActiveConfiguration.Gravity - ChassisAcceleration, AxisUp);   // [N] rate-independent net force
+                        + RimMass * Dot(ActiveConfiguration.Gravity - ChassisAcceleration, AxisUp);   // [N] rate-independent net force
     const float Stiffness = spec.EffectiveRate(x) + (overTravel > 0.0f ? spec.SpringRate * 12.0f : 0.0f);
     v = (v + (Δτ / mu) * applied) / (1.0f + rate * Δτ / mu + Stiffness * Δτ * Δτ / mu);
     x += v * Δτ;
@@ -173,7 +178,7 @@ float VehicleSolver::IntegrateStrut(size_t Wheel, float Δτ, const Vec3& Normal
         // 📝 The droop stop can pull: omitting its signed reaction leaves preload pushing in free flight forever.
         x = 0.0f;
         strut = Dot(NormalReaction, AxisUp)
-              + mu * Dot(ActiveConfiguration.Gravity - ChassisAcceleration, AxisUp);
+              + RimMass * Dot(ActiveConfiguration.Gravity - ChassisAcceleration, AxisUp);
         v = 0.0f;
     }
     const float hardStop = spec.MaxTravel + 0.02f;
@@ -256,19 +261,24 @@ void VehicleSolver::StepSimple(float Δτ) noexcept
         //    its own; this scheme still takes only Fz from it and drives through the friction-circle layer below.
         HubMotion motion;
         motion.Position       = hub + hubVel * Δτ;
-        motion.Orientation    = hubRot;
+        const float AngularSpeed = cs.AngularVelocity.Length();
+        const Quat BearingIncrement = AngularSpeed > 1.0e-8f ? Quat::AxisAngle(cs.AngularVelocity * (1.0f / AngularSpeed), AngularSpeed * Δτ) : Quat{};
+        motion.Orientation = (BearingIncrement * hubRot).Normalized();
+        motion.AngularVelocity = cs.AngularVelocity;
         motion.LinearVelocity = hubVel;
         motion.SpinRate       = WheelSpin[i];
         tyre.Step(Δτ, ActiveConfiguration.TyreSubsteps, motion, Vec3{0.0f, 0.0f, 0.0f}, ChassisHooks.Ground);
         const TyreReaction& reaction = tyre.Reaction();
 
-        const float Fz    = std::max(0.0f, reaction.SupportReaction.z);
+        const float Fz    = reaction.SupportReaction.Length();
         const bool  onGnd = reaction.ContactCount > 0u && Fz > 1.0f;
         const Vec3  patch = onGnd ? reaction.PatchCentre : Vec3{hub.x, hub.y, hub.z - ActiveConfiguration.Tyre.Radius};
 
         // Wheel planar axes (with steer).
-        const Vec3 wf = PlanarNormalized(hubRot.Rotate({1.0f, 0.0f, 0.0f}));
-        const Vec3 wl = PlanarNormalized(hubRot.Rotate({0.0f, 1.0f, 0.0f}));
+        const Vec3 ContactNormal = reaction.SupportReaction.Length() > 1.0f ? reaction.SupportReaction.Normalized() : up;
+        const Vec3 RawForward = hubRot.Rotate({1.0f, 0.0f, 0.0f});
+        const Vec3 wf = (RawForward - ContactNormal * Dot(RawForward, ContactNormal)).Normalized();
+        const Vec3 wl = Cross(ContactNormal, wf).Normalized();
         const float vLong = Dot(hubVel, wf);
         const float vLat  = Dot(hubVel, wl);
 
@@ -308,15 +318,16 @@ void VehicleSolver::StepSimple(float Δτ) noexcept
         }
 
         // Apply the tyre's vertical reaction (plus damper) and the driving force at the contact patch.
-        const Vec3 wheelForce = reaction.NormalReaction + Vec3{0.0f, 0.0f, verticalForce - Fz} + planar;
+        const Vec3 wheelForce = reaction.RimForce + ContactNormal * (verticalForce - Fz) + planar;
         ChassisHooks.ApplyForceAtPoint(wheelForce, patch);
 
         // Telemetry.
         WheelTelemetry& wt = CurrentTelemetry.Wheels[std::min<size_t>(i, CurrentTelemetry.Wheels.size() - 1)];
         wt.NormalReaction = reaction.NormalReaction;
-        wt.TransmittedReaction = reaction.NormalReaction;
-        wt.HubPosition       = hub;
-        wt.HubRotation       = hubRot;
+        wt.TransmittedReaction = reaction.RimForce;
+        wt.RimForce = reaction.RimForce; wt.RimTorque = reaction.RimTorque;
+        wt.HubPosition       = tyre.HubPosition();
+        wt.HubRotation       = tyre.HubRotation();
         wt.ContactPoint      = patch;
         wt.VerticalLoad      = Fz;
         wt.LongitudinalForce = Dot(planar, wf);
@@ -348,6 +359,26 @@ void VehicleSolver::StepSimple(float Δτ) noexcept
 void VehicleSolver::StepPacejka(float Δτ) noexcept
 {
     const ChassisState cs = ChassisHooks.ReadChassis();
+    Vec3 DeliveredForce{}, DeliveredTorque{};
+    const auto TransmitForce = [&](const Vec3& Force, const Vec3& Point)
+    {
+        DeliveredForce += Force; DeliveredTorque += Cross(Point - cs.Position, Force);
+        ChassisHooks.ApplyForceAtPoint(Force, Point);
+    };
+    const auto TransmitTorque = [&](const Vec3& Moment)
+    {
+        DeliveredTorque += Moment; ChassisHooks.ApplyTorque(Moment);
+    };
+    struct RestingConstraint
+    {
+        Vec3 Point{}, Forward{}, Left{}, Impulse{};
+        float GripImpulse = 0.0f, BrakeImpulse = 0.0f;
+        size_t Corner = 0u;
+        bool Locked = false;
+    };
+    std::array<RestingConstraint, 8> RestingContacts{};
+    size_t RestingCount = 0u;
+    for (auto& Reading : CurrentTelemetry.Wheels) Reading.StaticContactPower_W = 0.0f;
 
     const Vec3 forward = cs.Orientation.Rotate({1.0f, 0.0f, 0.0f});
     const Vec3 up      = cs.Orientation.Rotate({0.0f, 0.0f, 1.0f});
@@ -423,6 +454,8 @@ void VehicleSolver::StepPacejka(float Δτ) noexcept
     CurrentTelemetry.Chassis = cs;
     CurrentTelemetry.SpeedMetresPerSecond = speed;
     CurrentTelemetry.ForwardSpeed = forwardVel;
+    CurrentTelemetry.RestingContactResidual = 0.0f;
+    CurrentTelemetry.RestingContactConverged = true;
     CurrentTelemetry.TotalVerticalLoad = 0.0f;
     CurrentTelemetry.WheelsInContact = 0u;
     CurrentTelemetry.EngineRPM = dOut.EngineRPM;
@@ -460,12 +493,12 @@ void VehicleSolver::StepPacejka(float Δτ) noexcept
             Clamp(DriverCommand.Brake, 0.0f, 1.0f), DriverCommand.Handbrake ? 1.0f : 0.0f, throttleCmd, yawRate);
 
         // Drag (opposes velocity) + body side-force → chassis at the CoM.
-        ChassisHooks.ApplyForceAtPoint(aero.DragForceWorld, cs.Position);
-        ChassisHooks.ApplyForceAtPoint(aero.SideForceWorld, cs.Position);
+        TransmitForce(aero.DragForceWorld, cs.Position);
+        TransmitForce(aero.SideForceWorld, cs.Position);
         // Yaw + roll moments about the CoM (roll↦body-X/forward, yaw↦body-Z/up). Pitch is produced by the axle-applied
         // downforce below, so it is intentionally omitted here.
         if (ChassisHooks.ApplyTorque)
-            ChassisHooks.ApplyTorque(forward * aero.RollMoment_Nm + up * aero.YawMoment_Nm);
+            TransmitTorque(forward * aero.RollMoment_Nm + up * aero.YawMoment_Nm);
     }
     const float frontDownforcePerWheel = (nFrontWheels > 0) ? std::max(0.0f, aero.FrontDownforce_N) / static_cast<float>(nFrontWheels) : 0.0f;
     const float rearDownforcePerWheel  = (nRearWheels  > 0) ? std::max(0.0f, aero.RearDownforce_N)  / static_cast<float>(nRearWheels)  : 0.0f;
@@ -494,13 +527,16 @@ void VehicleSolver::StepPacejka(float Δτ) noexcept
         //    does. Traction and cornering still come from the Pacejka layer below; only Fz is read back here.
         HubMotion motion;
         motion.Position       = hub + hubVel * Δτ;
-        motion.Orientation    = hubRot;
+        const float AngularSpeed = cs.AngularVelocity.Length();
+        const Quat BearingIncrement = AngularSpeed > 1.0e-8f ? Quat::AxisAngle(cs.AngularVelocity * (1.0f / AngularSpeed), AngularSpeed * Δτ) : Quat{};
+        motion.Orientation = (BearingIncrement * hubRot).Normalized();
+        motion.AngularVelocity = cs.AngularVelocity;
         motion.LinearVelocity = hubVel;
         motion.SpinRate       = WheelSpin[i];
         tyre.Step(Δτ, ActiveConfiguration.TyreSubsteps, motion, Vec3{0.0f, 0.0f, 0.0f}, ChassisHooks.Ground);
         const TyreReaction& reaction = tyre.Reaction();
 
-        const float Fz    = std::max(0.0f, reaction.SupportReaction.z);
+        const float Fz    = reaction.SupportReaction.Length();
         const bool  onGnd = reaction.ContactCount > 0u && Fz > 1.0f;
         const Vec3  patch = onGnd ? reaction.PatchCentre : Vec3{hub.x, hub.y, hub.z - ActiveConfiguration.Tyre.Radius};
 
@@ -510,28 +546,33 @@ void VehicleSolver::StepPacejka(float Δτ) noexcept
         const float aeroDownforce = onGnd ? ((wheel.LocalOffset.x > 0.0f) ? frontDownforcePerWheel : rearDownforcePerWheel) : 0.0f;
 
         // Wheel planar axes (with steer) and the slip-velocity components in that frame.
-        const Vec3  wf  = PlanarNormalized(hubRot.Rotate({1.0f, 0.0f, 0.0f}));
-        const Vec3  wl  = PlanarNormalized(hubRot.Rotate({0.0f, 1.0f, 0.0f}));
-        const float Vx  = Dot(hubVel, wf);
+        const Vec3 ContactNormal = Fz > 1.0f ? reaction.SupportReaction.Normalized() : up;
+        const Vec3 RawForward = hubRot.Rotate({1.0f, 0.0f, 0.0f});
+        const Vec3 wf = (RawForward - ContactNormal * Dot(RawForward, ContactNormal)).Normalized();
+        const Vec3 wl = Cross(ContactNormal, wf).Normalized();
+        const Vec3 SpinAxis = hubRot.Rotate({0.0f, 1.0f, 0.0f}).Normalized();
+        const float RollingLever = Dot(Cross(patch - hub, wf), SpinAxis);
+        const Vec3 ContactVelocity = hubVel + Cross(cs.AngularVelocity, patch - hub);
+        const float Vx = Dot(ContactVelocity, wf);
         // Physical lateral velocity of the hub (+ = toward +wl / chassis-left).
-        const float VlatHub = Dot(hubVel, wl);
+        const float VlatHub = Dot(ContactVelocity, wl);
         // Slip-angle convention: the model uses α = atan(Vsy/Vx) with NO sign inversion and returns Fy with the same
         //    sign as α, so a restoring (grip) force requires Vsy = −(lateral hub velocity) — the standard SAE definition
         //    α = −atan(Vy/Vx). Feed the negated velocity here; the returned Fy is then restoring along +wl.
         const float Vsy = -VlatHub;
 
         // ── Tyre slip forces (transient Magic-Formula) ──────────────────────────────────────────────────────────────
-        float Fx = 0.0f, Fy = 0.0f, kappa = 0.0f, alpha = 0.0f;
+        float Fx = 0.0f, Fy = 0.0f, Mz = 0.0f, kappa = 0.0f, alpha = 0.0f;
         if (onGnd)
         {
             WheelKinematics K;
             K.Vx        = Vx;
             K.Vsy       = Vsy;
-            K.OmegaR    = WheelSpin[i] * Reff;
+            K.OmegaR    = -WheelSpin[i] * RollingLever;
             K.CamberRad = 0.0f;
             K.Fz_N      = Fz;
             const SlipResult sr = SlipDynamics->Step(K, SlipDeflections[i], Δτ);
-            Fx = sr.Forces.Fx; Fy = sr.Forces.Fy; kappa = sr.Kappa; alpha = sr.AlphaRad;
+            Fx = sr.Forces.Fx; Fy = sr.Forces.Fy; Mz = sr.Forces.Mz; kappa = sr.Kappa; alpha = sr.AlphaRad;
 
             // Lateral contact damping: viscous carcass damping opposing the lateral slide velocity (physical, +wl frame).
             //    Reacted on the chassis (it is a real tyre force) and faded out with speed so fast cornering stays pure
@@ -540,34 +581,45 @@ void VehicleSolver::StepPacejka(float Δτ) noexcept
                                               (speed / std::max(0.1f, ActiveConfiguration.ContactDampingFadeSpeed)));
             Fy -= ActiveConfiguration.LateralDampingCoefficient * fade * VlatHub;
 
-            // Numerical safety net only (NOT the arcade clamp): keep the combined force inside a generous friction
-            //    circle so a transient slip spike can never inject unbounded energy. Well-behaved slip stays untouched.
-            const float grip = ActiveConfiguration.GripCoefficient * Fz * 1.3f;
-            const float pmag = std::sqrt(Fx * Fx + Fy * Fy);
-            if (grip > 0.0f && pmag > grip) { const float s = grip / pmag; Fx *= s; Fy *= s; }
-
-            // ── Low-speed longitudinal STATIC friction (stiction) ──────────────────────────────────────────────────
-            //   The transient slip model gives Fx → 0 as slip → 0, and the low-speed spin stabiliser holds the wheel
-            //   near free-rolling, so at a crawl the tyre cannot represent the STATIC friction that actually (a) brings
-            //   a braked car fully to rest and holds it, and (b) keeps a parked car from sliding down a grade up to
-            //   arctan(μ). Blend in a direct arresting force — the reaction that pins this wheel's mass share, capped by
-            //   available grip μ·Fz — whenever the car is NOT being driven. It fades out with speed (blend→0 by ~2 m/s),
-            //   so launches and all normal driving keep pure Pacejka behaviour. Only engages while braking/coasting.
-            if (throttleCmd < 0.05f)
-            {
-                const float crawl = 2.0f;   // [m/s] below this, stiction takes over from the slip model
-                const float blend = 1.0f - std::min(1.0f, speed / crawl);
-                if (blend > 0.0f)
-                {
-                    const float share   = ActiveConfiguration.ChassisMass / static_cast<float>(std::max<size_t>(1, SoftTyres.size()));
-                    const float maxHold = ActiveConfiguration.GripCoefficient * Fz;         // static friction cap μ·Fz
-                    const float hold    = Clamp(-Vx * share / Δτ, -maxHold, maxHold);
-                    Fx = Fx * (1.0f - blend) + hold * blend;
-                }
-            }
+        }
+        const float BrakeCapacity = (wheel.Braked ? DriverCommand.Brake * ActiveConfiguration.MaxBrakeTorquePerWheel : 0.0f)
+                                  + (DriverCommand.Handbrake && !wheel.Steered ? ActiveConfiguration.HandbrakeTorque : 0.0f);
+        const bool LockedBrake = BrakeCapacity > 0.0f && std::abs(WheelSpin[i]) < 0.5f;
+        const bool Resting = onGnd && throttleCmd < 0.05f && speed < 0.5f && cs.AngularVelocity.Length() < 0.5f
+                           && RestingCount < RestingContacts.size();
+        if (Resting)
+        {
+            Fy = 0.0f; Mz = 0.0f;
+            if (LockedBrake) { Fx = 0.0f; SlipDeflections[i] = {}; }
+        }
+        const float SlipX = Vx + WheelSpin[i] * RollingLever;
+        const float YawSlip = Dot(cs.AngularVelocity, ContactNormal) * Reff;
+        const float SlipSquared = SlipX * SlipX + VlatHub * VlatHub + YawSlip * YawSlip;
+        const float Power = Fx * SlipX + Fy * VlatHub + (Mz / Reff) * YawSlip;
+        if (Power > 0.0f && SlipSquared > 1.0e-12f)
+        {
+            Fx -= Power * SlipX / SlipSquared;
+            Fy -= Power * VlatHub / SlipSquared;
+            Mz -= Power * YawSlip * Reff / SlipSquared;
+        }
+        const float Grip = onGnd ? std::max(0.0f, ActiveConfiguration.GripCoefficient) * Fz : 0.0f;
+        const float Magnitude = std::sqrt(Fx * Fx + Fy * Fy + (Mz / Reff) * (Mz / Reff));
+        if (Magnitude > Grip && Magnitude > 0.0f)
+        {
+            const float Scale = Grip / Magnitude; Fx *= Scale; Fy *= Scale; Mz *= Scale;
+        }
+        const float PassivePower = Fx * SlipX + Fy * VlatHub + (Mz / Reff) * YawSlip;
+        if (Resting)
+        {
+            const float NormalImpulse = Grip * Δτ;
+            const float LateralImpulse = LockedBrake ? NormalImpulse : std::sqrt(std::max(0.0f, NormalImpulse * NormalImpulse - Fx * Fx * Δτ * Δτ));
+            RestingContacts[RestingCount++] = {patch, wf, wl, {}, LateralImpulse,
+                BrakeCapacity * Δτ / std::max(0.01f, std::abs(RollingLever)), i, LockedBrake};
         }
 
         const Vec3 planar      = wf * Fx + wl * Fy;
+        const Vec3 HubReaction = reaction.RimForce + planar;
+        const Vec3 HubMoment = reaction.RimTorque + Cross(patch - hub, planar) + ContactNormal * Mz;
         const Vec3 aeroDownVec = up * (-aeroDownforce);
         float barForce   = 0.0f;
         float strutForce = 0.0f;
@@ -579,17 +631,21 @@ void VehicleSolver::StepPacejka(float Δτ) noexcept
             //    the spring and damper are actually carrying. Previously the tyre force went straight into the
             //    chassis at the patch, which is a car with its axles welded to the floor pan.
             barForce   = StrutBarForces[i];
-            strutForce = IntegrateStrut(i, Δτ, reaction.NormalReaction, axisUp, barForce);
-            ChassisHooks.ApplyForceAtPoint(axisUp * strutForce, mountWorld);
-            const Vec3 Linkage = reaction.NormalReaction - axisUp * Dot(reaction.NormalReaction, axisUp);
-            ChassisHooks.ApplyForceAtPoint(Linkage + planar + aeroDownVec, patch);
+            strutForce = IntegrateStrut(i, Δτ, HubReaction, axisUp, barForce);
+            TransmitForce(axisUp * strutForce, mountWorld);
+            const Vec3 Linkage = HubReaction - axisUp * Dot(HubReaction, axisUp);
+            TransmitForce(Linkage, hub);
+            TransmitForce(aeroDownVec, patch);
+            if (ChassisHooks.ApplyTorque) TransmitTorque(HubMoment - SpinAxis * Dot(HubMoment, SpinAxis));
         }
         else
         {
             float verticalForce = Fz;
             if (onGnd) verticalForce = std::max(0.0f, Fz - ActiveConfiguration.SuspensionDamping * hubVel.z);
-            const Vec3 Support = reaction.NormalReaction + Vec3{0.0f, 0.0f, verticalForce - Fz};
-            ChassisHooks.ApplyForceAtPoint(Support + planar + aeroDownVec, patch);
+            const Vec3 Support = HubReaction + ContactNormal * (verticalForce - Fz);
+            TransmitForce(Support, hub);
+            TransmitForce(aeroDownVec, patch);
+            if (ChassisHooks.ApplyTorque) TransmitTorque(HubMoment - SpinAxis * Dot(HubMoment, SpinAxis));
         }
 
         // ── Wheel spin ODE:  Iw·ω̇ = T_drive − Fx·Reff − T_brake·sign(ω) − T_roll ───────────────────────────────────
@@ -638,39 +694,32 @@ void VehicleSolver::StepPacejka(float Δτ) noexcept
             Ieff += ActiveConfiguration.Engine.EngineInertia * g * g / static_cast<float>(nDriven);
         }
 
-        // ── Semi-implicit wheel-spin integration with low-speed stabilisation ───────────────────────────────────────
-        //   At a standstill the relaxation deflection is a pure integrator and the Magic-Formula force saturates at
-        //   ±μ·Fz, so the contact behaves like dry friction (a relay). Coupled to the wheel inertia that is a stick-slip
-        //   limit cycle no explicit damping can tame without itself going unstable. So the spin is integrated IMPLICITLY
-        //   with a viscous pull toward the kinematic free-rolling speed ω_roll = Vx/Reff:
-        //
-        //        (Iw/Δτ + b)·ω¹ = (Iw/Δτ)·ω⁰ + T_drive − Fx·Reff + b·ω_roll
-        //
-        //   This is unconditionally stable for any b. b is strong at low speed (kills the relay) and FADES OUT with
-        //   speed (fade → 0), so at speed the wheel spins/locks under the full slip dynamics with no artificial pull.
-        //   ω_roll → drive still produces slip = (T_drive − Fx·Reff)/b, i.e. genuine wheelspin/launch behaviour.
-        const float spinFade = 1.0f / (1.0f + (speed / std::max(0.1f, ActiveConfiguration.ContactDampingFadeSpeed)) *
-                                              (speed / std::max(0.1f, ActiveConfiguration.ContactDampingFadeSpeed)));
-        const float b        = onGnd ? ActiveConfiguration.SpinDampingCoefficient * spinFade : 0.0f;   // [N·m per rad/s]
-        const float omegaRoll = onGnd ? Vx / Reff : WheelSpin[i];
-
+        // 📝 Carcass particles already carry their kinetic energy; this is the impulse sensitivity of coupling.
+        double TreadInertia = 0.0;
+        for (const auto& Particle : tyre.Nodes())
+        {
+            if (!(Particle.InverseMass > 0.0f)) continue;
+            const Vec3 Relative = Particle.Position - tyre.HubPosition();
+            const Vec3 Radial = Relative - SpinAxis * Dot(Relative, SpinAxis);
+            TreadInertia += Dot(Radial, Radial) / Particle.InverseMass;
+        }
+        Ieff += static_cast<float>(TreadInertia);
         const float omega0 = WheelSpin[i];
-        const float invMass = 1.0f / (Ieff / Δτ + b);
-        float omega1 = ((Ieff / Δτ) * omega0 + driveTq - Fx * Reff + b * omegaRoll) * invMass;
-
-        // Brake + rolling resistance oppose spin but can never drive it through zero (anti-reversal): cap the resistive
-        //    torque at exactly what brings ω to rest this step. A locked wheel then stays locked (κ → −1) while the car
-        //    is moving, and the vehicle brakes cleanly to a standstill and holds there.
+        const float GroundTorque = Fx * RollingLever;
+        float omega1 = omega0 + (driveTq + GroundTorque + Dot(reaction.RimTorque, SpinAxis)) * Δτ / Ieff;
         const float resist = std::min(brakeTq + rollTq, std::fabs(omega1) * Ieff / Δτ);
-        omega1 -= resist * Sign(omega1) * (Δτ / Ieff);
+        const float BrakeReaction = resist * Sign(omega1);
+        omega1 -= BrakeReaction * Δτ / Ieff;
+        if (ChassisHooks.ApplyTorque) TransmitTorque(SpinAxis * (BrakeReaction - driveTq));
         WheelSpin[i] = omega1;
 
         // Telemetry.
         WheelTelemetry& wt = CurrentTelemetry.Wheels[std::min<size_t>(i, CurrentTelemetry.Wheels.size() - 1)];
         wt.NormalReaction = reaction.NormalReaction;
-        wt.TransmittedReaction = reaction.NormalReaction;
-        wt.HubPosition       = hub;
-        wt.HubRotation       = hubRot;
+        wt.TransmittedReaction = reaction.RimForce;
+        wt.RimForce = reaction.RimForce; wt.RimTorque = reaction.RimTorque;
+        wt.HubPosition       = tyre.HubPosition();
+        wt.HubRotation       = tyre.HubRotation();
         wt.ContactPoint      = patch;
         wt.VerticalLoad      = Fz;
         wt.LongitudinalForce = Fx;
@@ -679,12 +728,14 @@ void VehicleSolver::StepPacejka(float Δτ) noexcept
         wt.ContactCount      = reaction.ContactCount;
         wt.InContact         = onGnd;
         wt.WheelOmega        = WheelSpin[i];
+        wt.DrivePower_W = driveTq * 0.5f * (omega0 + omega1);
+        wt.ContactPower_W = PassivePower; wt.StaticContactPower_W = 0.0f;
+        wt.RimPower_W = Dot(reaction.RimForce, hubVel) + Dot(reaction.RimTorque, cs.AngularVelocity + SpinAxis * omega0);
         wt.SlipRatio         = kappa;
         wt.SlipAngleRad      = alpha;
         wt.AeroDownforce     = aeroDownforce;
         if (ActiveConfiguration.SuspensionEnabled)
-            wt.TransmittedReaction = axisUp * strutForce + reaction.NormalReaction
-                                   - axisUp * Dot(reaction.NormalReaction, axisUp);
+            wt.TransmittedReaction = axisUp * strutForce + HubReaction - axisUp * Dot(HubReaction, axisUp);
         wt.StrutCompression  = ActiveConfiguration.SuspensionEnabled ? StrutTravel[i] : 0.0f;
         wt.StrutRate         = ActiveConfiguration.SuspensionEnabled ? StrutRate[i]   : 0.0f;
         wt.StrutForce        = strutForce;
@@ -693,6 +744,82 @@ void VehicleSolver::StepPacejka(float Δτ) noexcept
         CurrentTelemetry.TotalVerticalLoad += Fz;
         if (onGnd) ++CurrentTelemetry.WheelsInContact;
     }
+
+    // 📝 Joint velocity-level constraints against the force/gravity predictor; no pose pin or extra damper.
+    if (RestingCount > 0u)
+    {
+        const float InverseMass = 1.0f / std::max(1.0f, ActiveConfiguration.ChassisMass);
+        const Quat Inverse{-cs.Orientation.x, -cs.Orientation.y, -cs.Orientation.z, cs.Orientation.w};
+        const auto InverseInertia = [&](const Vec3& Moment)
+        {
+            const Vec3 Local = Inverse.Rotate(Moment);
+            const auto& Principal = ActiveConfiguration.InvChassisInertia;
+            return cs.Orientation.Rotate({Local.x * Principal.x, Local.y * Principal.y, Local.z * Principal.z});
+        };
+        const Vec3 LocalAngular = Inverse.Rotate(cs.AngularVelocity);
+        const auto& Principal = ActiveConfiguration.InvChassisInertia;
+        const Vec3 AngularMomentum = cs.Orientation.Rotate({Principal.x > 0 ? LocalAngular.x / Principal.x : 0.0f,
+                                                          Principal.y > 0 ? LocalAngular.y / Principal.y : 0.0f,
+                                                          Principal.z > 0 ? LocalAngular.z / Principal.z : 0.0f});
+        const Vec3 FreeLinear = cs.LinearVelocity + (ActiveConfiguration.Gravity + DeliveredForce * InverseMass) * Δτ;
+        const Vec3 FreeAngular = cs.AngularVelocity + InverseInertia(DeliveredTorque - Cross(cs.AngularVelocity, AngularMomentum)) * Δτ;
+        Vec3 SolvedLinear = FreeLinear, SolvedAngular = FreeAngular;
+        for (uint32_t Sweep = 0u; Sweep < 32u; ++Sweep)
+        {
+            float Residual = 0.0f;
+            for (size_t Contact = 0u; Contact < RestingCount; ++Contact)
+            {
+                auto& Constraint = RestingContacts[Contact];
+                const Vec3 Arm = Constraint.Point - cs.Position;
+                const auto Response = [&](const Vec3& Direction)
+                {
+                    return Direction * InverseMass + Cross(InverseInertia(Cross(Arm, Direction)), Arm);
+                };
+                const Vec3 ForwardResponse = Response(Constraint.Forward), LeftResponse = Response(Constraint.Left);
+                const float Along = Dot(Constraint.Forward, ForwardResponse), Across = Dot(Constraint.Left, LeftResponse);
+                const float Coupling = Dot(Constraint.Forward, LeftResponse);
+                const Vec3 Velocity = SolvedLinear + Cross(SolvedAngular, Arm);
+                const float AlongVelocity = Dot(Velocity, Constraint.Forward), AcrossVelocity = Dot(Velocity, Constraint.Left);
+                float AlongImpulse = 0.0f, AcrossImpulse = Dot(Constraint.Impulse, Constraint.Left);
+                if (Constraint.Locked)
+                {
+                    const float Determinant = Along * Across - Coupling * Coupling;
+                    if (!(Determinant > 1.0e-12f)) continue;
+                    AlongImpulse = Dot(Constraint.Impulse, Constraint.Forward) + (-Across * AlongVelocity + Coupling * AcrossVelocity) / Determinant;
+                    AcrossImpulse += (-Along * AcrossVelocity + Coupling * AlongVelocity) / Determinant;
+                    AlongImpulse = Clamp(AlongImpulse, -Constraint.BrakeImpulse, Constraint.BrakeImpulse);
+                    const float Magnitude = std::sqrt(AlongImpulse * AlongImpulse + AcrossImpulse * AcrossImpulse);
+                    if (Magnitude > Constraint.GripImpulse && Magnitude > 0.0f)
+                    {
+                        const float Scale = Constraint.GripImpulse / Magnitude; AlongImpulse *= Scale; AcrossImpulse *= Scale;
+                    }
+                }
+                else
+                {
+                    if (!(Across > 1.0e-12f)) continue;
+                    AcrossImpulse = Clamp(AcrossImpulse - AcrossVelocity / Across, -Constraint.GripImpulse, Constraint.GripImpulse);
+                }
+                const Vec3 Next = Constraint.Forward * AlongImpulse + Constraint.Left * AcrossImpulse;
+                const Vec3 Increment = Next - Constraint.Impulse; Constraint.Impulse = Next;
+                Residual = std::max(Residual, Increment.Length());
+                SolvedLinear += Increment * InverseMass; SolvedAngular += InverseInertia(Cross(Arm, Increment));
+            }
+            CurrentTelemetry.RestingContactResidual = Residual;
+            CurrentTelemetry.RestingContactConverged = Residual < 1.0e-5f;
+            if (CurrentTelemetry.RestingContactConverged) break;
+        }
+        for (size_t Contact = 0u; Contact < RestingCount; ++Contact)
+        {
+            const auto& Constraint = RestingContacts[Contact];
+            TransmitForce(Constraint.Impulse * (1.0f / Δτ), Constraint.Point);
+            auto& Reading = CurrentTelemetry.Wheels[Constraint.Corner];
+            Reading.LongitudinalForce += Dot(Constraint.Impulse, Constraint.Forward) / Δτ;
+            Reading.LateralForce += Dot(Constraint.Impulse, Constraint.Left) / Δτ;
+            const Vec3 Midpoint = (FreeLinear + SolvedLinear + Cross(FreeAngular + SolvedAngular, Constraint.Point - cs.Position)) * 0.5f;
+            Reading.StaticContactPower_W = Dot(Constraint.Impulse, Midpoint) / Δτ;
+        }
+    }
+
 }
 
 

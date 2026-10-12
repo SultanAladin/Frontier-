@@ -14,6 +14,7 @@
 
 #include <cstdint>
 #include <cmath>
+#include "../../../Engine/PhysicalDynamics/Vehicle/XPBDSoftTyre.h"
 #include <algorithm>
 
 namespace Frontier {
@@ -137,11 +138,39 @@ inline void CourseNormal(float x, float y, float& nx, float& ny, float& nz) noex
 //    On or beside the kerb it is a real box query -- the node is pushed out through whichever face it is
 //    closest to, so the vertical inner face stops a tyre SIDEWAYS instead of launching it upward. That is the
 //    whole reason the contact contract was widened from a height to a point.
+inline Vehicle::Vec3 CourseTriangleProjection(const Vehicle::Vec3& Point,
+                                             const Vehicle::Vec3& A,
+                                             const Vehicle::Vec3& B,
+                                             const Vehicle::Vec3& C) noexcept
+{
+    using Vehicle::Dot;
+    const auto AB = B - A, AC = C - A, AP = Point - A;
+    const float D1 = Dot(AB, AP), D2 = Dot(AC, AP);
+    if (D1 <= 0.0f && D2 <= 0.0f) return A;
+    const auto BP = Point - B;
+    const float D3 = Dot(AB, BP), D4 = Dot(AC, BP);
+    if (D3 >= 0.0f && D4 <= D3) return B;
+    const float VC = D1 * D4 - D3 * D2;
+    if (VC <= 0.0f && D1 >= 0.0f && D3 <= 0.0f) return A + AB * (D1 / (D1 - D3));
+    const auto CP = Point - C;
+    const float D5 = Dot(AB, CP), D6 = Dot(AC, CP);
+    if (D6 >= 0.0f && D5 <= D6) return C;
+    const float VB = D5 * D2 - D1 * D6;
+    if (VB <= 0.0f && D2 >= 0.0f && D6 <= 0.0f) return A + AC * (D2 / (D2 - D6));
+    const float VA = D3 * D6 - D5 * D4;
+    if (VA <= 0.0f && D4 - D3 >= 0.0f && D5 - D6 >= 0.0f)
+        return B + (C - B) * ((D4 - D3) / ((D4 - D3) + (D5 - D6)));
+    const float Reciprocal = 1.0f / (VA + VB + VC);
+    return A + AB * (VB * Reciprocal) + AC * (VC * Reciprocal);
+}
+
 inline void CourseSurface(float x, float y, float z, float& outX, float& outY, float& outZ,
                           float& nx, float& ny, float& nz) noexcept
 {
     using K = KerbConstants;
-    const float Base = WithinKerb(x, y) ? 0.0f : CourseHeight(x, y);
+    using C = CourseConstants;
+    const bool OnRamp = x >= C::RampNearX && x <= C::RampNearX + C::RampRunX && std::abs(y) <= C::RampHalfWidth;
+    const float Base = WithinKerb(x, y) || OnRamp ? 0.0f : CourseHeight(x, y);
 
     const float KerbTop = K::Height;
     const bool Inside = x >= K::NearX && x <= K::FarX && y >= K::CentreY && y <= K::CentreY + K::Depth;
@@ -172,10 +201,37 @@ inline void CourseSurface(float x, float y, float z, float& outX, float& outY, f
         return;
     }
 
-    outX = x; outY = y; outZ = Base;
-    if (x >= K::NearX - 0.2f && x <= K::FarX + 0.2f && y >= K::CentreY - 0.2f && y <= K::CentreY + K::Depth + 0.2f)
-    { nx = 0.0f; ny = 0.0f; nz = 1.0f; }
-    else CourseNormal(x, y, nx, ny, nz);
+    outX = x; outY = y; outZ = Base; nx = 0.0f; ny = 0.0f; nz = 1.0f;
+    if (x < 0.0f && std::abs(y) <= C::BumpHalfWidthY) CourseNormal(x, y, nx, ny, nz);
+    // 📝 Exact rendered wedge features; finite-difference height normals at edges are not collision walls.
+    using Vehicle::Vec3; using Vehicle::Dot;
+    const Vec3 Point{x, y, z};
+    const float Near = C::RampNearX, Far = Near + C::RampRunX, Rise = C::RampRise, Width = C::RampHalfWidth;
+    const float Slope = Rise / C::RampRunX;
+    const bool InsideRamp = OnRamp && z >= 0.0f && z <= Slope * (x - Near);
+    if (x < Near - Rise || x > Far + Rise || std::abs(y) > Width + Rise) return;
+    const Vec3 TopNormal = Vec3{-Slope, 0.0f, 1.0f}.Normalized();
+    const Vec3 Projection = Point - TopNormal * Dot(Point - Vec3{Near, 0.0f, 0.0f}, TopNormal);
+    const float TopX = std::clamp(Projection.x, Near, Far);
+    const Vec3 Top{TopX, std::clamp(Projection.y, -Width, Width), Slope * (TopX - Near)};
+    const Vec3 Candidates[4] =
+    {
+        Top,
+        {Far, std::clamp(y, -Width, Width), std::clamp(z, 0.0f, Rise)},
+        CourseTriangleProjection(Point, {Near, -Width, 0.0f}, {Far, -Width, 0.0f}, {Far, -Width, Rise}),
+        CourseTriangleProjection(Point, {Near, Width, 0.0f}, {Far, Width, 0.0f}, {Far, Width, Rise})
+    };
+    const Vec3 Normals[4] = {TopNormal, {1.0f, 0.0f, 0.0f}, {0.0f, -1.0f, 0.0f}, {0.0f, 1.0f, 0.0f}};
+    float Best = InsideRamp ? 1.0e30f : (z - Base) * (z - Base);
+    for (uint32_t Feature = 0u; Feature < 4u; ++Feature)
+    {
+        const Vec3 Relative = Point - Candidates[Feature]; const float Squared = Dot(Relative, Relative);
+        if (Squared >= Best) continue;
+        Best = Squared;
+        const Vec3 Outward = InsideRamp || Squared < 1.0e-12f ? Normals[Feature] : Relative.Normalized();
+        outX = Candidates[Feature].x; outY = Candidates[Feature].y; outZ = Candidates[Feature].z;
+        nx = Outward.x; ny = Outward.y; nz = Outward.z;
+    }
 }
 
 // Cone base centre for slalom cone `k` (matches TractrixDriveScene).

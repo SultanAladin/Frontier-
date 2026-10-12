@@ -115,7 +115,7 @@ struct SoftTyreParameters
     // Gauss-Seidel sweeps inside each substep. See the comment on the sweep loop in Step: one sweep leaves
     // the ground reaction — the only number the vehicle consumes — short of the lattice's own elastic state,
     // and the shortfall is a function of the schedule, which is the very dependence XPBD exists to remove.
-    uint32_t SolverIterations = 1u;  // [-]  sweeps per substep
+    uint32_t SolverIterations = 4u;  // [-]  sweeps per substep
 
     // ── Inflation: a real gas inside a closed surface ───────────────────────────────────────────────────────
     // This used to be a per-node body force P·A along the outward radial, with A the node's REST patch area.
@@ -297,6 +297,8 @@ struct TyreEnergyMetrics
 
 struct TyreReaction
 {
+    Vec3  RimForce{};  // [N] - internal tyre reaction on rim
+    Vec3  RimTorque{}; // [N·m] - internal tyre moment on rim
     Vec3  Force{};        // Fx (long), Fy (lat, along −spin-axis dir), Fz (vertical)
     Vec3  NormalReaction{}; // [N] - ground/obstacle non-penetration only, before tread friction
     Vec3  SupportReaction{}; // [N] - upward-facing contact normals; wall grip is not vertical tyre load
@@ -334,6 +336,7 @@ struct HubMotion
     Quat  Orientation{};         // [-]     hub frame at the END of this step — steer and camber, never spin
     Vec3  LinearVelocity{};      // [m/s]   hub translation rate, walks the kinematic frame across the substeps
     float SpinRate = 0.0f;       // [rad/s] wheel rotation about hub-local +Y (+ = rolling toward +X)
+    Vec3 AngularVelocity{};     // [rad/s] - bearing orientation rate, excluding relative axle spin
 };
 
 //------------------------------------------------------------------------------------------------------------------------

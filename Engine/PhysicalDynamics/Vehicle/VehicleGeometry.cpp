@@ -47,14 +47,12 @@ void ResolveSuspension(VehicleGeometry& g)
 
     // The authored strut span is the STATIC length; the free length is that plus the sag the spring is already
     //    carrying at rest. Resolve each axle against its own sag so the car settles onto the pose the artist posed.
-    // ⚠️ Solve the ride compression against the load the CHASSIS BODY actually presses down with — its full mass,
-    //    unsprung included — not against the sprung mass the spring was rated for. The rigid body carries all
-    //    1300 kg, so balancing against anything less leaves a standing force error at every corner.
+    // 📝 Struts support the sprung body; rim and tread masses live at the corners.
     const float MountZ     = ControlVehicleSockets::SuspensionMount_FL.z;
     const float AxleZ      = ControlVehicleSockets::AxleMount_FL.z;
     const float Gravity    = 9.81f;
-    const float FrontLoad  = 0.5f * g.Mass * g.FrontWeightFraction        * Gravity;   // [N] per front corner
-    const float RearLoad   = 0.5f * g.Mass * (1.0f - g.FrontWeightFraction) * Gravity; // [N] per rear corner
+    const float FrontLoad  = 0.5f * Sprung * g.FrontWeightFraction        * Gravity;   // [N] per front corner
+    const float RearLoad   = 0.5f * Sprung * (1.0f - g.FrontWeightFraction) * Gravity; // [N] per rear corner
     g.Front.ResolveFromSockets(MountZ, AxleZ, FrontLoad);
     g.Rear .ResolveFromSockets(MountZ, AxleZ, RearLoad);
 
@@ -73,7 +71,10 @@ void ApplyGeometry(VehicleSolverConfiguration& c, const VehicleGeometry& Authore
     VehicleGeometry g = Authored;
     ResolveSuspension(g);
 
-    c.ChassisMass = g.Mass;
+    c.ChassisMass = g.Mass - 4.0f * g.UnsprungMassPerWheel;
+    c.InvChassisInertia = g.InvInertia();
+    const float RimMass = std::max(0.0f, g.UnsprungMassPerWheel - c.Tyre.TotalMass);
+    c.WheelInertia = 0.5f * RimMass * g.TyreRimRadius * g.TyreRimRadius;
     c.Wheels      = MakeWheelMounts(g);
     // Keep the soft tyre in sync with the geometry. All three come from the ControlVehicle.blend wheel meshes, so the
     //    carcass the XPBD solver deforms is the size of the wheel the renderer draws — one number, not two.

@@ -65,6 +65,8 @@ struct VehicleChassisBody
     float Mass = 1300.0f, LinearDamping = 0.0f, AngularDamping = 0.05f;
     Frontier::Vehicle::Vec3 LastForce{}, LastTorque{}; // [N, N·m] - integrated forces, before accumulator clearing
     ChassisContactReading Contacts;
+    double AngularResidual = 0.0; // [N·m·s] - midpoint equation residual
+    bool AngularConverged = true; // [-] - actual numerical convergence
 
     [[nodiscard]] Frontier::Vehicle::Quat Conjugate() const noexcept;
     [[nodiscard]] Frontier::Vehicle::Vec3 WorldAngularAccel(const Frontier::Vehicle::Vec3& torqueWorld) const noexcept;

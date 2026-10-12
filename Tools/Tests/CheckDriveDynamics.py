@@ -18,7 +18,8 @@ Scratch = Root / "_AgentScratch/build/DriveDynamics"
 Scratch.mkdir(parents=True, exist_ok=True)
 Arguments.output.mkdir(parents=True, exist_ok=True)
 Windows = sys.platform == "win32"
-Includes = [Root / "Engine", Root / "ExternalPackages/vulkan-headers/include"]
+from DependencyCodec import RestoreVulkanHeaders
+Includes = [Root / "Engine", RestoreVulkanHeaders()]
 Flags = (["/nologo", "/std:c++20", "/EHsc", "/utf-8", "/O2", "/UNDEBUG", "/DNOMINMAX", "/MD"] if Windows else
          ["-std=c++20", "-O2", "-UNDEBUG", "-ffunction-sections", "-fdata-sections"])
 if Arguments.sanitize:

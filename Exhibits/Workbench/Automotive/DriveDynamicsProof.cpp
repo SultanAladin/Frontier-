@@ -80,7 +80,10 @@ struct DriveFixture
         Solver.AssignInput(Input);
         Solver.Step(StepSeconds);
         Body.Integrate(StepSeconds);
+        const Vec3 BeforePosition = Body.Position;
+        const Quat BeforeRotation = Body.Orientation;
         Body.ResolveContacts(CollisionLocations, Ground, StepSeconds);
+        if (Body.Contacts.ArrivalPenetration > 0.0f) Solver.CorrectAttachments(BeforePosition, BeforeRotation, Body.Position, Body.Orientation);
         assert(std::isfinite(Body.KineticEnergy()));
         assert(std::isfinite(Body.Position.x) && std::isfinite(Body.Position.y) && std::isfinite(Body.Position.z));
         assert(std::isfinite(Body.Orientation.x) && std::isfinite(Body.Orientation.y) &&
@@ -161,8 +164,12 @@ void CheckWallTransfer()
             Delivered = {};
             Solver.Step(StepSeconds);
             const auto& Wheel = Solver.Telemetry().Wheels[0];
-            assert(std::abs(Delivered.y - Wheel.NormalReaction.y) < std::max(0.1f, std::abs(Delivered.y) * 0.001f));
-            LargestSide = std::max(LargestSide, std::abs(Delivered.y));
+            const auto& Reaction = Solver.Tyres()[0].Reaction();
+            const Vec3 Normal = Reaction.SupportReaction.Length() > 1.0f ? Reaction.SupportReaction.Normalized() : Vec3{0, 0, 1};
+            const Vec3 Forward = (Vec3{1, 0, 0} - Normal * Normal.x).Normalized(), Left = Cross(Normal, Forward).Normalized();
+            const Vec3 Expected = Reaction.RimForce + Forward * Wheel.LongitudinalForce + Left * Wheel.LateralForce;
+            assert(std::abs(Delivered.y - Expected.y) < std::max(0.1f, std::abs(Delivered.y) * 0.001f));
+            LargestSide = std::max(LargestSide, std::abs(Reaction.RimForce.y));
         }
         assert(LargestSide > 100.0f);
         std::printf("PASS %s transfers XPBD kerb normal to chassis (peak %.1f N)\n",

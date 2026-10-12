@@ -202,8 +202,18 @@ void XPBDSoftTyre::Step(float dt, uint32_t substeps, const HubMotion& motion,
     const uint32_t iterations = std::max<uint32_t>(1u, Parameters.SolverIterations);
     float RimArrivalAccum = 0.0f;   // [m] deepest flange interference handed to the projection this step
     const Quat hubRot    = motion.Orientation;
-    const Vec3 axisWorld = hubRot.Rotate({0, 1, 0}).Normalized();   // spin axis in world
+    Vec3 axisWorld = hubRot.Rotate({0, 1, 0}).Normalized();   // spin axis in world
 
+    Vec3 RimForce{}, RimTorque{};
+    const auto ReactOnRim = [&](const Vec3& Force, const Vec3& Arm)
+    {
+        RimForce -= Force; RimTorque -= Cross(Arm, Force);
+    };
+    const auto Rewind = [&](float Remaining)
+    {
+        const float Speed = motion.AngularVelocity.Length();
+        return Speed > 1.0e-8f ? (Quat::AxisAngle(motion.AngularVelocity * (1.0f / Speed), -Speed * Remaining) * hubRot).Normalized() : hubRot;
+    };
     Vec3  sumForce{};
     Vec3  NormalReaction{};
     Vec3  SupportReaction{};
@@ -227,11 +237,13 @@ void XPBDSoftTyre::Step(float dt, uint32_t substeps, const HubMotion& motion,
         // the travel still to come. The carcass's own rotation accumulates at the same rate, which is what makes
         // the contact patch a standing deformation in the world while the material rolls through it.
         const Vec3 hubPosPrev = motion.Position - motion.LinearVelocity * (static_cast<float>(substeps - sub) * h);
-        const Quat framePrev  = MaterialFrame(hubRot);
+        const Quat framePrev  = MaterialFrame(Rewind(static_cast<float>(substeps - sub) * h));
         hubPos = motion.Position - motion.LinearVelocity * (static_cast<float>(substeps - 1u - sub) * h);
         SpinAngle += motion.SpinRate * h;
         if (SpinAngle > kPi || SpinAngle < -kPi) SpinAngle = std::fmod(SpinAngle + kPi, 2.0f * kPi) - kPi;
-        frame = MaterialFrame(hubRot);
+        const Quat SubstepRotation = Rewind(static_cast<float>(substeps - 1u - sub) * h);
+        frame = MaterialFrame(SubstepRotation);
+        axisWorld = SubstepRotation.Rotate({0.0f, 1.0f, 0.0f}).Normalized();
 
         // ── reset the Lagrange multipliers ───────────────────────────────────────────────────────────────────────
         // XPBD §3.2: λ is zeroed at the START of each substep and accumulated across that substep's iterations.
@@ -260,6 +272,7 @@ void XPBDSoftTyre::Step(float dt, uint32_t substeps, const HubMotion& motion,
             if (node.InverseMass <= 0.0f) { node.Previous = node.Position; continue; }
 
             const Vec3 pressureForce = InflationGradient[i] * gasGauge;
+            ReactOnRim(pressureForce, node.Position - hubPos);
             const Vec3 accel = Parameters.Gravity + pressureForce * node.InverseMass;
 
             node.Velocity += accel * h;
@@ -314,6 +327,7 @@ void XPBDSoftTyre::Step(float dt, uint32_t substeps, const HubMotion& motion,
                     const float dLambda = (-C - alphaSpoke * node.SpokeLambda - gammaSpoke * cDot)
                                         / ((1.0f + gammaSpoke) * node.InverseMass + alphaSpoke);
                     node.SpokeLambda += dLambda;
+                    ReactOnRim(dir * (dLambda * invH2), node.Position - hubPos);
                     node.Position += dir * (dLambda * node.InverseMass);
                 }
 
@@ -343,6 +357,7 @@ void XPBDSoftTyre::Step(float dt, uint32_t substeps, const HubMotion& motion,
                         const float dL = (-Cs - ShearAlpha[K] * (*ShearLambda[K]) - ShearGamma[K] * CsDot)
                                        / ((1.0f + ShearGamma[K]) * node.InverseMass + ShearAlpha[K]);
                         *ShearLambda[K] += dL;
+                        ReactOnRim(ShearDir[K] * (dL * invH2), node.Position - hubPos);
                         node.Position += ShearDir[K] * (dL * node.InverseMass);
                     }
                 }
@@ -511,6 +526,7 @@ void XPBDSoftTyre::Step(float dt, uint32_t substeps, const HubMotion& motion,
                     const float newLambda = std::max(0.0f, node.RimLambda + dLambda);
                     const float applied   = newLambda - node.RimLambda;
                     node.RimLambda = newLambda;
+                    ReactOnRim(dir * (applied * invH2), node.Position - hubPos);
                     node.Position += dir * (applied * node.InverseMass);
                 }
             }
@@ -647,13 +663,15 @@ void XPBDSoftTyre::Step(float dt, uint32_t substeps, const HubMotion& motion,
     SnapshotPosition = hubPos;
     SnapshotRotation = hubRot;
     const float inv = 1.0f / static_cast<float>(substeps);
+    ContactReaction.RimForce = RimForce * inv;
+    ContactReaction.RimTorque = RimTorque * inv;
     ContactReaction.Force = sumForce * inv;
     ContactReaction.NormalReaction = NormalReaction * inv;
     ContactReaction.SupportReaction = SupportReaction * inv;
     ContactReaction.Mz = sumTorqueRef.z * inv;   // vertical component about the hub ground projection
     ContactReaction.ContactCount = static_cast<uint32_t>(contactAccum * inv + 0.5f);
     ContactReaction.PatchCentre = (patchN > 0.0f) ? motion.Position + sumPatch * (1.0f / patchN) : hubPos;
-    ContactReaction.EnclosedVolume = gasVolume;
+    ContactReaction.EnclosedVolume = static_cast<float>(EnclosedVolume());
     ContactReaction.GaugePressure  = gasGauge;
     Vec3 inflation{};
     for (const Vec3& gradient : InflationGradient) inflation += gradient * gasGauge;

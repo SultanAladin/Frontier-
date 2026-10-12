@@ -37,7 +37,7 @@ namespace Drive {
 
 // Advance this stamp and the versioned OpeningScene filename together when Construct() changes the scene.
 // Existing scenes are never overwritten by a build, including authored copies of an earlier opening.
-inline constexpr uint32_t kDriveSceneRevision = 5u;   // 5: closed 120 mm kerb, including correctly oriented side/end faces
+inline constexpr uint32_t kDriveSceneRevision = 6u;   // [-] - versioned authored course and solved tyre publication
 
 // True when the file at Path was written by this revision (cheap header scan). Missing/older ⇒ false ⇒ re-export.
 [[nodiscard]] bool DriveSceneMatchesRevision(const std::string& Path) noexcept;
