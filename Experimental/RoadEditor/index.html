@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Frontier Road Editor</title>
+    <link rel="stylesheet" href="./src/style.css" />
+  </head>
+  <body>
+    <canvas id="view"></canvas>
+
+    <aside id="panel">
+      <header>
+        <h1>Road Editor</h1>
+        <p class="sub">Clean planar topology · unique roads · bridges &amp; tunnels</p>
+      </header>
+
+      <section>
+        <h2>Tool</h2>
+        <div class="row">
+          <button id="tool-draw" class="on">Draw (B)</button>
+          <button id="tool-select">Select (V)</button>
+        </div>
+        <label>Road type
+          <select id="road-type"></select>
+        </label>
+        <p id="type-help" class="hint"></p>
+      </section>
+
+      <section>
+        <h2>Selected road</h2>
+        <div class="row">
+          <button id="reseed">Reroll look</button>
+          <button id="delete" class="danger">Delete (Del)</button>
+        </div>
+        <p id="selected-info" class="hint">Nothing selected.</p>
+      </section>
+
+      <section>
+        <h2>Generate</h2>
+        <div class="row wrap">
+          <button id="gen-city">City</button>
+          <button id="gen-country">Countryside</button>
+          <button id="gen-offroad">Offroad</button>
+          <button id="clear" class="danger">Clear</button>
+        </div>
+        <label>Seed <input id="seed" type="number" value="3" min="1" /></label>
+      </section>
+
+      <section>
+        <h2>Topology</h2>
+        <div class="row">
+          <button id="validate">Validate</button>
+          <button id="export">Export JSON</button>
+          <label class="file">Import<input id="import" type="file" accept="application/json" /></label>
+        </div>
+        <pre id="stats" class="stats"></pre>
+        <div id="status" class="status"></div>
+      </section>
+
+      <section class="help">
+        <h2>Camera (Unreal-style)</h2>
+        <p><b>W A S D</b> move · <b>Q / E</b> down / up · <b>Shift</b> fast · <b>Wheel</b> speed</p>
+        <p><b>Right-drag</b> look · <b>Left-click</b> place point / select</p>
+        <p><b>Enter</b> finish road · <b>Esc</b> cancel · <b>Backspace</b> undo point · <b>Ctrl+Z</b> undo road</p>
+      </section>
+    </aside>
+
+    <script type="module" src="./src/app.js"></script>
+  </body>
+</html>

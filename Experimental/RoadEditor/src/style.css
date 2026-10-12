@@ -1,0 +1,33 @@
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; overflow: hidden; background: #0b0f14; font: 13px/1.4 system-ui, sans-serif; color: #e8edf2; }
+canvas#view { position: fixed; inset: 0; width: 100vw; height: 100vh; display: block; outline: none; }
+
+#panel {
+  position: fixed; top: 12px; left: 12px; width: 300px; max-height: calc(100vh - 24px); overflow-y: auto;
+  background: rgba(14, 18, 24, 0.9); border: 1px solid #263140; border-radius: 10px; padding: 12px 14px;
+  backdrop-filter: blur(6px);
+}
+#panel h1 { font-size: 17px; margin: 0; letter-spacing: .3px; }
+#panel h2 { font-size: 11px; text-transform: uppercase; letter-spacing: 1px; color: #7f93a8; margin: 14px 0 6px; }
+#panel .sub { margin: 2px 0 0; color: #7f93a8; font-size: 11px; }
+#panel section { border-top: 1px solid #1f2a37; padding-top: 2px; }
+#panel label { display: block; margin: 8px 0 4px; color: #b7c4d1; }
+#panel select, #panel input[type=number] {
+  width: 100%; background: #0f151d; color: #e8edf2; border: 1px solid #2b3a4c; border-radius: 6px; padding: 6px;
+}
+#panel button, #panel label.file {
+  background: #1a2533; color: #e8edf2; border: 1px solid #2c3d52; border-radius: 6px; padding: 6px 9px;
+  cursor: pointer; font-size: 12px; display: inline-block;
+}
+#panel button:hover, #panel label.file:hover { background: #22324a; }
+#panel button.on { background: #2b6cb0; border-color: #3b82d6; }
+#panel button.danger { border-color: #7a2b2b; }
+#panel .row { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 6px; }
+#panel label.file { position: relative; overflow: hidden; }
+#panel label.file input { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
+.hint { color: #7f93a8; font-size: 12px; margin: 4px 0; min-height: 16px; }
+.stats { background: #0b1017; border: 1px solid #1f2a37; border-radius: 6px; padding: 8px; white-space: pre-wrap; font: 11px/1.45 ui-monospace, monospace; margin: 6px 0; }
+.status { min-height: 18px; font-size: 12px; color: #9fd3ff; }
+.status.bad { color: #ff8a8a; }
+.status.good { color: #9bf0b0; }
+.help p { margin: 4px 0; color: #9aa9b8; font-size: 12px; }
