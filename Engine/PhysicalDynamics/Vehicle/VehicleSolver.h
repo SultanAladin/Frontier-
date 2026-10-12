@@ -198,6 +198,9 @@ struct WheelTelemetry
     float    DrivePower_W = 0.0f;         // [W] - relative shaft drive work
     float    ContactPower_W = 0.0f;       // [W] - instantaneous contact work
     float    StaticContactPower_W = 0.0f; // [W] - coupled discrete contact work
+    float    RequestedBrakeTorque = 0.0f; // [N·m] - pedal/thermal and parking-brake capacity
+    float    AppliedBrakeTorque = 0.0f;   // [N·m] - signed disc action on the rotor, excluding rolling resistance
+    float    BrakePower_W = 0.0f;         // [W] - dissipative relative-shaft disc work
     float    RimPower_W = 0.0f;           // [W] - tyre/rim work diagnostic
     float    VerticalLoad = 0.0f;   // [N] Fz from the soft tyre
     float    LongitudinalForce = 0.0f; // [N] applied traction/brake (post-clamp)

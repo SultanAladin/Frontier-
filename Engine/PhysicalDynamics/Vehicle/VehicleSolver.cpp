@@ -708,7 +708,9 @@ void VehicleSolver::StepPacejka(float Δτ) noexcept
         const float GroundTorque = Fx * RollingLever;
         float omega1 = omega0 + (driveTq + GroundTorque + Dot(reaction.RimTorque, SpinAxis)) * Δτ / Ieff;
         const float resist = std::min(brakeTq + rollTq, std::fabs(omega1) * Ieff / Δτ);
-        const float BrakeReaction = resist * Sign(omega1);
+        const float BrakeDirection = Sign(omega1);
+        const float AppliedDiscTorque = std::min(brakeTq, resist);
+        const float BrakeReaction = resist * BrakeDirection;
         omega1 -= BrakeReaction * Δτ / Ieff;
         if (ChassisHooks.ApplyTorque) TransmitTorque(SpinAxis * (BrakeReaction - driveTq));
         WheelSpin[i] = omega1;
@@ -728,6 +730,9 @@ void VehicleSolver::StepPacejka(float Δτ) noexcept
         wt.ContactCount      = reaction.ContactCount;
         wt.InContact         = onGnd;
         wt.WheelOmega        = WheelSpin[i];
+        wt.RequestedBrakeTorque = brakeTq;
+        wt.AppliedBrakeTorque = -AppliedDiscTorque * BrakeDirection;
+        wt.BrakePower_W = -AppliedDiscTorque * std::abs(0.5f * (omega0 + omega1));
         wt.DrivePower_W = driveTq * 0.5f * (omega0 + omega1);
         wt.ContactPower_W = PassivePower; wt.StaticContactPower_W = 0.0f;
         wt.RimPower_W = Dot(reaction.RimForce, hubVel) + Dot(reaction.RimTorque, cs.AngularVelocity + SpinAxis * omega0);
