@@ -138,6 +138,10 @@ public:
     [[nodiscard]] const CelestialSettings& QueryCelestial() const noexcept { return Celestial_; }
 
     // Selects the shadow technique for subsequent renders. Defaults to the Standard tier's PCSS if never called.
+    // 📝 Opt-in diagnostic colouring: same visibility geometry, no BSDF/LUT/light/shadow/atmosphere work.
+    void AssignFlatColouring(bool Enabled) noexcept { FlatColouring_ = Enabled; }
+    [[nodiscard]] bool QueryFlatColouring() const noexcept { return FlatColouring_; }
+
     void AssignShadowCriteria(const ShadowCriteria& Criteria) noexcept;
     [[nodiscard]] const ShadowCriteria& QueryShadowCriteria() const noexcept { return Shadows_; }
 
@@ -178,6 +182,14 @@ private:
         float Size;               // [m] the luminaire's own extent, √Area — PCSS's LightSize term
     };
 
+    void ShadeFlat(const SceneStructure& Level,
+                   const float Forward[3],
+                   const float Right[3],
+                   const float Up[3],
+                   uint32_t Width,
+                   uint32_t Height,
+                   unsigned char* Rgba,
+                   double& MeanLum) noexcept;
     void CollectLumi(const SceneStructure& Level) noexcept;
     void PlaceTaps() noexcept;
     void RasterizePrimary(const SceneStructure& Level, const float Eye[3], const float Forward[3],
@@ -213,6 +225,7 @@ private:
     uint32_t              TapCount_  = 0u;
 
     CelestialSettings     Celestial_{};   // the sky behind the geometry (disabled = flat fallback colour)
+    bool                  FlatColouring_ = false; // [-] - diagnostic view only, default shading unchanged
     ColourTransfer        Colour_{};      // linear radiance -> display pixel, shared with the GPU paths
     std::vector<float>    Depth_;    // [m] primary linear depth, Width×Height
     std::vector<uint32_t> TriId_;    // [idx] the visibility buffer: winning triangle or kMiss

@@ -114,7 +114,7 @@ def Animate(Job):
     Recording, Terrain = After / (Name + ".frames"), After / (Name + ".terrain")
     Output, Poster, Sidecar = Raw / (Name + ".gif"), Raw / (Name + ".png"), Raw / (Name + ".json")
     Expected = {"recordingSHA256": Hash(Recording), "terrainSHA256": Hash(Terrain), "rendererFingerprint": RendererIdentity,
-        "firstFrame": First, "finalFrameExclusive": Final, "stride": Stride, "rasterExtent": 320, "shadowMapSide": 128}
+        "firstFrame": First, "finalFrameExclusive": Final, "stride": Stride, "rasterExtent": 320, "shadowMapSide": 0, "renderMode": "flat-matcap-diagnostic"}
     if Output.exists() and Poster.exists() and Sidecar.exists():
         Saved = json.loads(Sidecar.read_text())
         if all(Saved.get(Key) == Value for Key, Value in Expected.items()) and Hash(Output) == Saved["gifSHA256"]:
@@ -135,7 +135,7 @@ def Animate(Job):
         Pen.text((8, 24), f"Actual t={Time:.2f}s | angular {Row['angular_speed']:.2f} rad/s", font=Font, fill="#c3d9e9")
         Pen.text((8, 41), f"Mechanical change {Row['increase_J']:+.1f} J", font=Font, fill="#ffd28b")
         Pen.text((8, 58), f"Radius {Row['radius_m']:.4f}m | {'AIRBORNE' if Row['airborne'] else 'CONTACT'}", font=Font, fill="#c3d9e9")
-        Pen.text((8, 76), "Shared CPU raster | actual nodes | diagnostic rims", font=Font, fill="#9cb8d2")
+        Pen.text((8, 76), "Fast flat CPU raster | actual nodes | seated beads", font=Font, fill="#9cb8d2")
         Pictures.append(Surface.quantize(colors=128, dither=Image.Dither.NONE))
     assert len(Pictures) == len(range(First, Final, Stride)) and len(Pictures) >= 10
     Pictures[0].save(Output, save_all=True, append_images=Pictures[1:], duration=Stride * 50, loop=0, disposal=2, optimize=False)
@@ -260,4 +260,6 @@ Proof = {"date": "2026-10-12", "cpuOnly": True, "generatedArtwork": False, "phys
     "physicsSourceProofSHA256": Hash(After / "SourceProof.json"), "deformationProofSHA256": Hash(After / "FlightDeformationProof.json"),
     "charts": {File.name: Hash(File) for File in Charts}, "reconstructionStartIsShortened": True, "historicalMissingMediaReused": False}
 (Gallery / "flight/MotionProof.json").write_text(json.dumps(Proof, indent=2) + "\n")
+from PlaybackCodec import ConfigureGallery
+ConfigureGallery(Gallery)
 print(f"PUBLISHED 43 actual GIFs / 2 MP4s, {Passing}/68 necessary-screen passes: {MainFile}", flush=True)

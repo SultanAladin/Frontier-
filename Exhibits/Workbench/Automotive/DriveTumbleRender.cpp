@@ -67,7 +67,7 @@ void Material(Frontier::SceneStructure& Scene, Vec3 Colour, float Emission = 0.0
 
 int main(int Count, char** Arguments)
 {
-    assert(Count >= 3 && Count <= 6);
+    assert(Count >= 3 && Count <= 7);
     const std::filesystem::path Recording = Arguments[1], Folder = Arguments[2];
     const uint32_t Stride = Count > 3 ? static_cast<uint32_t>(std::stoul(Arguments[3])) : 4u;
     const uint32_t First = Count > 4 ? static_cast<uint32_t>(std::stoul(Arguments[4])) : 0u;
@@ -84,7 +84,13 @@ int main(int Count, char** Arguments)
     if (Surface.good()) Surface >> Terrain >> Mirror >> Normal.x >> Normal.y >> Normal.z;
     assert(Terrain <= 3u && std::abs(Normal.Length() - 1.0f) < 0.0001f);
     std::filesystem::create_directories(Folder);
-    const auto Tables = Frontier::ShadingTableCodec::Bake(512u); Frontier::UnifiedMaterial::BindTables(Tables);
+    const bool FlatColouring = Count <= 6 || std::string(Arguments[6]) != "lit";
+    Frontier::ShadingTableSet Tables;
+    if (!FlatColouring)
+    {
+        Tables = Frontier::ShadingTableCodec::Bake(512u);
+        Frontier::UnifiedMaterial::BindTables(Tables);
+    }
     Frontier::Vehicle::VehicleGeometry Dimensions;
     std::vector<unsigned char> Pixels(Extent * Extent * 4u); uint32_t Rendered = 0u;
     for (uint32_t Frame = 0u; Frame < Frames; ++Frame)
@@ -124,10 +130,25 @@ int main(int Count, char** Arguments)
                     const Vec3 C = Nodes[(Ring + 1u) * Segments + Next], D = Nodes[(Ring + 1u) * Segments + Segment];
                     Tyres.Triangle(A, B, C); Tyres.Triangle(A, C, D);
                 }
+            // 📝 Close the recorded shoulders onto the same rigid bead seats as native rendering and physics.
+            //      Omitting these annuli made the diagnostic tread look detached even when its native bead was seated.
+            const float BeadHalfWidth = 0.5f * Dimensions.TyreWidth * Frontier::Vehicle::TyreBeadWidthRatio;
+            for (uint32_t Side = 0u; Side < 2u; ++Side)
+                for (uint32_t Segment = 0u; Segment < Segments; ++Segment)
+                {
+                    const uint32_t Next = (Segment + 1u) % Segments;
+                    const uint32_t Ring = Side == 0u ? 0u : Rings - 1u;
+                    const float Sign = Side == 0u ? -1.0f : 1.0f;
+                    const float θ = 2 * π * Segment / Segments, NextAngle = 2 * π * Next / Segments;
+                    const Vec3 A = Nodes[Ring * Segments + Segment], B = Nodes[Ring * Segments + Next];
+                    const Vec3 C = Hubs[Corner] + Phases[Corner].Rotate({Dimensions.TyreRimRadius * std::cos(NextAngle), Sign * BeadHalfWidth, Dimensions.TyreRimRadius * std::sin(NextAngle)});
+                    const Vec3 D = Hubs[Corner] + Phases[Corner].Rotate({Dimensions.TyreRimRadius * std::cos(θ), Sign * BeadHalfWidth, Dimensions.TyreRimRadius * std::sin(θ)});
+                    Tyres.Triangle(A, B, C); Tyres.Triangle(A, C, D);
+                }
             for (uint32_t Segment = 0u; Segment < 32u; ++Segment)
             {
                 const float θ = 2 * π * Segment / 32u, Next = 2 * π * (Segment + 1u) / 32u;
-                const float Width = Dimensions.TyreWidth * 0.37f, Radius = Dimensions.TyreRimRadius;
+                const float Width = 0.5f * Dimensions.TyreWidth * Frontier::Vehicle::TyreBeadWidthRatio, Radius = Dimensions.TyreRimRadius;
                 const Vec3 A = Hubs[Corner] + Phases[Corner].Rotate({Radius * std::cos(θ), -Width, Radius * std::sin(θ)});
                 const Vec3 B = Hubs[Corner] + Phases[Corner].Rotate({Radius * std::cos(Next), -Width, Radius * std::sin(Next)});
                 const Vec3 C = Hubs[Corner] + Phases[Corner].Rotate({Radius * std::cos(Next), Width, Radius * std::sin(Next)});
@@ -157,13 +178,16 @@ int main(int Count, char** Arguments)
                 }
         }
         Floor[0].Append(Scene, 3u); Floor[1].Append(Scene, 4u); FacetSequence Lamp;
-        Lamp.Triangle(Position + Vec3{-5, -5, 7}, Position + Vec3{5, 5, 7}, Position + Vec3{5, -5, 7});
-        Lamp.Triangle(Position + Vec3{-5, -5, 7}, Position + Vec3{-5, 5, 7}, Position + Vec3{5, 5, 7}); Lamp.Append(Scene, 5u);
+        if (!FlatColouring)
+        {
+            Lamp.Triangle(Position + Vec3{-5, -5, 7}, Position + Vec3{5, 5, 7}, Position + Vec3{5, -5, 7});
+            Lamp.Triangle(Position + Vec3{-5, -5, 7}, Position + Vec3{-5, 5, 7}, Position + Vec3{5, 5, 7}); Lamp.Append(Scene, 5u);
+        }
         Scene.Finalise();
         const Vec3 Eye = Position + Vec3{-7.0f, -8.0f, 4.0f}, Forward = (Position + Vec3{0, 0, 0.25f} - Eye).Normalized();
         const Vec3 Right = Cross(Forward, {0, 0, 1}).Normalized(), Up = Cross(Right, Forward).Normalized();
         const float E[] = {Eye.x, Eye.y, Eye.z}, F[] = {Forward.x, Forward.y, Forward.z}, R[] = {Right.x, Right.y, Right.z}, U[] = {Up.x, Up.y, Up.z};
-        Frontier::VisibilityRaster Raster; Frontier::ShadowCriteria Shadows; Shadows.MapSide = 128u; Shadows.TapCount = 1u; Raster.AssignShadowCriteria(Shadows);
+        Frontier::VisibilityRaster Raster; Raster.AssignFlatColouring(FlatColouring); Frontier::ShadowCriteria Shadows; Shadows.MapSide = 128u; Shadows.TapCount = 1u; Raster.AssignShadowCriteria(Shadows);
         double Luminance = 0.0;
         assert(Raster.Render(Scene, E, F, R, U, 46.0f * π / 180.0f, Extent, Extent, Pixels.data(), Luminance));
         assert(PngWriteCounterpart::WritePng((Folder / (std::to_string(Frame) + ".png")).string().c_str(), Extent, Extent, 4, Pixels.data(), Extent * 4u));

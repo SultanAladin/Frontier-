@@ -64,19 +64,23 @@ bool VisibilityRaster::Render(const SceneStructure& Level,
     if (!(FovYRadians > 0.0f) || !(FovYRadians < kPi))
         return false;
 
-    CollectLumi(Level);
-    PlaceTaps();
+    if (!FlatColouring_)
+    {
+        CollectLumi(Level);
+        PlaceTaps();
+    }
 
     const size_t Cells = static_cast<size_t>(Width) * static_cast<size_t>(Height);
     Depth_.assign(Cells, 1e30f);
     TriId_.assign(Cells, kMiss);
     Bary_.assign(Cells * 2u, 0.0f);
     TriN_.assign(Flat.size() * 3u, 0.0f);
-    Shadow_.assign(static_cast<size_t>(Shadows_.MapSide) * static_cast<size_t>(Shadows_.MapSide), 1e30f);
+    if (!FlatColouring_) Shadow_.assign(static_cast<size_t>(Shadows_.MapSide) * static_cast<size_t>(Shadows_.MapSide), 1e30f);
     Acc_.assign(Cells * 3u, 0.0f);
 
     RasterizePrimary(Level, Eye, Forward, Right, Up, FovYRadians, Width, Height);
-    Shade(Level, Eye, Forward, Right, Up, FovYRadians, Width, Height, Rgba, MeanLum);
+    if (FlatColouring_) ShadeFlat(Level, Forward, Right, Up, Width, Height, Rgba, MeanLum);
+    else Shade(Level, Eye, Forward, Right, Up, FovYRadians, Width, Height, Rgba, MeanLum);
     return true;
 }
 
@@ -92,21 +96,25 @@ bool VisibilityRaster::RenderOrthographic(const SceneStructure& Level,
     if (!(HalfHeightWorld > 0.0f))
         return false;
 
-    CollectLumi(Level);
-    PlaceTaps();
+    if (!FlatColouring_)
+    {
+        CollectLumi(Level);
+        PlaceTaps();
+    }
 
     const size_t Cells = static_cast<size_t>(Width) * static_cast<size_t>(Height);
     Depth_.assign(Cells, 1e30f);
     TriId_.assign(Cells, kMiss);
     Bary_.assign(Cells * 2u, 0.0f);
     TriN_.assign(Flat.size() * 3u, 0.0f);
-    Shadow_.assign(static_cast<size_t>(Shadows_.MapSide) * static_cast<size_t>(Shadows_.MapSide), 1e30f);
+    if (!FlatColouring_) Shadow_.assign(static_cast<size_t>(Shadows_.MapSide) * static_cast<size_t>(Shadows_.MapSide), 1e30f);
     Acc_.assign(Cells * 3u, 0.0f);
 
     RasterizePrimaryOrthographic(Level, Eye, Forward, Right, Up, HalfHeightWorld, Width, Height);
     // The shade pass ignores the projection arguments (it rebuilds hit points off the visibility buffer),
     //    so the perspective field of view below is a formality, never consulted.
-    Shade(Level, Eye, Forward, Right, Up, 1.0471976f, Width, Height, Rgba, MeanLum);
+    if (FlatColouring_) ShadeFlat(Level, Forward, Right, Up, Width, Height, Rgba, MeanLum);
+    else Shade(Level, Eye, Forward, Right, Up, 1.0471976f, Width, Height, Rgba, MeanLum);
     return true;
 }
 
@@ -563,6 +571,51 @@ float VisibilityRaster::Shadow(const float P[3], const float N[3], float NdotL, 
             return FilterLit(TexU, TexV, Zc, Bias, Radius, Shadows_.TapCount);
         }
     }
+}
+
+void VisibilityRaster::ShadeFlat(const SceneStructure& Level,
+                                 const float Forward[3],
+                                 const float Right[3],
+                                 const float Up[3],
+                                 uint32_t Width,
+                                 uint32_t Height,
+                                 unsigned char* Rgba,
+                                 double& MeanLum) noexcept
+{
+    const auto& Triangles = Level.QueryFlatTriangles();
+    const auto& Materials = Level.QueryMaterials().QueryRecords();
+    const size_t Cells = static_cast<size_t>(Width) * Height;
+    const float Light[3] = {-0.3f * Right[0] + 0.4f * Up[0] - 0.8660254f * Forward[0],
+                            -0.3f * Right[1] + 0.4f * Up[1] - 0.8660254f * Forward[1],
+                            -0.3f * Right[2] + 0.4f * Up[2] - 0.8660254f * Forward[2]};
+    double Sum = 0.0;
+    for (size_t Cell = 0u; Cell < Cells; ++Cell)
+    {
+        float Colour[3] = {0.13f, 0.15f, 0.18f};
+        const uint32_t Triangle = TriId_[Cell];
+        if (Triangle != kMiss)
+        {
+            uint32_t Material;
+            std::memcpy(&Material, &Triangles[Triangle].MaterialSlot, sizeof(Material));
+            if (Material < Materials.size())
+            {
+                const auto& Surface = Materials[Material];
+                const float Facing = std::fabs(TriN_[Triangle * 3u] * Light[0] + TriN_[Triangle * 3u + 1u] * Light[1] + TriN_[Triangle * 3u + 2u] * Light[2]);
+                const float Shading = 0.30f + 0.70f * Facing;
+                Colour[0] = Surface.AlbedoR * Shading; Colour[1] = Surface.AlbedoG * Shading; Colour[2] = Surface.AlbedoB * Shading;
+            }
+        }
+        for (uint32_t Channel = 0u; Channel < 3u; ++Channel)
+        {
+            Acc_[Cell * 3u + Channel] = Colour[Channel];
+            // 📝 Diagnostic display gamma, not a claim of production lighting or GPU pixel parity.
+            const float Display = std::sqrt(std::clamp(Colour[Channel], 0.0f, 1.0f));
+            Rgba[Cell * 4u + Channel] = static_cast<unsigned char>(std::round(Display * 255.0f));
+        }
+        Rgba[Cell * 4u + 3u] = 255u;
+        Sum += 0.2126f * Colour[0] + 0.7152f * Colour[1] + 0.0722f * Colour[2];
+    }
+    MeanLum = Sum / Cells;
 }
 
 void VisibilityRaster::Shade(const SceneStructure& Level, const float Eye[3], const float Forward[3],
