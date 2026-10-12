@@ -9,6 +9,14 @@ export default defineConfig({
   root,
   base: './',
   server: { host: '0.0.0.0', allowedHosts: ['.e2b.app'], proxy: { '/api/construct': 'http://127.0.0.1:5191' } },
+  build: {
+    rollupOptions: {
+      input: {
+        main: resolve(root, 'index.html'),
+        'road-editor': resolve(root, 'road-editor.html'),
+      },
+    },
+  },
   plugins: [{
     name: 'standalone-experimental-pages',
     configureServer(server) {

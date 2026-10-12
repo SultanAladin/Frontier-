@@ -3,6 +3,8 @@
 This folder contains the browser editor and its companion design studies:
 
 - `index.html`: the React outliner/inspector and Construct menu (requires Vite).
+- `road-editor.html`: the spline Road Editor — procedural 6×6 km road network
+  workbench (Unreal fly cam, 33 road types, 8 bridge families, topology audit).
 - `icons.html`: standalone SVG icon gallery.
 - `collection-icon-options.html`: standalone collection-icon design options.
 
@@ -13,8 +15,36 @@ npm run dev -- --port 5173
 npm run build
 ```
 
-Visit `/`, `/icons.html` or `/collection-icon-options.html` on the dev server.
-The build places all three pages and required SVGs in `dist/`.
+Visit `/`, `/road-editor.html`, `/icons.html` or `/collection-icon-options.html`
+on the dev server. The build places all pages and required SVGs in `dist/`.
+
+## Road Editor (`road-core/` + `road-editor.jsx`)
+
+Headless core (runs in Node, no DOM): `graph.js` (spline network, precise
+non-boolean merging — crossings split and share one junction polygon, never
+stacked slabs), `cityGen.js` (seeded 6×6 km city + countryside generator),
+`meshBuilder.js` (ribbons, markings, furniture, bridges), `bridges.js`,
+`roadTypes.js`, `validate.js` (8-check topology audit), `viewport.js`
+(Three.js Unreal fly-cam viewport). React workbench in `road-editor.jsx`.
+
+```sh
+# headless audit across seeds (expect 8/8 CLEAN, 0 down-facing tris)
+node --input-type=module -e "
+import('./road-core/cityGen.js').then(async ({ generateCity }) => {
+  const { buildNetworkMeshes } = await import('./road-core/meshBuilder.js');
+  const { auditTopology } = await import('./road-core/validate.js');
+  for (const seed of [20261012, 777, 424242]) {
+    const { graph } = generateCity(seed);
+    const meshes = buildNetworkMeshes(graph, { groundYAt: () => 0 });
+    const a = auditTopology(graph, meshes);
+    console.log(seed, a.passed + '/' + a.total, a.clean ? 'CLEAN' : 'DIRTY');
+  }
+});"
+```
+
+Camera: WASD fly · Q/E down/up · RMB look · wheel speed+dolly · Shift boost ·
+F focus. Editing: V select (drag orange handles, crossings re-merge) · D draw
+(click points, Enter commits). Height gaps ≥ 0.6 m stay grade-separated.
 
 The existing Construct creation bridge remains a separate native process. Start
 it from the **repository root**, not this directory:
