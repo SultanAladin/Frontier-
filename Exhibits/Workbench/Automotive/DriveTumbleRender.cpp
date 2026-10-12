@@ -67,7 +67,7 @@ void Material(Frontier::SceneStructure& Scene, Vec3 Colour, float Emission = 0.0
 
 int main(int Count, char** Arguments)
 {
-    assert(Count >= 3 && Count <= 7);
+    assert(Count >= 3 && Count <= 8);
     const std::filesystem::path Recording = Arguments[1], Folder = Arguments[2];
     const uint32_t Stride = Count > 3 ? static_cast<uint32_t>(std::stoul(Arguments[3])) : 4u;
     const uint32_t First = Count > 4 ? static_cast<uint32_t>(std::stoul(Arguments[4])) : 0u;
@@ -145,9 +145,9 @@ int main(int Count, char** Arguments)
                     const Vec3 D = Hubs[Corner] + Phases[Corner].Rotate({Dimensions.TyreRimRadius * std::cos(θ), Sign * BeadHalfWidth, Dimensions.TyreRimRadius * std::sin(θ)});
                     Tyres.Triangle(A, B, C); Tyres.Triangle(A, C, D);
                 }
-            for (uint32_t Segment = 0u; Segment < 32u; ++Segment)
+            for (uint32_t Segment = 0u; Segment < Segments; ++Segment)
             {
-                const float θ = 2 * π * Segment / 32u, Next = 2 * π * (Segment + 1u) / 32u;
+                const float θ = 2 * π * Segment / Segments, Next = 2 * π * (Segment + 1u) / Segments;
                 const float Width = 0.5f * Dimensions.TyreWidth * Frontier::Vehicle::TyreBeadWidthRatio, Radius = Dimensions.TyreRimRadius;
                 const Vec3 A = Hubs[Corner] + Phases[Corner].Rotate({Radius * std::cos(θ), -Width, Radius * std::sin(θ)});
                 const Vec3 B = Hubs[Corner] + Phases[Corner].Rotate({Radius * std::cos(Next), -Width, Radius * std::sin(Next)});
@@ -184,7 +184,13 @@ int main(int Count, char** Arguments)
             Lamp.Triangle(Position + Vec3{-5, -5, 7}, Position + Vec3{-5, 5, 7}, Position + Vec3{5, 5, 7}); Lamp.Append(Scene, 5u);
         }
         Scene.Finalise();
-        const Vec3 Eye = Position + Vec3{-7.0f, -8.0f, 4.0f}, Forward = (Position + Vec3{0, 0, 0.25f} - Eye).Normalized();
+        Vec3 Eye = Position + Vec3{-7.0f, -8.0f, 4.0f}, Target = Position + Vec3{0, 0, 0.25f};
+        if (Count >= 8 && std::string(Arguments[7]) == "bead")
+        {
+            Target = Hubs[1];
+            Eye = Target + Phases[1].Rotate({0.0f, -2.3f, 0.4f});
+        }
+        const Vec3 Forward = (Target - Eye).Normalized();
         const Vec3 Right = Cross(Forward, {0, 0, 1}).Normalized(), Up = Cross(Right, Forward).Normalized();
         const float E[] = {Eye.x, Eye.y, Eye.z}, F[] = {Forward.x, Forward.y, Forward.z}, R[] = {Right.x, Right.y, Right.z}, U[] = {Up.x, Up.y, Up.z};
         Frontier::VisibilityRaster Raster; Raster.AssignFlatColouring(FlatColouring); Frontier::ShadowCriteria Shadows; Shadows.MapSide = 128u; Shadows.TapCount = 1u; Raster.AssignShadowCriteria(Shadows);
