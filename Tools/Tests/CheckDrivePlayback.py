@@ -8,7 +8,7 @@ import sys
 import tomllib
 
 Root = Path(__file__).resolve().parents[2]
-Scratch = Root.parent / "_AgentScratch/build/DrivePlayback"
+Scratch = Root / "_AgentScratch/build/DrivePlayback"
 Scratch.mkdir(parents=True, exist_ok=True)
 Windows = sys.platform == "win32"
 Compiler = "cl.exe" if Windows else os.environ.get("CXX", "g++")
@@ -40,8 +40,7 @@ def Link(Name, Sources, Arguments=()):
     return Output
 
 
-Link("DeploymentPointChecks", ["../VisualProof/DeploymentPoint/DeploymentPointChecks.cpp"])
-
+# Deployment-point semantics are covered by the real callbacks below, without an out-of-repository fixture.
 Simulation = json.loads((Root / "Projects/Project-Drive/Build/DriveSimulationSources.json").read_text())["sources"]
 Link("DriveInterchangeChecks", [*Simulation, "Projects/Project-Drive/Source/DriveInterchangeChecks.cpp"])
 Link("DriveSpawnChecks", [*Simulation, "Projects/Project-Drive/Source/DriveSpawnChecks.cpp"])
@@ -56,7 +55,7 @@ Specification = tomllib.loads((Root / "Projects/Project-Drive/ProjectDrive.front
 assert Path(Specification["Project"]["OpeningScene"]).stem == json.loads(Original)["scenes"][0]["name"]
 subprocess.run([str(Author), "--ensure", str(Scene)], cwd=Scratch, check=True)
 assert Scene.read_bytes() == Original
-Older = Original.replace(b'"DriveCourse.r4"', b'"DriveCourse.r3"')
+Older = Original.replace(b'"DriveCourse.r5"', b'"DriveCourse.r4"')
 assert Older != Original
 Scene.write_bytes(Older)
 subprocess.run([str(Author), "--ensure", str(Scene)], cwd=Scratch, check=True)

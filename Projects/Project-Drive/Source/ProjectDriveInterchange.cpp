@@ -168,7 +168,7 @@ uint32_t FRONTIER_CODE_IMAGE_CALL ConstructProject(
             { sizeof(FrontierProjectPanel), "ControlVehicle",     "ControlVehicle Inspector" },
             { sizeof(FrontierProjectPanel), "XPBDTyres",          "XPBD Tyres" },
             { sizeof(FrontierProjectPanel), "VehicleDynamics",    "Vehicle Dynamics" },
-            { sizeof(FrontierProjectPanel), "DriveRenderModes",   "Surfel GI / ReSTIR" },
+            { sizeof(FrontierProjectPanel), "DriveRenderModes",   "Raster / SDF GI / ReSTIR" },
         };
         for (const FrontierProjectPanel& Panel : Panels)
             HostInterchange->ReceivePanel(&Panel, HostInterchange->ProjectReception);
@@ -252,6 +252,8 @@ uint32_t FRONTIER_CODE_IMAGE_CALL AdvanceProject(
     const float Seconds = Reading->Paused ? (Reading->SimulationStep ? 1.0f / 60.0f : 0.0f)
                                          : std::clamp(ActiveCycle->CycleSeconds, 0.0f, 0.1f);
     const bool Driving = Transport == 1u && Reading->KeyboardCaptured == 0u;
+    // 📝 Ejection/modal capture cuts driving input immediately; it must not coast through throttle smoothing.
+    if (!Driving) Sequence.Input = Frontier::Vehicle::DriverInputIntegrator{};
     Sequence.Input.ForwardThrottleKey(Driving && Reading->MoveAxisY > 0.0f);
     Sequence.Input.ForwardBrakeKey(Driving && Reading->MoveAxisY < 0.0f);
     Sequence.Input.ForwardSteerLeftKey(Driving && Reading->MoveAxisX < 0.0f);

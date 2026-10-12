@@ -8,11 +8,8 @@
 //    InstanceRecord rows. This class is the one place they meet, and it lives in the PROJECT because deciding that
 //    "instance 0 is the car body and instances 1..4 are its wheels" is game semantics.
 //
-//    Body collision is DROPPED by design (only the wheels contact the ground), so the chassis is integrated by a
-//    self-contained rigid integrator owned here — the same one the headless DriveTelemetry reference and the
-//    FieldDemo use — rather than a Jolt body with a collider. The tyres reach the ground through the DriveCourse
-//    heightfield query, never a raycast. This keeps the vehicle physics fully project-owned and identical between
-//    the Vulkan app and the headless reference.
+//    The project-owned rigid integrator resolves contacts at the authored ControlVehicle vertices. The same
+//    CourseSurface query supplies tyres and chassis, including kerb side faces; no invisible upright-only floor clamp.
 //
 //    Per frame the host calls AdvanceVehicle(): it steps the solver at a FIXED sub-step (240 Hz) accumulating
 //    the frame's wall time, then writes World rows —
@@ -46,8 +43,17 @@ struct VehicleInstanceConfiguration
     float    MaxFrameSeconds = 0.10f;      // [s]   clamp a long frame so a hitch never explodes the integrator
 };
 
-// The self-contained rigid chassis (no collider — body collision is dropped). Identical integrator to the
-//    headless DriveTelemetry reference: semi-implicit Euler with gravity, world-frame inertia, quaternion spin.
+// The project-owned rigid chassis: semi-implicit integration and unilateral authored-surface contact.
+struct ChassisContactReading
+{
+    uint32_t ContactCount = 0u;          // [-] - constraints active during the final contact solve
+    Frontier::Vehicle::Vec3 Impulse{};   // [N·s] - summed normal and Coulomb friction impulses
+    float ArrivalPenetration = 0.0f;    // [m] - deepest overlap before positional correction
+    float RemainingPenetration = 0.0f;  // [m] - deepest overlap after positional correction
+    float KineticBefore = 0.0f;         // [J] - kinetic energy before the velocity contact solve
+    float KineticAfter = 0.0f;          // [J] - kinetic energy after the velocity contact solve
+};
+
 struct VehicleChassisBody
 {
     Frontier::Vehicle::Vec3  Position{};
@@ -57,13 +63,28 @@ struct VehicleChassisBody
     Frontier::Vehicle::Vec3  InvInertiaDiag{};
     Frontier::Vehicle::Vec3  Gravity{0.0f, 0.0f, -9.81f};
     float Mass = 1300.0f, LinearDamping = 0.0f, AngularDamping = 0.05f;
+    Frontier::Vehicle::Vec3 LastForce{}, LastTorque{}; // [N, N·m] - integrated forces, before accumulator clearing
+    ChassisContactReading Contacts;
 
     [[nodiscard]] Frontier::Vehicle::Quat Conjugate() const noexcept;
     [[nodiscard]] Frontier::Vehicle::Vec3 WorldAngularAccel(const Frontier::Vehicle::Vec3& torqueWorld) const noexcept;
     void ApplyForceAtPoint(const Frontier::Vehicle::Vec3& f, const Frontier::Vehicle::Vec3& p) noexcept;
     void ApplyTorque(const Frontier::Vehicle::Vec3& t) noexcept;
     void Integrate(float dt) noexcept;
+    [[nodiscard]] float KineticEnergy() const noexcept;
+    void ResolveContacts(const std::vector<Frontier::Vehicle::Vec3>& Locations,
+                         const Frontier::Vehicle::XPBDSoftTyre::GroundQuery& Ground,
+                         float Seconds) noexcept;
     [[nodiscard]] Frontier::Vehicle::ChassisState State() const noexcept;
+
+private:
+    struct ContactConstraint
+    {
+        float PositionMultiplier = 0.0f; // [kg·m] - unilateral position constraint
+        float NormalImpulse = 0.0f;      // [N·s] - accumulated velocity correction
+        Frontier::Vehicle::Vec3 TangentImpulse{};
+    };
+    std::vector<ContactConstraint> ContactConstraints;
 };
 
 class VehicleInstanceSequence
@@ -115,6 +136,7 @@ private:
 
     Frontier::Vehicle::Quat SpawnOrientation{};
     Frontier::Vehicle::XPBDSoftTyre::GroundQuery GroundSurface;
+    std::vector<Frontier::Vehicle::Vec3> CollisionLocations; // [m] - authored body vertices rebased onto the CoM
     std::vector<float>                      WheelSpin;      // [rad] integrated spin angle per wheel (visual)
     float                                   Accumulator = 0.0f;
 

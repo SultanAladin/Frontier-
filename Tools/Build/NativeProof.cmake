@@ -101,3 +101,11 @@ set_tests_properties(NativeWindBindings PROPERTIES WORKING_DIRECTORY "${CMAKE_SO
 add_test(NAME NativeEditorConversion COMMAND "${Python3_EXECUTABLE}" "${CMAKE_SOURCE_DIR}/Tools/Build/RunEditorConversion.py"
     $<TARGET_FILE:FrontierNativeProof> "${CMAKE_BINARY_DIR}/editor-conversion")
 set_tests_properties(NativeEditorConversion PROPERTIES TIMEOUT 300)
+
+add_test(NAME PersistentDistanceFields COMMAND "${Python3_EXECUTABLE}"
+    "${CMAKE_SOURCE_DIR}/Tools/Tests/CheckDistanceFieldPersistence.py" --compiler "${CMAKE_CXX_COMPILER}")
+set_tests_properties(PersistentDistanceFields PROPERTIES TIMEOUT 180)
+
+add_test(NAME DriveDynamics COMMAND "${Python3_EXECUTABLE}"
+    "${CMAKE_SOURCE_DIR}/Tools/Tests/CheckDriveDynamics.py" --compiler "${CMAKE_CXX_COMPILER}")
+set_tests_properties(DriveDynamics PROPERTIES TIMEOUT 240)

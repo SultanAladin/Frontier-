@@ -18,6 +18,7 @@ public:
     bool Construct(VkDevice Device, VkPhysicalDevice PhysicalDevice, VkQueue Queue, uint32_t QueueFamily);
     bool ConstructScene(const SceneStructure& Scene);
     bool RefreshPlacements(const InstanceRecord* Placements, uint32_t Count);
+    bool RefreshGeometry(const SceneStructure& Scene);
     void RecordRefit(VkCommandBuffer Command);
     void Retire();
     [[nodiscard]] bool Ready() const noexcept { return SceneReady; }
@@ -50,6 +51,9 @@ private:
     std::vector<Extent> BottomStorage;
     Extent Vertices, Indices, Placements, TopStorage, Scratch;
     std::vector<VkAccelerationStructureInstanceKHR> PendingPlacements;
+    std::vector<VkAccelerationStructureGeometryKHR> BottomGeometry;
+    std::vector<uint32_t> PrimitiveCounts;
+    std::vector<unsigned char> PendingVertices;
     VkDeviceSize ScratchAlignment = 256u;
     VkDeviceAddress ScratchAddress = 0u;
     bool SceneReady = false;

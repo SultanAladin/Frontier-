@@ -19,6 +19,16 @@ RayTracingSolver::RayTracingSolver() noexcept
     ConstructShowcaseScene();
 }
 
+void RayTracingSolver::AssignTriangles(std::span<const TriangleGeometry> Geometry)
+{
+    Triangles.assign(Geometry.begin(), Geometry.end());
+    Materials.clear();
+    Spans.clear();
+    for (uint32_t Index = 0u; Index < Triangles.size(); ++Index)
+        Triangles[Index].TriangleIndex = Index;
+    BuildBvh();
+}
+
 RayTracingSolver::SpanScope::~SpanScope() noexcept
 {
     if (Spans == nullptr || Triangles == nullptr || Span >= Spans->size()) return;

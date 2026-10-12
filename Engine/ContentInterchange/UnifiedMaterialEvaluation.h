@@ -5,12 +5,11 @@
 //    (Engine/Shaders/MaterialEvaluation.slang compiled 1:1 as C++) plus the slab → ShadingRecord transcription that
 //    feeds it. Nothing else in the tree may define a second one.
 //
-//    WHY THIS FILE EXISTS.  The three CPU render paths used to evaluate three different material models:
+//    WHY THIS FILE EXISTS.  The CPU render paths used to evaluate three different material models:
 //
 //       VisibilityRaster    a hand-rolled Lambert + single GGX lobe off MaterialRecord's flattened 64-byte header
 //                           (AlbedoR/G/B, Roughness, Metalness). No coat, no flakes, no transmission, no fuzz,
 //                           no thin film, no energy compensation.
-//       SurfelReference     a local MaterialAlbedo() switch returning one RGB constant per family.
 //       MaterialLevelViewport  the real thing — MaterialEvaluation.slang through a private TranscribeShadingRecord.
 //
 //    That made the "GI off / GI on / RT on" comparison meaningless: the columns differed by MATERIAL MODEL as much
@@ -26,8 +25,8 @@
 //    not, now that one sky feeds both." The same argument applies to the BSDF, and this file finishes the job.
 //
 //    WHAT STILL LEGITIMATELY DIFFERS between the paths — and must, because it is the whole point:
-//       * transport: raster has no ray queries at all (its quarantine gate greps for them), Surfel carries a bounced
-//         term through a world-space surfel field, ReSTIR resamples reservoirs of traced direct light.
+//       * transport: raster has no ray queries at all (its quarantine gate greps for them), local distance fields carry
+//         diffuse indirect light, and ReSTIR resamples reservoirs of traced direct light.
 //       * visibility: shadow maps vs traced occlusion.
 //       * sampling: one shading point per pixel vs many.
 //    None of those are reasons to evaluate a different BRDF.
@@ -88,7 +87,7 @@ inline vec4 FetchSheenFull(float mu, float alpha)
 #define FRONTIER_AUTOMOTIVE_SHOWCASE 1
 // INTERNAL LINKAGE. MaterialEvaluation.slang is shader text: its functions are written at namespace scope
 //    with external linkage, which is fine while exactly one translation unit in a binary includes it. The
-//    moment two do -- here, VisibilityRaster and SurfelReference in the same link -- the linker reports
+//    moment two consumers include it in the same link, the linker reports
 //    multiple definition of EvaluateBsdf, SampleBsdf, PdfBsdf and the rest. An anonymous namespace gives each
 //    TU its own copy, which is what an inline function would have done had the shader been written as one.
 //    Nothing crosses a TU boundary here: every caller evaluates the lobe set locally.
@@ -227,7 +226,7 @@ namespace Frontier::UnifiedMaterial {
 //------------------------------------------------------------------------------------------------------------------------
 // The device-side MaterialSlabRecord unpacked into the evaluator's ShadingRecord. Lifted out of
 //    MaterialLevelViewport::TranscribeShadingRecord so there is ONE transcription rather than one per host —
-//    it was the third hand-written copy of this mapping, after the kernel's ResolveMaterial and the surfel
+//    it was the third hand-written copy of this mapping, after the kernel's ResolveMaterial and the retired indirect
 //    passes' (which did not have one at all, and approximated instead).
 //
 //    ⚠️ This is the no-texture case: a slab's constant channels only. ResolveMaterial on the device also folds

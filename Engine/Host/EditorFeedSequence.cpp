@@ -780,8 +780,14 @@ void EditorFeedSequence::ResolveRosterSpans(RosterSpan* Destination, const Edito
         Destination[Row] = RosterSpan{};
         const uint64_t Key = Rows[Row].InspectorKey;
         const uint32_t Ordinal = static_cast<uint32_t>(Key);
-        if ((Key >> 32u) == 1u && Ordinal > 0u && Ordinal <= RegisteredCount)
-            Destination[Row] = Registered[Ordinal - 1u];
+        // 📝 FillRoster encodes placement identity in namespace 2, not a mutable roster-row ordinal in namespace 1.
+        if ((Key >> 32u) != 2u || Ordinal == 0u) continue;
+        for (uint32_t Slot = 0u; Slot < RegisteredCount; ++Slot)
+            if (Registered[Slot].Placement == Ordinal - 1u)
+            {
+                Destination[Row] = Registered[Slot];
+                break;
+            }
     }
 }
 

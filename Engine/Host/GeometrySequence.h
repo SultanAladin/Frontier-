@@ -6,6 +6,7 @@
 #pragma once
 #include "../ProjectInterchange/CodeInterchange.h"
 #include "../GeometricRaster/SceneStructure.h"
+#include "../GeometricRaster/InstanceAcceleration.h"
 #include <algorithm>
 #include <cmath>
 #include <set>
@@ -94,10 +95,17 @@ public:
             { Refusal = "project geometry snapshot changed or was refused during publication"; return false; }
             for (float Value : CurrentPoints)
                 if (!std::isfinite(Value)) { Refusal = "project returned nonfinite geometry"; return false; }
+            float WorldToLocal[16];
+            if (!Frontier::InvertMatrix(Instance.World, WorldToLocal))
+            { Refusal = "project geometry placement is singular"; return false; }
             size_t Offset = 0u;
             for (uint32_t Index : Used)
             {
-                Candidate[Index].SpatialLocation = {CurrentPoints[Offset], CurrentPoints[Offset + 1u], CurrentPoints[Offset + 2u]};
+                const float X = CurrentPoints[Offset], Y = CurrentPoints[Offset + 1u], Z = CurrentPoints[Offset + 2u];
+                Candidate[Index].SpatialLocation = {
+                    WorldToLocal[0] * X + WorldToLocal[4] * Y + WorldToLocal[8] * Z + WorldToLocal[12],
+                    WorldToLocal[1] * X + WorldToLocal[5] * Y + WorldToLocal[9] * Z + WorldToLocal[13],
+                    WorldToLocal[2] * X + WorldToLocal[6] * Y + WorldToLocal[10] * Z + WorldToLocal[14]};
                 Candidate[Index].NormalDirection = {};
                 Offset += 3u;
             }
@@ -131,9 +139,7 @@ public:
                 Vertex.TangentDirection = {Tangent.x, Tangent.y, Tangent.z, 1.0f};
             }
             auto& Live = CandidateRows[Subject.Instance];
-            std::fill_n(Live.World, 16u, 0.0f);
-            Live.World[0] = Live.World[5] = Live.World[10] = Live.World[15] = 1.0f;
-            std::copy_n(Live.World, 16u, Live.PreviousWorld); // deformation resets history; no fictitious rigid motion
+            std::copy_n(Live.World, 16u, Live.PreviousWorld); // deformation resets history; the mesh stays in placement space
             Subject.Revision = ExpectedRevision;
             Changed = true;
         }

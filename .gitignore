@@ -56,3 +56,9 @@ _AgentScratch/
 **/ThirdParty/
 *.local.*
 .env
+
+# Agent compilation/check output; never part of the application.
+_AgentScratch/
+
+# The shader compiler recreates this provenance manifest with the ignored SPIR-V outputs.
+/Engine/Shaders/ShaderManifest.json

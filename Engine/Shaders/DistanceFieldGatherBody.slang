@@ -7,7 +7,7 @@
 #ifndef FRONTIER_CONSTANT_MATERIALS
 #extension GL_EXT_nonuniform_qualifier : require
 #endif
-layout(local_size_x=16, local_size_y=16) in;
+layout(local_size_x=8, local_size_y=8) in;
 layout(rgba32f, binding=1) uniform readonly image2D SurfaceImage;
 layout(rgba16f, binding=21) uniform writeonly image2D GatherIrradiance;
 layout(rgba16f, binding=22) uniform writeonly image2D GatherNormal;
@@ -16,10 +16,12 @@ layout(rgba16f, binding=22) uniform writeonly image2D GatherNormal;
 void main()
 {
     ivec2 Pixel=ivec2(gl_GlobalInvocationID.xy);
-    if (any(greaterThanEqual(Pixel,min(imageSize(SurfaceImage),ivec2(PC.RenderExtent.xy))))) return;
+    ivec2 Extent=(ivec2(PC.RenderExtent.xy)+1)/2;
+    if (any(greaterThanEqual(Pixel,min(imageSize(GatherIrradiance),Extent)))) return;
+    ivec2 SurfacePixel=min(Pixel*2,ivec2(PC.RenderExtent.xy)-1);
     imageStore(GatherIrradiance,Pixel,vec4(0.0));
     imageStore(GatherNormal,Pixel,vec4(0.0));
-    vec4 Surface=imageLoad(SurfaceImage,Pixel);
+    vec4 Surface=imageLoad(SurfaceImage,SurfacePixel);
     uint Packed=floatBitsToUint(Surface.w), Instance=Packed>>14u;
     if (Packed==0xFFFFFFFFu || Instance>=uint(Instances.length())) return;
     GpuInstance Placement=Instances[Instance];

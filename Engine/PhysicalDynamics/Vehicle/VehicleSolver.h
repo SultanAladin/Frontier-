@@ -188,6 +188,8 @@ struct WheelTelemetry
     Vec3     HubPosition;            // [m] world (rest hub, follows chassis)
     Quat     HubRotation;           // [-] world (includes steer yaw)
     Vec3     ContactPoint;          // [m] world contact-patch centre
+    Vec3     NormalReaction{};      // [N] - XPBD non-penetration reaction, including kerb side faces
+    Vec3     TransmittedReaction{}; // [N] - suspension/linkage normal reaction actually applied to the chassis
     float    VerticalLoad = 0.0f;   // [N] Fz from the soft tyre
     float    LongitudinalForce = 0.0f; // [N] applied traction/brake (post-clamp)
     float    LateralForce = 0.0f;   // [N] applied cornering (post-clamp)
@@ -280,10 +282,14 @@ private:
     [[nodiscard]] const SuspensionSpecification& StrutFor(size_t Wheel) const noexcept;
     [[nodiscard]] Vec3  ResolveHub(size_t Wheel, const ChassisState& cs, Vec3& MountWorld, Vec3& AxisUp) const noexcept;
     [[nodiscard]] float AntiRollForce(size_t Wheel) const noexcept;
-    float IntegrateStrut(size_t Wheel, float Δτ, float TyreLoad, const Vec3& AxisUp, float BarForce) noexcept;
+    float IntegrateStrut(size_t Wheel, float Δτ, const Vec3& NormalReaction, const Vec3& AxisUp, float BarForce) noexcept;
 
+    Vec3                              ChassisAcceleration{}; // [m/s²] - measured between fixed chassis steps
+    Vec3                              PreviousChassisVelocity{};
+    bool                              PreviousChassisStep = false;
     std::vector<float>                WheelSpin;    // [rad/s] per-wheel spin
     std::vector<float>                StrutTravel;  // [m]     per-corner strut compression from free length
+    std::vector<float>                StrutBarForces;
     std::vector<float>                StrutRate;    // [m/s]   per-corner compression rate
     std::vector<SlipState>            SlipDeflections;     // per-wheel relaxation-length deflection state
     int                               GearIndex = 3; // current gear (3 = 1st)

@@ -3,7 +3,7 @@
 //============================================================================================================================================
 //
 //    ONE definition of the course, read by both hosts exactly like ShowroomStructure is in Project-Zero:
-//      • the RENDER side (SurfelReference / the Vulkan app) emits triangles from EmitCourseTriangles();
+//      • the RENDER side (shared raster/ReSTIR / the Vulkan app) emits triangles from EmitCourseTriangles();
 //      • the PHYSICS side (DriveTelemetry / the live drive) samples CourseHeight()/CourseNormal() as the tyre ground query.
 //    Because both come from these functions, the wheels rest exactly on the surface the renderer draws.
 //
@@ -14,6 +14,7 @@
 
 #include <cstdint>
 #include <cmath>
+#include <algorithm>
 
 namespace Frontier {
 namespace Drive {
@@ -140,30 +141,41 @@ inline void CourseSurface(float x, float y, float z, float& outX, float& outY, f
                           float& nx, float& ny, float& nz) noexcept
 {
     using K = KerbConstants;
-    const float Base = CourseHeight(x, y);
+    const float Base = WithinKerb(x, y) ? 0.0f : CourseHeight(x, y);
 
-    const bool InSpan  = (x >= K::NearX && x <= K::FarX);
-    const float KerbTop = Base + K::Height;
-    if (InSpan && y >= K::CentreY - 0.5f && y <= K::CentreY + K::Depth + 0.5f && z < KerbTop)
+    const float KerbTop = K::Height;
+    const bool Inside = x >= K::NearX && x <= K::FarX && y >= K::CentreY && y <= K::CentreY + K::Depth;
+    if (Inside && z >= 0.0f && z < KerbTop)
     {
-        // Distance to each face of the kerb box, choosing the smallest push-out.
-        const float DistInner = y - K::CentreY;                 // negative = outside, on the track side
-        const float DistOuter = (K::CentreY + K::Depth) - y;
-        const float DistTop   = KerbTop - z;
-
-        if (DistInner > 0.0f && DistOuter > 0.0f)
-        {
-            // Inside the footprint: leave by the nearest face.
-            if (DistTop <= DistInner && DistTop <= DistOuter)
-            { outX = x; outY = y; outZ = KerbTop; nx = 0.0f; ny = 0.0f; nz = 1.0f; return; }
-            if (DistInner <= DistOuter)
-            { outX = x; outY = K::CentreY; outZ = z; nx = 0.0f; ny = -1.0f; nz = 0.0f; return; }
-            outX = x; outY = K::CentreY + K::Depth; outZ = z; nx = 0.0f; ny = 1.0f; nz = 0.0f; return;
-        }
+        const float Distances[5] = {x - K::NearX, K::FarX - x, y - K::CentreY,
+                                    K::CentreY + K::Depth - y, KerbTop - z};
+        uint32_t Face = 0u;
+        for (uint32_t Index = 1u; Index < 5u; ++Index)
+            if (Distances[Index] < Distances[Face]) Face = Index;
+        outX = x; outY = y; outZ = z; nx = 0.0f; ny = 0.0f; nz = 0.0f;
+        if (Face == 0u) { outX = K::NearX; nx = -1.0f; }
+        if (Face == 1u) { outX = K::FarX; nx =  1.0f; }
+        if (Face == 2u) { outY = K::CentreY; ny = -1.0f; }
+        if (Face == 3u) { outY = K::CentreY + K::Depth; ny = 1.0f; }
+        if (Face == 4u) { outZ = KerbTop; nz = 1.0f; }
+        return;
+    }
+    const float ClosestX = std::clamp(x, K::NearX, K::FarX);
+    const float ClosestY = std::clamp(y, K::CentreY, K::CentreY + K::Depth);
+    const float ClosestZ = std::clamp(z, 0.0f, KerbTop);
+    const float Dx = x - ClosestX, Dy = y - ClosestY, Dz = z - ClosestZ;
+    const float Distance = std::sqrt(Dx * Dx + Dy * Dy + Dz * Dz);
+    if (Distance > 1.0e-7f && Distance < z - Base)
+    {
+        outX = ClosestX; outY = ClosestY; outZ = ClosestZ;
+        nx = Dx / Distance; ny = Dy / Distance; nz = Dz / Distance;
+        return;
     }
 
     outX = x; outY = y; outZ = Base;
-    CourseNormal(x, y, nx, ny, nz);
+    if (x >= K::NearX - 0.2f && x <= K::FarX + 0.2f && y >= K::CentreY - 0.2f && y <= K::CentreY + K::Depth + 0.2f)
+    { nx = 0.0f; ny = 0.0f; nz = 1.0f; }
+    else CourseNormal(x, y, nx, ny, nz);
 }
 
 // Cone base centre for slalom cone `k` (matches TractrixDriveScene).
@@ -200,7 +212,9 @@ inline void EmitCourseTriangles(Add add) noexcept
         const float Y0 = K::CentreY, Y1 = K::CentreY + K::Depth, H = K::Height;
         quad(K::NearX, Y0, H,  K::FarX, Y0, H,  K::FarX, Y1, H,  K::NearX, Y1, H, MatSurround);   // top
         quad(K::NearX, Y0, 0.0f, K::FarX, Y0, 0.0f, K::FarX, Y0, H, K::NearX, Y0, H, MatSurround);// inner face
-        quad(K::NearX, Y1, 0.0f, K::FarX, Y1, 0.0f, K::FarX, Y1, H, K::NearX, Y1, H, MatSurround);// outer face
+        quad(K::FarX, Y1, 0.0f, K::NearX, Y1, 0.0f, K::NearX, Y1, H, K::FarX, Y1, H, MatSurround);// outer face
+        quad(K::NearX, Y1, 0.0f, K::NearX, Y0, 0.0f, K::NearX, Y0, H, K::NearX, Y1, H, MatSurround);
+        quad(K::FarX, Y0, 0.0f, K::FarX, Y1, 0.0f, K::FarX, Y1, H, K::FarX, Y0, H, MatSurround);
     }
 
     const float G = C::PadHalfExtent * 4.0f;

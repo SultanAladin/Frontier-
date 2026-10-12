@@ -9,6 +9,7 @@
 //    the Vulkan SDK — the record now lives in TriangleSpan.h (reached via TracingIndex.h), which keeps the CPU
 //    reference buildable. GPU translation units are unaffected: SwapchainExchange.h includes TriangleSpan.h too.
 #include <vector>
+#include <span>
 
 namespace Frontier::HostRuntime {
 
@@ -35,6 +36,9 @@ class RayTracingSolver
 public:
     RayTracingSolver() noexcept;
     ~RayTracingSolver() noexcept = default;
+
+    // Bind arbitrary engine geometry to the existing CPU BVH; material evaluation remains with the renderer.
+    void                    AssignTriangles(std::span<const TriangleGeometry> Geometry);
 
     // An OPEN scene: ground and horizon with nothing overhead.
     //    this is the framing complement — most of the default view misses geometry.

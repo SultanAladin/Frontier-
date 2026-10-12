@@ -21,7 +21,7 @@ void main()
         imageStore(SurfaceDiffuse,Pixel,vec4(0)); imageStore(SurfaceNormal,Pixel,vec4(0)); imageStore(SurfaceEmission,Pixel,vec4(0)); return;
     }
     vec2 Coordinate=(vec2(Pixel%int(Resolution))+0.5)/float(Resolution);
-    vec3 Position=CardPosition(Facet,Coordinate), Normal=Facets[Facet].Normal.xyz;
+    vec3 Position=CardPosition(Facet,Coordinate), Normal=CardNormal(Facet,Facets[Facet].Normal.xyz);
     GpuInstance Placement=Instances[floatBitsToUint(Facets[Facet].Alpha.w)];
     GpuMaterial Material=Materials[Placement.MaterialIndex];
     SurfaceFrame Surface;
@@ -33,6 +33,9 @@ void main()
     if ((Material.Slabs.z&2u)!=0u) Coverage=Coverage>=Material.AlphaCutoff ? 1.0 : 0.0;
     vec3 Diffuse=Reflectance.BaseColor*(1.0-Reflectance.Metalness)*(1.0-Reflectance.TransmissionWeight);
     imageStore(SurfaceDiffuse,Pixel,vec4(clamp(Diffuse,vec3(0),vec3(0.95)),Reflectance.SpecularRoughness));
-    imageStore(SurfaceNormal,Pixel,vec4(Surface.Normal,Coverage));
+    // Store the normal in local space too: rigid motion must not require card recapture.
+    uint Slot=floatBitsToUint(Facets[Facet].Alpha.w);
+    vec3 LocalNormal=normalize(transpose(mat3(Placements[Slot].LocalToWorld))*Surface.Normal);
+    imageStore(SurfaceNormal,Pixel,vec4(LocalNormal,Coverage));
     imageStore(SurfaceEmission,Pixel,vec4(max(Surface.Emission,vec3(0)),Surface.Occlusion));
 }

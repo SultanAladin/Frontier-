@@ -202,6 +202,8 @@ void XPBDSoftTyre::Step(float dt, uint32_t substeps, const HubMotion& motion,
     const Vec3 axisWorld = hubRot.Rotate({0, 1, 0}).Normalized();   // spin axis in world
 
     Vec3  sumForce{};
+    Vec3  NormalReaction{};
+    Vec3  SupportReaction{};
     Vec3  sumTorqueRef{};    // torque of contact forces about hub ground projection (for Mz)
     Vec3  sumPatch{};
     float patchN = 0.0f;
@@ -385,6 +387,16 @@ void XPBDSoftTyre::Step(float dt, uint32_t substeps, const HubMotion& motion,
                     if (penetration <= 0.0f) { node.InContact = false; continue; }   // release the bristle
 
 
+                    // 📝 A changed face is a new unilateral constraint, not the previous face's multiplier.
+                    if (node.ContactLambda > 0.0f && Dot(node.ContactNormal, normal) < 0.99f)
+                    {
+                        node.ContactLambda = 0.0f;
+                        node.TreadLambda = 0.0f;
+                        node.InContact = false;
+                    }
+                    node.ContactNormal = normal;
+                    node.ContactPoint = surfPt;
+
                     // Normal push-out.  C = −penetration (violated while the node is below the surface), and the
                     // constraint is UNILATERAL, so the accumulated multiplier is clamped at zero: the ground may
                     // push, never pull.  Without the clamp a contact that is separating applies a suction force.
@@ -516,6 +528,8 @@ void XPBDSoftTyre::Step(float dt, uint32_t substeps, const HubMotion& motion,
             const Vec3 normalForce = node.ContactNormal * (node.ContactLambda * invH2);
             const Vec3 rvec = node.ContactPoint - Vec3{hubPos.x, hubPos.y, node.ContactPoint.z};
             sumForce += normalForce;
+            NormalReaction += normalForce;
+            if (node.ContactNormal.z > 0.25f) SupportReaction += normalForce;
             sumTorqueRef += Cross(rvec, normalForce);
             // Hub-RELATIVE, because the hub travels during the step: averaging world contact points across
             // the substeps and then comparing them to the end-of-step hub reported the patch as trailing by
@@ -629,6 +643,8 @@ void XPBDSoftTyre::Step(float dt, uint32_t substeps, const HubMotion& motion,
 
     const float inv = 1.0f / static_cast<float>(substeps);
     ContactReaction.Force = sumForce * inv;
+    ContactReaction.NormalReaction = NormalReaction * inv;
+    ContactReaction.SupportReaction = SupportReaction * inv;
     ContactReaction.Mz = sumTorqueRef.z * inv;   // vertical component about the hub ground projection
     ContactReaction.ContactCount = static_cast<uint32_t>(contactAccum * inv + 0.5f);
     ContactReaction.PatchCentre = (patchN > 0.0f) ? motion.Position + sumPatch * (1.0f / patchN) : hubPos;

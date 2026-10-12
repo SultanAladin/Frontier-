@@ -3,6 +3,7 @@
 //============================================================================================================================================
 #include "VehicleInstanceSequence.h"
 #include "DriveCourse.h"
+#include "ControlVehicleMesh.inl"
 #include "../../../Engine/PhysicalDynamics/Vehicle/VehicleSpawnSolver.h"
 #include <cstdio>
 
@@ -35,10 +36,16 @@ void VehicleChassisBody::ApplyTorque(const Vec3& t) noexcept { TorqueAccum += t;
 void VehicleChassisBody::Integrate(float dt) noexcept
 {
     ForceAccum += Gravity*Mass;
+    LastForce = ForceAccum;
+    LastTorque = TorqueAccum;
     LinearVelocity += ForceAccum*(dt/Mass);
     if (LinearDamping > 0.0f) LinearVelocity = LinearVelocity*std::exp(-LinearDamping*dt);
     Position += LinearVelocity*dt;
-    AngularVelocity += WorldAngularAccel(TorqueAccum)*dt;
+    const Vec3 LocalSpin = Conjugate().Rotate(AngularVelocity);
+    const Vec3 Momentum = Orientation.Rotate({LocalSpin.x / InvInertiaDiag.x,
+                                              LocalSpin.y / InvInertiaDiag.y,
+                                              LocalSpin.z / InvInertiaDiag.z});
+    AngularVelocity += WorldAngularAccel(TorqueAccum - Frontier::Vehicle::Cross(AngularVelocity, Momentum)) * dt;
     AngularVelocity = AngularVelocity*std::exp(-AngularDamping*dt);
     const Quat wq{AngularVelocity.x, AngularVelocity.y, AngularVelocity.z, 0.0f};
     const Quat dq = QuatMul(wq, Orientation);
@@ -46,6 +53,105 @@ void VehicleChassisBody::Integrate(float dt) noexcept
                                      Orientation.z + 0.5f*dt*dq.z, Orientation.w + 0.5f*dt*dq.w});
     ForceAccum = Vec3{}; TorqueAccum = Vec3{};
 }
+float VehicleChassisBody::KineticEnergy() const noexcept
+{
+    const Vec3 Spin = Conjugate().Rotate(AngularVelocity);
+    const Vec3 Inertia{1.0f / InvInertiaDiag.x, 1.0f / InvInertiaDiag.y, 1.0f / InvInertiaDiag.z};
+    return 0.5f * (Mass * Frontier::Vehicle::Dot(LinearVelocity, LinearVelocity)
+         + Inertia.x * Spin.x * Spin.x + Inertia.y * Spin.y * Spin.y + Inertia.z * Spin.z * Spin.z);
+}
+
+void VehicleChassisBody::ResolveContacts(const std::vector<Vec3>& Locations,
+                                         const Frontier::Vehicle::XPBDSoftTyre::GroundQuery& Ground,
+                                         float Seconds) noexcept
+{
+    Contacts = {};
+    if (!Ground || Locations.empty() || Seconds <= 0.0f || Mass <= 0.0f) return;
+    ContactConstraints.assign(Locations.size(), ContactConstraint{});
+    const float InverseMass = 1.0f / Mass;
+    constexpr float Tolerance = 0.001f;
+    constexpr float Friction = 0.45f;
+    const auto ReadContact = [&](size_t Index, Vec3& Arm, Vec3& Normal, float& Separation)
+    {
+        Arm = Orientation.Rotate(Locations[Index]);
+        const Vec3 Point = Position + Arm;
+        Vec3 Surface;
+        if (!Ground(Point, Surface, Normal)) return false;
+        const float Length = Normal.Length();
+        if (!std::isfinite(Length) || Length < 1.0e-6f) return false;
+        Normal = Normal * (1.0f / Length);
+        Separation = Frontier::Vehicle::Dot(Point - Surface, Normal);
+        return std::isfinite(Separation);
+    };
+    const auto EffectiveInverseMass = [&](const Vec3& Arm, const Vec3& Direction)
+    {
+        const Vec3 AngularGradient = Frontier::Vehicle::Cross(Arm, Direction);
+        return InverseMass + Frontier::Vehicle::Dot(AngularGradient, WorldAngularAccel(AngularGradient));
+    };
+    // 📝 XPBD unilateral position projection; split correction is not converted into a fictitious rebound velocity.
+    for (uint32_t Sweep = 0u; Sweep < 6u; ++Sweep)
+        for (size_t Index = 0u; Index < Locations.size(); ++Index)
+        {
+            Vec3 Arm, Normal;
+            float Separation;
+            if (!ReadContact(Index, Arm, Normal, Separation)) continue;
+            if (Sweep == 0u) Contacts.ArrivalPenetration = std::max(Contacts.ArrivalPenetration, -Separation);
+            auto& Constraint = ContactConstraints[Index];
+            const float Previous = Constraint.PositionMultiplier;
+            const float InverseEffective = EffectiveInverseMass(Arm, Normal);
+            Constraint.PositionMultiplier = std::max(0.0f, Previous - Separation / InverseEffective);
+            const float Correction = Constraint.PositionMultiplier - Previous;
+            if (std::abs(Correction) < 1.0e-8f) continue;
+            Position += Normal * (Correction * InverseMass);
+            const Vec3 Rotation = WorldAngularAccel(Frontier::Vehicle::Cross(Arm, Normal * Correction));
+            const float Angle = Rotation.Length();
+            if (Angle > 1.0e-8f)
+                Orientation = QuatNormalize(QuatMul(Quat::AxisAngle(Rotation * (1.0f / Angle), Angle), Orientation));
+        }
+    Contacts.KineticBefore = KineticEnergy();
+    // 📝 Accumulated unilateral impulses and a Coulomb disk, including rigid angular effective mass; restitution is zero.
+    for (uint32_t Sweep = 0u; Sweep < 6u; ++Sweep)
+        for (size_t Index = 0u; Index < Locations.size(); ++Index)
+        {
+            Vec3 Arm, Normal;
+            float Separation;
+            if (!ReadContact(Index, Arm, Normal, Separation) || Separation > Tolerance) continue;
+            auto& Constraint = ContactConstraints[Index];
+            const Vec3 Velocity = LinearVelocity + Frontier::Vehicle::Cross(AngularVelocity, Arm);
+            const float Closing = Frontier::Vehicle::Dot(Velocity, Normal);
+            const float Previous = Constraint.NormalImpulse;
+            Constraint.NormalImpulse = std::max(0.0f, Previous - Closing / EffectiveInverseMass(Arm, Normal));
+            const Vec3 NormalCorrection = Normal * (Constraint.NormalImpulse - Previous);
+            LinearVelocity += NormalCorrection * InverseMass;
+            AngularVelocity += WorldAngularAccel(Frontier::Vehicle::Cross(Arm, NormalCorrection));
+            Contacts.Impulse += NormalCorrection;
+
+            const Vec3 Remaining = LinearVelocity + Frontier::Vehicle::Cross(AngularVelocity, Arm);
+            const Vec3 Tangent = Remaining - Normal * Frontier::Vehicle::Dot(Remaining, Normal);
+            const float Speed = Tangent.Length();
+            if (Speed <= 1.0e-6f) continue;
+            const Vec3 Direction = Tangent * (1.0f / Speed);
+            Vec3 Proposed = Constraint.TangentImpulse - Tangent * (1.0f / EffectiveInverseMass(Arm, Direction));
+            const float Magnitude = Proposed.Length();
+            const float Limit = Friction * Constraint.NormalImpulse;
+            if (Magnitude > Limit) Proposed = Proposed * (Limit / Magnitude);
+            const Vec3 TangentCorrection = Proposed - Constraint.TangentImpulse;
+            Constraint.TangentImpulse = Proposed;
+            LinearVelocity += TangentCorrection * InverseMass;
+            AngularVelocity += WorldAngularAccel(Frontier::Vehicle::Cross(Arm, TangentCorrection));
+            Contacts.Impulse += TangentCorrection;
+        }
+    Contacts.KineticAfter = KineticEnergy();
+    for (size_t Index = 0u; Index < Locations.size(); ++Index)
+    {
+        Vec3 Arm, Normal;
+        float Separation;
+        if (!ReadContact(Index, Arm, Normal, Separation)) continue;
+        Contacts.RemainingPenetration = std::max(Contacts.RemainingPenetration, -Separation);
+        if (Separation <= Tolerance) ++Contacts.ContactCount;
+    }
+}
+
 Frontier::Vehicle::ChassisState VehicleChassisBody::State() const noexcept
 { return {Position, Orientation, LinearVelocity, AngularVelocity}; }
 
@@ -69,6 +175,12 @@ bool VehicleInstanceSequence::Construct(const Frontier::Vehicle::VehicleGeometry
     Body.Orientation    = SpawnOrientation;
     Body.Mass           = ActiveConfiguration.ChassisMass;
     Body.InvInertiaDiag = Geometry.InvInertia();
+    CollisionLocations.clear();
+    CollisionLocations.reserve(ControlVehicleMesh::kVertexCount);
+    for (uint32_t Index = 0u; Index < ControlVehicleMesh::kVertexCount; ++Index)
+        CollisionLocations.push_back({ControlVehicleMesh::kPositions[Index * 3u],
+                                      ControlVehicleMesh::kPositions[Index * 3u + 1u],
+                                      ControlVehicleMesh::kPositions[Index * 3u + 2u] - Geometry.CoMModelZ()});
 
     VehicleSolver::Hooks h;
     h.ReadChassis       = [this]{ return Body.State(); };
@@ -146,7 +258,8 @@ void VehicleInstanceSequence::AdvanceVehicle(const Frontier::Vehicle::DriverInpu
     while (Accumulator >= h)
     {
         ActiveVehicleSolver.Step(h);   // reads chassis, steps tyres, applies wheel forces
-        Body.Integrate(h);    // integrates the chassis with those forces (no body collision)
+        Body.Integrate(h);
+        Body.ResolveContacts(CollisionLocations, GroundSurface, h);
         for (uint32_t w = 0; w < Instancing.WheelCount && w < tel.Wheels.size(); ++w)
             WheelSpin[w] += tel.Wheels[w].WheelOmega * h;   // visual spin only
         Accumulator -= h;

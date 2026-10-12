@@ -119,9 +119,6 @@ set(SHADER_TABLE
     "ReSTIRViewport.slang|compute|ReSTIRViewport.spv"
     "RasterViewport.slang|compute|RasterViewport.spv"
     "RayQueryViewport.slang|compute|RayQueryViewport.spv"
-    "SurfelIrradianceUpdate.slang|compute|SurfelIrradianceUpdate.spv"
-    "SurfelCommit.slang|compute|SurfelCommit.spv"
-    "DistanceFieldConstruct.slang|compute|DistanceFieldConstruct.spv"
     "DistanceFieldCapture.slang|compute|DistanceFieldCapture.spv"
     "DistanceFieldCaptureFixed.slang|compute|DistanceFieldCaptureFixed.spv"
     "DistanceFieldRadiance.slang|compute|DistanceFieldRadiance.spv"
@@ -129,7 +126,6 @@ set(SHADER_TABLE
     "DistanceFieldGatherFixed.slang|compute|DistanceFieldGatherFixed.spv"
     "DistanceFieldGIResolveFixed.slang|compute|DistanceFieldGIResolveFixed.spv"
     "DistanceFieldGIResolve.slang|compute|DistanceFieldGIResolve.spv"
-    "SurfelGIResolve.slang|compute|SurfelGIResolve.spv"
     "ClusterCull.slang|compute|ClusterCull.spv"
     "HiZReduce.slang|compute|HiZReduce.spv"
     "AtrousDenoise.slang|compute|AtrousDenoise.spv"
@@ -219,7 +215,6 @@ set(FRONTIER_ENGINE_SOURCES
     Engine/DisplayPresentation/IconArt.cpp
     Engine/DisplayPresentation/IconPresentation.cpp
     Engine/DisplayPresentation/VectorCodec.cpp
-    Engine/DisplayPresentation/SurfelReference.cpp
     Engine/DisplayPresentation/FontCodec.cpp
     Engine/DisplayPresentation/ConfigurationRegistry.cpp
     Engine/DisplayPresentation/ControlCentreHost.cpp
@@ -327,7 +322,6 @@ set(FRONTIER_HOST_SOURCES
     Engine/DeviceExchange/RayQueryExchange.cpp
     Engine/GeometricRaster/DistanceFieldStructure.cpp
     Engine/DeviceExchange/DistanceFieldGIStage.cpp
-    Engine/DeviceExchange/SurfelGIStage.cpp
     Engine/DeviceExchange/RayTracingCapabilitySet.cpp
     Engine/DeviceExchange/VisibilityExchange.cpp
     Engine/DeviceExchange/InterfaceExchange.cpp

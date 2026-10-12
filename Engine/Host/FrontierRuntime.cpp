@@ -12,6 +12,7 @@
 //                    cylinders and cones, lit by two area luminaires. Exported once from ShowcaseStructure.
 //        the selected .frontier opening scene is authoritative; an explicit --scene supplies an alternate file.
 
+#include "CameraPossessionSequence.h"
 #include "../DeviceExchange/SwapchainExchange.h"
 #include "../DisplayPresentation/ReSTIRIntegrator.h"
 #include "../DisplayPresentation/ShadingTableCodec.h"
@@ -1055,6 +1056,8 @@ int Frontier::RunFrontierRuntime(
     // The frame the sun (④d) and the moon (④e) jointly fill each tick, handed to the device once at the end of ④e.
     Frontier::ShadowFrameConfiguration ShadowFrameStaged{};
 
+    bool ProjectTraversalPending = false;
+
     // Push the Control Centre settings into the renderer. Called whenever the settings revision changes.
     auto ApplyControlCentreSettings = [&](const Frontier::ControlCentreSettings& S, bool Announce)
     {
@@ -1068,7 +1071,7 @@ int Frontier::RunFrontierRuntime(
         Integrator.AssignDenoiseLevelCount(Criteria.DenoiseLevelCount);
         // ── Render-path decision matrix (Raytracing tile × Global Illumination tile) ──────────────────────────────────
         //    RT ON            -> raytraced ReSTIR kernel (GI and/or raytraced reflections).
-        //    RT OFF + GI ON   -> surfel GI (visibility raster primary + persistent world-space surfel indirect).
+        //    RT OFF + GI ON   -> persistent mesh-local SDF GI, with raster primary visibility and shadow maps.
         //    RT OFF + GI OFF  -> plain visibility raster (materials + direct + sky ambient; no GI, no rays).
         //    Guard: RT ON + GI OFF + Reflections OFF is flat and pointless, so it falls back to the plain raster —
         //           which looks better than a raytraced path carrying neither GI nor reflections.
@@ -1082,12 +1085,27 @@ int Frontier::RunFrontierRuntime(
             EffReflMode = Frontier::ReflectionModeCategory::Sky;
         const uint32_t RenderPath = RtActive ? 0u : (GiActive ? 1u : 2u);   // 0 raytraced ReSTIR / 1 Distance Field GI / 2 plain raster
         Integrator.AssignRenderPath(RenderPath);
+        Surface.AssignDistanceFieldGI(RenderPath == 1u);
+        if (RenderPath == 0u && ProjectTraversalPending)
+        {
+            if ((!Traversal.IsRefittable() || !Traversal.RefitBottomLevel(TracedFacets)) &&
+                !Traversal.BuildBottomLevel(TracedFacets, false))
+            {
+                Logger.RecordMessage(Frontier::DiagnosticSeverity::Refusal, "Project geometry", "Traversal refresh refused");
+                Surface.RequestClose();
+            }
+            else if (!Surface.RefreshTraversal(Traversal, TracedFacets))
+            {
+                Logger.RecordMessage(Frontier::DiagnosticSeverity::Refusal, "Project geometry", "Traversal publication exceeded residency");
+                Surface.RequestClose();
+            }
+            else ProjectTraversalPending = false;
+        }
         Integrator.AssignReflectionMode(static_cast<uint32_t>(EffReflMode));
         {
             const char* PathName = RenderPath == 0u ? "raytraced ReSTIR kernel"
                                  : RenderPath == 1u ? (Surface.QueryDistanceFieldGIReady() ? "Distance Field GI"
-                                                      : Surface.QuerySurfelGIReady() ? "Surfel GI (SDF unavailable)"
-                                                      : "raster fallback (SDF/Surfel unavailable)")
+                                                      : "direct raster only (SDF unavailable; no GI)")
                                  :                    "plain visibility raster (no GI)";
             const char* ReflName = EffReflMode == Frontier::ReflectionModeCategory::Off ? "off"
                                  : EffReflMode == Frontier::ReflectionModeCategory::Sky ? "sky" : "raytraced";
@@ -1103,9 +1121,9 @@ int Frontier::RunFrontierRuntime(
         {
             Logger.RecordMessage(Frontier::DiagnosticSeverity::Information, "SdfGI",
                 Surface.QueryDistanceFieldGIReady()
-                    ? "Distance Field GI ready: scene-derived three-level clipmaps, GPU Jacobi radiance propagation, "
-                      "SDF diffuse/shadows and mesh-BVH reflections/refraction."
-                    : "Distance Field GI resources unavailable; retaining the existing GI fallback.");
+                    ? "Distance Field GI ready: disk-cached mesh-local samples, transform-only placement updates, bounded "
+                      "indirect-light transport. Direct shadows are rasterized; RT-off reflections are sky-only."
+                    : "Distance Field GI resources unavailable; direct raster only, without indirect light. No hidden GI or RT fallback.");
         }
 
         Integrator.AssignGlobalIllumination(GiActive);
@@ -1476,6 +1494,7 @@ int Frontier::RunFrontierRuntime(
     uint32_t PreviousTransport = 0u;
     std::vector<Frontier::InstanceRecord> ProjectRestInstances;
     Frontier::HostRuntime::FlyThroughSolver ProjectEditCamera = Camera;
+    Frontier::HostRuntime::CameraPossessionSequence CameraPossession;
     while (!Surface.CloseRequested() && !Panel.Convert<bool>())
     {
         const auto  NowTime = Clock::now();
@@ -1669,7 +1688,7 @@ int Frontier::RunFrontierRuntime(
                 // Apply previously only derived CPU records. This authoring-time, idle upload is
                 // deliberately conservative (not a per-frame fast path); it also refreshes emitters.
                 Level.Finalise(std::max(1u, Level.QueryMaterials().QueryMetrics().SlabLimit));
-                Surface.UploadScene(Level, Traversal, &Textures);
+                Surface.UploadScene(Level, Traversal, &Textures, true); // retain rest-shape fields, including during Play
                 Integrator.ResetAccumulation("material apply");   // committed constants change the shading - restart like any look change
                 if (ControlCentre.QueryNotifications().QueryApplied().RenderFinished)
                 {
@@ -1781,7 +1800,17 @@ int Frontier::RunFrontierRuntime(
         ProjectInput.SimulationStep = Panel.TakeSimulationStep() ? 1u : 0u;
         ProjectInput.HandbrakePressed = Input.IsKeyPressed(Frontier::VirtualKeyCategory::KeySpace) ? 1u : 0u;
         ProjectInput.ResetPressed = Input.IsKeyPressed(Frontier::VirtualKeyCategory::KeyR) ? 1u : 0u;
-        ProjectInput.KeyboardCaptured = (TypingText || ControlCentre.CoversPointer() || Diagnostics.QueryPointerCaptured()) ? 1u : 0u;
+        const bool KeyboardCaptured = TypingText || ControlCentre.CoversPointer() || Diagnostics.QueryPointerCaptured();
+        const bool PreviouslyEjected = CameraPossession.IsEjected();
+        const bool CameraEjected = CameraPossession.Advance(Transport,
+            Input.IsKeyPressed(Frontier::VirtualKeyCategory::KeyF8), KeyboardCaptured);
+        ProjectInput.KeyboardCaptured = (KeyboardCaptured || CameraEjected) ? 1u : 0u;
+        if (PreviouslyEjected != CameraEjected)
+        {
+            // 📝 Camera already holds the last displayed chase pose; discard old editor-flight momentum, not that pose.
+            Camera.ResetLocomotion();
+            Integrator.ResetAccumulation("camera possession");
+        }
         if (Transport != 0u && PreviousTransport == 0u)
         {
             ProjectRestInstances = AnimatedInstances;
@@ -1846,17 +1875,23 @@ int Frontier::RunFrontierRuntime(
         {
             if (ProjectGeometry.Active())
             {
-                // Correctness-first synchronized publication. UploadScene waits for GPU readers, replaces raster
-                // buffers and hardware traversal, and reconstructs native hybrid SDF geometry at the same revision.
-                // The rigid-only two-level path is disabled above for these projects. This is NOT a fast stream.
+                // Fixed-topology vertex/placement publication is queue-ordered. Keep the imported SDF at the
+                // authored rest shape, moving with the instance; do not replace buffers or bake deformed tyres.
                 Level.RefreshGeometry(AnimatedInstances);
                 TracedFacets = Level.QueryFlatTriangles();
-                if (!Traversal.BuildBottomLevel(TracedFacets, false))
+                const bool TraceGeometry = Integrator.QueryConfiguration().RenderPath == 0u;
+                if (TraceGeometry && ((!Traversal.IsRefittable() || !Traversal.RefitBottomLevel(TracedFacets)) &&
+                                      !Traversal.BuildBottomLevel(TracedFacets, false)))
                 {
-                    Logger.RecordMessage(Frontier::DiagnosticSeverity::Refusal, "Project geometry", "Traversal rebuild refused");
+                    Logger.RecordMessage(Frontier::DiagnosticSeverity::Refusal, "Project geometry", "Traversal refresh refused");
                     break;
                 }
-                Surface.UploadScene(Level, Traversal);
+                if (!Surface.RefreshGeometry(Level, TraceGeometry ? &Traversal : nullptr))
+                {
+                    Logger.RecordMessage(Frontier::DiagnosticSeverity::Refusal, "Project geometry", "Fixed-topology publication refused");
+                    break;
+                }
+                ProjectTraversalPending = !TraceGeometry;
             }
             else (void)Surface.RefreshInstances(AnimatedInstances.data(), static_cast<uint32_t>(AnimatedInstances.size()));
             if (InstancesResident)
@@ -1869,7 +1904,7 @@ int Frontier::RunFrontierRuntime(
             }
             Integrator.ResetAccumulation("project motion");
         }
-        if (Transport == 1u && !ActiveReception.CameraRequests.empty())
+        if (Transport == 1u && !CameraEjected && !ActiveReception.CameraRequests.empty())
         {
             const auto& Requested = ActiveReception.CameraRequests.back();
             Camera.AssignSpatialLocation({ Requested.Eye[0], Requested.Eye[1], Requested.Eye[2] });
@@ -1877,7 +1912,7 @@ int Frontier::RunFrontierRuntime(
                                           std::atan2(Requested.Forward[0], Requested.Forward[1]), 0.0f);
             Camera.AssignFieldOfView(Requested.VerticalFieldOfView * 57.2957795f);
         }
-        const bool ProjectCamera = Transport == 1u && !ActiveReception.CameraRequests.empty();
+        const bool ProjectCamera = Transport == 1u && !CameraEjected && !ActiveReception.CameraRequests.empty();
         ActiveReception.SceneMutations.clear();
         ActiveReception.CameraRequests.clear();
         ActiveReception.Diagnostics.clear();

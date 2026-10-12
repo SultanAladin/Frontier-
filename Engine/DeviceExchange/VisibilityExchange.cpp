@@ -84,6 +84,10 @@ struct GpuImage
 struct VisibilityExchange::VulkanRecord
 {
     std::vector<InstanceRecord> PendingInstances;
+    struct TransferExtent { VkBuffer Destination; std::vector<unsigned char> Bytes; };
+    std::vector<TransferExtent> PendingGeometry;
+    std::vector<uint32_t> ResidentCorners;
+    std::vector<InstanceRecord> ResidentPlacements;
 
     VkDevice                          Device         = VK_NULL_HANDLE;
     VkPhysicalDevice                  PhysicalDevice = VK_NULL_HANDLE;
@@ -521,7 +525,7 @@ bool VisibilityExchange::BringPipelines() noexcept
     if (!MakePipelineLayout(Vulkan->HiZLayout, sizeof(HiZPushRecord), CS, Vulkan->HiZPipelineLayout)) return false;
     if (!MakeCompute("Engine/Shaders/HiZReduce.spv", Vulkan->HiZPipelineLayout, Vulkan->HiZPipeline)) return false;
 
-    // ④ Resolve: shared position, normal, material-auxiliary, and albedo targets feed the non-raytraced Surfel route.
+    // ④ Resolve: shared position, normal, material-auxiliary, and albedo targets feed raster primary shading and the indirect-light gather.
     if (!MakeLayout({ Binding(0, UBO, CS), Binding(1, SSBO, CS), Binding(2, SSBO, CS), Binding(3, SSBO, CS), Binding(4, SSBO, CS), Binding(5, SSBO, CS),
                       Binding(6, TEX, CS), Binding(7, TEX, CS), Binding(8, TEX, CS), Binding(9, TEX, CS), Binding(10, IMG, CS), Binding(11, IMG, CS), Binding(12, IMG, CS), Binding(13, SSBO, CS), Binding(14, IMG, CS), Binding(15, IMG, CS) }, Vulkan->ResolveLayout)) return false;
     if (!MakePipelineLayout(Vulkan->ResolveLayout, 0u, 0u, Vulkan->ResolvePipelineLayout)) return false;
@@ -844,6 +848,9 @@ bool VisibilityExchange::Resize(uint32_t NewWidth, uint32_t NewHeight, void* Pre
 
 void VisibilityExchange::UploadScene(const SceneStructure& Scene) noexcept
 {
+    Vulkan->PendingGeometry.clear();
+    Vulkan->ResidentCorners = Scene.QueryIndices();
+    Vulkan->ResidentPlacements = Scene.QueryInstances();
     if (!Vulkan->Device) return;
     vkDeviceWaitIdle(Vulkan->Device);
     Vulkan->PendingInstances.clear();
@@ -913,6 +920,42 @@ void VisibilityExchange::UploadScene(const SceneStructure& Scene) noexcept
     std::cerr << "[VisibilityExchange] Scene resident: " << TriangleCount << " triangles, " << Scene.QueryVertices().size() << " vertices, "
               << Scene.QueryInstances().size() << " instances, " << ClusterCount << " clusters, " << LuminaireCount << " luminaires.\n";
     WriteDescriptorSets();
+}
+
+bool VisibilityExchange::RefreshGeometry(const SceneStructure& Scene) noexcept
+{
+    if (!IsReady() || Scene.QueryIndices() != Vulkan->ResidentCorners ||
+        Scene.QueryInstances().size() != Vulkan->ResidentPlacements.size() ||
+        Scene.QueryFlatTriangles().size() != TriangleCount || Scene.QueryClusters().size() != ClusterCount ||
+        Scene.QueryLuminaires().size() != LuminaireCount) return false;
+    for (size_t Slot = 0u; Slot < Vulkan->ResidentPlacements.size(); ++Slot)
+    {
+        const auto& Before = Vulkan->ResidentPlacements[Slot];
+        const auto& After = Scene.QueryInstances()[Slot];
+        if (Before.FirstIndex != After.FirstIndex || Before.VertexOffset != After.VertexOffset ||
+            Before.TriangleCount != After.TriangleCount || Before.ClusterOffset != After.ClusterOffset ||
+            Before.ClusterCount != After.ClusterCount) return false;
+    }
+    try
+    {
+        std::vector<VulkanRecord::TransferExtent> Publications;
+        auto Append = [&](const auto& Rows, const GpuBuffer& Destination)
+        {
+            const size_t Bytes = Rows.size() * sizeof(Rows[0]);
+            if (Bytes > Destination.Bytes || !Destination.Buffer) return false;
+            if (Bytes)
+            {
+                Publications.push_back({ Destination.Buffer, std::vector<unsigned char>(Bytes) });
+                std::memcpy(Publications.back().Bytes.data(), Rows.data(), Bytes);
+            }
+            return true;
+        };
+        if (!Append(Scene.QueryVertices(), Vulkan->Vertices) || !Append(Scene.QueryClusters(), Vulkan->Clusters) ||
+            !Append(Scene.QueryFlatTriangles(), Vulkan->FlatTriangles) || !Append(Scene.QueryLuminaires(), Vulkan->Luminaires)) return false;
+        Vulkan->PendingGeometry.swap(Publications);
+        return true;
+    }
+    catch (...) { return false; }
 }
 
 bool VisibilityExchange::RefreshInstances(const InstanceRecord* Rows, uint32_t Count) noexcept
@@ -1206,6 +1249,23 @@ void VisibilityExchange::RecordFrame(void* CommandHandle, uint32_t Slot, const V
         vkCmdPipelineBarrier(Command, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT,
                              0u, 0u, nullptr, 1u, &Transfer, 0u, nullptr);
         Vulkan->PendingInstances.clear();
+    }
+    if (!Vulkan->PendingGeometry.empty())
+    {
+        VkMemoryBarrier Before{ VK_STRUCTURE_TYPE_MEMORY_BARRIER };
+        Before.srcAccessMask = VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_TRANSFER_WRITE_BIT;
+        Before.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+        vkCmdPipelineBarrier(Command, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT,
+                             0u, 1u, &Before, 0u, nullptr, 0u, nullptr);
+        for (const auto& Publication : Vulkan->PendingGeometry)
+            for (VkDeviceSize Offset = 0u; Offset < Publication.Bytes.size(); Offset += 65536u)
+                vkCmdUpdateBuffer(Command, Publication.Destination, Offset,
+                                  std::min<VkDeviceSize>(65536u, Publication.Bytes.size() - Offset), Publication.Bytes.data() + Offset);
+        Before.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+        Before.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+        vkCmdPipelineBarrier(Command, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT,
+                             0u, 1u, &Before, 0u, nullptr, 0u, nullptr);
+        Vulkan->PendingGeometry.clear();
     }
     ReadTelemetry(Slot);
 

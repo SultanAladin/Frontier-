@@ -27,6 +27,9 @@ void VehicleSolver::Build(const VehicleSolverConfiguration& config, const Hooks&
     DriverCommand  = {};
     SteerAngle = 0.0f;
     CurrentTelemetry = {};
+    PreviousChassisVelocity = initial.LinearVelocity;
+    ChassisAcceleration = ActiveConfiguration.Gravity;
+    PreviousChassisStep = false;
 
 
     // ── Production driving layer (PacejkaDrivetrain) setup ───────────────────────────────────────────────────────────
@@ -54,6 +57,7 @@ void VehicleSolver::Build(const VehicleSolverConfiguration& config, const Hooks&
     //    zero instead of dropping into it and ringing for the first second of every run.
     StrutTravel.resize(ActiveConfiguration.Wheels.size());
     StrutRate.assign(ActiveConfiguration.Wheels.size(), 0.0f);
+    StrutBarForces.assign(ActiveConfiguration.Wheels.size(), 0.0f);
     for (size_t i = 0; i < StrutTravel.size(); ++i)
         StrutTravel[i] = StrutFor(i).StaticCompression;
     SlipDeflections.assign(ActiveConfiguration.Wheels.size(), SlipState{});
@@ -126,10 +130,9 @@ Vec3 VehicleSolver::ResolveHub(size_t Wheel, const ChassisState& cs, Vec3& Mount
 //
 //    Integrating that is what lets the wheel move over a bump while the body stays where it is — which is the
 //    entire point of a suspension, and precisely what the old rigid hub could not do.
-float VehicleSolver::IntegrateStrut(size_t Wheel, float Δτ, float TyreLoad, const Vec3& AxisUp, float BarForce) noexcept
+float VehicleSolver::IntegrateStrut(size_t Wheel, float Δτ, const Vec3& NormalReaction, const Vec3& AxisUp, float BarForce) noexcept
 {
     const SuspensionSpecification& spec = StrutFor(Wheel);
-    const float g  = std::fabs(ActiveConfiguration.Gravity.z);
     const float mu = std::max(1.0f, ActiveConfiguration.UnsprungMass);
     float x = StrutTravel[Wheel];
     float v = StrutRate[Wheel];
@@ -152,22 +155,31 @@ float VehicleSolver::IntegrateStrut(size_t Wheel, float Δτ, float TyreLoad, co
     //    penetration — rings the corner apart instead of absorbing it. Rearranging
     //        𝑣' = 𝑣 + (Δτ/𝑚)(F − 𝑐𝑣')   ⇒   𝑣' = (𝑣 + (Δτ/𝑚)F) / (1 + 𝑐Δτ/𝑚)
     //    makes it unconditionally stable for any rate, which is what lets the bump stop be as stiff as it needs.
-    const float applied = TyreLoad * AxisUp.z - other - mu * g * AxisUp.z;   // [N] rate-independent net force
-    v = (v + (Δτ / mu) * applied) / (1.0f + rate * Δτ / mu);
+    const float applied = Dot(NormalReaction, AxisUp) - other
+                        + mu * Dot(ActiveConfiguration.Gravity - ChassisAcceleration, AxisUp);   // [N] rate-independent net force
+    const float Stiffness = spec.EffectiveRate(x) + (overTravel > 0.0f ? spec.SpringRate * 12.0f : 0.0f);
+    v = (v + (Δτ / mu) * applied) / (1.0f + rate * Δτ / mu + Stiffness * Δτ * Δτ / mu);
     x += v * Δτ;
 
     const float damper = rate * v;                                     // [N] the damper force actually delivered
-    float strut = spring + damper + BarForce;
+    float strut = spring + Stiffness * v * Δτ + damper + BarForce;
     if (overTravel > 0.0f) strut += overTravel * spec.SpringRate * 12.0f;
 
     // A strut cannot pull: at full extension the spring is done and the wheel simply hangs.
-    if (x < 0.0f) { x = 0.0f; if (v < 0.0f) v = 0.0f; }
+    if (x < 0.0f)
+    {
+        // 📝 The droop stop can pull: omitting its signed reaction leaves preload pushing in free flight forever.
+        x = 0.0f;
+        strut = Dot(NormalReaction, AxisUp)
+              + mu * Dot(ActiveConfiguration.Gravity - ChassisAcceleration, AxisUp);
+        v = 0.0f;
+    }
     const float hardStop = spec.MaxTravel + 0.02f;
     if (x > hardStop) { x = hardStop; if (v > 0.0f) v = 0.0f; }
 
     StrutTravel[Wheel] = x;
     StrutRate[Wheel]   = v;
-    return std::max(0.0f, strut);
+    return strut;
 }
 
 // Anti-roll bar force for one corner: proportional to how much MORE compressed it is than its partner. Equal
@@ -185,6 +197,12 @@ float VehicleSolver::AntiRollForce(size_t Wheel) const noexcept
 void VehicleSolver::Step(float Δτ) noexcept
 {
     if (!ConstructionComplete || Δτ <= 0.0f) return;
+    const auto Chassis = ChassisHooks.ReadChassis();
+    ChassisAcceleration = PreviousChassisStep
+        ? (Chassis.LinearVelocity - PreviousChassisVelocity) * (1.0f / Δτ) : ActiveConfiguration.Gravity;
+    PreviousChassisVelocity = Chassis.LinearVelocity;
+    PreviousChassisStep = true;
+    for (size_t Wheel = 0u; Wheel < StrutBarForces.size(); ++Wheel) StrutBarForces[Wheel] = AntiRollForce(Wheel);
     if (ActiveConfiguration.ActiveScheme == DrivingScheme::PacejkaDrivetrain) StepPacejka(Δτ);
     else                                                  StepSimple(Δτ);
 }
@@ -235,14 +253,14 @@ void VehicleSolver::StepSimple(float Δτ) noexcept
         //    made every contacting node scrub at road speed. The in-plane forces the carcass now generates are
         //    its own; this scheme still takes only Fz from it and drives through the friction-circle layer below.
         HubMotion motion;
-        motion.Position       = hub;
+        motion.Position       = hub + hubVel * Δτ;
         motion.Orientation    = hubRot;
         motion.LinearVelocity = hubVel;
         motion.SpinRate       = WheelSpin[i];
         tyre.Step(Δτ, ActiveConfiguration.TyreSubsteps, motion, Vec3{0.0f, 0.0f, 0.0f}, ChassisHooks.Ground);
         const TyreReaction& reaction = tyre.Reaction();
 
-        const float Fz    = std::max(0.0f, reaction.Force.z);
+        const float Fz    = std::max(0.0f, reaction.SupportReaction.z);
         const bool  onGnd = reaction.ContactCount > 0u && Fz > 1.0f;
         const Vec3  patch = onGnd ? reaction.PatchCentre : Vec3{hub.x, hub.y, hub.z - ActiveConfiguration.Tyre.Radius};
 
@@ -288,11 +306,13 @@ void VehicleSolver::StepSimple(float Δτ) noexcept
         }
 
         // Apply the tyre's vertical reaction (plus damper) and the driving force at the contact patch.
-        const Vec3 wheelForce = Vec3{0.0f, 0.0f, verticalForce} + planar;
+        const Vec3 wheelForce = reaction.NormalReaction + Vec3{0.0f, 0.0f, verticalForce - Fz} + planar;
         ChassisHooks.ApplyForceAtPoint(wheelForce, patch);
 
         // Telemetry.
         WheelTelemetry& wt = CurrentTelemetry.Wheels[std::min<size_t>(i, CurrentTelemetry.Wheels.size() - 1)];
+        wt.NormalReaction = reaction.NormalReaction;
+        wt.TransmittedReaction = reaction.NormalReaction;
         wt.HubPosition       = hub;
         wt.HubRotation       = hubRot;
         wt.ContactPoint      = patch;
@@ -471,14 +491,14 @@ void VehicleSolver::StepPacejka(float Δτ) noexcept
         //    drivetrain and brake torques, so the carcass turns at the rate the rest of the model believes it
         //    does. Traction and cornering still come from the Pacejka layer below; only Fz is read back here.
         HubMotion motion;
-        motion.Position       = hub;
+        motion.Position       = hub + hubVel * Δτ;
         motion.Orientation    = hubRot;
         motion.LinearVelocity = hubVel;
         motion.SpinRate       = WheelSpin[i];
         tyre.Step(Δτ, ActiveConfiguration.TyreSubsteps, motion, Vec3{0.0f, 0.0f, 0.0f}, ChassisHooks.Ground);
         const TyreReaction& reaction = tyre.Reaction();
 
-        const float Fz    = std::max(0.0f, reaction.Force.z);
+        const float Fz    = std::max(0.0f, reaction.SupportReaction.z);
         const bool  onGnd = reaction.ContactCount > 0u && Fz > 1.0f;
         const Vec3  patch = onGnd ? reaction.PatchCentre : Vec3{hub.x, hub.y, hub.z - ActiveConfiguration.Tyre.Radius};
 
@@ -556,16 +576,18 @@ void VehicleSolver::StepPacejka(float Δτ) noexcept
             //    corner up; the strut is what pushes the SPRUNG body up, at the mount, and it only transmits what
             //    the spring and damper are actually carrying. Previously the tyre force went straight into the
             //    chassis at the patch, which is a car with its axles welded to the floor pan.
-            barForce   = AntiRollForce(i);
-            strutForce = IntegrateStrut(i, Δτ, Fz, axisUp, barForce);
+            barForce   = StrutBarForces[i];
+            strutForce = IntegrateStrut(i, Δτ, reaction.NormalReaction, axisUp, barForce);
             ChassisHooks.ApplyForceAtPoint(axisUp * strutForce, mountWorld);
-            ChassisHooks.ApplyForceAtPoint(planar + aeroDownVec, patch);
+            const Vec3 Linkage = reaction.NormalReaction - axisUp * Dot(reaction.NormalReaction, axisUp);
+            ChassisHooks.ApplyForceAtPoint(Linkage + planar + aeroDownVec, patch);
         }
         else
         {
             float verticalForce = Fz;
             if (onGnd) verticalForce = std::max(0.0f, Fz - ActiveConfiguration.SuspensionDamping * hubVel.z);
-            ChassisHooks.ApplyForceAtPoint(Vec3{0.0f, 0.0f, verticalForce} + planar + aeroDownVec, patch);
+            const Vec3 Support = reaction.NormalReaction + Vec3{0.0f, 0.0f, verticalForce - Fz};
+            ChassisHooks.ApplyForceAtPoint(Support + planar + aeroDownVec, patch);
         }
 
         // ── Wheel spin ODE:  Iw·ω̇ = T_drive − Fx·Reff − T_brake·sign(ω) − T_roll ───────────────────────────────────
@@ -643,6 +665,8 @@ void VehicleSolver::StepPacejka(float Δτ) noexcept
 
         // Telemetry.
         WheelTelemetry& wt = CurrentTelemetry.Wheels[std::min<size_t>(i, CurrentTelemetry.Wheels.size() - 1)];
+        wt.NormalReaction = reaction.NormalReaction;
+        wt.TransmittedReaction = reaction.NormalReaction;
         wt.HubPosition       = hub;
         wt.HubRotation       = hubRot;
         wt.ContactPoint      = patch;
@@ -656,6 +680,9 @@ void VehicleSolver::StepPacejka(float Δτ) noexcept
         wt.SlipRatio         = kappa;
         wt.SlipAngleRad      = alpha;
         wt.AeroDownforce     = aeroDownforce;
+        if (ActiveConfiguration.SuspensionEnabled)
+            wt.TransmittedReaction = axisUp * strutForce + reaction.NormalReaction
+                                   - axisUp * Dot(reaction.NormalReaction, axisUp);
         wt.StrutCompression  = ActiveConfiguration.SuspensionEnabled ? StrutTravel[i] : 0.0f;
         wt.StrutRate         = ActiveConfiguration.SuspensionEnabled ? StrutRate[i]   : 0.0f;
         wt.StrutForce        = strutForce;

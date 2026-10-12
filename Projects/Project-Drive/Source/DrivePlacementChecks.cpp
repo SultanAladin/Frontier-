@@ -79,7 +79,7 @@ int main(int ArgumentCount, char** Arguments)
     assert(Selection.size() == 2u);
     Rows[Picks[0]].Artwork = IconSymbol::Sun;
     Rows[Picks[0]].Glyph = EditorGlyph::Sun;
-    Feed.FillRoster(Rows.get(), Scene);
+    assert(Feed.FillRoster(Rows.get(), Scene) == Count);
     assert(Rows[Picks[0]].Artwork != IconSymbol::Sun && Rows[Picks[0]].Glyph != EditorGlyph::Sun);
     std::puts("PASS reordered keys retain geometry, multiselect is deduplicated, locked rows stay fixed, refill removes stale sun icons");
 

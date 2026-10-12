@@ -385,9 +385,6 @@ $ShaderTable = @(
     @{ Source = 'ReSTIRViewport.slang';        Stage = 'compute';  Output = 'ReSTIRViewport.spv' }
     @{ Source = 'RasterViewport.slang';        Stage = 'compute';  Output = 'RasterViewport.spv' }
     @{ Source = 'RayQueryViewport.slang';        Stage = 'compute';  Output = 'RayQueryViewport.spv' }
-    @{ Source = 'SurfelIrradianceUpdate.slang'; Stage = 'compute';  Output = 'SurfelIrradianceUpdate.spv' }
-    @{ Source = 'SurfelCommit.slang';           Stage = 'compute';  Output = 'SurfelCommit.spv' }
-    @{ Source = 'DistanceFieldConstruct.slang'; Stage = 'compute'; Output = 'DistanceFieldConstruct.spv' }
     @{ Source = 'DistanceFieldCapture.slang'; Stage = 'compute'; Output = 'DistanceFieldCapture.spv' }
     @{ Source = 'DistanceFieldCaptureFixed.slang'; Stage = 'compute'; Output = 'DistanceFieldCaptureFixed.spv' }
     @{ Source = 'DistanceFieldRadiance.slang'; Stage = 'compute'; Output = 'DistanceFieldRadiance.spv' }
@@ -395,7 +392,6 @@ $ShaderTable = @(
     @{ Source = 'DistanceFieldGatherFixed.slang'; Stage = 'compute'; Output = 'DistanceFieldGatherFixed.spv' }
     @{ Source = 'DistanceFieldGIResolveFixed.slang'; Stage = 'compute'; Output = 'DistanceFieldGIResolveFixed.spv' }
     @{ Source = 'DistanceFieldGIResolve.slang'; Stage = 'compute'; Output = 'DistanceFieldGIResolve.spv' }
-    @{ Source = 'SurfelGIResolve.slang';         Stage = 'compute';  Output = 'SurfelGIResolve.spv' }
     @{ Source = 'ClusterCull.slang';           Stage = 'compute';  Output = 'ClusterCull.spv' }
     @{ Source = 'HiZReduce.slang';             Stage = 'compute';  Output = 'HiZReduce.spv' }
     @{ Source = 'AtrousDenoise.slang';         Stage = 'compute';  Output = 'AtrousDenoise.spv' }
@@ -607,7 +603,6 @@ $EngineRelative = @(
     'Engine\DeviceExchange\RayQueryExchange.cpp'
     'Engine\GeometricRaster\DistanceFieldStructure.cpp'
     'Engine\DeviceExchange\DistanceFieldGIStage.cpp'
-    'Engine\DeviceExchange\SurfelGIStage.cpp'
     'Engine\DeviceExchange\RayTracingCapabilitySet.cpp'
     'Engine\DeviceExchange\InputExchange.cpp'
     'Engine\DeviceExchange\DiagnosticMetrics.cpp'
@@ -620,7 +615,6 @@ $EngineRelative = @(
     'Engine\DisplayPresentation\IconArt.cpp'
     'Engine\DisplayPresentation\IconPresentation.cpp'
     'Engine\DisplayPresentation\VectorCodec.cpp'
-    'Engine\DisplayPresentation\SurfelReference.cpp'
     'Engine\DisplayPresentation\ControlCentreHost.cpp'
     'Engine\DisplayPresentation\FontCodec.cpp'
     'Engine\DisplayPresentation\PixelSpace.cpp'

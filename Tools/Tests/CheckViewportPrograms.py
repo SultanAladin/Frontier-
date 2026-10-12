@@ -47,4 +47,16 @@ assert 4473 in HardwareOperations and (1, 0) in Hardware
 print("PASS raster SPIR-V reads visibility, materials and shadow maps; no reservoir or triangle-traversal access")
 print("PASS software SPIR-V retains ReSTIR reservoirs without hardware-only instructions")
 print("PASS hardware SPIR-V contains inline ray-query instructions and the acceleration descriptor")
+# SDF material decoding has its own binding vocabulary: 16/17 are materials/instances, not reservoirs.
+# Distance samples/placements are consumed by diffuse transport, never by the primary resolve's specular path.
+for Name in ("DistanceFieldCapture", "DistanceFieldCaptureFixed", "DistanceFieldRadiance",
+             "DistanceFieldGather", "DistanceFieldGatherFixed", "DistanceFieldGIResolve", "DistanceFieldGIResolveFixed"):
+    Resources, Operations = ReadProgram(Name)
+    assert 4473 not in Operations, Name
+    if "Radiance" in Name or "Gather" in Name:
+        assert {(0, 3), (0, 5), (0, 6)} <= Resources, (Name, Resources)
+    if "GIResolve" in Name:
+        assert not Resources & {(0, Slot) for Slot in range(3, 12)}, (Name, Resources)
+        assert {(1, 0), (1, 1)} <= Resources, (Name, Resources)
+print("PASS SDF SPIR-V: immutable fields/placements feed diffuse transport; resolve reads raster shadows, not field rays")
 print("GPU dispatch, validation-layer execution and frame-time measurements are separate checks.")

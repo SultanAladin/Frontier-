@@ -7,7 +7,7 @@
 ProjectName             = "ProjectDrive"
 ProjectFormatNumber     = 1
 ContentLocation         = "Content"
-OpeningScene            = "Content/Scenes/DriveCourse.r4.gltf"
+OpeningScene            = "Content/Scenes/DriveCourse.r5.gltf"
 CodeImage               = "Build/ProjectDrive.dll"
 CodeInterchangeNumber   = 3
 InterfaceFingerprint    = 0xb6725f24d0869173

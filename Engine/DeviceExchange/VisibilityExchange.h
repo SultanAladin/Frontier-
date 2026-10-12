@@ -165,6 +165,7 @@ public:
     //    Memory is HOST_COHERENT, so no explicit flush is needed; the write must still land before the frame that
     //    reads it is submitted, which is why the caller does this before RecordAndPresent.
     [[nodiscard]] bool  RefreshInstances(const InstanceRecord* Rows, uint32_t Count) noexcept;
+    [[nodiscard]] bool  RefreshGeometry(const SceneStructure& Scene) noexcept;
 
     // Instances resident after the last UploadScene — the bound RefreshInstances must match.
     [[nodiscard]] uint32_t QueryInstanceCount() const noexcept { return InstanceCount; }

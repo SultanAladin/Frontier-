@@ -13,7 +13,6 @@
 #include "RayTracingCapabilitySet.h"
 #include "OrientationClassifier.h"
 #include "VisibilityExchange.h"
-#include "SurfelGIStage.h"
 #include "DistanceFieldGIStage.h"
 #include "TriangleSpan.h"
 #include <cstdint>
@@ -254,14 +253,16 @@ public:
 
     // R2: the whole level becomes resident (vertices · indices · instances · clusters · materials · luminaires) and the
     //    interim kernel's flat triangle / material SSBOs are taken from the same SceneStructure — one upload, one truth.
-    void                        UploadScene(const SceneStructure& Scene, const TraversalIndex& Traversal, const TextureIndex* Textures = nullptr) noexcept;
+    void                        UploadScene(const SceneStructure& Scene, const TraversalIndex& Traversal,
+                                            const TextureIndex* Textures = nullptr, bool RetainDistanceFields = false) noexcept;
 
     // D3: per-frame instance transform refresh (no reallocation, no device stall). See
     //    VisibilityExchange::RefreshInstances. Returns false if the count no longer matches the resident scene.
     [[nodiscard]] bool          RefreshInstances(const InstanceRecord* Rows, uint32_t Count) noexcept;
     /// 📦 Reports readiness of the SDF transport, not merely selection of render mode one.
-    [[nodiscard]] bool QueryDistanceFieldGIReady() const noexcept { return DistanceFieldStage.IsReady(); }
-    [[nodiscard]] bool QuerySurfelGIReady() const noexcept { return SurfelStage.IsReady(); }
+    [[nodiscard]] bool QueryDistanceFieldGIReady() const noexcept { return DistanceGeometryResident && DistanceFieldStage.IsReady(); }
+    void AssignDistanceFieldGI(bool Enabled) noexcept;
+    [[nodiscard]] bool RefreshGeometry(const SceneStructure& Scene, const TraversalIndex* Traversal = nullptr) noexcept;
 
     [[nodiscard]] uint32_t      QueryInstanceCount() const noexcept { return Visibility.QueryInstanceCount(); }
     void                        UploadTextures(const TextureIndex& Textures) noexcept;   // R4a bindless table → binding 18 (last since R6)
@@ -311,8 +312,8 @@ public:
     // R2 frame front end (cull → visibility raster → HiZ → resolve) recorded before the kernel each frame.
     void                        AssignVisibilityFrame(const VisibilityFrameConfiguration& Frame) noexcept { VisibilityFrame = Frame; VisibilityFrameValid = true; }
 
-    // R10 — the GI-off shadow stage's per-frame settings (technique, map side, taps). Only consulted when Global
-    //    Illumination is off: with GI on the ReSTIR kernel owns light visibility and no shadow map is rasterised.
+    // R10 — the non-raytraced shadow stage's per-frame settings (technique, map side, taps). Consulted whenever
+    //    ray tracing is off, including SDF GI. With RT on, ReSTIR owns light visibility.
     //    The taps themselves are placed by VisibilityExchange from the resident emitters, so the caller supplies
     //    only the tier's choices and the Control Centre's resolution override.
     void                        AssignShadowFrame(const ShadowFrameConfiguration& Shadow) noexcept { ShadowFrame = Shadow; ShadowFrameValid = true; }
@@ -428,17 +429,17 @@ private:
     [[nodiscard]] bool  BringCycleSlots()       noexcept;
     [[nodiscard]] bool  BringImGui()            noexcept;
     [[nodiscard]] bool  BringVisibility()       noexcept;
-    [[nodiscard]] bool  BringSurfelGIStage()   noexcept;
     [[nodiscard]] bool  BringDistanceFieldGIStage() noexcept;
-    void                BuildSurfelSamples(const SceneStructure& Scene) noexcept;
 
     void                RetireSwapchain()       noexcept;
     [[nodiscard]] bool  RebuildSwapchain()      noexcept;
     [[nodiscard]] uint32_t ResolvePresentMode() const noexcept;   // VkPresentModeKHR as uint32_t (header stays Vulkan-free)
 
-    void                RecordComputeCommands(uint32_t ImageIndex,
+    [[nodiscard]] bool  RecordComputeCommands(uint32_t ImageIndex,
                                               const DispatchConfiguration& Dispatch) noexcept;
     void                WriteDescriptorSet()   noexcept;
+    void                RefuseFrame(const char* Operation, int32_t Code) noexcept;
+    [[nodiscard]] bool  SubmitUpload(VkCommandBuffer Command) noexcept;
     void                ConstructSceneBuffers() noexcept;
 
     [[nodiscard]] uint32_t ResolveMemoryType(uint32_t TypeMask, uint32_t PropertyMask) const noexcept;
@@ -463,15 +464,14 @@ private:
     bool                    FullscreenActive;    // [-]   window currently covers the primary monitor
     RayTracingCapabilitySet Capabilities;        // [-]   probed in BringPhysicalDevice
     VisibilityExchange      Visibility;          // [-]   R2 resident scene + cull / raster / HiZ / resolve
-    SurfelGIStage           SurfelStage;         // [-]   shared non-raytraced indirect-light compute route
     uint64_t               SurfaceMaterialRevision = 0u;
     bool                   SceneUploadInProgress = false;
     void                   RefreshMaterialDescriptors() noexcept;
     DistanceFieldStructure DistanceGeometry;
     DistanceFieldGIStage    DistanceFieldStage;  // [-]   shared non-raytraced distance-field GI route (RenderPath == 1)
-    std::vector<SurfaceSample> SurfelSamples;    // [-]   persistent seed candidates derived from shared geometry
-    std::vector<VkImageView>   SurfelTextureViews;// [-]  bindless table lent to the surfel passes; outlives Bring()
-    float                   SurfelGridOrigin[3] = { 0.0f, 0.0f, 0.0f };
+    std::vector<VkImageView> DistanceTextureViews; // borrowed texture views survive descriptor reseating
+    bool                    DistanceGeometryResident = false;
+    bool                    DistanceFieldGIRequested = false;
     bool                    TraversalResident = false;
     uint64_t                TraversalNodeCapacity = 0u;   // [B] allocation size, so a refit refresh cannot overrun
     uint64_t                TraversalLeafCapacity = 0u;   // [B]   // [-]   R3 CWBVH uploaded (kernel refuses to run without it)

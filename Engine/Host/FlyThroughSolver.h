@@ -37,6 +37,12 @@ public:
     void                    AdvanceLocomotion(const InputExchange& Input, float Δτ) noexcept;
     void                    AdvanceProjection(float Δτ) noexcept override;
 
+    void                    ResetLocomotion() noexcept
+    {
+        CurrentVelocity = {};
+        SteeringActive = false;
+    }
+
     void                    AssignFlightSpeed(float SpeedMetersPerSec) noexcept;
     void                    AssignConfiguration(const FlyThroughConfiguration& NewConfig) noexcept { Config = NewConfig; }
     [[nodiscard]] const FlyThroughConfiguration& QueryConfiguration() const noexcept { return Config; }

@@ -3,16 +3,12 @@
 //============================================================================================================================================
 // 📦 The hit → ShadingRecord decode, shared by every path that shades a ray hit.
 //
-//    WHY THIS FILE EXISTS.  It was ReSTIRViewport.slang's private §R4b. The surfel passes could not reach it, so
-//    SurfelIrradianceUpdate.slang shaded its bounce hits with `vec3 hitN = -wi;` — a normal invented from the ray
-//    direction — and no material decode at all. Every bounce in the GI field was therefore achromatic and
-//    geometry-blind: no base colour, no metal, no coat, no transmission, and a cosine term that depended on which
-//    way the ray happened to point rather than on the surface it struck. A material cannot bleed its colour into
-//    a room if the bounce never reads the material.
+//    WHY THIS FILE EXISTS. ReSTIR and raster-fed distance-field GI must decode the same authored material.
+//    A bounce cannot bleed a material's colour into a room if it never reads that material. Interpolated vertex
+//    normals and tangent-space maps belong to the surface, not to an invented normal opposite the incident ray.
 //
-//    UnifiedMaterialEvaluation.h already makes this argument for the CPU side, and it applies verbatim here:
-//    transport, visibility and sampling are legitimately different between the raster, surfel and ReSTIR paths.
-//    Which BSDF you evaluate once a ray knows what it hit is not.
+//    UnifiedMaterialEvaluation.h makes the same argument for CPU consumers: transport, visibility and sampling
+//    legitimately differ, but the BSDF at an identified surface does not.
 //
 //    THE CONTRACT.  This file declares no bindings of its own; the includer must already have declared, with the
 //    layout qualifiers its own pass uses:
@@ -307,7 +303,7 @@ uint TriangleMaterial(uint flatPrimitive)
 
 // ∫ f(wo, wi)·cos θ dωi — the fraction of a UNIFORM environment this material sends back to the viewer.
 //
-//    A path that has an irradiance but no incoming direction (a surfel field, a sky fill) needs this and nothing
+//    A path that has an irradiance but no incoming direction (a local distance field, a sky fill) needs this and nothing
 //    else; outgoing radiance is E/π × this. The obvious shortcut — evaluate f once along the normal and multiply
 //    by π — is correct only for a Lambert lobe. On a clearcoated or metallic slab f(N, N) sits on the specular
 //    peak, so π·f is enormous and the material renders blown-out white. Clamping does not help: the peak is

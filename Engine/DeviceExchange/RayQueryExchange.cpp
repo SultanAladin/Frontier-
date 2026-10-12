@@ -58,6 +58,7 @@ void RayQueryExchange::Reclaim(Extent& Storage)
 
 void RayQueryExchange::RetireScene()
 {
+    PendingVertices.clear(); BottomGeometry.clear(); PrimitiveCounts.clear();
     SceneReady = PlacementsPending = false;
     if (TopLevel) DestroyAcceleration(Device, TopLevel, nullptr);
     TopLevel = VK_NULL_HANDLE;
@@ -162,12 +163,13 @@ bool RayQueryExchange::ConstructScene(const SceneStructure& Scene)
     const auto& Corners = Scene.QueryIndices();
     if (Rows.size() > 0xFFFFFFu || Points.empty() || Corners.empty()) return false;
     const VkBufferUsageFlags Input = VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR;
-    if (!Allocate(Vertices, Points.size() * sizeof(VertexRecord), Input, Points.data()) ||
+    if (!Allocate(Vertices, Points.size() * sizeof(VertexRecord), Input | VK_BUFFER_USAGE_TRANSFER_DST_BIT, Points.data()) ||
         !Allocate(Indices, Corners.size() * sizeof(uint32_t), Input, Corners.data())) return false;
     BottomLevels.resize(Rows.size(), VK_NULL_HANDLE);
     BottomStorage.resize(Rows.size());
     PendingPlacements.resize(Rows.size());
-    std::vector<VkAccelerationStructureGeometryKHR> Geometry(Rows.size());
+    BottomGeometry.resize(Rows.size());
+    PrimitiveCounts.resize(Rows.size());
     std::vector<VkAccelerationStructureBuildGeometryInfoKHR> Builds(Rows.size());
     std::vector<VkAccelerationStructureBuildRangeInfoKHR> Ranges(Rows.size());
     VkDeviceSize ScratchBytes = 0u;
@@ -179,7 +181,8 @@ bool RayQueryExchange::ConstructScene(const SceneStructure& Scene)
         for (uint32_t Index = 0u; Index < Row.TriangleCount * 3u; ++Index)
             LastVertex = std::max(LastVertex, Corners[Row.FirstIndex + Index]);
         if (Row.VertexOffset >= Points.size() || LastVertex >= Points.size() - Row.VertexOffset) return false;
-        auto& Facets = Geometry[Slot];
+        auto& Facets = BottomGeometry[Slot];
+        PrimitiveCounts[Slot] = Row.TriangleCount;
         Facets.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_KHR;
         Facets.geometryType = VK_GEOMETRY_TYPE_TRIANGLES_KHR;
         Facets.flags = VK_GEOMETRY_OPAQUE_BIT_KHR;
@@ -194,7 +197,7 @@ bool RayQueryExchange::ConstructScene(const SceneStructure& Scene)
         auto& Build = Builds[Slot];
         Build.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_BUILD_GEOMETRY_INFO_KHR;
         Build.type = VK_ACCELERATION_STRUCTURE_TYPE_BOTTOM_LEVEL_KHR;
-        Build.flags = VK_BUILD_ACCELERATION_STRUCTURE_PREFER_FAST_TRACE_BIT_KHR;
+        Build.flags = VK_BUILD_ACCELERATION_STRUCTURE_PREFER_FAST_TRACE_BIT_KHR | VK_BUILD_ACCELERATION_STRUCTURE_ALLOW_UPDATE_BIT_KHR;
         Build.mode = VK_BUILD_ACCELERATION_STRUCTURE_MODE_BUILD_KHR;
         Build.geometryCount = 1u;
         Build.pGeometries = &Facets;
@@ -208,7 +211,7 @@ bool RayQueryExchange::ConstructScene(const SceneStructure& Scene)
         if (CreateAcceleration(Device, &Description, nullptr, &BottomLevels[Slot]) != VK_SUCCESS) return false;
         Build.dstAccelerationStructure = BottomLevels[Slot];
         Ranges[Slot].primitiveCount = Row.TriangleCount;
-        ScratchBytes = std::max(ScratchBytes, Sizes.buildScratchSize);
+        ScratchBytes = std::max({ ScratchBytes, Sizes.buildScratchSize, Sizes.updateScratchSize });
         VkAccelerationStructureDeviceAddressInfoKHR Address{ VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_DEVICE_ADDRESS_INFO_KHR };
         Address.accelerationStructure = BottomLevels[Slot];
         auto& Placement = PendingPlacements[Slot];
@@ -282,6 +285,23 @@ bool RayQueryExchange::ConstructScene(const SceneStructure& Scene)
     return true;
 }
 
+bool RayQueryExchange::RefreshGeometry(const SceneStructure& Scene)
+{
+    if (!SceneReady || Scene.QueryInstances().size() != BottomGeometry.size() ||
+        Scene.QueryVertices().size() * sizeof(VertexRecord) != Vertices.Bytes) return false;
+    for (size_t Slot = 0u; Slot < BottomGeometry.size(); ++Slot)
+    {
+        const auto& Row = Scene.QueryInstances()[Slot];
+        const auto& Facets = BottomGeometry[Slot].geometry.triangles;
+        if (PrimitiveCounts[Slot] != Row.TriangleCount ||
+            Facets.vertexData.deviceAddress != Vertices.Address + Row.VertexOffset * sizeof(VertexRecord) ||
+            Facets.indexData.deviceAddress != Indices.Address + Row.FirstIndex * sizeof(uint32_t)) return false;
+    }
+    const auto* Source = reinterpret_cast<const unsigned char*>(Scene.QueryVertices().data());
+    PendingVertices.assign(Source, Source + Vertices.Bytes);
+    return true;
+}
+
 bool RayQueryExchange::RefreshPlacements(const InstanceRecord* Rows, uint32_t Count)
 {
     if (!SceneReady || !Rows || Count != PendingPlacements.size()) return false;
@@ -295,22 +315,49 @@ bool RayQueryExchange::RefreshPlacements(const InstanceRecord* Rows, uint32_t Co
 
 void RayQueryExchange::RecordRefit(VkCommandBuffer Command)
 {
-    if (!SceneReady || !PlacementsPending) return;
+    if (!SceneReady || (!PlacementsPending && PendingVertices.empty())) return;
     VkMemoryBarrier Before{ VK_STRUCTURE_TYPE_MEMORY_BARRIER };
     Before.srcAccessMask = VK_ACCESS_ACCELERATION_STRUCTURE_READ_BIT_KHR | VK_ACCESS_ACCELERATION_STRUCTURE_WRITE_BIT_KHR;
     Before.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT | VK_ACCESS_ACCELERATION_STRUCTURE_WRITE_BIT_KHR;
     vkCmdPipelineBarrier(Command, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT | VK_PIPELINE_STAGE_ACCELERATION_STRUCTURE_BUILD_BIT_KHR,
                          VK_PIPELINE_STAGE_TRANSFER_BIT | VK_PIPELINE_STAGE_ACCELERATION_STRUCTURE_BUILD_BIT_KHR,
                          0u, 1u, &Before, 0u, nullptr, 0u, nullptr);
+    if (!PendingVertices.empty())
+        for (VkDeviceSize Offset = 0u; Offset < PendingVertices.size(); Offset += 65536u)
+            vkCmdUpdateBuffer(Command, Vertices.Buffer, Offset, std::min<VkDeviceSize>(65536u, PendingVertices.size() - Offset),
+                              PendingVertices.data() + Offset);
     const VkDeviceSize Bytes = PendingPlacements.size() * sizeof(VkAccelerationStructureInstanceKHR);
     const auto* Source = reinterpret_cast<const unsigned char*>(PendingPlacements.data());
     for (VkDeviceSize Offset = 0u; Offset < Bytes; Offset += 65536u)
         vkCmdUpdateBuffer(Command, Placements.Buffer, Offset, std::min<VkDeviceSize>(65536u, Bytes - Offset), Source + Offset);
     VkMemoryBarrier Uploaded{ VK_STRUCTURE_TYPE_MEMORY_BARRIER };
     Uploaded.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
-    Uploaded.dstAccessMask = VK_ACCESS_ACCELERATION_STRUCTURE_READ_BIT_KHR;
+    Uploaded.dstAccessMask = VK_ACCESS_ACCELERATION_STRUCTURE_READ_BIT_KHR | VK_ACCESS_SHADER_READ_BIT;
     vkCmdPipelineBarrier(Command, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_ACCELERATION_STRUCTURE_BUILD_BIT_KHR,
                          0u, 1u, &Uploaded, 0u, nullptr, 0u, nullptr);
+    if (!PendingVertices.empty())
+    {
+        for (uint32_t Slot = 0u; Slot < BottomGeometry.size(); ++Slot)
+        {
+            VkAccelerationStructureBuildGeometryInfoKHR Build{ VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_BUILD_GEOMETRY_INFO_KHR };
+            Build.type = VK_ACCELERATION_STRUCTURE_TYPE_BOTTOM_LEVEL_KHR;
+            Build.flags = VK_BUILD_ACCELERATION_STRUCTURE_PREFER_FAST_TRACE_BIT_KHR | VK_BUILD_ACCELERATION_STRUCTURE_ALLOW_UPDATE_BIT_KHR;
+            Build.mode = VK_BUILD_ACCELERATION_STRUCTURE_MODE_UPDATE_KHR;
+            Build.srcAccelerationStructure = Build.dstAccelerationStructure = BottomLevels[Slot];
+            Build.geometryCount = 1u;
+            Build.pGeometries = &BottomGeometry[Slot];
+            Build.scratchData.deviceAddress = ScratchAddress;
+            VkAccelerationStructureBuildRangeInfoKHR Range{ PrimitiveCounts[Slot], 0u, 0u, 0u };
+            const auto* Span = &Range;
+            BuildAcceleration(Command, 1u, &Build, &Span);
+            VkMemoryBarrier Serial{ VK_STRUCTURE_TYPE_MEMORY_BARRIER };
+            Serial.srcAccessMask = VK_ACCESS_ACCELERATION_STRUCTURE_WRITE_BIT_KHR;
+            Serial.dstAccessMask = VK_ACCESS_ACCELERATION_STRUCTURE_READ_BIT_KHR | VK_ACCESS_ACCELERATION_STRUCTURE_WRITE_BIT_KHR;
+            vkCmdPipelineBarrier(Command, VK_PIPELINE_STAGE_ACCELERATION_STRUCTURE_BUILD_BIT_KHR,
+                                 VK_PIPELINE_STAGE_ACCELERATION_STRUCTURE_BUILD_BIT_KHR, 0u, 1u, &Serial, 0u, nullptr, 0u, nullptr);
+        }
+        PendingVertices.clear();
+    }
     RecordTopLevel(Command, true);
     PlacementsPending = false;
 }

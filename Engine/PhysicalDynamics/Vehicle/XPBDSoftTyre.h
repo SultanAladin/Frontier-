@@ -283,6 +283,8 @@ struct SoftTyreResidual
 struct TyreReaction
 {
     Vec3  Force{};        // Fx (long), Fy (lat, along −spin-axis dir), Fz (vertical)
+    Vec3  NormalReaction{}; // [N] - ground/obstacle non-penetration only, before tread friction
+    Vec3  SupportReaction{}; // [N] - upward-facing contact normals; wall grip is not vertical tyre load
     float Mz = 0.0f;      // self-aligning torque about vertical through the contact centre
     uint32_t ContactCount = 0u;
     Vec3  PatchCentre{};  // world centre of the contact patch
