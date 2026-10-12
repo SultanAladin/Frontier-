@@ -339,12 +339,19 @@
 
 .re-lane {
   display: grid;
-  grid-template-columns: 1fr 62px 58px;
+  grid-template-columns: minmax(0, 1fr) 84px 56px;
   gap: 4px;
   padding: 5px;
   border-left: 3px solid #666;
   border-radius: 5px;
   background: #1b1f27;
+}
+
+.re-lane > select,
+.re-lane > input {
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
 }
 
 .re-lane .re-lane-tools {

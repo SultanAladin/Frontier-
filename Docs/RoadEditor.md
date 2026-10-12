@@ -103,6 +103,10 @@ Default size: about 1,285 roads, 724 nodes, 671 junctions and 276 street-furnitu
 - `npm run build` produces `dist/road-editor.html` alongside the existing pages.
 - Headless Chromium (software WebGL) loads the page with no JavaScript errors,
   and the city builds in about 1.5 s. Screenshots are in `RoadEditorEvidence/`.
+- Driven with real pointer and key input: drawing three points and pressing
+  Enter added 4 road segments; Ctrl+Z restored the count exactly; the furniture
+  tool placed a bollard; the delete tool removed a road; clicking a road opened
+  its inspector with the lane editor.
 
 ## Known limits
 
