@@ -54,6 +54,7 @@ For setup without compiling, run `python Tools/Setup.py`. To install all applica
 | `Projects/Project-Fluid/` | Flux particle fluid, Ripple pond and CPU tests; [integration/review](Docs/WaterIntegration.md) |
 | `EngineContent/` | Runtime icons, font licences, fonts, celestial textures and star data |
 | `Experimental/FrontierEditor/` | Browser editor prototype, icon gallery and collection studies |
+| `Experimental/RoadEditor/` | Road-network editor with integrated rail, suspended guideway and train features |
 | `Experimental/{Liquid,Ocean,Water}/` | Separate inherited research experiments—not integrated runtime features |
 | `ExternalPackages/Dependencies.lock.json` | Exact third-party revisions and archive SHA-256 checksums |
 | `Tools/` | Dependency setup, build helpers and checks |
@@ -102,6 +103,11 @@ npm --prefix Experimental/FrontierEditor run build
 ```
 
 Or install/build it alongside native setup with `python Tools/Setup.py --browser`.
+
+The separate road-network editor is in `Experimental/RoadEditor/`. It adds editable rail topology,
+suspended monorail guideways, street-running tram grooves, animated trains and lane-transition geometry.
+Run `npm --prefix Experimental/RoadEditor ci`, then `npm --prefix Experimental/RoadEditor run dev`;
+`npm --prefix Experimental/RoadEditor run test:topology` checks the rail and merge cases headlessly.
 
 ## SolidArc
 
