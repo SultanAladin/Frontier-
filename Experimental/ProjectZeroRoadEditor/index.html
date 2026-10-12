@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1.0" />
+    <title>Frontier · Project Zero Road Editor</title>
+    <link rel="stylesheet" href="/style.css" />
+  </head>
+  <body>
+    <canvas id="scene" tabindex="0" aria-label="Road viewport. Hold right mouse and use W A S D to fly, Q and E for down and up."></canvas>
+
+    <header id="topbar">
+      <div class="brand"><b>F</b> FRONTIER <span class="sep">/</span> PROJECT ZERO <span class="sep">/</span> ROAD EDITOR <span class="tag">EXPERIMENTAL</span></div>
+      <div class="project" id="project-name">—</div>
+      <div class="actions" id="topactions"></div>
+    </header>
+
+    <nav id="toolbar" aria-label="Tools"></nav>
+    <section id="palette" aria-label="Palette"></section>
+    <aside id="inspector" aria-label="Inspector"></aside>
+
+    <footer id="status">
+      <div class="hint" id="hint"></div>
+      <div class="readout" id="readout"></div>
+    </footer>
+
+    <div id="toast" role="status" aria-live="polite"></div>
+
+    <dialog id="city-dialog"></dialog>
+    <input type="file" id="file-open" accept=".json,application/json" hidden />
+
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>
