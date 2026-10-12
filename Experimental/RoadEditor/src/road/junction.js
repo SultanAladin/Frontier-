@@ -81,6 +81,7 @@ export function computeJunction(net, nodeId) {
   J.radius = R;
   const n = ends.length;
   const gaps = [];
+  const blendLength = delta => delta > 0.05 ? Math.min(8, Math.max(3, delta * 1.5)) : 0;
   for (let i = 0; i < n; i++) {
     const A = ends[i], B = ends[(i + 1) % n];
     let phi = wrapAngle(B.ang - A.ang);
@@ -88,7 +89,8 @@ export function computeJunction(net, nodeId) {
     const swA = A.sr, swB = B.sl;
     const hasCurb = A.curbRight || B.curbLeft;
     if (phi < Math.PI * 0.94) {
-      const Reff = Math.max(R, (hasCurb ? Math.max(swA, swB) : 0) + 0.6);
+      const cornerWidth = hasCurb ? Math.max(swA, swB) : 0;
+      const Reff = Math.max(R, cornerWidth + (hasCurb ? 0.6 : 0));
       const sol = lineIntersect(N.x + A.rx * (A.wr + Reff), N.z + A.rz * (A.wr + Reff), A.dx, A.dz,
         N.x - B.rx * (B.wl + Reff), N.z - B.rz * (B.wl + Reff), B.dx, B.dz);
       if (sol) {
@@ -98,8 +100,9 @@ export function computeJunction(net, nodeId) {
         const TA = P(N, A, tA, A.wr), TB = P(N, B, sB, -B.wl);
         const a0 = Math.atan2(TA[1] - O[1], TA[0] - O[0]);
         const a1 = Math.atan2(TB[1] - O[1], TB[0] - O[0]);
-        gaps.push({ type: 'arc', A, B, O, R: Reff, tA, sB, a0, sweep: wrapPi(a1 - a0), swA, swB, hasCurb });
-        A.setback = Math.max(A.setback, tA); B.setback = Math.max(B.setback, sB);
+        const blendA = blendLength(cornerWidth - swA), blendB = blendLength(cornerWidth - swB);
+        gaps.push({ type: 'arc', A, B, O, R: Reff, tA, sB, a0, sweep: wrapPi(a1 - a0), swA, swB, cornerWidth, blendA, blendB, hasCurb });
+        A.setback = Math.max(A.setback, tA + blendA); B.setback = Math.max(B.setback, sB + blendB);
         continue;
       }
     }
@@ -127,21 +130,47 @@ function buildGap(N, g) {
   const curb = [], outer = [];
   const yA = yAt(N, A, A.setback), yB = yAt(N, B, B.setback);
   const push = (pc, po, y) => { curb.push([pc[0], y, pc[1]]); outer.push([po[0], y, po[1]]); };
-  // A right side from its end inward
+  const approach = (e, fromS, toS, fromWidth, toWidth, side) => {
+    const distance = Math.abs(toS - fromS);
+    if (distance < 1e-4 && Math.abs(toWidth - fromWidth) < 1e-4) return;
+    const steps = Math.max(1, Math.ceil(distance / 2.5));
+    for (let k = 1; k <= steps; k++) {
+      const t = k / steps, s = fromS + (toS - fromS) * t;
+      const smooth = t * t * (3 - 2 * t);
+      const width = fromWidth + (toWidth - fromWidth) * smooth;
+      if (side === 'right') {
+        push(P(N, e, s, e.wr), P(N, e, s, e.wr + width), yAt(N, e, s));
+      } else {
+        push(P(N, e, s, -e.wl), P(N, e, s, -e.wl - width), yAt(N, e, s));
+      }
+    }
+  };
+  // A right side from its end inward.
   push(P(N, A, A.setback, A.wr), P(N, A, A.setback, A.wr + g.swA), yA);
+  let arcRange = null;
   if (g.type === 'arc') {
-    if (A.setback - g.tA > 0.02) push(P(N, A, g.tA, A.wr), P(N, A, g.tA, A.wr + g.swA), yAt(N, A, g.tA));
+    // Blend unequal sidewalk/raised-zone widths along the approaches, then hold one width
+    // through the curved return. This avoids a corner that visibly pinches from wide to narrow.
+    const cornerWidth = g.cornerWidth ?? Math.max(g.swA, g.swB);
+    approach(A, A.setback, g.tA, g.swA, cornerWidth, 'right');
+    const arcStart = curb.length - 1;
     const pts = arcPts(g.O[0], g.O[1], g.R, g.a0, g.sweep);
     const n = pts.length - 1;
-    for (let k = 1; k < n; k++) {
-      const t = k / n, sw = g.swA + (g.swB - g.swA) * t;
-      const a = g.a0 + g.sweep * t, r = Math.max(0.05, g.R - sw);
+    for (let k = 1; k <= n; k++) {
+      const a = g.a0 + g.sweep * k / n, r = Math.max(0.05, g.R - cornerWidth);
       push(pts[k], [g.O[0] + Math.cos(a) * r, g.O[1] + Math.sin(a) * r], N.y);
     }
-    if (B.setback - g.sB > 0.02) push(P(N, B, g.sB, -B.wl), P(N, B, g.sB, -B.wl - g.swB), yAt(N, B, g.sB));
+    const arcEnd = curb.length - 1;
+    arcRange = [arcStart, arcEnd];
+    approach(B, g.sB, B.setback, cornerWidth, g.swB, 'left');
+  } else {
+    push(P(N, B, B.setback, -B.wl), P(N, B, B.setback, -B.wl - g.swB), yB);
   }
-  push(P(N, B, B.setback, -B.wl), P(N, B, B.setback, -B.wl - g.swB), yB);
-  return { curb, outer, swA: g.swA, swB: g.swB, hasCurb: g.hasCurb, type: g.type, A: A.id, B: B.id };
+  return {
+    curb, outer, swA: g.swA, swB: g.swB, cornerWidth: g.cornerWidth,
+    blendA: g.blendA || 0, blendB: g.blendB || 0, arcRange,
+    hasCurb: g.hasCurb, type: g.type, A: A.id, B: B.id,
+  };
 }
 
 // Roundabout / cul-de-sac: roads join an outer circle of radius Rc through fillets.

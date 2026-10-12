@@ -29,6 +29,35 @@ for (const [id, want] of Object.entries(expected)) {
   assert.equal(noses, 2, `${id} should make one rounded island nose at each end, not paired pill noses`);
 }
 
+// Mismatched approaches should blend to a stable-width rounded corner instead of pinching
+// across the arc from the wider sidewalk to the narrower (or absent) one.
+const cornerNet = new RoadNetwork();
+const cornerNode = cornerNet.addNode({ x: 0, z: 0, y: 0 });
+for (const [dx, dz, profile] of [
+  [1, 0, 'arterial4'], [0, 1, 'dirtRoad'], [-1, 0, 'local'], [0, -1, 'industrial'],
+]) {
+  const outer = cornerNet.addNode({ x: dx * 120, z: dz * 120, y: 0 });
+  cornerNet.addEdge({ a: cornerNode.id, b: outer.id, profile });
+}
+const corners = computeJunction(cornerNet, cornerNode.id);
+const mismatched = corners.gaps.filter(g => g.type === 'arc' && Math.abs(g.swA - g.swB) > 0.1);
+assert(mismatched.length > 0, 'fixture includes corners with unequal sidewalk widths');
+for (const g of mismatched) {
+  assert(g.blendA > 0 || g.blendB > 0, 'width difference is transitioned along the approach');
+  const [start, end] = g.arcRange;
+  assert(end > start, 'rounded corner arc has a nonempty constant-width run');
+  for (let i = start; i <= end; i++) {
+    const a = g.curb[i], b = g.outer[i];
+    const width = Math.hypot(b[0] - a[0], b[2] - a[2]);
+    assert.ok(Math.abs(width - g.cornerWidth) < 1e-6, 'sidewalk width stays constant around the curved return');
+  }
+  const approachWidth = g.outer[0].map((v, i) => v - g.curb[0][i]);
+  const startWidth = Math.hypot(approachWidth[0], approachWidth[2]);
+  assert.ok(Math.abs(startWidth - g.swA) < 1e-6, 'corner ramp meets the approach at its original width');
+  assert.ok(Math.abs(Math.hypot(g.outer.at(-1)[0] - g.curb.at(-1)[0], g.outer.at(-1)[2] - g.curb.at(-1)[2]) - g.swB) < 1e-6,
+    'corner ramp returns to the adjoining approach width');
+}
+
 // A roundabout's island must stay centered on its actual junction node, including off-origin nodes.
 const net = new RoadNetwork();
 const center = net.addNode({ x: 137, z: -83, y: 0, kind: 'roundabout', rbRadius: 24 });
@@ -49,4 +78,4 @@ assert.ok(grass, 'roundabout island produces its grass surface');
 assert.ok(Math.abs(grass.p[0] - center.x) < 1e-8 && Math.abs(grass.p[2] - center.z) < 1e-8,
   'roundabout island fill is positioned over its node, not displaced down an approach');
 
-console.log('geometry regression checks passed: single centered median noses and centered roundabout island');
+console.log('geometry regression checks passed: corner-width blends, single centered medians and roundabout placement');

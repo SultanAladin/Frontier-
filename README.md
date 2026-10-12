@@ -108,8 +108,8 @@ The separate road-network editor is in `Experimental/RoadEditor/`. It adds edita
 suspended monorail guideways, street-running tram grooves, animated trains and lane-transition geometry.
 Run `npm --prefix Experimental/RoadEditor ci`, then `npm --prefix Experimental/RoadEditor run dev`;
 `npm --prefix Experimental/RoadEditor run test:topology` checks the rail and lane-merge cases, while
-`npm --prefix Experimental/RoadEditor run test:geometry` checks the rounded median and roundabout
-placement.
+`npm --prefix Experimental/RoadEditor run test:geometry` checks corner blends, rounded medians, and
+roundabout placement.
 
 ## SolidArc
 
