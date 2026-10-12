@@ -605,7 +605,9 @@ void VehicleSolver::StepPacejka(float Δτ) noexcept
         // 📝 Keep the measured low-lateral-slip branch. Applying rigid lateral impulses to all
         //      unlocked front rotors during a rear-brake slide worsened the partitioned wheel coupling;
         //      that experiment is rejected rather than hiding the remaining rear-brake failures.
-        const bool Resting = onGnd && (LockedBrake || LowSpeedLateral)
+        // 📝 Powered rolling keeps its existing transient Magic-Formula response. This eligibility
+        //      correction is limited to coasting/braking rather than replacing powered lateral dynamics.
+        const bool Resting = onGnd && throttleCmd < 0.05f && (LockedBrake || LowSpeedLateral)
                            && RestingCount < RestingContacts.size();
         if (Resting)
         {
