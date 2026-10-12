@@ -1,0 +1,511 @@
+/* Frontier Road Editor: full-screen viewport with docked panels. */
+
+.re-root {
+  position: fixed;
+  inset: 0;
+  overflow: hidden;
+  background: #151820;
+  color: #c9cdd7;
+  font-family: Inter, "DM Sans", system-ui, sans-serif;
+  font-size: 12px;
+  user-select: none;
+}
+
+.re-root button,
+.re-root input,
+.re-root select {
+  font: inherit;
+  color: inherit;
+}
+
+.re-canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+  touch-action: none;
+  cursor: crosshair;
+}
+
+/* ----- top bar ----- */
+
+.re-topbar {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 42px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 12px;
+  background: linear-gradient(#1d2129ee, #1a1d25ee);
+  border-bottom: 1px solid #2c313b;
+  backdrop-filter: blur(6px);
+  z-index: 5;
+}
+
+.re-brand {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 600;
+  color: #eef0f5;
+  letter-spacing: -0.2px;
+}
+
+.re-badge {
+  margin-left: 6px;
+  padding: 2px 7px;
+  border-radius: 999px;
+  border: 1px solid #5b4a1c;
+  background: #3a2f12;
+  color: #f1c765;
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.6px;
+  text-transform: uppercase;
+}
+
+.re-top-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.re-top-actions > button,
+.re-actions button,
+.re-chips button,
+.re-prop-row button,
+.re-lane-tools button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 9px;
+  border: 1px solid #353b47;
+  border-radius: 6px;
+  background: #242933;
+  color: #c9cdd7;
+  cursor: pointer;
+}
+
+.re-top-actions > button:hover:not(:disabled),
+.re-actions button:hover:not(:disabled),
+.re-chips button:hover,
+.re-prop-row button:hover,
+.re-lane-tools button:hover {
+  background: #2e3441;
+  border-color: #4a5264;
+}
+
+.re-top-actions > button:disabled,
+.re-actions button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.re-actions button.primary {
+  background: #2b4a6b;
+  border-color: #3d6896;
+  color: #e6f1ff;
+}
+
+.re-actions button.danger {
+  color: #f19b8b;
+}
+
+.re-sep {
+  width: 1px;
+  height: 18px;
+  margin: 0 6px;
+  background: #343945;
+}
+
+.re-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 0 4px;
+  color: #aab1bf;
+  cursor: pointer;
+}
+
+/* ----- panels ----- */
+
+.re-left,
+.re-right {
+  position: absolute;
+  top: 52px;
+  bottom: 40px;
+  width: 262px;
+  overflow-y: auto;
+  background: rgba(29, 33, 41, 0.93);
+  border: 1px solid #2c313b;
+  border-radius: 10px;
+  box-shadow: 0 16px 50px #0007;
+  backdrop-filter: blur(8px);
+  z-index: 4;
+}
+
+.re-left {
+  left: 10px;
+}
+
+.re-right {
+  right: 10px;
+  width: 300px;
+}
+
+.re-tools {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px;
+  border-bottom: 1px solid #2c313b;
+}
+
+.re-tools button {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 7px 9px;
+  border: 1px solid transparent;
+  border-radius: 7px;
+  background: transparent;
+  color: #b8bfcc;
+  text-align: left;
+  cursor: pointer;
+}
+
+.re-tools button:hover {
+  background: #272c36;
+}
+
+.re-tools button.active {
+  background: #2b4a6b;
+  border-color: #3d6896;
+  color: #eef6ff;
+}
+
+.re-tools button span {
+  flex: 1;
+}
+
+.re-tools kbd,
+.re-status kbd {
+  padding: 1px 6px;
+  border-radius: 4px;
+  border: 1px solid #3a404c;
+  color: #8e96a6;
+  font-family: inherit;
+  font-size: 10px;
+}
+
+.re-section {
+  border-bottom: 1px solid #2a2f39;
+}
+
+.re-section > header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 9px 11px;
+  color: #e4e8f0;
+  font-weight: 600;
+  cursor: pointer;
+  background: #232832;
+}
+
+.re-section > header span {
+  flex: 1;
+  font-size: 11px;
+  letter-spacing: 0.2px;
+}
+
+.re-section-actions {
+  display: flex;
+  gap: 4px;
+}
+
+.re-section-body {
+  padding: 9px 11px 12px;
+}
+
+.re-row {
+  display: grid;
+  grid-template-columns: 110px 1fr;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 7px;
+}
+
+.re-row > label {
+  color: #98a0ae;
+  font-size: 11px;
+}
+
+.re-row-value {
+  min-width: 0;
+  color: #d6dae3;
+  font-size: 11px;
+}
+
+.re-input {
+  padding: 4px 6px;
+  border: 1px solid #353b47;
+  border-radius: 5px;
+  background: #171a21;
+  color: #dfe3ea;
+  min-width: 0;
+}
+
+.re-input.wide {
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.re-input.narrow {
+  width: 62px;
+}
+
+.re-input:focus {
+  outline: 1px solid #3d6896;
+  border-color: #3d6896;
+}
+
+.re-hint {
+  margin-top: 6px;
+  color: #7f8798;
+  font-size: 10.5px;
+  line-height: 1.45;
+}
+
+.re-hint-inline {
+  color: #8d95a4;
+}
+
+.re-actions {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-top: 9px;
+}
+
+.re-actions select {
+  width: 100%;
+}
+
+.re-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin-bottom: 6px;
+}
+
+.re-chips.vertical {
+  flex-direction: column;
+}
+
+.re-chips.vertical button.active {
+  background: #2b4a6b;
+  border-color: #3d6896;
+}
+
+.re-chips button {
+  padding: 4px 8px;
+  font-size: 11px;
+}
+
+.re-prop-row {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  margin-top: 4px;
+}
+
+.re-prop-row > button:first-child {
+  flex: 1;
+  justify-content: flex-start;
+}
+
+/* lanes */
+
+.re-lanes {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.re-lane {
+  display: grid;
+  grid-template-columns: 1fr 62px 58px;
+  gap: 4px;
+  padding: 5px;
+  border-left: 3px solid #666;
+  border-radius: 5px;
+  background: #1b1f27;
+}
+
+.re-lane .re-lane-tools {
+  grid-column: 1 / -1;
+  display: flex;
+  gap: 4px;
+  justify-content: flex-end;
+}
+
+.re-lane-tools button {
+  padding: 2px 6px;
+}
+
+/* presets */
+
+.re-presets {
+  max-height: 340px;
+  overflow-y: auto;
+  margin: 0 -2px 8px;
+  padding-right: 2px;
+}
+
+.re-group {
+  margin: 8px 2px 4px;
+  color: #6f7787;
+  font-size: 10px;
+  letter-spacing: 0.9px;
+  text-transform: uppercase;
+}
+
+.re-preset {
+  width: 100%;
+  display: flex;
+  justify-content: space-between;
+  gap: 6px;
+  padding: 5px 7px;
+  margin-bottom: 3px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: #222730;
+  color: #c4cad6;
+  text-align: left;
+  cursor: pointer;
+}
+
+.re-preset span {
+  color: #7f8798;
+  font-size: 10px;
+  white-space: nowrap;
+}
+
+.re-preset.active {
+  background: #2b4a6b;
+  border-color: #3d6896;
+  color: #eef6ff;
+}
+
+/* generator */
+
+.re-features {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 5px 8px;
+  margin-top: 4px;
+}
+
+.re-check {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  color: #b3bac7;
+  font-size: 10.5px;
+  cursor: pointer;
+}
+
+.re-check input {
+  accent-color: #5b8fc7;
+}
+
+.re-section input[type='range'] {
+  width: 100%;
+  accent-color: #5b8fc7;
+}
+
+/* stats */
+
+.re-stats {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+}
+
+.re-stats div {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 7px 8px;
+  border-radius: 6px;
+  background: #1b1f27;
+}
+
+.re-stats span {
+  color: #7f8798;
+  font-size: 10px;
+}
+
+.re-stats b {
+  color: #eef0f5;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+/* status bar */
+
+.re-status {
+  position: absolute;
+  left: 10px;
+  right: 10px;
+  bottom: 10px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 0 12px;
+  border-radius: 8px;
+  background: rgba(24, 27, 34, 0.92);
+  border: 1px solid #2c313b;
+  color: #8d95a4;
+  font-size: 11px;
+  white-space: nowrap;
+  z-index: 4;
+}
+
+.re-tool-label {
+  color: #dfe6f2;
+  font-weight: 600;
+}
+
+.re-spacer {
+  flex: 1;
+}
+
+.re-warn {
+  color: #f1c765;
+}
+
+.re-cam {
+  color: #6f7787;
+}
+
+/* scrollbars */
+
+.re-left::-webkit-scrollbar,
+.re-right::-webkit-scrollbar,
+.re-presets::-webkit-scrollbar {
+  width: 8px;
+}
+
+.re-left::-webkit-scrollbar-thumb,
+.re-right::-webkit-scrollbar-thumb,
+.re-presets::-webkit-scrollbar-thumb {
+  background: #343a46;
+  border-radius: 4px;
+}

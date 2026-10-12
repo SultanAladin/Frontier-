@@ -38,3 +38,10 @@ python3 scripts/serve-icons.py --port 5174
 Keep approved SVG sources in `custom-icons/` and `ui-icons/`, and preserve vendor
 notices in `vendor/`. Native runtime copies remain in `EngineContent/Icons/` at
 the repository root. This move does not expand the engine's supported entities.
+
+## Road Editor
+
+`road-editor.html` is a standalone page with source in `road-editor/`. It is a
+three.js road network editor with a seeded city generator and a WASD fly camera.
+See [../../Docs/RoadEditor.md](../../Docs/RoadEditor.md) for usage, topology
+rules and known limits. Run its checks with `npm run test:roads`.

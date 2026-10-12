@@ -9,6 +9,14 @@ export default defineConfig({
   root,
   base: './',
   server: { host: '0.0.0.0', allowedHosts: ['.e2b.app'], proxy: { '/api/construct': 'http://127.0.0.1:5191' } },
+  build: {
+    rollupOptions: {
+      input: {
+        main: resolve(root, 'index.html'),
+        roadEditor: resolve(root, 'road-editor.html'),
+      },
+    },
+  },
   plugins: [{
     name: 'standalone-experimental-pages',
     configureServer(server) {
@@ -19,7 +27,7 @@ export default defineConfig({
       });
     },
     closeBundle() {
-      for (const page of ['icons.html', 'collection-icon-options.html', 'cluster-lod.html', 'cluster-lod-core.js', 'cluster-lod-demo.js']) {
+      for (const page of ['icons.html', 'collection-icon-options.html', 'cluster-lod.html', 'cluster-lod-core.js', 'cluster-lod-demo.js', 'road-editor.html']) {
         copyFileSync(resolve(root, page), resolve(root, 'dist', page));
       }
       for (const directory of ['custom-icons', 'ui-icons']) {

@@ -5,6 +5,7 @@ These browser design studies are separate from the native C++ editor.
 | Prototype | Entry point |
 | --- | --- |
 | Frontier Editor — outliner, inspector and sliding Construct menu | [FrontierEditor/index.html](FrontierEditor/index.html) |
+| Road Editor (experimental roads, city generator, fly camera) | [FrontierEditor/road-editor.html](FrontierEditor/road-editor.html) |
 | SVG icon gallery | [FrontierEditor/icons.html](FrontierEditor/icons.html) |
 | Collection-icon options | [FrontierEditor/collection-icon-options.html](FrontierEditor/collection-icon-options.html) |
 
