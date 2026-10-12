@@ -6,12 +6,13 @@
   "description": "Experimental Project Zero road editor — a 3D browser workbench for authoring complete road networks and generating cities.",
   "scripts": {
     "dev": "vite --host 0.0.0.0",
-    "build": "vite build",
+    "build": "vite build && npm run build:standalone",
     "preview": "vite preview --host 0.0.0.0",
     "check": "npm run check:road && npm run check:geometry && npm run check:ui",
     "check:road": "node scripts/check-road-editor.mjs",
     "check:geometry": "node scripts/check-geometry.mjs",
-    "check:ui": "node scripts/check-ui.mjs"
+    "check:ui": "node scripts/check-ui.mjs",
+    "build:standalone": "vite build --config vite.standalone.config.js && node scripts/inline-build.mjs"
   },
   "dependencies": {
     "lucide-react": "^0.468.0",

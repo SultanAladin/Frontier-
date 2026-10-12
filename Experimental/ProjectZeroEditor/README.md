@@ -12,6 +12,16 @@ npm run dev        # http://localhost:5173
 npm run check      # headless engine + geometry + UI checks (no browser needed)
 ```
 
+**No build step needed to open it:** `standalone.html` is the entire editor — React,
+three.js, the engine and the stylesheet — folded into one ~843 kB HTML file with a
+classic (non-module) script, so it runs from any static host:
+
+```
+https://raw.githack.com/SultanAladin/Frontier-/<commit-sha>/Experimental/ProjectZeroEditor/standalone.html
+```
+
+See [Serving from GitHub (raw.githack)](#serving-from-github-rawgithack) below.
+
 ## What it does
 
 * **A road catalogue of 50 profiles** across seven categories — motorways (2+2, 3+3, HOV/managed
@@ -68,6 +78,32 @@ Buildings are optional and only massed as simple blocks to give the streets cont
 | `Enter` / `Esc` | Finish / cancel the drawing tool |
 | `Del` | Delete selection |
 | `Ctrl+Z` / `Ctrl+Shift+Z` | Undo / redo |
+
+## Serving from GitHub (raw.githack)
+
+raw.githack serves files straight out of the repository, so the file has to be committed
+and it cannot rely on a bundler, bare imports, module MIME types or absolute asset paths.
+`standalone.html` is built for exactly that:
+
+```bash
+npm run build:standalone   # vite (IIFE, no code splitting) + scripts/inline-build.mjs
+git add standalone.html && git commit -m "Rebuild standalone.html" && git push
+```
+
+Then open (swap in your commit SHA — pinning it also busts the CDN cache):
+
+```
+https://raw.githack.com/SultanAladin/Frontier-/<commit-sha>/Experimental/ProjectZeroEditor/standalone.html
+https://rawcdn.githack.com/SultanAladin/Frontier-/<commit-sha>/Experimental/ProjectZeroEditor/standalone.html
+```
+
+* `raw.githack.com` is uncached — use it right after a push.
+* `rawcdn.githack.com` is the cached CDN — use it once the content has settled.
+* A branch-following form also works:
+  `…/SultanAladin/Frontier-/arena/e2c2e01b-frontier/Experimental/ProjectZeroEditor/standalone.html`
+
+The standalone build targets ES2019, needs WebGL 2 and is ~843 kB (mostly three.js).
+`dist/` stays git-ignored; only the finished single file is committed.
 
 ## Layout
 
