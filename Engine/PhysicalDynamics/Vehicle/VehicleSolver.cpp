@@ -597,10 +597,12 @@ void VehicleSolver::StepPacejka(float Δτ) noexcept
         const float BrakeCapacity = (wheel.Braked ? DriverCommand.Brake * ActiveConfiguration.MaxBrakeTorquePerWheel : 0.0f)
                                   + (DriverCommand.Handbrake && !wheel.Steered ? ActiveConfiguration.HandbrakeTorque : 0.0f);
         const bool LockedBrake = BrakeCapacity > 0.0f && std::abs(WheelSpin[i]) < 0.5f;
-        const bool LowSpeedLateral = speed < 0.5f && cs.AngularVelocity.Length() < 0.5f;
+        // 📝 Lateral sticking is independent of wheel rolling speed. Testing total vehicle speed made
+        //      contour travel slide downhill and rear-brake stopping alternate around 0.5 m/s.
+        const bool LowSpeedLateral = std::abs(VlatHub) < 0.5f && cs.AngularVelocity.Length() < 0.5f;
         // 📝 A locked rotor has Coulomb contact at every sliding speed. A low-speed-only eligibility gate
         //      alternated braking on/off around its threshold and left the vehicle creeping near that speed.
-        const bool Resting = onGnd && throttleCmd < 0.05f && (LockedBrake || LowSpeedLateral)
+        const bool Resting = onGnd && (LockedBrake || LowSpeedLateral)
                            && RestingCount < RestingContacts.size();
         if (Resting)
         {

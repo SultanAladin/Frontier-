@@ -68,7 +68,7 @@ SlopeReading Record(const SlopeSpecification& Specification, const std::filesyst
     const uint32_t Ticks = static_cast<uint32_t>(std::round(Specification.Seconds / StepSeconds));
     constexpr uint32_t DriveTick = 360u, BrakeTick = 840u;
     std::ofstream Csv(Folder / (Specification.Name + ".csv")); Csv << std::setprecision(12);
-    Csv << "t,phase,throttle,brake,handbrake,x,y,z,vx,vy,vz,uphill_m,across_m,forward_m,uphill_speed,across_speed,forward_speed,tangent_speed,body_uphill_force_N,body_across_force_N,gravity_uphill_N,normal_load_N,normal_height_m,normal_speed,vertical_from_uphill_m,vertical_from_normal_m,brake_capacity_Nm,applied_brake_Nm,brake_power_W,contact_power_W,static_power_W,drive_power_W,native_bead_gap_m,physical_bead_gap_m,radius_m,shape_max_m,resting_converged,body_angular_speed,resting_contacts,locked_contacts,gearbox_drive_torque_Nm,clutch_torque_Nm,wheel_omega_0,wheel_omega_1,wheel_omega_2,wheel_omega_3,static_uphill_force_N,grip_force_capacity_N,brake_force_capacity_N,free_uphill_speed,solved_uphill_speed\n";
+    Csv << "t,phase,throttle,brake,handbrake,x,y,z,vx,vy,vz,uphill_m,across_m,forward_m,uphill_speed,across_speed,forward_speed,tangent_speed,body_uphill_force_N,body_across_force_N,gravity_uphill_N,normal_load_N,normal_height_m,normal_speed,vertical_from_uphill_m,vertical_from_normal_m,brake_capacity_Nm,applied_brake_Nm,brake_power_W,contact_power_W,static_power_W,drive_power_W,native_bead_gap_m,physical_bead_gap_m,radius_m,shape_max_m,resting_converged,body_angular_speed,resting_contacts,locked_contacts,gearbox_drive_torque_Nm,clutch_torque_Nm,wheel_omega_0,wheel_omega_1,wheel_omega_2,wheel_omega_3,static_uphill_force_N,grip_force_capacity_N,brake_force_capacity_N,free_uphill_speed,solved_uphill_speed,normal_load_0_N,normal_load_1_N,normal_load_2_N,normal_load_3_N,body_x_axis_uphill,body_x_axis_across,body_roll_deg\n";
     std::ofstream Pictures(Folder / (Specification.Name + ".frames"), std::ios::binary);
     const uint32_t Header[] = {0x54554D42u, Fixture.Configuration.Tyre.RingCount, Fixture.Configuration.Tyre.SegmentCount, Ticks / 12u};
     Pictures.write(reinterpret_cast<const char*>(Header), sizeof(Header));
@@ -139,7 +139,12 @@ SlopeReading Record(const SlopeSpecification& Specification, const std::filesyst
             << Body.AngularVelocity.Length() << ',' << Telemetry.RestingContactCount << ',' << Telemetry.LockedContactCount << ','
             << Telemetry.GearboxDriveTorque_Nm << ',' << Telemetry.ClutchTorque_Nm;
         for (size_t Corner = 0u; Corner < 4u; ++Corner) Csv << ',' << Telemetry.Wheels[Corner].WheelOmega;
-        Csv << ',' << Dot(Telemetry.StaticContactForce, Uphill) << ',' << Telemetry.ContactGripForce_N << ',' << Telemetry.ContactBrakeForce_N << ',' << Dot(Telemetry.ContactFreeVelocity, Uphill) << ',' << Dot(Telemetry.ContactSolvedVelocity, Uphill) << '\n';
+        Csv << ',' << Dot(Telemetry.StaticContactForce, Uphill) << ',' << Telemetry.ContactGripForce_N << ',' << Telemetry.ContactBrakeForce_N << ',' << Dot(Telemetry.ContactFreeVelocity, Uphill) << ',' << Dot(Telemetry.ContactSolvedVelocity, Uphill);
+        for (size_t Corner = 0u; Corner < 4u; ++Corner) Csv << ',' << Telemetry.Wheels[Corner].VerticalLoad;
+        const Vec3 BodyForward = Body.Orientation.Rotate({1, 0, 0});
+        const Vec3 BodyLeft = Body.Orientation.Rotate({0, 1, 0});
+        Csv << ',' << Dot(BodyForward, Uphill) << ',' << Dot(BodyForward, Across) << ','
+            << std::atan2(Dot(BodyLeft, Normal), Dot(Body.Orientation.Rotate({0, 0, 1}), Normal)) * 57.29577951 << '\n';
         if (Tick > 0u && Tick % 12u == 0u) Capture(Pictures, Fixture);
     }
     return Result;

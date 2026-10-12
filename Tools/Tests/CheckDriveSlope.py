@@ -42,6 +42,8 @@ def Validate(Folder):
                 StopAllowance = 3.5 if Case["incline"] <= 20 else 1.0 + 1.5 * Case["brakeStartSpeed"] / max(0.01, NetDeceleration)
                 Case["physicalStopAllowanceS"] = StopAllowance
                 Checks["serviceBrakeStopsAndHolds"] = 0 <= Case["stopTime"] < StopAllowance and Case["finalSpeed"] < 0.01
+            if Case["brakes"] == 2 and Case["heading"] in [0, 90, -90]:
+                Checks["rearBrakeStopsWhereCapacityAllows"] = 0 <= Case["stopTime"] < 3.5 and Case["finalSpeed"] < 0.01
             if abs(Case["heading"]) == 90:
                 Checks["noPropulsiveUphillCrossDrift"] = Case["driveUphillM"] <= 0.02
         else:
