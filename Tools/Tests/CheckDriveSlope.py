@@ -27,7 +27,7 @@ def Validate(Folder):
         Checks = {
             "brakeDissipation": Case["positiveBrakePowerW"] <= 1.0,
             "contactPassivity": Case["positiveContactPowerW"] <= 1.0,
-            "noIdleDriveFightingBrakes": max((abs(float(Row["drive_power_W"])) for Row in Rows if Row["phase"] == "2" and (float(Row["brake"]) > 0 or Row["handbrake"] == "1")), default=0.0) <= 0.001,
+            "noIdleDriveFightingBrakes": max((abs(float(Row["gearbox_drive_torque_Nm"])) for Row in Rows if Row["phase"] == "2" and (float(Row["brake"]) > 0 or Row["handbrake"] == "1")), default=0.0) <= 0.001,
             "nativeBeadSeated": Case["nativeBeadGapM"] <= 0.00001,
             "physicalBeadMatchesRim": Case["physicalBeadGapM"] <= 0.00001,
             "radialExpansionBound": Case["radiusM"] <= 0.50855 * 1.05,

@@ -457,6 +457,15 @@ void VehicleSolver::StepPacejka(float Δτ) noexcept
     CurrentTelemetry.Chassis = cs;
     CurrentTelemetry.SpeedMetresPerSecond = speed;
     CurrentTelemetry.ForwardSpeed = forwardVel;
+    CurrentTelemetry.StaticContactForce = {};
+    CurrentTelemetry.ContactFreeVelocity = {};
+    CurrentTelemetry.ContactSolvedVelocity = {};
+    CurrentTelemetry.ContactGripForce_N = 0.0f;
+    CurrentTelemetry.ContactBrakeForce_N = 0.0f;
+    CurrentTelemetry.GearboxDriveTorque_Nm = dOut.GearboxOutputTorque_Nm;
+    CurrentTelemetry.ClutchTorque_Nm = dOut.ClutchTorque_Nm;
+    CurrentTelemetry.RestingContactCount = 0u;
+    CurrentTelemetry.LockedContactCount = 0u;
     CurrentTelemetry.RestingContactResidual = 0.0f;
     CurrentTelemetry.RestingContactConverged = true;
     CurrentTelemetry.TotalVerticalLoad = 0.0f;
@@ -588,7 +597,10 @@ void VehicleSolver::StepPacejka(float Δτ) noexcept
         const float BrakeCapacity = (wheel.Braked ? DriverCommand.Brake * ActiveConfiguration.MaxBrakeTorquePerWheel : 0.0f)
                                   + (DriverCommand.Handbrake && !wheel.Steered ? ActiveConfiguration.HandbrakeTorque : 0.0f);
         const bool LockedBrake = BrakeCapacity > 0.0f && std::abs(WheelSpin[i]) < 0.5f;
-        const bool Resting = onGnd && throttleCmd < 0.05f && speed < 0.5f && cs.AngularVelocity.Length() < 0.5f
+        const bool LowSpeedLateral = speed < 0.5f && cs.AngularVelocity.Length() < 0.5f;
+        // 📝 A locked rotor has Coulomb contact at every sliding speed. A low-speed-only eligibility gate
+        //      alternated braking on/off around its threshold and left the vehicle creeping near that speed.
+        const bool Resting = onGnd && throttleCmd < 0.05f && (LockedBrake || LowSpeedLateral)
                            && RestingCount < RestingContacts.size();
         if (Resting)
         {
@@ -618,6 +630,10 @@ void VehicleSolver::StepPacejka(float Δτ) noexcept
             const float LateralImpulse = LockedBrake ? NormalImpulse : std::sqrt(std::max(0.0f, NormalImpulse * NormalImpulse - Fx * Fx * Δτ * Δτ));
             RestingContacts[RestingCount++] = {patch, wf, wl, {}, LateralImpulse,
                 BrakeCapacity * Δτ / std::max(0.01f, std::abs(RollingLever)), i, LockedBrake};
+            CurrentTelemetry.ContactGripForce_N += LateralImpulse / Δτ;
+            CurrentTelemetry.ContactBrakeForce_N += BrakeCapacity / std::max(0.01f, std::abs(RollingLever));
+            ++CurrentTelemetry.RestingContactCount;
+            if (LockedBrake) ++CurrentTelemetry.LockedContactCount;
         }
 
         const Vec3 planar      = wf * Fx + wl * Fy;
@@ -772,6 +788,7 @@ void VehicleSolver::StepPacejka(float Δτ) noexcept
                                                           Principal.z > 0 ? LocalAngular.z / Principal.z : 0.0f});
         const Vec3 FreeLinear = cs.LinearVelocity + (ActiveConfiguration.Gravity + DeliveredForce * InverseMass) * Δτ;
         const Vec3 FreeAngular = cs.AngularVelocity + InverseInertia(DeliveredTorque - Cross(cs.AngularVelocity, AngularMomentum)) * Δτ;
+        CurrentTelemetry.ContactFreeVelocity = FreeLinear;
         Vec3 SolvedLinear = FreeLinear, SolvedAngular = FreeAngular;
         for (uint32_t Sweep = 0u; Sweep < 32u; ++Sweep)
         {
@@ -792,15 +809,26 @@ void VehicleSolver::StepPacejka(float Δτ) noexcept
                 float AlongImpulse = 0.0f, AcrossImpulse = Dot(Constraint.Impulse, Constraint.Left);
                 if (Constraint.Locked)
                 {
-                    const float Determinant = Along * Across - Coupling * Coupling;
-                    if (!(Determinant > 1.0e-12f)) continue;
-                    AlongImpulse = Dot(Constraint.Impulse, Constraint.Forward) + (-Across * AlongVelocity + Coupling * AcrossVelocity) / Determinant;
-                    AcrossImpulse += (-Along * AcrossVelocity + Coupling * AlongVelocity) / Determinant;
-                    AlongImpulse = Clamp(AlongImpulse, -Constraint.BrakeImpulse, Constraint.BrakeImpulse);
+                    // 📝 An inverse-mass step followed by Euclidean radial scaling is NOT the cone's
+                    //      metric projection. It converged to large cancelling sideways self-stress while
+                    //      applying almost no longitudinal brake. Scalar projected gradient uses the largest
+                    //      eigenvalue of this 2D effective mass, so boundary friction opposes actual slip.
+                    const float Difference = Along - Across;
+                    const float Eigenvalue = 0.5f * (Along + Across + std::sqrt(Difference * Difference + 4.0f * Coupling * Coupling));
+                    if (!(Eigenvalue > 1.0e-12f)) continue;
+                    AlongImpulse = Dot(Constraint.Impulse, Constraint.Forward) - AlongVelocity / Eigenvalue;
+                    AcrossImpulse -= AcrossVelocity / Eigenvalue;
+                    const float UnprojectedAcross = AcrossImpulse;
                     const float Magnitude = std::sqrt(AlongImpulse * AlongImpulse + AcrossImpulse * AcrossImpulse);
                     if (Magnitude > Constraint.GripImpulse && Magnitude > 0.0f)
                     {
                         const float Scale = Constraint.GripImpulse / Magnitude; AlongImpulse *= Scale; AcrossImpulse *= Scale;
+                    }
+                    if (std::abs(AlongImpulse) > Constraint.BrakeImpulse)
+                    {
+                        AlongImpulse = Clamp(AlongImpulse, -Constraint.BrakeImpulse, Constraint.BrakeImpulse);
+                        const float LateralCapacity = std::sqrt(std::max(0.0f, Constraint.GripImpulse * Constraint.GripImpulse - AlongImpulse * AlongImpulse));
+                        AcrossImpulse = Clamp(UnprojectedAcross, -LateralCapacity, LateralCapacity);
                     }
                 }
                 else
@@ -817,9 +845,11 @@ void VehicleSolver::StepPacejka(float Δτ) noexcept
             CurrentTelemetry.RestingContactConverged = Residual < 1.0e-5f;
             if (CurrentTelemetry.RestingContactConverged) break;
         }
+        CurrentTelemetry.ContactSolvedVelocity = SolvedLinear;
         for (size_t Contact = 0u; Contact < RestingCount; ++Contact)
         {
             const auto& Constraint = RestingContacts[Contact];
+            CurrentTelemetry.StaticContactForce += Constraint.Impulse * (1.0f / Δτ);
             TransmitForce(Constraint.Impulse * (1.0f / Δτ), Constraint.Point);
             auto& Reading = CurrentTelemetry.Wheels[Constraint.Corner];
             Reading.LongitudinalForce += Dot(Constraint.Impulse, Constraint.Forward) / Δτ;

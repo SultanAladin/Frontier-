@@ -233,6 +233,15 @@ struct VehicleTelemetry
     float TotalVerticalLoad    = 0.0f;   // [N] Σ Fz
     uint32_t WheelCount        = 0u;
     uint32_t WheelsInContact   = 0u;
+    Vec3 StaticContactForce{};          // [N] - summed tangent constraint forces
+    Vec3 ContactFreeVelocity{};         // [m/s] - force/gravity predictor
+    Vec3 ContactSolvedVelocity{};       // [m/s] - projected tangent constraints
+    float ContactGripForce_N = 0.0f;    // [N] - summed authored Coulomb capacity
+    float ContactBrakeForce_N = 0.0f;   // [N] - summed disc/lever capacity
+    uint32_t RestingContactCount = 0u;    // [-] - active tangent constraints
+    uint32_t LockedContactCount = 0u;     // [-] - contacts with a disc-locked rotor
+    float GearboxDriveTorque_Nm = 0.0f;   // [N·m] - motor output, separate from passive LSD transfer
+    float ClutchTorque_Nm = 0.0f;         // [N·m] - motor/clutch torque before the gearbox
     float RestingContactResidual = 0.0f; // [N·s] - final projected impulse increment
     bool RestingContactConverged = true; // [-] - actual impulse convergence
     std::array<WheelTelemetry, 8> Wheels{};
