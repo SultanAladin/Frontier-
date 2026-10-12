@@ -79,7 +79,7 @@ public:
             {
                 const float Angle = 6.28318530718f * Segment / Segments;
                 // DriveWheelMesh's bead half-width, not the solver's internal pressure-volume anchor width.
-                Append({Parameters.RimRadius * std::cos(Angle), (Side == 0u ? 1.0f : -1.0f) * Parameters.Width * 0.5f * 0.74f,
+                Append({Parameters.RimRadius * std::cos(Angle), (Side == 0u ? 1.0f : -1.0f) * Parameters.Width * 0.5f * Parameters.BeadWidthRatio,
                         Parameters.RimRadius * std::sin(Angle)});
             }
         auto Quad = [&](uint32_t A, uint32_t B, uint32_t C, uint32_t D)

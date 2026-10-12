@@ -21,6 +21,7 @@
 #pragma once
 
 #include <cmath>
+#include "../../../Engine/PhysicalDynamics/Vehicle/XPBDSoftTyre.h"
 #include <cstdint>
 
 namespace Frontier {
@@ -44,6 +45,7 @@ struct WheelTreadLattice
     uint32_t SegmentCount = 64u;
     // Tread[ring * SegmentCount + segment] = {x, y, z} in hub-local metres. Must hold RingCount*SegmentCount entries.
     const float* Tread    = nullptr;
+    float BeadWidthRatio = Vehicle::TyreBeadWidthRatio; // [-] - same rigid seat as the physical tyre
     float RimRadius       = 0.3446f;   // [m] bead circle the sidewall closes onto
     float HalfWidth       = 0.1979f;   // [m] half the section width (bead half-width is derived from it)
     uint32_t SpokeCount   = 5u;        // [-] mag spokes per face
@@ -158,7 +160,7 @@ void EmitWheelSurface(const WheelTreadLattice& Lattice, uint32_t MaterialTyre, u
         }
 
     // ── sidewalls: each shoulder ring closes onto its bead circle, so a squashed tread drags its sidewall with it ──
-    const float BeadHalfWidth = Lattice.HalfWidth * 0.74f;   // the bead sits inboard of the tread shoulder
+    const float BeadHalfWidth = Lattice.HalfWidth * Lattice.BeadWidthRatio;   // the bead sits inboard of the tread shoulder
     auto Bead = [&](uint32_t Segment, float Sign, float Out[3]) noexcept
     {
         const float Angle = kTwoPi * static_cast<float>(Segment % Segments) / static_cast<float>(Segments);

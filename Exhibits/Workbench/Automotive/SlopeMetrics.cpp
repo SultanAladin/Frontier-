@@ -23,6 +23,7 @@ struct SlopeSpecification
     float Incline = 20.0f, Heading = 0.0f, Friction = 0.8f;
     uint32_t Brakes = 0u;
     bool Driven = true;
+    float Seconds = 7.0f;
 };
 
 struct SlopeReading
@@ -64,10 +65,10 @@ SlopeReading Record(const SlopeSpecification& Specification, const std::filesyst
     Fixture.Rebuild();
     const Vec3 Origin = Fixture.Body.Position;
     Vec3 DriveOrigin = Origin, BrakeOrigin = Origin;
-    constexpr uint32_t Ticks = 1680u;
+    const uint32_t Ticks = static_cast<uint32_t>(std::round(Specification.Seconds / StepSeconds));
     constexpr uint32_t DriveTick = 360u, BrakeTick = 840u;
     std::ofstream Csv(Folder / (Specification.Name + ".csv")); Csv << std::setprecision(12);
-    Csv << "t,phase,throttle,brake,handbrake,x,y,z,vx,vy,vz,uphill_m,across_m,forward_m,uphill_speed,across_speed,forward_speed,tangent_speed,body_uphill_force_N,body_across_force_N,gravity_uphill_N,normal_load_N,brake_capacity_Nm,applied_brake_Nm,brake_power_W,contact_power_W,static_power_W,drive_power_W,native_bead_gap_m,physical_bead_gap_m,radius_m,shape_max_m,resting_converged\n";
+    Csv << "t,phase,throttle,brake,handbrake,x,y,z,vx,vy,vz,uphill_m,across_m,forward_m,uphill_speed,across_speed,forward_speed,tangent_speed,body_uphill_force_N,body_across_force_N,gravity_uphill_N,normal_load_N,normal_height_m,normal_speed,vertical_from_uphill_m,vertical_from_normal_m,brake_capacity_Nm,applied_brake_Nm,brake_power_W,contact_power_W,static_power_W,drive_power_W,native_bead_gap_m,physical_bead_gap_m,radius_m,shape_max_m,resting_converged\n";
     std::ofstream Pictures(Folder / (Specification.Name + ".frames"), std::ios::binary);
     const uint32_t Header[] = {0x54554D42u, Fixture.Configuration.Tyre.RingCount, Fixture.Configuration.Tyre.SegmentCount, Ticks / 12u};
     Pictures.write(reinterpret_cast<const char*>(Header), sizeof(Header));
@@ -111,7 +112,7 @@ SlopeReading Record(const SlopeSpecification& Specification, const std::filesyst
                 {
                     const float θ = 6.28318530718f * Segment / Parameters.SegmentCount;
                     const float Sign = Side == 0u ? -1.0f : 1.0f;
-                    const Vec3 Local{Parameters.RimRadius * std::cos(θ), Sign * Parameters.Width * 0.5f * 0.74f, Parameters.RimRadius * std::sin(θ)};
+                    const Vec3 Local{Parameters.RimRadius * std::cos(θ), Sign * Parameters.Width * 0.5f * Parameters.BeadWidthRatio, Parameters.RimRadius * std::sin(θ)};
                     const Vec3 RimPoint = Tyre.HubPosition() + Material.Rotate(Local);
                     const auto Published = Projection.Project({Local.x, Local.y, Local.z});
                     NativeGap = std::max(NativeGap, static_cast<double>((Vec3{Published.x, Published.y, Published.z} - RimPoint).Length()));
@@ -132,7 +133,8 @@ SlopeReading Record(const SlopeSpecification& Specification, const std::filesyst
             << Dot(Displacement, Uphill) << ',' << Dot(Displacement, Across) << ',' << Dot(Displacement, Forward) << ','
             << Dot(Body.LinearVelocity, Uphill) << ',' << Dot(Body.LinearVelocity, Across) << ',' << Dot(Body.LinearVelocity, Forward) << ',' << Speed << ','
             << Dot(Body.LastForce, Uphill) << ',' << Dot(Body.LastForce, Across) << ',' << Fixture.Body.Mass * Dot(Fixture.Configuration.Gravity, Uphill) << ','
-            << Telemetry.TotalVerticalLoad << ',' << BrakeCapacity << ',' << AppliedBrake << ',' << BrakePower << ',' << ContactPower << ',' << StaticPower << ',' << DrivePower << ','
+            << Telemetry.TotalVerticalLoad << ',' << Dot(Body.Position, Normal) << ',' << Dot(Body.LinearVelocity, Normal) << ','
+            << Dot(Displacement, Uphill) * Uphill.z << ',' << Dot(Displacement, Normal) * Normal.z << ',' << BrakeCapacity << ',' << AppliedBrake << ',' << BrakePower << ',' << ContactPower << ',' << StaticPower << ',' << DrivePower << ','
             << NativeGap << ',' << PhysicalGap << ',' << Radius << ',' << Shape << ',' << Telemetry.RestingContactConverged << '\n';
         if (Tick > 0u && Tick % 12u == 0u) Capture(Pictures, Fixture);
     }
@@ -152,7 +154,7 @@ int main(int Count, char** Arguments)
     for (float Heading : {0.0f, 180.0f, 90.0f, -90.0f})
         for (uint32_t Brakes = 0u; Brakes < 3u; ++Brakes)
             Specifications.push_back({"moving-20-heading-" + std::to_string(static_cast<int>(Heading)) + "-brakes-" + std::to_string(Brakes), 20.0f, Heading, 0.8f, Brakes, true});
-    Specifications.push_back({"moving-35-downhill-service", 35.0f, 180.0f, 0.8f, 1u, true});
+    Specifications.push_back({"moving-35-downhill-service", 35.0f, 180.0f, 0.8f, 1u, true, 19.0f});
     Specifications.push_back({"released-20-frictionless", 20.0f, 0.0f, 0.0f, 0u, false});
     std::ofstream Results(Folder / "SlopeResults.json"); Results << std::setprecision(12) << "{\"cpuOnly\":true,\"rateHz\":240,\"snapshotRateHz\":20,\"cases\":[";
     bool First = true;
@@ -163,7 +165,7 @@ int main(int Count, char** Arguments)
         const auto Reading = Record(Specification, Folder);
         if (!First) Results << ','; First = false;
         Results << "{\"name\":\"" << Specification.Name << "\",\"incline\":" << Specification.Incline << ",\"heading\":" << Specification.Heading << ",\"friction\":" << Specification.Friction
-                << ",\"brakes\":" << Specification.Brakes << ",\"driven\":" << (Specification.Driven ? "true" : "false") << ",\"brakeStartSpeed\":" << Reading.BrakeStartSpeed
+                << ",\"seconds\":" << Specification.Seconds << ",\"brakes\":" << Specification.Brakes << ",\"driven\":" << (Specification.Driven ? "true" : "false") << ",\"brakeStartSpeed\":" << Reading.BrakeStartSpeed
                 << ",\"finalSpeed\":" << Reading.FinalSpeed << ",\"stopTime\":" << Reading.StopTime << ",\"driveUphillM\":" << Reading.DriveUphill << ",\"finalUphillM\":" << Reading.FinalUphill
                 << ",\"brakeDisplacementM\":" << Reading.BrakeDisplacement << ",\"nativeBeadGapM\":" << Reading.NativeBeadGap << ",\"physicalBeadGapM\":" << Reading.PhysicalBeadGap
                 << ",\"positiveBrakePowerW\":" << Reading.PositiveBrakePower << ",\"positiveContactPowerW\":" << Reading.PositiveContactPower << ",\"radiusM\":" << Reading.PeakRadius << ",\"shapeM\":" << Reading.PeakShape << '}';

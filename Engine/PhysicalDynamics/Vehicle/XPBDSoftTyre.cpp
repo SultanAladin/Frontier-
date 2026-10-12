@@ -43,7 +43,7 @@ void XPBDSoftTyre::Build(const SoftTyreParameters& params, const Vec3& hubPos, c
             const float c = std::cos(ang), sn = std::sin(ang);
             SoftTyreNode& node = NodeRecords[Index(r, s)];
             node.TreadLocal = {Parameters.Radius * c, yOff, Parameters.Radius * sn};
-            node.BeadLocal  = {Parameters.RimRadius * c, yOff, Parameters.RimRadius * sn};
+            node.BeadLocal  = {Parameters.RimRadius * c, yOff * Parameters.BeadWidthRatio, Parameters.RimRadius * sn};
             node.Position   = hubPos + hubRot.Rotate(node.TreadLocal);
             node.Previous   = node.Position;
             node.Velocity   = {0, 0, 0};
@@ -298,7 +298,6 @@ void XPBDSoftTyre::Step(float dt, uint32_t substeps, const HubMotion& motion,
             const float alphaSpokeLateral    = Parameters.SpokeLateralCompliance * invH2;
             const float gammaSpokeTangential = Parameters.SpokeTangentialCompliance * SpokeTangentialBeta / h;
             const float gammaSpokeLateral    = Parameters.SpokeLateralCompliance * SpokeLateralBeta / h;
-            const float spokeRest = Parameters.Radius - Parameters.RimRadius;
             for (SoftTyreNode& node : NodeRecords)
             {
                 if (node.InverseMass <= 0.0f) continue;
@@ -308,7 +307,8 @@ void XPBDSoftTyre::Step(float dt, uint32_t substeps, const HubMotion& motion,
                 const float dist = d.Length();
                 if (dist < 1e-6f) continue;
                 const Vec3 dir = d * (1.0f / dist);
-                const float C = dist - spokeRest;
+                const float SpokeRest = (node.TreadLocal - node.BeadLocal).Length();
+                const float C = dist - SpokeRest;
                 // Tension-only: a cord sidewall shorter than its rest length has buckled and carries nothing.
                 // Dropping the projection (and the multiplier with it) is the unilateral form of eq. 18.
                 const bool slack = Parameters.SidewallTensionOnly && C < 0.0f;
@@ -595,14 +595,13 @@ void XPBDSoftTyre::Step(float dt, uint32_t substeps, const HubMotion& motion,
         ConstraintResidual = SoftTyreResidual{};
         ConstraintResidual.RimArrival = RimArrivalAccum;
         const Vec3 axisNow = hubRot.Rotate({0, 1, 0}).Normalized();
-        const float spokeRest = Parameters.Radius - Parameters.RimRadius;
 
         double SpokeSq = 0.0, ShearSq = 0.0; uint32_t SpokeN = 0u, ShearN = 0u;
         for (const SoftTyreNode& node : NodeRecords)
         {
             if (node.InverseMass <= 0.0f) continue;
             const Vec3 anchor = hubPos + frame.Rotate(node.BeadLocal);
-            const float C = (node.Position - anchor).Length() - spokeRest;
+            const float C = (node.Position - anchor).Length() - (node.TreadLocal - node.BeadLocal).Length();
             ConstraintResidual.SpokeMax = std::max(ConstraintResidual.SpokeMax, std::fabs(C));
             SpokeSq += static_cast<double>(C) * C; ++SpokeN;
 
@@ -726,7 +725,6 @@ TyreEnergyMetrics XPBDSoftTyre::Energy() const noexcept
     TyreEnergyMetrics Reading;
     const Quat Rotation = MaterialFrame();
     const Vec3 Axis = SnapshotRotation.Rotate({0.0f, 1.0f, 0.0f}).Normalized();
-    const double RestSpoke = Parameters.Radius - Parameters.RimRadius;
     const auto Potential = [](double Deflection, double Compliance)
     {
         return Compliance > 0.0 ? 0.5 * Deflection * Deflection / Compliance : 0.0;
@@ -741,7 +739,7 @@ TyreEnergyMetrics XPBDSoftTyre::Energy() const noexcept
         const double Radius = Radial.Length();
         Reading.Radius = std::max(Reading.Radius, Radius);
         Reading.HalfWidth = std::max(Reading.HalfWidth, std::abs(Axial));
-        double Spoke = (Relative - Rotation.Rotate(Particle.BeadLocal)).Length() - RestSpoke;
+        double Spoke = (Relative - Rotation.Rotate(Particle.BeadLocal)).Length() - (Particle.TreadLocal - Particle.BeadLocal).Length();
         if (Parameters.SidewallTensionOnly) Spoke = std::max(0.0, Spoke);
         Reading.Elastic += Potential(Spoke, Parameters.SpokeCompliance);
         const Vec3 Rest = Rotation.Rotate(Particle.TreadLocal), Offset = Relative - Rest;

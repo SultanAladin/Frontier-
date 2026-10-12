@@ -6,6 +6,7 @@ import concurrent.futures
 import csv
 import hashlib
 import json
+import math
 import os
 import shutil
 import subprocess
@@ -26,6 +27,7 @@ def Validate(Folder):
         Checks = {
             "brakeDissipation": Case["positiveBrakePowerW"] <= 1.0,
             "contactPassivity": Case["positiveContactPowerW"] <= 1.0,
+            "noIdleDriveFightingBrakes": max((abs(float(Row["drive_power_W"])) for Row in Rows if Row["phase"] == "2" and (float(Row["brake"]) > 0 or Row["handbrake"] == "1")), default=0.0) <= 0.001,
             "nativeBeadSeated": Case["nativeBeadGapM"] <= 0.00001,
             "physicalBeadMatchesRim": Case["physicalBeadGapM"] <= 0.00001,
             "radialExpansionBound": Case["radiusM"] <= 0.50855 * 1.05,
@@ -33,7 +35,13 @@ def Validate(Folder):
         if Case["driven"]:
             Checks["movingBeforeBrake"] = Case["brakeStartSpeed"] > 0.25
             if Case["brakes"] == 1:
-                Checks["serviceBrakeStopsAndHolds"] = 0 <= Case["stopTime"] < 3.5 and Case["finalSpeed"] < 0.01
+                # The 35-degree control has little net braking margin after gravity. Extend recording, not a pose clamp.
+                Angle = math.radians(Case["incline"])
+                AlongGrade = abs(Case["heading"]) == 180
+                NetDeceleration = 9.81 * (Case["friction"] * math.cos(Angle) - (math.sin(Angle) if AlongGrade else 0.0))
+                StopAllowance = 3.5 if Case["incline"] <= 20 else 1.0 + 1.5 * Case["brakeStartSpeed"] / max(0.01, NetDeceleration)
+                Case["physicalStopAllowanceS"] = StopAllowance
+                Checks["serviceBrakeStopsAndHolds"] = 0 <= Case["stopTime"] < StopAllowance and Case["finalSpeed"] < 0.01
             if abs(Case["heading"]) == 90:
                 Checks["noPropulsiveUphillCrossDrift"] = Case["driveUphillM"] <= 0.02
         else:

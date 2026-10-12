@@ -103,11 +103,14 @@ struct Quat
 //------------------------------------------------------------------------------------------------------------------------
 //                                                  PARAMETERS
 //------------------------------------------------------------------------------------------------------------------------
+inline constexpr float TyreBeadWidthRatio = 0.74f; // [-] - rim seat width relative to the tread shoulders
+
 struct SoftTyreParameters
 {
     // Geometry
     float    Radius       = 0.34f;   // [m] unloaded tread radius
     float    RimRadius    = 0.20f;   // [m] bead/rim radius (spoke inner anchor)
+    float    BeadWidthRatio = TyreBeadWidthRatio; // [-] - rigid bead seat, shared with native wheel geometry
     float    Width        = 0.245f;  // [m] section width
     uint32_t RingCount    = 9u;      // [-] rings across the width (≥ 2)
     uint32_t SegmentCount = 128u;    // [-] particles per ring around the circumference (≥ 8)

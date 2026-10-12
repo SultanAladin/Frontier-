@@ -415,7 +415,10 @@ void VehicleSolver::StepPacejka(float Δτ) noexcept
     const int firstGear = neutral + 1;
     const int lastGear  = static_cast<int>(ActiveConfiguration.Transmission.GearRatios.size()) - 1;
     const float throttleCmd = Clamp(DriverCommand.Throttle, 0.0f, 1.0f);
-    if (GearIndex == neutral && (throttleCmd > 0.05f || forwardVel > 1.0f))
+    // 📝 Declutch BEFORE producing torque. Brake-holding at speed must not re-engage first gear every tick.
+    const bool BrakePriority = throttleCmd < 0.05f && (DriverCommand.Brake > 0.0f || DriverCommand.Handbrake);
+    if (BrakePriority) GearIndex = neutral;
+    if (GearIndex == neutral && !BrakePriority && (throttleCmd > 0.05f || forwardVel > 1.0f))
         GearIndex = firstGear;
 
     DrivetrainInputs di;
@@ -708,6 +711,7 @@ void VehicleSolver::StepPacejka(float Δτ) noexcept
         const float GroundTorque = Fx * RollingLever;
         float omega1 = omega0 + (driveTq + GroundTorque + Dot(reaction.RimTorque, SpinAxis)) * Δτ / Ieff;
         const float resist = std::min(brakeTq + rollTq, std::fabs(omega1) * Ieff / Δτ);
+        const float UnbrakedOmega = omega1;
         const float BrakeDirection = Sign(omega1);
         const float AppliedDiscTorque = std::min(brakeTq, resist);
         const float BrakeReaction = resist * BrakeDirection;
@@ -732,7 +736,7 @@ void VehicleSolver::StepPacejka(float Δτ) noexcept
         wt.WheelOmega        = WheelSpin[i];
         wt.RequestedBrakeTorque = brakeTq;
         wt.AppliedBrakeTorque = -AppliedDiscTorque * BrakeDirection;
-        wt.BrakePower_W = -AppliedDiscTorque * std::abs(0.5f * (omega0 + omega1));
+        wt.BrakePower_W = wt.AppliedBrakeTorque * 0.5f * (UnbrakedOmega + omega1);
         wt.DrivePower_W = driveTq * 0.5f * (omega0 + omega1);
         wt.ContactPower_W = PassivePower; wt.StaticContactPower_W = 0.0f;
         wt.RimPower_W = Dot(reaction.RimForce, hubVel) + Dot(reaction.RimTorque, cs.AngularVelocity + SpinAxis * omega0);
