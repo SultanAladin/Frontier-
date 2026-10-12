@@ -17,9 +17,10 @@ three.js, the engine and the stylesheet — folded into one ~843 kB HTML file wi
 classic (non-module) script, so it runs from any static host:
 
 ```
-https://raw.githack.com/SultanAladin/Frontier-/<commit-sha>/Experimental/ProjectZeroEditor/standalone.html
+https://raw.githack.com/SultanAladin/Frontier-/8ff874fe3306b086e565e20eaab08884275f3947/Experimental/ProjectZeroEditor/standalone.html
 ```
 
+(that one is pinned to commit `8ff874f`, which ships the current build).
 See [Serving from GitHub (raw.githack)](#serving-from-github-rawgithack) below.
 
 ## What it does
