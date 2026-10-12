@@ -9,7 +9,10 @@
     "preview": "vite preview --host 0.0.0.0",
     "test:gen": "node scripts/smoke-generate.mjs",
     "test:topology": "node scripts/transit-topology-test.mjs",
-    "test:geometry": "node scripts/geometry-regression-test.mjs"
+    "test:geometry": "node scripts/geometry-regression-test.mjs",
+    "test:riverside-spacing": "node scripts/riverside-spacing-test.mjs",
+    "test:infrastructure": "node scripts/infrastructure-regression-test.mjs",
+    "test:tramway": "node scripts/tramway-regression-test.mjs"
   },
   "dependencies": {
     "lucide-react": "^0.468.0",

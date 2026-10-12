@@ -4,7 +4,7 @@
 import { RoadNetwork } from './network.js';
 import { rng, makeNoise, smooth, resample, polylineLength, pointPolylineDist } from './math.js';
 import { planarize } from './planarize.js';
-import { PROFILES, layout } from './profiles.js';
+import { PROFILES, getProfile, layout } from './profiles.js';
 
 const NAMES = ['Harbor', 'Union', 'Market', 'Grand', 'Lincoln', 'Mission', 'Sunset', 'Ocean', 'Pacific', 'Broadway', 'Central', 'Park', 'Maple', 'Oak', 'Cedar', 'Pine', 'Elm', 'Kingston', 'Riverside', 'Bayview', 'Hillcrest', 'Lakeshore', 'Westlake', 'Fairview', 'Highland', 'Summit', 'Victoria', 'Regent', 'Wellington', 'Madison', 'Jefferson', 'Franklin', 'Granite', 'Copper', 'Willow', 'Aspen', 'Juniper', 'Laurel', 'Magnolia', 'Spruce', 'Chestnut', 'Hawthorne', 'Beacon', 'Carlton', 'Dover', 'Easton', 'Foster', 'Garnet', 'Hudson', 'Irving', 'Jasper', 'Kensington', 'Lombard', 'Monroe', 'Newport', 'Orchard', 'Prospect', 'Quincy', 'Raleigh', 'Sterling', 'Tremont', 'Vernon', 'Whitney', 'York'];
 const ORD = n => n + (n % 100 >= 11 && n % 100 <= 13 ? 'th' : ['th', 'st', 'nd', 'rd'][n % 10] || 'th');
@@ -598,7 +598,13 @@ export function generateCity(options = {}) {
   }
 
   // ---------------------------------------------------------------- river, rail, subway (world space)
-  if (riverUV) net.river = { pts: riverUV.map(([u, v]) => warp(u, v)), width: riverHalf * 2, name: 'Frontier River' };
+  if (riverUV) {
+    net.river = { pts: riverUV.map(([u, v]) => warp(u, v)), width: riverHalf * 2, name: 'Frontier River' };
+    // Some generated local loops/driveways converge onto the riverside collector and then
+    // continue along it. Keep their existing endpoints/graph links, but give their centerlines
+    // a smooth inland offset so the two paved cross-sections no longer overlap.
+    spaceLocalRoadsNearRiverside(net);
+  }
   if (railPts) {
     const pts = railPts.map(([u, v]) => { const [x, z] = warp(u, v); return { x, y: 0, z }; });
     net.addRail({ id: 'rail1', mode: 'mainline', tracks: 2, trains: 2, pts, name: 'Harbor Line (Freight & Commuter)' });
@@ -675,6 +681,77 @@ export function generateCity(options = {}) {
   return net;
 }
 
+
+// Space only local links that run beside a riverside collector. This is a geometry-only
+// cleanup: road node IDs, edge endpoints, profile, and all junction connections stay intact.
+export function spaceLocalRoadsNearRiverside(net, { gap = 7, transition = 24, sampleStep = 8, minRun = 24 } = {}) {
+  const drives = [...net.edges.values()]
+    .filter(e => e.name === 'North Riverside Drive' || e.name === 'South Riverside Drive')
+    .map(edge => ({ edge, curve: net.centerline(edge), half: layout(getProfile(edge)).total / 2 }));
+  if (!drives.length || !net.river?.pts?.length) return 0;
+
+  let adjusted = 0;
+  for (const edge of net.edges.values()) {
+    if (edge._cls !== 'local') continue;
+    const curve = net.centerline(edge), length = curve.length;
+    if (length < minRun + 2) continue;
+    const half = layout(getProfile(edge)).total / 2;
+    const count = Math.max(3, Math.ceil(length / sampleStep));
+    const samples = [];
+    let closeParallelLength = 0;
+
+    for (let k = 0; k <= count; k++) {
+      const s = length * k / count, f = curve.frameAt(s);
+      let nearest = null;
+      for (const drive of drives) {
+        const q = drive.curve.nearest(f.x, f.z);
+        if (!nearest || q.d < nearest.q.d) nearest = { ...drive, q };
+      }
+      const rf = nearest.curve.frameAt(nearest.q.s);
+      const parallel = Math.abs(f.tx * rf.tx + f.tz * rf.tz);
+      const minSeparation = half + nearest.half + gap;
+      const violation = minSeparation - nearest.q.d;
+      const shouldSeparate = violation > 0.05 && parallel >= 0.76;
+      if (shouldSeparate && k < count) closeParallelLength += length / count;
+
+      let x = f.x, z = f.z;
+      if (shouldSeparate) {
+        let dx = f.x - rf.x, dz = f.z - rf.z;
+        let d = Math.hypot(dx, dz);
+        // Exact duplicate centerlines have no road-to-road normal; use the river bank's
+        // outward vector to send the local street inland on the same side.
+        if (d < 0.25) {
+          const bank = pointPolylineDist(rf.x, rf.z, net.river.pts);
+          dx = rf.x - bank.x; dz = rf.z - bank.z;
+          d = Math.hypot(dx, dz);
+        }
+        if (d > 1e-6) {
+          const t = Math.max(0, Math.min(1, Math.min(s, length - s) / transition));
+          const offset = violation * smooth(t);
+          x += dx / d * offset;
+          z += dz / d * offset;
+        }
+      }
+      samples.push({ x, y: f.y, z });
+    }
+
+    if (closeParallelLength < minRun) continue;
+    const originalLength = length;
+    edge.pts = samples.slice(1, -1);
+    net.invalidate([edge.id]);
+    const newLength = net.centerline(edge).length;
+    if (originalLength > 1e-6 && Math.abs(newLength - originalLength) > 1e-6) {
+      edge.features = (edge.features || []).map(feature => ({
+        ...feature,
+        ...(Number.isFinite(feature.s) ? { s: feature.s / originalLength * newLength } : {}),
+        ...(Number.isFinite(feature.s0) ? { s0: feature.s0 / originalLength * newLength } : {}),
+        ...(Number.isFinite(feature.s1) ? { s1: feature.s1 / originalLength * newLength } : {}),
+      }));
+    }
+    adjusted++;
+  }
+  return adjusted;
+}
 
 // ---------------------------------------------------------------- helpers
 function seg(a, b, step) {

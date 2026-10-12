@@ -2,6 +2,7 @@
 // piers/retaining walls, paint, decals, traffic control and street furniture.
 import { Out, ribbon, wall, sweep, box, polyWall, strip, yawFor } from './out.js';
 import { line, dashed, decal, bar, tooth, hatch } from './markings.js';
+import { buildRoadGuardrails } from './guardrails.js';
 import { getProfile, layout, LEVEL, RANK } from '../profiles.js';
 import { endControl } from './control.js';
 
@@ -124,6 +125,13 @@ export function buildEdge(net, edge, JA, JB, ctx) {
     if (ft.type === 'hump') speedHump(out, c, ft, lay, surfaceMat);
     if (ft.type === 'busstop') busStop(out, c, ft, lay);
     if (ft.type === 'crosswalk') midblockCrossing(out, c, ft, lay);
+    if (ft.type === 'roadPost' && ctx.props !== false) {
+      const side = ft.side < 0 ? -1 : 1;
+      const outer = side < 0 ? lanes[0] : lanes[lanes.length - 1];
+      const offset = side < 0 ? lay.left - 0.24 : lay.right + 0.24;
+      const f = c.frameAt(ft.s), yaw = yawFor(-f.nx * side, -f.nz * side);
+      out.prop('roadPost', f.x + f.nx * offset, f.y + (outer?.h || 0), f.z + f.nz * offset, yaw);
+    }
   }
 
   // --- traffic control at ends
@@ -132,6 +140,9 @@ export function buildEdge(net, edge, JA, JB, ctx) {
     if (ctlB) controlProps(out, c, lay, s1, false, ctlB);
     furniture(out, net, edge, c, lay, prof, s0, s1, elevated.some(Boolean) ? frames : null, ctx);
   }
+  // Optional roadside protection is additive; the base lanes, curb solver and junction mesh
+  // are deliberately left alone.
+  buildRoadGuardrails(out, edge, c, lay, s0, s1, ctx);
   return out;
 }
 
@@ -368,11 +379,16 @@ function paint(out, net, edge, c, lay, prof, s0, s1, ctlA, ctlB, JA, JB, ctx) {
     const pA = s0 + (A.cont ? 0 : A.stopOff + 7), pB = s1 - (B.cont ? 0 : B.stopOff + 7);
     if (!A.cont) hatch(out, 'markWhite', c, s0 + Math.max(0.4, A.stopOff), pA, ln.o0 + 0.1, ln.o1 - 0.1, 2.2, 0.12);
     if (!B.cont) hatch(out, 'markWhite', c, pB, s1 - Math.max(0.4, B.stopOff), ln.o0 + 0.1, ln.o1 - 0.1, 2.2, 0.12);
-    for (let s = pA; s <= pB + 0.01; s += bayLen) bar(out, 'markWhite', c, s, (ln.o0 + ln.o1) / 2, 0.05, ln.width / 2 - 0.05);
-    if (lanes.indexOf(ln) >= 0) {
-      const curbSide = ln.o0 > 0 ? ln.o1 - 0.12 : ln.o0 + 0.12;
-      for (let s = pA; s <= pB; s += bayLen) bar(out, 'markWhite', c, s, curbSide, 0.35, 0.05);
+    const bayDirection = lanes.filter(l => l.type === 'drive')
+      .sort((a, b) => Math.abs((a.o0 + a.o1) / 2 - (ln.o0 + ln.o1) / 2) - Math.abs((b.o0 + b.o1) / 2 - (ln.o0 + ln.o1) / 2))[0]?.dir || 1;
+    let bayIndex = 0;
+    for (let s = pA; s <= pB + 0.01; s += bayLen, bayIndex++) {
+      bar(out, 'markWhite', c, s, (ln.o0 + ln.o1) / 2, 0.05, ln.width / 2 - 0.05);
+      // The reference adds a restrained white parking stencil every fourth bay.
+      if (bayIndex % 4 === 0 && s + bayLen * 0.5 <= pB) decal(out, 'parking', c, s + bayLen * 0.5, (ln.o0 + ln.o1) / 2, bayDirection, 0, 0.8);
     }
+    const curbSide = ln.o0 > 0 ? ln.o1 - 0.12 : ln.o0 + 0.12;
+    for (let s = pA; s <= pB; s += bayLen) bar(out, 'markWhite', c, s, curbSide, 0.35, 0.05);
   });
   // buffers: diagonal hatch
   lanes.forEach(ln => { if (ln.type === 'buffer' && ln.width > 0.5) hatch(out, 'markWhite', c, lineStart, lineEnd, ln.o0 + 0.08, ln.o1 - 0.08, 3.2, 0.1); });
@@ -388,6 +404,12 @@ function paint(out, net, edge, c, lay, prof, s0, s1, ctlA, ctlB, JA, JB, ctx) {
       }
     }
     if (ln.type === 'tram' && span > 40) for (let s = lineStart + 25; s < lineEnd - 20; s += 120) decal(out, 'tram', c, s, (ln.o0 + ln.o1) / 2, dir, 0);
+    if (ln.type === 'drive' && prof.cyclePriority && span > 36) {
+      for (let s = lineStart + 22; s < lineEnd - 12; s += 72) {
+        decal(out, 'bike', c, s, (ln.o0 + ln.o1) / 2, dir, 0);
+        decal(out, 'arrowS', c, s + 3.4 * dir, (ln.o0 + ln.o1) / 2, dir, 0, 0.7);
+      }
+    }
     if (ln.type === 'bike' && span > 30) {
       for (let s = lineStart + 12; s < lineEnd - 10; s += 70) { decal(out, 'bike', c, s, (ln.o0 + ln.o1) / 2, dir, 0); decal(out, 'arrowS', c, s + 4 * dir, (ln.o0 + ln.o1) / 2, dir, 0, 0.6); }
     }

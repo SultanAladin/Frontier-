@@ -6,6 +6,7 @@ import { NetworkBuilder } from '../road/builder.js';
 import { Centerline } from '../road/centerline.js';
 import { PROFILES, getProfile, layout, cloneProfile } from '../road/profiles.js';
 import { segIntersect } from '../road/math.js';
+import { DEFAULT_GUARDRAIL, normalizeGuardrail } from '../road/infrastructure.js';
 
 const clone = o => (o == null ? null : JSON.parse(JSON.stringify(o)));
 
@@ -16,7 +17,7 @@ export class Editor {
       selection: null, hover: null, busy: null, progress: 0, view: 'lit', version: 0,
       settings: { markings: true, props: true, trees: true, trains: true, shadows: true, hour: 15.5, markingStyle: 'us' },
       gen: { ...DEFAULT_GEN, seed: 1337, size: 4096 },
-      library: false, cameraSpeed: 3, toast: null,
+      library: false, librarySection: 'all', cameraSpeed: 3, toast: null,
       canUndo: false, canRedo: false,
     };
     this.subs = new Set();
@@ -214,6 +215,13 @@ export class Editor {
     if (es.length !== 2 || !net.isContinuation(nid)) return;
     const [e1, e2] = es;
     if (e1.id === e2.id || e1.name !== e2.name) return;
+    // Keep segment-level roadside protection intact instead of merging unlike treatments.
+    const orientedGuardrail = (edge, reversed) => {
+      const g = edge.flags?.roadGuardrail;
+      if (!g || !reversed || g.side === 'both') return g ?? null;
+      return { ...g, side: g.side === 'left' ? 'right' : 'left' };
+    };
+    if (JSON.stringify(orientedGuardrail(e1, e1.b !== nid)) !== JSON.stringify(orientedGuardrail(e2, e2.a !== nid))) return;
     const n = net.nodes.get(nid);
     const p1 = e1.b === nid ? e1.pts : [...e1.pts].reverse(), a = e1.b === nid ? e1.a : e1.b;
     const p2 = e2.a === nid ? e2.pts : [...e2.pts].reverse(), b = e2.a === nid ? e2.b : e2.a;
@@ -223,8 +231,11 @@ export class Editor {
     const f2 = (e2.a === nid ? e2.features : e2.features.map(f => ({ ...f, s: net.centerline(e2).length - f.s }))).map(f => ({ ...f, s: f.s + L1 }));
     // one-way direction must follow e1
     if (layout(getProfile(e1)).oneWay && (e1.b !== nid || e2.a !== nid)) return;
+    const flags = { ...(e1.flags || {}) };
+    if (e1.b !== nid && flags.roadGuardrail?.side === 'left') flags.roadGuardrail = { ...flags.roadGuardrail, side: 'right' };
+    else if (e1.b !== nid && flags.roadGuardrail?.side === 'right') flags.roadGuardrail = { ...flags.roadGuardrail, side: 'left' };
     net.removeEdge(e1.id); net.removeEdge(e2.id); net.removeNode(nid);
-    net.addEdge({ a, b, profile: e1.profile, custom: e1.custom, name: e1.name, flags: e1.flags, pts: [...p1, { x: n.x, z: n.z, y: n.y }, ...p2], features: [...f1, ...f2].filter(f => f.type !== 'barrierGap') });
+    net.addEdge({ a, b, profile: e1.profile, custom: e1.custom, name: e1.name, flags, pts: [...p1, { x: n.x, z: n.z, y: n.y }, ...p2], features: [...f1, ...f2].filter(f => f.type !== 'barrierGap') });
   }
   setEdgeProfile(ids, profileId) {
     this.op('Change road type', () => { for (const id of ids) { const e = this.net.edges.get(id); if (!e) continue; this.net.touchEdge(id); e.profile = profileId; e.custom = null; } });
@@ -235,6 +246,18 @@ export class Editor {
   }
   resetEdgeLanes(id) { this.op('Reset lanes', () => { this.net.touchEdge(id); this.net.edges.get(id).custom = null; }); }
   setEdgeField(ids, k, v) { this.op('Edit road', () => { for (const id of ids) { const e = this.net.edges.get(id); if (!e) continue; this.net.touchEdge(id); e[k] = v; } }); }
+  setEdgeGuardrail(ids, config) {
+    const value = config == null ? null : normalizeGuardrail(config === true ? DEFAULT_GUARDRAIL : config);
+    this.op(value ? 'Add roadside protection' : 'Remove roadside protection', () => {
+      for (const id of ids) {
+        const e = this.net.edges.get(id); if (!e) continue;
+        this.net.touchEdge(id);
+        e.flags = { ...(e.flags || {}) };
+        if (value) e.flags.roadGuardrail = { ...value };
+        else delete e.flags.roadGuardrail;
+      }
+    });
+  }
   setNodeField(id, patch, label = 'Edit junction') {
     this.op(label, () => { this.net.touchNode(id); Object.assign(this.net.nodes.get(id), patch); for (const e of this.net.nodeEdges(id)) this.net.touchEdge(e.id); });
   }
@@ -244,6 +267,8 @@ export class Editor {
       const L = this.net.centerline(e).length;
       [e.a, e.b] = [e.b, e.a]; e.pts = [...e.pts].reverse();
       e.features = e.features.map(f => ({ ...f, s: L - f.s, ...(f.side ? { side: -f.side } : {}), ...(f.s0 !== undefined ? { s0: L - f.s1, s1: L - f.s0 } : {}) }));
+      if (e.flags?.roadGuardrail?.side === 'left') e.flags.roadGuardrail.side = 'right';
+      else if (e.flags?.roadGuardrail?.side === 'right') e.flags.roadGuardrail.side = 'left';
       this.net.adj.get(e.a); // adjacency sets are node->edge, unaffected by swap
     });
   }
@@ -271,10 +296,15 @@ export class Editor {
       Object.assign(rail, rest);
       if (rail.mode === 'suspended') rail.tracks = 1;
       else rail.tracks = Math.max(1, Math.min(2, rail.tracks || 1));
+      if (rail.mode === 'tram') {
+        if (rail.supportSpacing == null) rail.supportSpacing = 30;
+        if (rail.electrified == null) rail.electrified = true;
+      }
     });
   }
   setRailMode(mode) {
-    this.set({ railMode: mode, railElevation: mode === 'suspended' ? 13.2 : 0, railTracks: mode === 'suspended' ? 1 : 2 });
+    const system = ['mainline', 'tram', 'suspended'].includes(mode) ? mode : 'mainline';
+    this.set({ railMode: system, railElevation: system === 'suspended' ? 13.2 : 0, railTracks: system === 'suspended' ? 1 : 2 });
   }
   addRailRoute(points) {
     if (!points || points.length < 2) return null;
@@ -284,11 +314,15 @@ export class Editor {
     this.op('Draw railway', () => {
       const mode = this.state.railMode;
       const n = (this._railNameSeq = (this._railNameSeq || 0) + 1);
+      const tracks = mode === 'suspended' ? 1 : this.state.railTracks;
       rail = this.net.addRail({
-        mode, tracks: mode === 'suspended' ? 1 : this.state.railTracks,
-        trains: mode === 'suspended' ? 1 : 2, height: this.state.railElevation,
+        mode, tracks,
+        trains: mode === 'suspended' ? 1 : mode === 'tram' ? tracks : 2,
+        height: this.state.railElevation,
+        supportSpacing: mode === 'tram' ? 30 : undefined,
+        electrified: mode === 'tram' ? true : undefined,
         pts: points.map(p => ({ x: p.x, y: p.y ?? this.state.railElevation, z: p.z })),
-        name: mode === 'suspended' ? `Skyline Guideway ${n}` : `Railway ${n}`,
+        name: mode === 'suspended' ? `Skyline Guideway ${n}` : mode === 'tram' ? `Tramway ${n}` : `Railway ${n}`,
       });
     });
     if (rail) this.select({ type: 'rail', id: rail.id });
@@ -391,7 +425,7 @@ export class Editor {
     const pts = [...this.draft]; if (cursor) pts.push(cursor);
     const railDrawing = this.state.tool === 'rail';
     const width = railDrawing ? (this.state.railMode === 'suspended' ? 3.2 : this.state.railTracks === 1 ? 3.2 : 7.4) : layout(PROFILES[this.state.drawProfile]).total;
-    const color = railDrawing ? (this.state.railMode === 'suspended' ? 0x28d6d2 : 0xf0b44b) : 0x4fd8e0;
+    const color = railDrawing ? (this.state.railMode === 'suspended' ? 0x28d6d2 : this.state.railMode === 'tram' ? 0xd77966 : 0xf0b44b) : 0x4fd8e0;
     const curve = this.draftCurve(pts); if (curve) pts.curve = curve;
     const ok = !cursor || !this.draft.length || Math.hypot(cursor.x - this.draft[this.draft.length - 1].x, cursor.z - this.draft[this.draft.length - 1].z) > 6;
     this.world.setPreview(pts, width, color, ok);
@@ -478,7 +512,11 @@ export class Editor {
     if (s < 8 || s > c.length - 8) { this.toast('Too close to a junction', 'warn'); return; }
     if (t === 'hump' || t === 'table') this.addFeature(e.id, { type: 'hump', s, kind: t });
     else if (t === 'crosswalk') this.addFeature(e.id, { type: 'crosswalk', s });
-    else if (t === 'busstop') { const f = c.frameAt(s); const side = ((hit.p.x - f.x) * f.nx + (hit.p.z - f.z) * f.nz) >= 0 ? 1 : -1; this.addFeature(e.id, { type: 'busstop', s, side }); }
+    else if (t === 'busstop' || t === 'roadPost') {
+      const f = c.frameAt(s);
+      const side = ((hit.p.x - f.x) * f.nx + (hit.p.z - f.z) * f.nz) >= 0 ? 1 : -1;
+      this.addFeature(e.id, { type: t, s, side });
+    }
   }
 
   // ------------------------------------------------------------------ viewport input

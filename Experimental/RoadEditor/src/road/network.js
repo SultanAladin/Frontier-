@@ -128,14 +128,15 @@ export class RoadNetwork {
       const c = this.centerline(e); km += c.length / 1000;
       lanesKm += c.length / 1000 * getProfile(e).lanes.filter(l => l.type === 'drive').length;
     }
-    let railKm = 0, suspendedKm = 0;
+    let railKm = 0, suspendedKm = 0, tramKm = 0;
     for (const r of this.rails.values()) {
       const length = polyLen(r.pts) / 1000;
       railKm += length;
       if ((r.mode || r.kind) === 'suspended') suspendedKm += length;
+      else if ((r.mode || r.kind) === 'tram') tramKm += length;
     }
     let subKm = 0; for (const r of this.subways.values()) subKm += polyLen(r.pts) / 1000;
-    return { nodes: this.nodes.size, edges: this.edges.size, km, lanesKm, railKm, suspendedKm, railNodes: this.railNodes.size, railSegments: this.railEdges.size, subKm };
+    return { nodes: this.nodes.size, edges: this.edges.size, km, lanesKm, railKm, suspendedKm, tramKm, railNodes: this.railNodes.size, railSegments: this.railEdges.size, subKm };
   }
 
   toJSON() {
@@ -152,7 +153,7 @@ export class RoadNetwork {
     n.meta = { ...n.meta, ...j.meta }; n.seq = j.seq || 1;
     for (const x of j.nodes) n.addNode(x);
     for (const e of j.edges) if (n.nodes.has(e.a) && n.nodes.has(e.b)) n.addEdge(e);
-    for (const r of j.rails || []) n.rails.set(r.id, { mode: r.mode || (r.kind === 'suspended' ? 'suspended' : 'mainline'), tracks: r.tracks || 2, ...r });
+    for (const r of j.rails || []) n.rails.set(r.id, { mode: r.mode || (r.kind === 'suspended' ? 'suspended' : r.kind === 'tram' ? 'tram' : 'mainline'), tracks: r.tracks || 2, ...r });
     for (const r of j.subways || []) n.subways.set(r.id, r);
     n.rebuildRailTopology();
     n.river = j.river || null; n.parks = j.parks || []; n.districts = j.districts || [];

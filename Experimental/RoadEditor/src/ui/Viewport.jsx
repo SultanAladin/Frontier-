@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { MousePointer2, PenTool, Eraser, TrainFront, Sun, Network, Layers3, Undo2, Redo2, Magnet, Keyboard, ChevronDown, Gauge, Moon } from 'lucide-react';
+import { MousePointer2, PenTool, Eraser, TrainFront, TramFront, Sun, Network, Layers3, Undo2, Redo2, Magnet, Keyboard, ChevronDown, Gauge, Moon } from 'lucide-react';
 import { World, CATEGORY_COLORS } from '../render/world.js';
 import { SPEED_STEPS } from '../render/camera.js';
 import { useEditor, editor } from './useEditor.js';
@@ -40,13 +40,13 @@ export function Viewport() {
         <div className="seg">
           <button className={st.tool === 'select' ? 'on' : ''} onClick={() => editor.setTool('select')} title="Select & edit (V)"><MousePointer2 size={13} />Select<kbd>V</kbd></button>
           <button className={st.tool === 'draw' ? 'on' : ''} onClick={() => editor.setTool('draw')} title="Draw road (B)"><PenTool size={13} />Draw<kbd>B</kbd></button>
-          <button className={st.tool === 'rail' ? 'on' : ''} onClick={() => editor.setTool('rail')} title="Draw railway (R)"><TrainFront size={13} />Rail<kbd>R</kbd></button>
+          <button className={st.tool === 'rail' ? 'on' : ''} onClick={() => editor.setTool('rail')} title="Draw mainline railway, tramway or guideway (R)">{st.tool === 'rail' && st.railMode === 'tram' ? <TramFront size={13} /> : <TrainFront size={13} />}Rail / Tram<kbd>R</kbd></button>
           <button className={st.tool === 'bulldoze' ? 'on' : ''} onClick={() => editor.setTool('bulldoze')} title="Bulldoze (X)"><Eraser size={13} />Bulldoze<kbd>X</kbd></button>
         </div>
         {st.tool === 'rail' ? (
-          <label className="elev" title="Choose an at-grade railway or elevated suspended guideway">
+          <label className="elev" title="Choose a mainline railway, independent tramway or elevated suspended guideway">
             System <select value={st.railMode} onChange={e => editor.setRailMode(e.target.value)}>
-              <option value="mainline">Railway</option><option value="suspended">Suspended</option>
+              <option value="mainline">Railway</option><option value="tram">Tramway</option><option value="suspended">Suspended</option>
             </select>
           </label>
         ) : (
@@ -61,7 +61,7 @@ export function Viewport() {
           </label>
         )}
         {st.tool === 'rail' && <>
-          {st.railMode === 'mainline' && <label className="elev">Tracks <select value={st.railTracks} onChange={e => editor.set({ railTracks: +e.target.value })}><option value={1}>1</option><option value={2}>2</option></select></label>}
+          {st.railMode !== 'suspended' && <label className="elev">Tracks <select value={st.railTracks} onChange={e => editor.set({ railTracks: +e.target.value })}><option value={1}>1</option><option value={2}>2</option></select></label>}
           <label className="elev" title="Height of the new rail centerline">
             Elev <input type="number" step="0.2" min="-1" max="30" value={st.railElevation} onChange={e => editor.set({ railElevation: +e.target.value || 0 })} /> m
           </label>
@@ -84,7 +84,7 @@ export function Viewport() {
         <CamHud />
         <Minimap />
         {st.tool === 'draw' && <div className="overlay-card draw-hud"><span><kbd>Click</kbd>add point</span><span><kbd>Dbl-click</kbd><kbd>Enter</kbd>finish</span><span><kbd>Shift</kbd>15° snap</span><span><kbd>⌫</kbd>undo point</span><span><kbd>Esc</kbd>cancel</span></div>}
-        {st.tool === 'rail' && <div className="overlay-card draw-hud"><span><kbd>Click</kbd>add rail point</span><span><kbd>Dbl-click</kbd><kbd>Enter</kbd>finish line</span><span><kbd>Shift</kbd>15° snap</span><span>Intersections auto-connect within rail layers</span><span><kbd>Esc</kbd>cancel</span></div>}
+        {st.tool === 'rail' && <div className="overlay-card draw-hud"><span><kbd>Click</kbd>add alignment point</span><span><kbd>Dbl-click</kbd><kbd>Enter</kbd>finish line</span><span><kbd>Shift</kbd>15° snap</span><span>Intersections auto-connect within rail systems</span><span><kbd>Esc</kbd>cancel</span></div>}
         {st.tool === 'place' && <div className="overlay-card draw-hud"><span>Click a road to place <b style={{ color: '#fff', fontWeight: 500 }}>{({ hump: 'speed hump', table: 'speed table', crosswalk: 'crosswalk', busstop: 'bus stop' })[st.placeType]}</b></span><span><kbd>Esc</kbd>done</span></div>}
         {help && (
           <div className="overlay-card help-card">
@@ -145,11 +145,11 @@ function Footer() {
   const [, tick] = useState(0);
   useEffect(() => { const t = setInterval(() => tick(x => x + 1), 200); return () => clearInterval(t); }, []);
   const c = editor.cursorPos;
-  const hover = st.hover && editor.net ? (st.hover.type === 'edge' ? (() => { const e = editor.net.edges.get(st.hover.id); return e ? `${e.name || 'Road'} · ${getProfile(e).name}` : ''; })() : st.hover.type === 'node' ? 'Junction ' + st.hover.id : st.hover.type === 'rail' ? 'Railway' : '') : '';
+  const hover = st.hover && editor.net ? (st.hover.type === 'edge' ? (() => { const e = editor.net.edges.get(st.hover.id); return e ? `${e.name || 'Road'} · ${getProfile(e).name}` : ''; })() : st.hover.type === 'node' ? 'Junction ' + st.hover.id : st.hover.type === 'rail' ? (editor.net.rails.get(st.hover.id)?.mode === 'tram' ? 'Tramway' : 'Railway') : '') : '';
   const hints = {
     select: <>Click to select · drag handles to move · <kbd>Del</kbd> delete · <kbd>Ctrl</kbd>+click multi-select</>,
     draw: <>Snaps to junctions <span style={{ color: '#22c55e' }}>●</span> and roads <span style={{ color: '#f59e0b' }}>●</span> · crossings become junctions, different heights become bridges</>,
-    rail: <>Draw railway routes independently from streets · crossings and rail junctions are derived by layer and elevation</>,
+    rail: st.railMode === 'tram' ? <>Draw a dedicated tramway away from roads · crossing panels, overhead wires and elevated concrete supports are generated automatically</> : <>Draw railway routes independently from streets · crossings and rail junctions are derived by layer and elevation</>,
     bulldoze: <>Click a road or junction to remove it</>,
     place: <>Click on a road to place the feature</>,
   };

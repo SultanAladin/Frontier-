@@ -148,16 +148,17 @@ export class TransitFleet {
     let phase = 0;
     for (const rail of net.rails.values()) {
       const curve = railCenterline(rail);
-      const mode = (rail.mode || rail.kind) === 'suspended' ? 'suspended' : 'mainline';
+      const system = rail.mode || rail.kind || 'mainline';
+      const mode = system === 'suspended' ? 'suspended' : system === 'tram' ? 'tram' : 'mainline';
       const count = Math.max(1, Math.min(2, rail.trains ?? (mode === 'suspended' ? 1 : rail.tracks || 1)));
       const offsets = mode === 'suspended' ? [0] : (rail.tracks > 1 ? [-2.1, 2.1] : [0]);
       for (let i = 0; i < count; i++) {
         this.addActor(rail.pts, mode, {
-          cars: mode === 'suspended' ? 2 : 3,
+          cars: mode === 'tram' || mode === 'suspended' ? 2 : 3,
           offset: offsets[i % offsets.length],
           speed: rail.speed,
           phase: phase + i * Math.max(80, curve.length / count),
-          color: mode === 'suspended' ? COLORS.suspended : COLORS.mainline,
+          color: COLORS[mode],
         });
       }
       phase += 75;

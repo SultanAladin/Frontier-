@@ -2,7 +2,7 @@
 // Rails have their own nodes: a rail/road crossing is a crossing, not a road junction.
 import { planarize } from './planarize.js';
 
-const modeOf = route => route.mode || (route.kind === 'suspended' ? 'suspended' : 'mainline');
+const modeOf = route => route.mode || (route.kind === 'suspended' ? 'suspended' : route.kind === 'tram' ? 'tram' : 'mainline');
 
 function heightAt(points, x, z, fallback = 0) {
   let best = Infinity, y = fallback;

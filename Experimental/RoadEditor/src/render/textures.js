@@ -216,6 +216,7 @@ export function makeDecalAtlas(size = 2048) {
   text(DECALS.slow.cell, 'SLOW');
   text(DECALS.tram.cell, 'TRAM');
   text(DECALS.keep.cell, 'KEEP');
+  text(DECALS.parking.cell, 'P');
   paintCell(DECALS.busStop.cell, s => {
     ctx.fillStyle = '#e7b923'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
     ctx.font = `bold ${s * 0.2}px Arial, sans-serif`;

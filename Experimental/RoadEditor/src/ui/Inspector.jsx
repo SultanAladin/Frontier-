@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import {
   Route, CircleDot, TrainFront, TramFront, Building2, Crosshair, Trash2, Ruler, Mountain, ArrowLeftRight, Scissors, Spline, Plus, X,
-  ArrowUp, ArrowDown, ArrowUpDown, Waves, TrafficCone, Footprints, Bus, Gauge, Dice5, Sparkles, Download, Upload, Eye, Library, RotateCcw, Layers, Info, Clock3,
+  ArrowUp, ArrowDown, ArrowUpDown, Waves, TrafficCone, Footprints, Bus, Gauge, Dice5, Sparkles, Download, Upload, Eye, Library, RotateCcw, Layers, Info, Clock3, Shield, Signpost,
 } from 'lucide-react';
 import { useEditor, editor } from './useEditor.js';
 import { CrossSection } from './CrossSection.jsx';
@@ -9,6 +9,7 @@ import { PROFILES, LANE_TYPES, CATEGORIES, getProfile, layout } from '../road/pr
 import { nodeName } from './Outliner.jsx';
 import { nodeControl } from '../road/geom/control.js';
 import { autoRadius } from '../road/junction.js';
+import { DEFAULT_GUARDRAIL, GUARDRAIL_STYLES } from '../road/infrastructure.js';
 
 const Toggle = ({ on, onClick }) => <button className={'toggle' + (on ? ' on' : '')} onClick={onClick} aria-pressed={on}><span /></button>;
 function Slider({ label, value, min, max, step = 1, unit = '', onChange, onCommit, fmt }) {
@@ -76,9 +77,10 @@ function EdgeInspector({ id, st }) {
   const grade = ((B.y - A.y) / c.length) * 100;
   const maxY = Math.max(...Array.from(c.Y));
   const lanes = prof.lanes;
+  const guardrail = e.flags?.roadGuardrail ? { ...DEFAULT_GUARDRAIL, ...e.flags.roadGuardrail } : null;
   const setLanes = L => editor.setEdgeLanes(id, L);
   const catProfiles = Object.values(PROFILES).filter(p => p.category === prof.category || p.id === e.profile);
-  const featIcon = { hump: Gauge, crosswalk: Footprints, busstop: Bus, barrierGap: ArrowLeftRight };
+  const featIcon = { hump: Gauge, crosswalk: Footprints, busstop: Bus, roadPost: Signpost, barrierGap: ArrowLeftRight };
   return (
     <>
       <Header icon={Route} eyebrow={`Road segment · ${CATEGORIES.find(x => x.id === prof.category)?.label || ''}`} title={e.name || 'Unnamed road'} onRename={v => editor.setEdgeField([id], 'name', v)}
@@ -123,6 +125,28 @@ function EdgeInspector({ id, st }) {
         </div>
 
         <div className="card">
+          <div className="card-heading"><span><Shield size={14} />Roadside protection</span>
+            <Toggle on={!!guardrail} onClick={() => editor.setEdgeGuardrail([id], guardrail ? null : DEFAULT_GUARDRAIL)} />
+          </div>
+          {guardrail ? <>
+            <label className="field">Barrier type<select value={guardrail.style} onChange={ev => editor.setEdgeGuardrail([id], { ...guardrail, style: ev.target.value })}>
+              {GUARDRAIL_STYLES.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}
+            </select></label>
+            <div className="control-line"><span>Protected sides</span><div className="pseg">
+              {[['left', 'Left'], ['both', 'Both'], ['right', 'Right']].map(([side, label]) => <button key={side} className={guardrail.side === side ? 'on' : ''} onClick={() => editor.setEdgeGuardrail([id], { ...guardrail, side })}>{label}</button>)}
+            </div></div>
+            <CommitSlider label="Barrier height" unit=" m" min={0.5} max={1.4} step={0.1} value={guardrail.height} onCommit={v => editor.setEdgeGuardrail([id], { ...guardrail, height: v })} />
+            {guardrail.style !== 'concrete' && <CommitSlider label="Post spacing" unit=" m" min={1.5} max={6} step={0.1} value={guardrail.postSpacing} onCommit={v => editor.setEdgeGuardrail([id], { ...guardrail, postSpacing: v })} />}
+            <p className="empty-note">Swept protection and supports are added as an independent edge overlay; the road surface and current curb/junction solver are unchanged.</p>
+          </> : <p className="empty-note">No roadside barrier. Add a W-beam system here or choose another style in the Infrastructure library.</p>}
+          <div className="btn-row">
+            {!guardrail && <button className="ibtn" onClick={() => editor.setEdgeGuardrail([id], DEFAULT_GUARDRAIL)}><Shield size={12} />Add W-beam</button>}
+            <button className="ibtn" onClick={() => editor.set({ library: true, librarySection: 'infrastructure' })}><Library size={12} />Infrastructure library</button>
+            <button className={'ibtn' + (st.tool === 'place' && st.placeType === 'roadPost' ? ' solid' : '')} onClick={() => editor.setTool('place', { placeType: 'roadPost' })}><Signpost size={12} />Place post</button>
+          </div>
+        </div>
+
+        <div className="card">
           <div className="card-heading"><span><Ruler size={14} />Geometry</span>{maxY > 2 ? <span className="small-pill accent">Bridge · {maxY.toFixed(1)} m</span> : <span className="small-pill">At grade</span>}</div>
           <div className="metric-row">
             <div className="metric">{c.length.toFixed(0)}<small>m</small></div>
@@ -140,10 +164,10 @@ function EdgeInspector({ id, st }) {
 
         <div className="card">
           <div className="card-heading"><span><TrafficCone size={14} />Details & traffic calming</span><small>{e.features.length}</small></div>
-          {e.features.length === 0 && <div className="empty-note">No features. Place speed humps, tables, mid-block crosswalks or bus stops.</div>}
+          {e.features.length === 0 && <div className="empty-note">No features. Place speed humps, tables, mid-block crossings, bus stops or reflective roadside posts.</div>}
           {e.features.map((f, i) => {
             const I = featIcon[f.type] || Info;
-            const label = f.type === 'hump' ? (f.kind === 'table' ? 'Speed table' : 'Speed hump') : f.type === 'busstop' ? `Bus stop · ${f.side > 0 ? 'right' : 'left'}` : f.type === 'crosswalk' ? 'Crosswalk' : 'Median gap';
+            const label = f.type === 'hump' ? (f.kind === 'table' ? 'Speed table' : 'Speed hump') : f.type === 'busstop' ? `Bus stop · ${f.side > 0 ? 'right' : 'left'}` : f.type === 'roadPost' ? `Road post · ${f.side > 0 ? 'right' : 'left'}` : f.type === 'crosswalk' ? 'Crosswalk' : 'Median gap';
             const s0 = f.s ?? f.s0;
             return (
               <div key={i} className="feat-row">
@@ -151,13 +175,13 @@ function EdgeInspector({ id, st }) {
                 <div><div>{label} <small>@ {s0.toFixed(0)} m</small></div>
                   {f.s !== undefined && <input type="range" min={8} max={Math.max(9, c.length - 8)} step={0.5} defaultValue={f.s} style={{ '--progress': ((f.s - 8) / Math.max(1, c.length - 16)) * 100 + '%' }} onPointerUp={ev => editor.updateFeature(id, i, { s: +ev.target.value })} />}
                 </div>
-                {f.type === 'busstop' ? <button className="small-pill" onClick={() => editor.updateFeature(id, i, { side: -f.side })}>flip</button> : <span />}
+                {f.type === 'busstop' || f.type === 'roadPost' ? <button className="small-pill" onClick={() => editor.updateFeature(id, i, { side: -f.side })}>flip</button> : <span />}
                 <button className="icon-button" onClick={() => editor.removeFeature(id, i)}><X size={12} /></button>
               </div>
             );
           })}
           <div className="btn-row">
-            {[['hump', 'Hump', Gauge], ['table', 'Table', Gauge], ['crosswalk', 'Crosswalk', Footprints], ['busstop', 'Bus stop', Bus]].map(([k, l, I]) => (
+            {[['hump', 'Hump', Gauge], ['table', 'Table', Gauge], ['crosswalk', 'Crosswalk', Footprints], ['busstop', 'Bus stop', Bus], ['roadPost', 'Road post', Signpost]].map(([k, l, I]) => (
               <button key={k} className={'ibtn' + (st.tool === 'place' && st.placeType === k ? ' solid' : '')} onClick={() => editor.setTool('place', { placeType: k })}><I size={12} />{l}</button>
             ))}
           </div>
@@ -277,41 +301,47 @@ function NodeInspector({ id, st }) {
 function RailInspector({ id }) {
   const net = editor.net, r = net.rails.get(id);
   const len = r.pts.reduce((a, p, i) => (i ? a + Math.hypot(p.x - r.pts[i - 1].x, p.z - r.pts[i - 1].z) : 0), 0);
-  const out = editor.builder.outs.get(id), suspended = (r.mode || r.kind) === 'suspended';
+  const out = editor.builder.outs.get(id), mode = r.mode || r.kind || 'mainline';
+  const suspended = mode === 'suspended', tram = mode === 'tram';
   const crossings = out?.props?.gateArm ? out.props.gateArm.length / 8 / 2 : 0;
   const segments = [...net.railEdges.values()].filter(e => e.routeId === id);
   const graphNodes = new Set(segments.flatMap(e => [e.a, e.b])).size;
   const meanHeight = r.pts.reduce((sum, p) => sum + (p.y ?? r.height ?? 0), 0) / Math.max(1, r.pts.length);
   return (
     <>
-      <Header icon={TrainFront} eyebrow={suspended ? 'Suspended guideway · monorail' : 'Railway · at grade'} title={r.name || 'Railway'}
+      <Header icon={tram ? TramFront : TrainFront} eyebrow={suspended ? 'Suspended guideway · monorail' : tram ? `Dedicated tramway · ${meanHeight > 0.7 ? 'elevated' : 'at grade'}` : 'Railway · at grade'} title={r.name || (tram ? 'Tramway' : 'Railway')}
         onRename={v => editor.updateRail(id, { name: v }, 'Rename railway')}
         actions={<><button className="icon-button" title="Focus line" onClick={() => editor.focusSelection()}><Crosshair size={15} /></button><button className="icon-button" title="Delete railway" onClick={() => editor.deleteSelection()}><Trash2 size={15} /></button></>} />
       <div className="cards">
         <div className="card">
-          <div className="card-heading"><span><Ruler size={14} />Line</span><small>{suspended ? 'elevated' : 'surface'}</small></div>
+          <div className="card-heading"><span>{tram ? <TramFront size={14} /> : <Ruler size={14} />}{tram ? 'Alignment' : 'Line'}</span><small>{suspended ? 'elevated' : tram ? 'exclusive track' : 'surface'}</small></div>
           <div className="metric">{(len / 1000).toFixed(2)}<small>km</small></div>
           <div className="stat-grid">
             <div>Tracks<b>{suspended ? '1 guideway' : r.tracks}</b></div>
-            <div>Level crossings<b>{Math.round(crossings)}</b></div>
+            <div>{tram ? 'Road crossings' : 'Level crossings'}<b>{tram ? (out?.tramCrossings ?? 0) : Math.round(crossings)}</b></div>
             <div>Track nodes<b>{graphNodes}</b></div>
             <div>Track segments<b>{segments.length}</b></div>
-            {suspended && <div>Clear supports<b>{out?.supports ?? '—'}</b></div>}
+            {(suspended || tram) && <div>{tram ? 'Viaduct supports' : 'Clear supports'}<b>{out?.supports ?? '—'}</b></div>}
+            {tram && <div>Catenary masts<b>{out?.masts ?? '—'}</b></div>}
           </div>
         </div>
         <div className="card">
-          <div className="card-heading"><span><TrainFront size={14} />Railway design</span><small>topology-aware</small></div>
-          <label className="field">System<select value={suspended ? 'suspended' : 'mainline'} onChange={e => editor.updateRail(id, { mode: e.target.value }, 'Change railway system')}>
-            <option value="mainline">At-grade railway</option><option value="suspended">Suspended monorail</option>
+          <div className="card-heading"><span>{tram ? <TramFront size={14} /> : <TrainFront size={14} />}{tram ? 'Tramway design' : 'Railway design'}</span><small>topology-aware</small></div>
+          <label className="field">System<select value={mode} onChange={e => editor.updateRail(id, { mode: e.target.value }, 'Change railway system')}>
+            <option value="mainline">At-grade railway</option><option value="tram">Dedicated tramway</option><option value="suspended">Suspended monorail</option>
           </select></label>
           <div className="control-line"><span>Track count</span><div className="pseg">
             {[1, 2].map(t => <button key={t} disabled={suspended} className={r.tracks === t ? 'on' : ''} onClick={() => editor.updateRail(id, { tracks: t }, 'Change track count')}>{t}</button>)}
           </div></div>
-          <div className="control-line"><span>Train frequency</span><div className="pseg">
-            {[1, 2].map(t => <button key={t} className={(r.trains || (suspended ? 1 : 2)) === t ? 'on' : ''} onClick={() => editor.updateRail(id, { trains: t }, 'Change train frequency')}>{t} train{t > 1 ? 's' : ''}</button>)}
+          <div className="control-line"><span>{tram ? 'Tram frequency' : 'Train frequency'}</span><div className="pseg">
+            {[1, 2].map(t => <button key={t} className={(r.trains || (suspended ? 1 : 2)) === t ? 'on' : ''} onClick={() => editor.updateRail(id, { trains: t }, 'Change transit frequency')}>{t} set{t > 1 ? 's' : ''}</button>)}
           </div></div>
-          <CommitSlider label="Guideway elevation" unit=" m" min={suspended ? 8 : -1} max={suspended ? 30 : 14} step={0.2} value={r.height ?? meanHeight} onCommit={v => editor.updateRail(id, { height: v }, 'Change railway elevation')} />
-          <p className="empty-note">Drag white control points to reshape the alignment; double-click the line to add a bend. At-grade rail includes crossings and embedded railwork at tram avenues; suspended lines use box guideways and clearance-checked columns.</p>
+          <CommitSlider label={tram ? 'Alignment elevation' : 'Guideway elevation'} unit=" m" min={suspended ? 8 : tram ? 0 : -1} max={suspended ? 30 : tram ? 18 : 14} step={0.2} value={r.height ?? meanHeight} onCommit={v => editor.updateRail(id, { height: v }, 'Change railway elevation')} />
+          {tram && <>
+            <CommitSlider label="Pole / pier spacing" unit=" m" min={15} max={60} step={3} value={r.supportSpacing ?? 30} onCommit={v => editor.updateRail(id, { supportSpacing: v }, 'Change tram support spacing')} />
+            <div className="control-line"><span>Overhead power</span><Toggle on={r.electrified !== false} onClick={() => editor.updateRail(id, { electrified: r.electrified === false }, 'Toggle tram catenary')} /></div>
+          </>}
+          <p className="empty-note">{tram ? 'Draw and edit this alignment independently from roads. At-grade road crossings receive flush track panels; elevated sections build a concrete deck, clearance-checked supports and optional overhead power.' : 'Drag white control points to reshape the alignment; double-click the line to add a bend. At-grade rail includes level crossings; suspended lines use box guideways and clearance-checked columns.'}</p>
         </div>
       </div>
     </>
@@ -360,8 +390,8 @@ function CityInspector({ st }) {
             <div>Intersections<b>{stats.k.junction || 0}</b></div><div>Roundabouts<b>{stats.k.roundabout || 0}</b></div>
             <div>Cul-de-sacs<b>{stats.k.culdesac || 0}</b></div><div>Bus lanes<b>{stats.bus.toFixed(1)} km</b></div>
             <div>Cycle lanes<b>{stats.bike.toFixed(1)} km</b></div><div>Parking lanes<b>{stats.park.toFixed(1)} km</b></div>
-            <div>Railway<b>{stats.railKm.toFixed(1)} km</b></div><div>Suspended<b>{stats.suspendedKm.toFixed(1)} km</b></div>
-            <div>Rail nodes<b>{stats.railNodes}</b></div><div>Subway<b>{stats.subKm.toFixed(1)} km</b></div>
+            <div>Railway<b>{Math.max(0, stats.railKm - stats.suspendedKm - stats.tramKm).toFixed(1)} km</b></div><div>Tramway<b>{stats.tramKm.toFixed(1)} km</b></div>
+            <div>Suspended<b>{stats.suspendedKm.toFixed(1)} km</b></div><div>Rail nodes<b>{stats.railNodes}</b></div><div>Subway<b>{stats.subKm.toFixed(1)} km</b></div>
           </div>
         </div>
 

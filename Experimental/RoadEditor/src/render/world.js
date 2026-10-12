@@ -339,7 +339,7 @@ export class World {
       const geo = new THREE.BufferGeometry(); geo.setAttribute('position', new THREE.Float32BufferAttribute(arr, 3));
       g.add(new THREE.LineSegments(geo, new THREE.LineBasicMaterial({ color: col, depthTest: false, transparent: true, opacity: 0.95 })));
     }
-    const railColors = { mainline: '#f0b44b', suspended: '#28d6d2' };
+    const railColors = { mainline: '#f0b44b', tram: '#d77966', suspended: '#28d6d2' };
     for (const rail of this.net.rails.values()) {
       const c = this.builder?.railCl.get(rail.id); if (!c) continue;
       const arr = [];

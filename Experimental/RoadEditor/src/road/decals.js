@@ -1,6 +1,6 @@
-// Road-marking decal atlas layout (4×4 cells). Painted procedurally in textures.js;
+// Road-marking decal atlas layout (5×5 cells). Painted procedurally in textures.js;
 // builders only need the UV rectangles and physical sizes (metres: width across, length along).
-export const ATLAS_GRID = 4;
+export const ATLAS_GRID = 5;
 export const DECALS = {
   bus:      { cell: 0,  w: 2.2, l: 2.6 },
   only:     { cell: 1,  w: 2.2, l: 2.6 },
@@ -18,6 +18,7 @@ export const DECALS = {
   tram:     { cell: 13, w: 2.2, l: 2.6 },
   keep:     { cell: 14, w: 2.4, l: 2.4 },
   busStop:  { cell: 15, w: 2.4, l: 3.0 },
+  parking:  { cell: 16, w: 0.8, l: 1.15 },
 };
 export function decalUV(name) {
   const d = DECALS[name], g = ATLAS_GRID;

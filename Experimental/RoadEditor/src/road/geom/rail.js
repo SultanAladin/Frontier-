@@ -4,6 +4,7 @@ import { Centerline } from '../centerline.js';
 import { Out, ribbon, sweep, wall, box, yawFor } from './out.js';
 import { getProfile, layout, LEVEL } from '../profiles.js';
 import { decal, bar } from './markings.js';
+import { tramRails } from './edge.js';
 import { segIntersect } from '../math.js';
 
 const GAUGE = 1.435;
@@ -16,7 +17,8 @@ export function railCenterline(rail) {
 
 // Find at-grade crossings between a rail and road edges.
 export function findCrossings(net, rail, rc, index) {
-  if ((rail.mode || rail.kind) === 'suspended') return [];
+  const mode = rail.mode || rail.kind || 'mainline';
+  if (mode === 'suspended') return [];
   const res = [];
   const X = rc.X, Z = rc.Z, S = rc.S;
   const step = 6;
@@ -36,6 +38,7 @@ export function findCrossings(net, rail, rc, index) {
         const fe = c.frameAt(sE);
         if (fe.y > 2.5) continue;                       // road bridges over the rail
         const fr = rc.frameAt(sR);
+        if (mode === 'tram' && Math.abs(fe.y - fr.y) > 0.25) continue; // only same-level tramways receive road crossing panels
         const cos = Math.abs(fe.tx * fr.tx + fe.tz * fr.tz);
         res.push({ edgeId: e.id, sRail: sR, sEdge: sE, sin: Math.sqrt(Math.max(0.05, 1 - cos * cos)), half: layout(getProfile(e)).total / 2 });
       }
@@ -45,7 +48,9 @@ export function findCrossings(net, rail, rc, index) {
 }
 
 export function buildRail(net, rail, rc, crossings, ctx) {
-  if ((rail.mode || rail.kind) === 'suspended') return buildSuspendedRail(rail, rc, ctx);
+  const mode = rail.mode || rail.kind || 'mainline';
+  if (mode === 'suspended') return buildSuspendedRail(rail, rc, ctx);
+  if (mode === 'tram') return buildTramway(net, rail, rc, crossings, ctx);
   const out = new Out(rail.id);
   const tracks = rail.tracks || 2;
   const offs = tracks === 1 ? [0] : Array.from({ length: tracks }, (_, k) => (k - (tracks - 1) / 2) * TRACK_SPACING);
@@ -139,6 +144,128 @@ export function buildRail(net, rail, rc, crossings, ctx) {
   // level crossings
   for (const x of crossings) crossing(out, net, rail, rc, x, offs, half);
   return out;
+}
+
+function buildTramway(net, rail, rc, crossings, ctx) {
+  const out = new Out(rail.id);
+  const tracks = rail.tracks === 1 ? 1 : 2;
+  const offsets = tracks === 1 ? [0] : [-TRACK_SPACING / 2, TRACK_SPACING / 2];
+  const half = tracks === 1 ? 1.6 : TRACK_SPACING / 2 + 1.6;
+  const spacing = Math.max(12, Math.min(80, rail.supportSpacing || 30));
+  const zones = crossings.map(x => { const h = x.half / x.sin + 2; return [x.sRail - h, x.sRail + h]; });
+  const extra = zones.flatMap(([a, b]) => [a - 3, a, b, b + 3]);
+  const frames = rc.stations(0, rc.length, extra, 6, 0.025).map(s => rc.frameAt(s));
+
+  // Independent tram alignments use a narrow concrete track slab rather than ballast. The
+  // grooved rail profile is shared with street-running trams, so the two systems meet cleanly.
+  ribbon(out, 'concrete', frames, -half, half, 0.006);
+  ribbon(out, 'concrete', frames, -half, half, -0.18);
+  wall(out, 'concrete', frames, -half, -0.18, 0.006, -1);
+  wall(out, 'concrete', frames, half, -0.18, 0.006, 1);
+  for (const offset of offsets) tramRails(out, frames, offset, 0);
+
+  for (const x of crossings) tramwayCrossing(out, net, rc, x, offsets);
+
+  // Twin overhead conductors, with short droppers and alternating cantilever masts. The
+  // existing catenary assets are reused; at river/elevated sections they sit on the viaduct.
+  if (rail.electrified !== false) {
+    for (const offset of offsets) {
+      sweep(out, 'steel', frames, cableProfile(4.65, 0.018), offset);
+      sweep(out, 'steel', frames, cableProfile(5.2, 0.014), offset);
+      for (let s = 2; s < rc.length - 1; s += 4) {
+        const f = rc.frameAt(s);
+        box(out, 'steel', f.x + f.nx * offset, f.y + 4.925, f.z + f.nz * offset, f.tx, f.tz, 0.025, 0.018, 0.275);
+      }
+    }
+    if (ctx.props !== false) {
+      let mastIndex = 0;
+      for (let s = spacing * 0.5; s < rc.length - spacing * 0.25; s += spacing) {
+        const f = rc.frameAt(s);
+        const road = ctx.roadAt?.(f.x, f.z, 80);
+        const roadHalf = road ? layout(getProfile(road.edge)).total / 2 : 0;
+        const mastOffset = Math.max(half + 0.7, roadHalf + 0.8);
+        const side = mastIndex++ % 2 ? 1 : -1;
+        const o = side * mastOffset;
+        const x = f.x + f.nx * o, z = f.z + f.nz * o;
+        if (ctx.pierBlocked?.(x, z, 0.45, f.y + 5.2, rail.id)) continue;
+        const yaw = yawFor(-side * f.nx, -side * f.nz);
+        const baseY = f.y + (f.y > 0.7 || (ctx.waterAt && ctx.waterAt(f.x, f.z)) ? -0.18 : -0.08);
+        out.prop('catenaryMast', x, baseY, z, yaw);
+        out.prop('catenaryArm', x, f.y + 4.65, z, yaw, mastOffset + half + 0.55, 1, 1);
+      }
+    }
+  }
+
+  // Elevated tramways and river crossings need a real load path, not a floating rail mesh.
+  out.supports = buildTramSupports(out, rc, rail, half, spacing, ctx);
+  out.masts = out.props.catenaryMast ? out.props.catenaryMast.length / 8 : 0;
+  out.tramCrossings = crossings.length;
+  out.mode = 'tram';
+  return out;
+}
+
+function cableProfile(height, radius) {
+  const profile = [];
+  for (let i = 0; i <= 10; i++) {
+    const a = i / 10 * Math.PI * 2;
+    profile.push([Math.cos(a) * radius, height + Math.sin(a) * radius]);
+  }
+  return profile;
+}
+
+function tramwayCrossing(out, net, rc, x, offsets) {
+  const edge = net.edges.get(x.edgeId);
+  if (!edge) return;
+  const road = net.centerline(edge);
+  const roadY = road.frameAt(x.sEdge).y;
+  const halfLength = x.half / x.sin + 1.5;
+  const frames = [-halfLength, halfLength].map(d => {
+    const f = rc.frameAt(x.sRail + d);
+    f.y = roadY;
+    return f;
+  });
+  // Flush rubber/concrete flangeway panels allow street traffic across the independent line.
+  for (const offset of offsets) ribbon(out, 'crossPanel', frames, offset - GAUGE / 2 - 0.55, offset + GAUGE / 2 + 0.55, 0.014);
+}
+
+function buildTramSupports(out, rc, rail, half, spacing, ctx) {
+  let supports = 0;
+  const deckBottom = f => f.y - 0.18;
+  for (let s = spacing * 0.5; s < rc.length - spacing * 0.25; s += spacing) {
+    let placed = false;
+    for (const shift of [0, 6, -6, 11, -11]) {
+      const ss = s + shift;
+      if (ss < 3 || ss > rc.length - 3) continue;
+      const f = rc.frameAt(ss);
+      const water = !!ctx.waterAt?.(f.x, f.z);
+      if (f.y <= 0.7 && !water) continue;
+      const road = ctx.roadAt?.(f.x, f.z, 80);
+      const roadHalf = road ? layout(getProfile(road.edge)).total / 2 : 0;
+      const baseOffset = Math.max(half + 0.7, roadHalf + 1.0);
+      const ground = water ? -6 : (ctx.groundAt ? ctx.groundAt(f.x, f.z) : GROUNDY);
+      const capTop = deckBottom(f) + 0.12, capHeight = 0.5;
+      const columnTop = capTop - capHeight;
+      if (columnTop - ground < 0.25) continue;
+
+      for (const offset of [baseOffset, baseOffset + 3.5, baseOffset + 7, baseOffset + 12]) {
+        const left = [f.x - f.nx * offset, f.z - f.nz * offset];
+        const right = [f.x + f.nx * offset, f.z + f.nz * offset];
+        const blocked = [left, right].some(([x, z]) => ctx.pierBlocked?.(x, z, 0.65, f.y + 0.2, rail.id));
+        if (blocked) continue;
+        const columnHeight = columnTop - ground;
+        for (const [x, z] of [left, right]) {
+          box(out, 'concrete', x, ground + columnHeight / 2, z, f.tx, f.tz, 0.48, 0.48, columnHeight / 2);
+          box(out, 'concrete', x, ground + 0.16, z, f.tx, f.tz, 0.75, 0.72, 0.16);
+        }
+        box(out, 'concrete', f.x, capTop - capHeight / 2, f.z, f.tx, f.tz, 0.62, offset + 0.42, capHeight / 2);
+        supports++;
+        placed = true;
+        break;
+      }
+      if (placed) break;
+    }
+  }
+  return supports;
 }
 
 function buildSuspendedRail(rail, rc, ctx) {

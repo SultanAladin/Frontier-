@@ -122,7 +122,7 @@ export function Outliner() {
           <Group k="transit" icon={TrainFront} label="Transit" count={net.rails.size + net.subways.size}>
             {[...net.rails.values()].map(r => (
               <div key={r.id} className={'tree-row' + (isSel('rail', r.id) ? ' selected' : '')}>
-                <button className="object-button" onClick={() => editor.select({ type: 'rail', id: r.id }, { focus: true })}><TrainFront size={14} strokeWidth={1.6} style={{ color: r.mode === 'suspended' ? '#28d6d2' : undefined }} /><span className="name">{r.name || 'Railway'}</span><small>{r.mode === 'suspended' ? 'guideway' : `${r.tracks} trk`}</small></button>
+                <button className="object-button" onClick={() => editor.select({ type: 'rail', id: r.id }, { focus: true })}>{r.mode === 'tram' ? <TramFront size={14} strokeWidth={1.6} style={{ color: '#d77966' }} /> : <TrainFront size={14} strokeWidth={1.6} style={{ color: r.mode === 'suspended' ? '#28d6d2' : undefined }} />}<span className="name">{r.name || (r.mode === 'tram' ? 'Tramway' : 'Railway')}</span><small>{r.mode === 'suspended' ? 'guideway' : r.mode === 'tram' ? 'tram' : `${r.tracks} trk`}</small></button>
               </div>
             ))}
             {[...net.subways.values()].map(s => (

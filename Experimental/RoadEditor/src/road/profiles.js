@@ -68,6 +68,11 @@ export const PROFILES = {
     desc: 'Two-lane collector/distributor ramp.',
     lanes: [L('barrier', 0.6), L('shoulder', 1.0), L('drive', 3.7, 1), L('drive', 3.7, 1), L('shoulder', 2.4), L('barrier', 0.6)],
   },
+  motorwayCarriageway: {
+    name: 'Motorway · 2-lane carriageway', category: 'highway', speed: 100, surface: 'asphalt', lamps: 'right', lampHeight: 10, lampSpacing: 42, oneWay: true,
+    desc: 'One-way motorway deck with wide shoulders; add a W-beam or thrie-beam guardrail from Infrastructure.',
+    lanes: [L('shoulder', 2.0), L('drive', 3.65, 1), L('drive', 3.65, 1), L('shoulder', 2.0)],
+  },
   expressway: {
     name: 'Expressway', category: 'highway', speed: 90, surface: 'asphalt', lamps: 'none',
     desc: 'At-grade divided highway, grass median and gravel verges.',
@@ -83,6 +88,11 @@ export const PROFILES = {
     name: 'Avenue · protected bike', category: 'arterial', speed: 50, surface: 'asphalt', lamps: 'both', lampSpacing: 30, trees: true,
     desc: '2+2 lanes, parking-protected bike lanes with buffers.',
     lanes: sym([L('drive', 3.3, 1), L('drive', 3.3, 1), L('parking', 2.4), L('buffer', 0.9), L('bike', 1.9, 1), L('planter', 1.2, undefined, { trees: true }), L('sidewalk', 3.6)]),
+  },
+  euroMobilityBoulevard: {
+    name: 'European mobility boulevard', category: 'arterial', speed: 40, surface: 'asphalt', lamps: 'both', lampSpacing: 32, trees: true,
+    desc: '2+2 traffic lanes, curbside bus lanes, parking-buffered cycle tracks and generous sidewalks.',
+    lanes: sym([L('drive', 3.2, 1), L('drive', 3.2, 1), L('bus', 3.25, 1), L('parking', 2.2), L('buffer', 0.65), L('bike', 2.0, 1), L('planter', 1.4, undefined, { trees: true }), L('sidewalk', 4.0)]),
   },
   arterialBRT: {
     name: 'Arterial · center BRT', category: 'arterial', speed: 50, surface: 'asphalt', lamps: 'both', lampSpacing: 30,
@@ -135,6 +145,12 @@ export const PROFILES = {
     desc: 'Level-surface woonerf — pavers, bollards, no curbs.',
     lanes: sym([L('drive', 2.8, 0), L('path', 2.6)]),
     noCenterLine: true, bollardsAt: 'path',
+  },
+  sharedCycleStreet: {
+    name: 'Dutch cycle-priority street', category: 'residential', speed: 30, surface: 'asphalt', lamps: 'both', lampSpacing: 26, trees: true,
+    desc: 'Red-tinted carriageway, parking pockets, tree lawns and a 30 km/h cycle-priority layout.',
+    lanes: sym([L('drive', 3.0, 1, { mat: 'busRed' }), L('parking', 2.1), L('planter', 1.2, undefined, { trees: true }), L('sidewalk', 3.2)]),
+    noCenterLine: true, cyclePriority: true,
   },
   cobblestone: {
     name: 'Old-town cobblestone', category: 'residential', speed: 25, surface: 'cobble', lamps: 'both', lampSpacing: 20,
@@ -252,5 +268,5 @@ export function cloneProfile(p) {
 }
 
 // Road hierarchy rank for junction priority / naming / LOD.
-export const RANK = { freeway6: 9, freeway4: 9, ramp1: 8, ramp2: 8, expressway: 8, boulevard: 7, avenueBike: 6, arterialBRT: 7, tramAvenue: 6, arterial4: 6, collector: 5, industrial: 5, oneway: 4, local: 3, residential: 3, cobblestone: 3, sharedStreet: 2, alley: 1, rural2: 5, countryLane: 2, gravelRoad: 2, dirtRoad: 1, footpath: 0, gravelPath: 0, cycleway: 0, promenade: 0 };
+export const RANK = { freeway6: 9, freeway4: 9, motorwayCarriageway: 9, ramp1: 8, ramp2: 8, expressway: 8, boulevard: 7, euroMobilityBoulevard: 7, avenueBike: 6, arterialBRT: 7, tramAvenue: 6, arterial4: 6, collector: 5, industrial: 5, oneway: 4, local: 3, residential: 3, cobblestone: 3, sharedCycleStreet: 3, sharedStreet: 2, alley: 1, rural2: 5, countryLane: 2, gravelRoad: 2, dirtRoad: 1, footpath: 0, gravelPath: 0, cycleway: 0, promenade: 0 };
 export const isPath = p => (p.category === 'active');

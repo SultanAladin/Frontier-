@@ -260,3 +260,7 @@ input[type=range]::-moz-range-thumb { width: 7px; height: 7px; background: #d8d8
 .construct-submit { margin-left: auto; display: flex; align-items: center; gap: 7px; background: #d2d2d2; border: 1px solid #ddd; border-radius: 5px; color: #171717; padding: 9px 13px; font-weight: 600; }
 .construct-submit:hover { background: #fff; color: #000; }
 .construct-secondary { display: flex; align-items: center; gap: 7px; background: #262626; border: 1px solid #3b3b3b; border-radius: 5px; color: #bbb; padding: 9px 13px; }
+.construct-grid-infra .construct-tile > span { min-height: 27px; line-height: 1.45; }
+.construct-empty { padding: 24px 8px; color: #777; font-size: 11px; }
+.construct-submit:disabled { opacity: .42; cursor: not-allowed; }
+.construct-submit:disabled:hover { background: #d2d2d2; color: #171717; }

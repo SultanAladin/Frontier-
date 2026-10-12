@@ -104,6 +104,14 @@ const DEFS = {
   signCrossing: b => { b.cyl('vcol', 0.035, 0.035, 2.4, 0, 0, 0, C.galv, 6); b.sign(SIGNS.crossing, 0.75, 0.75, 0.04, 2.15, 0); },
   signRail: b => { b.cyl('vcol', 0.035, 0.035, 2.4, 0, 0, 0, C.galv, 6); b.sign(SIGNS.railAdvance, 0.9, 0.9, 0.04, 2.1, 0); },
   railPost: b => { b.box('vcol', 0.08, 1.1, 0.08, 0, 0.55, 0, C.galv); },
+  roadPost: b => {
+    // One-metre galvanized guardrail support, with an anchor plate and road-facing reflectors.
+    b.box('vcol', 0.18, 0.06, 0.2, 0, 0.03, 0, C.galv);
+    b.box('vcol', 0.09, 0.94, 0.12, 0, 0.5, 0, C.galv);
+    b.box('vcol', 0.018, 0.12, 0.096, 0.05, 0.73, 0, C.yellow);
+    b.box('vcol', 0.018, 0.1, 0.096, 0.05, 0.88, 0, C.white);
+    b.box('vcol', 0.13, 0.035, 0.16, 0, 0.9825, 0, C.galv);
+  },
   pierCap: b => { b.box('vcol', 1, 1, 1, 0, 0.5, 0, C.concrete); },
   pierCol: b => { b.cyl('vcol', 0.85, 0.85, 1, 0, 0, 0, C.concrete, 16); },
   pierColWide: b => { b.box('vcol', 3.2, 1, 1.1, 0, 0.5, 0, C.concrete); b.cyl('vcol', 0.55, 0.55, 1, 1.6, 0, 0, C.concrete, 10); b.cyl('vcol', 0.55, 0.55, 1, -1.6, 0, 0, C.concrete, 10); },
@@ -180,4 +188,4 @@ export function propLibrary() {
 }
 
 // Props that should cast shadows (others are too small to matter)
-export const SHADOW_PROPS = new Set(['lamp', 'lampHigh', 'lampDouble', 'lampPost', 'signalPole', 'signalArm', 'signalHead', 'treeA', 'treeB', 'busShelter', 'pierCol', 'pierColWide', 'pierCap', 'catenaryMast', 'subwayEntrance', 'crossbuck']);
+export const SHADOW_PROPS = new Set(['lamp', 'lampHigh', 'lampDouble', 'lampPost', 'signalPole', 'signalArm', 'signalHead', 'treeA', 'treeB', 'busShelter', 'pierCol', 'pierColWide', 'pierCap', 'catenaryMast', 'subwayEntrance', 'crossbuck', 'roadPost']);
