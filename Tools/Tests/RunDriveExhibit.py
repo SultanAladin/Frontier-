@@ -39,7 +39,7 @@ Raw = Root / "_AgentScratch/tmp/DriveRenders"
 Gallery = Root / "Exhibits/Gallery/ProjectDrive"
 Traces = Root / "_AgentScratch/tmp/DriveDynamicsSanitized"
 if not (Traces / "Proof.json").exists():
-    Traces = Root / "_AgentScratch/tmp/DriveDynamicsTraces"
+    Traces = Root / "_AgentScratch/tmp/DriveDynamicsReconstructed"
 for Folder in [Scratch, Raw, Gallery]:
     Folder.mkdir(parents=True, exist_ok=True)
 Shared = ["Engine/DisplayPresentation/ShadingTableCodec.cpp", "Engine/ContentInterchange/MaterialIndex.cpp",
@@ -71,8 +71,10 @@ def Execute(Command, Name):
 if not Arguments.publish_only:
     Includes = ["Engine", "Engine/Shaders", "Engine/DisplayPresentation", "Engine/ContentInterchange",
                 "Engine/DeviceExchange", "Engine/GeometricRaster", "ExternalPackages/vulkan-headers/include"]
+    from DependencyCodec import RestoreVulkanHeaders
+    Includes[-1] = str(RestoreVulkanHeaders())
     Flags = ["-O2", "-std=c++20", "-DFRONTIER_CPU_PORT", "-ffunction-sections", "-fdata-sections", "-pthread"]
-    Flags += ["-I" + str(Root / Folder) for Folder in Includes]
+    Flags += ["-I" + str(Path(Folder) if Path(Folder).is_absolute() else Root / Folder) for Folder in Includes]
     # Rebuild on source/header changes; default renders always run again, even when object files remain reusable.
     Headers = [File for Folder in ["Engine", "Projects/Project-Drive/Source", "Exhibits/Workbench/Automotive"]
                for File in (Root / Folder).rglob("*") if File.suffix in [".h", ".inl", ".slang"]]
@@ -183,7 +185,7 @@ Proof = {"generatedUtc": Date, "baseline": "1784c866a700bfe7a5d208fadf1ac2c5dfc6
          "rawSha256": {File.name: hashlib.sha256(File.read_bytes()).hexdigest() for File in Raw.glob("orbit-*.png")}}
 Proof["artifactSha256"] = {File.name: hashlib.sha256(File.read_bytes()).hexdigest() for File in Gallery.iterdir() if File.suffix in [".png", ".gif", ".csv"]}
 (Gallery / "RenderProof.json").write_text(json.dumps(Proof, indent=2) + "\n")
-(Gallery / "index.html").write_text('''<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+(Gallery / "render-references.html").write_text('''<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Project-Drive — fresh CPU evidence</title><style>body{margin:0;background:#11151c;color:#eef2f7;font:16px system-ui;line-height:1.6}main{max-width:1500px;margin:40px auto;padding:0 24px}h1{line-height:1.15}.note{padding:18px;border:1px solid #977442;background:#211d17;color:#ffdc9a}img{width:100%;height:auto;border-radius:8px}.renders{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}a{color:#acc8ff}code{color:#e7c89b}@media(max-width:900px){.renders{grid-template-columns:1fr}}</style>
 <main><p>FRONTIER / PROJECT-DRIVE</p><h1>Fresh CPU rendering &amp; vehicle evidence</h1>
 <div class="note">These are new C++ CPU renders and real production-code dynamics traces, not AI images or Vulkan screenshots.
@@ -201,7 +203,7 @@ All exported body/force/energy trace values are compared bit-for-bit across repe
 <p><a href="RenderProof.json">Render provenance</a> · <a href="DynamicsProof.json">Executed dynamics checks</a></p>
 <p>Reproduce: <code>python Tools/Tests/CheckDriveDynamics.py</code> and <code>python Tools/Tests/RunDriveExhibit.py</code>.</p></main></html>''')
 # Self-contained requested exhibit: image/GIF assets also work in a sandboxed file viewer without a web server.
-HtmlPath = Gallery / "index.html"
+HtmlPath = Gallery / "render-references.html"
 Html = HtmlPath.read_text()
 for Asset in Gallery.iterdir():
     if Asset.suffix not in [".png", ".gif", ".csv", ".json"]:
