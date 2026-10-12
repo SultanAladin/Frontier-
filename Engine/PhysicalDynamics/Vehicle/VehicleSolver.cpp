@@ -1,6 +1,7 @@
 //============================================================================================================================================
-// 📦 Frontier/PhysicalDynamics/Vehicle/VehicleSolver.cpp — Phase 3 drivable vehicle implementation
+//                                                             VEHICLESOLVER.CPP
 //============================================================================================================================================
+// 📦 Production vehicle/tyre mechanics with explicit solved-pose and mechanical-energy diagnostics.
 
 #include "VehicleSolver.h"
 
@@ -69,6 +70,7 @@ void VehicleSolver::Build(const VehicleSolverConfiguration& config, const Hooks&
         Vec3 MountWorld, AxisUp;
         const Vec3 hub = ResolveHub(i, initial, MountWorld, AxisUp);
         SoftTyres[i].Build(ActiveConfiguration.Tyre, hub, initial.Orientation);
+        SoftTyres[i].AssignRigidVelocity(initial.LinearVelocity, initial.AngularVelocity, initial.Position);
         if (i < CurrentTelemetry.Wheels.size())
         {
             CurrentTelemetry.Wheels[i].HubPosition = hub;
@@ -690,6 +692,24 @@ void VehicleSolver::StepPacejka(float Δτ) noexcept
 
         CurrentTelemetry.TotalVerticalLoad += Fz;
         if (onGnd) ++CurrentTelemetry.WheelsInContact;
+    }
+}
+
+
+void VehicleSolver::CorrectAttachments(const Vec3& BeforePosition,
+                                      const Quat& BeforeRotation,
+                                      const Vec3& AfterPosition,
+                                      const Quat& AfterRotation) noexcept
+{
+    for (size_t Corner = 0u; Corner < SoftTyres.size(); ++Corner)
+    {
+        auto& Tyre = SoftTyres[Corner];
+        Tyre.CorrectAttachment(BeforePosition, BeforeRotation, AfterPosition, AfterRotation);
+        if (Corner < CurrentTelemetry.Wheels.size())
+        {
+            CurrentTelemetry.Wheels[Corner].HubPosition = Tyre.HubPosition();
+            CurrentTelemetry.Wheels[Corner].HubRotation = Tyre.HubRotation();
+        }
     }
 }
 

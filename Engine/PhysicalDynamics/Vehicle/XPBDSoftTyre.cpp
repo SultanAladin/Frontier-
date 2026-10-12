@@ -1,6 +1,7 @@
 //============================================================================================================================================
-// 📦 Frontier/PhysicalDynamics/Vehicle/XPBDSoftTyre.cpp
+//                                                              XPBDSOFTTYRE.CPP
 //============================================================================================================================================
+// 📦 Production vehicle/tyre mechanics with explicit solved-pose and mechanical-energy diagnostics.
 
 #include "XPBDSoftTyre.h"
 
@@ -16,6 +17,8 @@ namespace { constexpr float kPi = 3.14159265358979323846f; }
 //------------------------------------------------------------------------------------------------------------------------
 void XPBDSoftTyre::Build(const SoftTyreParameters& params, const Vec3& hubPos, const Quat& hubRot) noexcept
 {
+    SnapshotPosition = hubPos;
+    SnapshotRotation = hubRot;
     Parameters = params;
     Parameters.RingCount    = std::max<uint32_t>(2u, Parameters.RingCount);
     Parameters.SegmentCount = std::max<uint32_t>(8u, Parameters.SegmentCount);
@@ -641,6 +644,8 @@ void XPBDSoftTyre::Step(float dt, uint32_t substeps, const HubMotion& motion,
         }
     }
 
+    SnapshotPosition = hubPos;
+    SnapshotRotation = hubRot;
     const float inv = 1.0f / static_cast<float>(substeps);
     ContactReaction.Force = sumForce * inv;
     ContactReaction.NormalReaction = NormalReaction * inv;
@@ -653,6 +658,98 @@ void XPBDSoftTyre::Step(float dt, uint32_t substeps, const HubMotion& motion,
     Vec3 inflation{};
     for (const Vec3& gradient : InflationGradient) inflation += gradient * gasGauge;
     ContactReaction.InflationForce = inflation;
+}
+
+
+void XPBDSoftTyre::AssignRigidVelocity(const Vec3& Translation, const Vec3& Rotation, const Vec3& Origin) noexcept
+{
+    for (auto& Particle : NodeRecords)
+        Particle.Velocity = Translation + Cross(Rotation, Particle.Position - Origin);
+}
+
+void XPBDSoftTyre::CorrectAttachment(const Vec3& BeforePosition,
+                                    const Quat& BeforeRotation,
+                                    const Vec3& AfterPosition,
+                                    const Quat& AfterRotation) noexcept
+{
+    const Quat Inverse{-BeforeRotation.x, -BeforeRotation.y, -BeforeRotation.z, BeforeRotation.w};
+    const Quat Rotation = (AfterRotation * Inverse).Normalized();
+    SnapshotPosition = AfterPosition + Rotation.Rotate(SnapshotPosition - BeforePosition);
+    SnapshotRotation = (Rotation * SnapshotRotation).Normalized();
+    for (auto& Particle : NodeRecords)
+    {
+        Particle.Position = AfterPosition + Rotation.Rotate(Particle.Position - BeforePosition);
+        Particle.Previous = AfterPosition + Rotation.Rotate(Particle.Previous - BeforePosition);
+        Particle.Velocity = Rotation.Rotate(Particle.Velocity);
+    }
+}
+
+double XPBDSoftTyre::EnclosedVolume() const noexcept
+{
+    const Quat Rotation = MaterialFrame();
+    const uint32_t Count = static_cast<uint32_t>(NodeRecords.size());
+    const auto Coordinate = [&](uint32_t Index)
+    {
+        return Index < Count ? NodeRecords[Index].Position - SnapshotPosition : Rotation.Rotate(BeadLocalVertices[Index - Count]);
+    };
+    double Volume = 0.0;
+    for (const auto& Facet : GasSurface)
+    {
+        const Vec3 A = Coordinate(Facet.a), B = Coordinate(Facet.b), C = Coordinate(Facet.c);
+        Volume += static_cast<double>(A.x) * (static_cast<double>(B.y) * C.z - static_cast<double>(B.z) * C.y)
+                + static_cast<double>(A.y) * (static_cast<double>(B.z) * C.x - static_cast<double>(B.x) * C.z)
+                + static_cast<double>(A.z) * (static_cast<double>(B.x) * C.y - static_cast<double>(B.y) * C.x);
+    }
+    return Volume / 6.0;
+}
+
+TyreEnergyMetrics XPBDSoftTyre::Energy() const noexcept
+{
+    TyreEnergyMetrics Reading;
+    const Quat Rotation = MaterialFrame();
+    const Vec3 Axis = SnapshotRotation.Rotate({0.0f, 1.0f, 0.0f}).Normalized();
+    const double RestSpoke = Parameters.Radius - Parameters.RimRadius;
+    const auto Potential = [](double Deflection, double Compliance)
+    {
+        return Compliance > 0.0 ? 0.5 * Deflection * Deflection / Compliance : 0.0;
+    };
+    double ShapeSquared = 0.0;
+    for (const auto& Particle : NodeRecords)
+    {
+        if (Particle.InverseMass > 0.0f) Reading.Kinetic += 0.5 * static_cast<double>(Dot(Particle.Velocity, Particle.Velocity)) / Particle.InverseMass;
+        const Vec3 Relative = Particle.Position - SnapshotPosition;
+        const double Axial = Dot(Relative, Axis);
+        const Vec3 Radial = Relative - Axis * static_cast<float>(Axial);
+        const double Radius = Radial.Length();
+        Reading.Radius = std::max(Reading.Radius, Radius);
+        Reading.HalfWidth = std::max(Reading.HalfWidth, std::abs(Axial));
+        double Spoke = (Relative - Rotation.Rotate(Particle.BeadLocal)).Length() - RestSpoke;
+        if (Parameters.SidewallTensionOnly) Spoke = std::max(0.0, Spoke);
+        Reading.Elastic += Potential(Spoke, Parameters.SpokeCompliance);
+        const Vec3 Rest = Rotation.Rotate(Particle.TreadLocal), Offset = Relative - Rest;
+        const Vec3 RestRadial = (Rest - Axis * Dot(Rest, Axis)).Normalized();
+        Reading.Elastic += Potential(Dot(Offset, Cross(Axis, RestRadial)), Parameters.SpokeTangentialCompliance)
+                         + Potential(Dot(Offset, Axis), Parameters.SpokeLateralCompliance);
+        const double Squared = Dot(Offset, Offset); ShapeSquared += Squared;
+        Reading.ShapeMax = std::max(Reading.ShapeMax, std::sqrt(Squared));
+        if (Parameters.RimBottoming)
+            Reading.Stops += Potential(std::max(0.0, static_cast<double>(Parameters.RimRadius + Parameters.RimBottomingClearance) - Radius), Parameters.RimBottomingCompliance);
+        if (Particle.InContact)
+            Reading.Bristles += Potential(Dot(Particle.ContactPoint - Particle.BristleAnchor, Particle.TreadDirection), Parameters.TreadTangentialCompliance);
+    }
+    for (const auto& Edge : ConstraintEdges)
+        Reading.Elastic += Potential((NodeRecords[Edge.b].Position - NodeRecords[Edge.a].Position).Length() - Edge.rest, Edge.compliance);
+    if (!NodeRecords.empty()) Reading.ShapeRms = std::sqrt(ShapeSquared / NodeRecords.size());
+    const double Volume = std::max(1.0e-12, EnclosedVolume());
+    if (Parameters.GasCompressible)
+    {
+        const double Content = (Parameters.InflationPressure + Parameters.AtmosphericPressure) * GasRestVolume;
+        const double NeutralVolume = Content / Parameters.AtmosphericPressure;
+        const double ActiveVolume = std::min(Volume, NeutralVolume);
+        Reading.Gas = -Content * std::log(ActiveVolume / NeutralVolume) + Parameters.AtmosphericPressure * (ActiveVolume - NeutralVolume);
+    }
+    else Reading.Gas = Parameters.InflationPressure * (GasRestVolume - Volume);
+    return Reading;
 }
 
 } // namespace Frontier::Vehicle

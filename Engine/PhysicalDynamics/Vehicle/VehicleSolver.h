@@ -1,6 +1,8 @@
 //============================================================================================================================================
-// 📦 Frontier/PhysicalDynamics/Vehicle/VehicleSolver.h — drivable vehicle: rigid chassis + four XPBD soft tyres (Phase 3)
+//                                                              VEHICLESOLVER.H
 //============================================================================================================================================
+// 📦 Production vehicle/tyre mechanics with explicit solved-pose and mechanical-energy diagnostics.
+
 //
 //    Phase 3 assembles the pieces built in Phases 0–2 into one drivable vehicle:
 //
@@ -190,6 +192,12 @@ struct WheelTelemetry
     Vec3     ContactPoint;          // [m] world contact-patch centre
     Vec3     NormalReaction{};      // [N] - XPBD non-penetration reaction, including kerb side faces
     Vec3     TransmittedReaction{}; // [N] - suspension/linkage normal reaction actually applied to the chassis
+    Vec3     RimForce{};                 // [N] - internal tyre force on rim
+    Vec3     RimTorque{};                // [N·m] - internal tyre moment on rim
+    float    DrivePower_W = 0.0f;         // [W] - relative shaft drive work
+    float    ContactPower_W = 0.0f;       // [W] - instantaneous contact work
+    float    StaticContactPower_W = 0.0f; // [W] - coupled discrete contact work
+    float    RimPower_W = 0.0f;           // [W] - tyre/rim work diagnostic
     float    VerticalLoad = 0.0f;   // [N] Fz from the soft tyre
     float    LongitudinalForce = 0.0f; // [N] applied traction/brake (post-clamp)
     float    LateralForce = 0.0f;   // [N] applied cornering (post-clamp)
@@ -253,6 +261,10 @@ public:
 
     // One fixed physics step: read chassis, step every tyre (nodes vs heightfield), apply wheel forces at the patches.
     void Step(float Δτ) noexcept;
+    void CorrectAttachments(const Vec3& BeforePosition,
+                            const Quat& BeforeRotation,
+                            const Vec3& AfterPosition,
+                            const Quat& AfterRotation) noexcept;
 
     [[nodiscard]] const VehicleTelemetry& Telemetry() const noexcept { return CurrentTelemetry; }
     [[nodiscard]] const std::vector<XPBDSoftTyre>& Tyres() const noexcept { return SoftTyres; }

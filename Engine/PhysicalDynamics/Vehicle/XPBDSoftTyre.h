@@ -1,6 +1,8 @@
 //============================================================================================================================================
-// 📦 Frontier/PhysicalDynamics/Vehicle/XPBDSoftTyre.h — calibrated multi-ring XPBD soft-body tyre (Phase 2)
+//                                                               XPBDSOFTTYRE.H
 //============================================================================================================================================
+// 📦 Production vehicle/tyre mechanics with explicit solved-pose and mechanical-energy diagnostics.
+
 //
 //    Phase-2 evolution of the Phase-0 `XPBDTyreSolver` skeleton (single ring) into a physically-calibrated multi-ring
 //    carcass. The tyre is the one deformable element in the vehicle (the user's explicit call: tyres are rigid-XPBD soft
@@ -280,6 +282,19 @@ struct SoftTyreResidual
 };
 
 // Aggregate ground-on-tyre reaction over the last Step (the force the tyre transmits to the car).
+struct TyreEnergyMetrics
+{
+    double Kinetic = 0.0;   // [J] - world-space particle kinetic energy
+    double Elastic = 0.0;   // [J] - spokes and all lattice edges
+    double Gas = 0.0;       // [J] - endpoint gas potential
+    double Stops = 0.0;     // [J] - rim bottoming potential
+    double Bristles = 0.0;  // [J] - active tread bristles
+    double Radius = 0.0;    // [m] - maximum perpendicular distance from solved spin axis
+    double HalfWidth = 0.0; // [m] - maximum axial distance from solved hub
+    double ShapeMax = 0.0;  // [m] - maximum co-material rest displacement
+    double ShapeRms = 0.0;  // [m] - RMS co-material rest displacement
+};
+
 struct TyreReaction
 {
     Vec3  Force{};        // Fx (long), Fy (lat, along −spin-axis dir), Fz (vertical)
@@ -368,6 +383,16 @@ public:
         return (hubRot * Quat::AxisAngle(Vec3{0.0f, 1.0f, 0.0f}, SpinAngle)).Normalized();
     }
     [[nodiscard]] float RestVolume() const noexcept { return GasRestVolume; }
+    [[nodiscard]] double EnclosedVolume() const noexcept;
+    [[nodiscard]] TyreEnergyMetrics Energy() const noexcept;
+    [[nodiscard]] Vec3 HubPosition() const noexcept { return SnapshotPosition; }
+    [[nodiscard]] Quat HubRotation() const noexcept { return SnapshotRotation; }
+    [[nodiscard]] Quat MaterialFrame() const noexcept { return MaterialFrame(SnapshotRotation); }
+    void AssignRigidVelocity(const Vec3& Translation, const Vec3& Rotation, const Vec3& Origin) noexcept;
+    void CorrectAttachment(const Vec3& BeforePosition,
+                           const Quat& BeforeRotation,
+                           const Vec3& AfterPosition,
+                           const Quat& AfterRotation) noexcept;
 
 private:
     // `lambda` is the edge's XPBD multiplier, reset at the top of every substep (see SoftTyreNode).
@@ -392,6 +417,9 @@ private:
 
     float SpokeBeta = 0.0f, ContactBeta = 0.0f, TreadBeta = 0.0f, RimBeta = 0.0f;
     float SpokeTangentialBeta = 0.0f, SpokeLateralBeta = 0.0f;   // the non-edge constraints' derived β
+
+    Vec3 SnapshotPosition{};
+    Quat SnapshotRotation{};
 
     float SpinAngle     = 0.0f;   // [rad] carcass rotation about hub-local +Y, accumulated across steps
     float GasRestVolume = 0.0f;   // [m³]  enclosed volume of the undeformed carcass
