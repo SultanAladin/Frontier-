@@ -1,0 +1,32 @@
+Compiling DriveDynamicsProof
+PASS F8 edges, held key, modal capture, repossession and Edit/Simulate/new-Play reset
+PASS 120 mm kerb top, both sides and end caps agree with the rendered geometry
+PASS simple transfers XPBD kerb normal to chassis (peak 62262.8 N)
+PASS Pacejka transfers XPBD kerb normal to chassis (peak 62262.8 N)
+settled: peak kinetic 14.2 J, load 14539.6 N, side 0.0 N, body contacts 0, residual 0.000000 m, end z 0.5287 m vz 0.0001 m/s
+settled: peak kinetic 14.2 J, load 14539.6 N, side 0.0 N, body contacts 0, residual 0.000000 m, end z 0.5287 m vz 0.0001 m/s
+PASS settled complete body/force/energy trace is bit-identical on this compiler/host
+kerb: peak kinetic 3642.7 J, load 18667.2 N, side 35283.1 N, body contacts 0, residual 0.000000 m, end z 0.5294 m vz -0.0001 m/s
+kerb: peak kinetic 3642.7 J, load 18667.2 N, side 35283.1 N, body contacts 0, residual 0.000000 m, end z 0.5294 m vz -0.0001 m/s
+PASS kerb complete body/force/energy trace is bit-identical on this compiler/host
+airborne: peak kinetic 137529.3 J, load 0.0 N, side 0.0 N, body contacts 0, residual 0.000000 m, end z -3.0473 m vz -14.7053 m/s
+airborne: peak kinetic 137529.3 J, load 0.0 N, side 0.0 N, body contacts 0, residual 0.000000 m, end z -3.0473 m vz -14.7053 m/s
+PASS airborne complete body/force/energy trace is bit-identical on this compiler/host
+rollover: peak kinetic 4312.2 J, load 0.0 N, side 0.0 N, body contacts 1500, residual 0.000000 m, end z 1.2425 m vz -0.0489 m/s
+rollover: peak kinetic 4312.2 J, load 0.0 N, side 0.0 N, body contacts 1500, residual 0.000000 m, end z 1.2425 m vz -0.0489 m/s
+PASS rollover complete body/force/energy trace is bit-identical on this compiler/host
+landing: peak kinetic 19453.9 J, load 104062.4 N, side 0.0 N, body contacts 0, residual 0.000000 m, end z 0.5293 m vz 0.0079 m/s
+landing: peak kinetic 19453.9 J, load 104062.4 N, side 0.0 N, body contacts 0, residual 0.000000 m, end z 0.5293 m vz 0.0079 m/s
+PASS landing complete body/force/energy trace is bit-identical on this compiler/host
+CPU production simulation only; no window, Vulkan driver, GPU timing or appearance validation.
+Compiling DriveInterchangeChecks
+PASS edit mode never drives or requests a player camera
+Drive displacement: 14.8642 -0.0001 1.2399 metres
+PASS Play drives the real vehicle solver and emits all five placements plus the chase camera
+PASS pause holds simulation; one step advances exactly one interval
+PASS paused reset returns both chassis and all wheel transforms to spawn
+PASS Simulate integrates without keyboard driving or a chase-camera takeover
+PASS text-input capture suppresses driving
+PASS project retirement
+PASS real deployment callbacks: configured position/yaw, edit-mode safety, optional deletion, respawn edge and new-session restoration
+PASS deterministic CPU vehicle/contact/possession checks; trace files: _AgentScratch/tmp/DriveDynamicsReconstructed
