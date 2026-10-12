@@ -9,6 +9,17 @@ export default defineConfig({
   root,
   base: './',
   server: { host: '0.0.0.0', allowedHosts: ['.e2b.app'], proxy: { '/api/construct': 'http://127.0.0.1:5191' } },
+  build: {
+    // The road editor is a second entry: it has its own module graph (the mesher
+    // plus a build worker), so it is bundled rather than copied as a standalone
+    // page like the icon labs.
+    rollupOptions: {
+      input: {
+        main: resolve(root, 'index.html'),
+        road: resolve(root, 'road.html'),
+      },
+    },
+  },
   plugins: [{
     name: 'standalone-experimental-pages',
     configureServer(server) {

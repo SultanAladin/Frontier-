@@ -1,0 +1,168 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Frontier · Road Editor</title>
+<style>
+  /* Tokens follow Docs/Design/ViewportHeader.html (option A, shipped):
+     panel #111315, page #0b0c0d, view #16191f, text #f0f0f0, dim #888,
+     accent #4fd8e0, strokes rgba(255,255,255,.05|.10), 26px buttons, 13px radius. */
+  :root {
+    --panel: #111315;
+    --page: #0b0c0d;
+    --view: #16191f;
+    --text: #f0f0f0;
+    --dim: #888;
+    --accent: #4fd8e0;
+    --warn: #e8b455;
+    --line: rgba(255, 255, 255, .05);
+    --line-strong: rgba(255, 255, 255, .10);
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; background: var(--page); color: var(--text);
+    font: 12px/1.45 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; overflow: hidden; }
+  #app { display: grid; grid-template-columns: 268px 1fr; grid-template-rows: 44px 1fr; height: 100%; }
+  header { grid-column: 1 / -1; display: flex; align-items: center; gap: 12px; padding: 0 12px;
+    background: var(--panel); border-bottom: 2px solid var(--line-strong); }
+  header .brand { font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
+  header .pill { display: inline-flex; align-items: center; gap: 6px; height: 22px; padding: 0 10px;
+    border: 1px solid var(--line-strong); border-radius: 999px; color: var(--dim); }
+  header .pill.live { color: var(--accent); border-color: color-mix(in srgb, var(--accent) 45%, transparent); }
+  header .spacer { flex: 1; }
+  header .hint { color: var(--dim); }
+  kbd { background: #1b1f23; border: 1px solid var(--line-strong); border-radius: 4px; padding: 0 4px; color: var(--text); }
+  aside { background: var(--panel); border-right: 1px solid var(--line); overflow-y: auto; padding: 10px; }
+  main { position: relative; background: var(--view); min-width: 0; }
+  canvas#view { display: block; width: 100%; height: 100%; outline: none; cursor: crosshair; }
+  section { border-top: 1px solid var(--line); padding: 8px 0 10px; }
+  section:first-child { border-top: 0; }
+  h2 { margin: 0 0 6px; font-size: 11px; letter-spacing: .1em; text-transform: uppercase; color: var(--dim); font-weight: 600; }
+  .row { display: flex; justify-content: space-between; gap: 8px; padding: 1px 0; color: var(--dim); }
+  .row b { color: var(--text); font-weight: 600; }
+  .field { display: grid; grid-template-columns: 1fr 46px; align-items: center; gap: 6px; margin: 5px 0; }
+  .field label { color: var(--dim); }
+  .field output { color: var(--text); text-align: right; }
+  input[type=range] { grid-column: 1 / -1; width: 100%; accent-color: var(--accent); }
+  .checks { display: grid; grid-template-columns: 1fr 1fr; gap: 4px 8px; }
+  .checks label { display: flex; align-items: center; gap: 5px; color: var(--dim); }
+  input[type=checkbox] { accent-color: var(--accent); }
+  .btns { display: flex; gap: 6px; margin-top: 8px; }
+  button { height: 26px; padding: 0 12px; border-radius: 13px; border: 1px solid var(--line-strong);
+    background: #16191f; color: var(--text); font: inherit; cursor: pointer; }
+  button:hover { border-color: color-mix(in srgb, var(--accent) 45%, transparent); color: var(--accent); }
+  #minimapWrap { position: absolute; right: 12px; top: 12px; width: 208px; border-radius: 13px;
+    border: 1px solid var(--line-strong); background: rgba(11, 12, 13, .72); overflow: hidden; }
+  #minimapWrap.off { display: none; }
+  #minimapWrap .cap { padding: 4px 8px; color: var(--dim); border-bottom: 1px solid var(--line); }
+  canvas#minimap { display: block; width: 206px; height: 206px; cursor: crosshair; }
+  #hud { position: absolute; left: 12px; bottom: 12px; display: flex; gap: 8px; align-items: baseline;
+    padding: 5px 10px; border-radius: 13px; border: 1px solid var(--line-strong); background: rgba(11, 12, 13, .72); }
+  #hud b { color: var(--accent); font-size: 14px; }
+  #hud span { color: var(--dim); }
+  #overlay { position: absolute; inset: 0; display: none; place-items: center; background: rgba(11, 12, 13, .82); }
+  #overlay.on { display: grid; }
+  #overlay .box { width: min(420px, 80%); text-align: center; }
+  #overlay .track { height: 3px; background: #1b1f23; border-radius: 2px; overflow: hidden; margin-top: 10px; }
+  #bar { height: 100%; width: 0; background: var(--accent); transition: width .18s ease; }
+  #error { position: absolute; left: 12px; right: 12px; bottom: 12px; display: none; padding: 8px 10px;
+    border: 1px solid var(--warn); border-radius: 13px; color: var(--warn); background: rgba(11,12,13,.9);
+    white-space: pre-wrap; max-height: 40%; overflow: auto; }
+  #error.on { display: block; }
+  body.hideui aside, body.hideui #minimapWrap { display: none; }
+  body.hideui #app { grid-template-columns: 0 1fr; }
+  .legend { display: flex; flex-wrap: wrap; gap: 4px 8px; }
+  .legend i { width: 10px; height: 10px; border-radius: 2px; display: inline-block; margin-right: 4px; vertical-align: -1px; }
+  a { color: var(--accent); text-decoration: none; }
+</style>
+</head>
+<body>
+<div id="app">
+  <header>
+    <span class="brand">Frontier</span>
+    <span class="pill live" id="modePill">● road editor</span>
+    <span class="spacer"></span>
+    <span class="hint"><kbd>RMB</kbd> look <kbd>WASD</kbd> move <kbd>Q</kbd><kbd>E</kbd> down/up <kbd>Shift</kbd> sprint <kbd>1-4</kbd> layers <kbd>H</kbd> hide UI <kbd>R</kbd> reseed</span>
+  </header>
+
+  <aside>
+    <section>
+      <h2>City</h2>
+      <div class="field"><label>seed</label><output id="seedOut">#11</output></div>
+      <div class="field"><label>blocks</label><output id="blocksOut">8</output><input id="blocks" type="range" min="3" max="20" step="1" /></div>
+      <div class="field"><label>block size</label><output id="blockSizeOut">240 m</output><input id="blockSize" type="range" min="120" max="520" step="20" /></div>
+      <div class="field"><label>jitter</label><output id="jitterOut">16 m</output><input id="jitter" type="range" min="0" max="60" step="2" /></div>
+      <div class="field"><label>terrain</label><output id="ampOut">1.00×</output><input id="amp" type="range" min="0" max="3" step="0.05" /></div>
+      <div class="checks">
+        <label><input id="ring" type="checkbox" checked /> ring road</label>
+        <label><input id="rail" type="checkbox" checked /> rail line</label>
+      </div>
+      <div class="btns">
+        <button id="rebuild">Regenerate</button>
+        <button id="reseed">New seed</button>
+      </div>
+    </section>
+
+    <section>
+      <h2>Layers</h2>
+      <div class="checks">
+        <label><input id="g-deck" type="checkbox" checked /> deck</label>
+        <label><input id="g-markings" type="checkbox" checked /> markings</label>
+        <label><input id="g-furniture" type="checkbox" checked /> furniture</label>
+        <label><input id="g-structures" type="checkbox" checked /> structures</label>
+        <label><input id="ground" type="checkbox" checked /> ground</label>
+        <label><input id="fog" type="checkbox" checked /> fog</label>
+      </div>
+      <div class="field" style="margin-top:8px"><label>fov</label><output></output><input id="fov" type="range" min="35" max="100" step="1" value="60" /></div>
+      <div class="btns"><button id="frame">Frame city</button></div>
+    </section>
+
+    <section>
+      <h2>Generated</h2>
+      <div id="summary"></div>
+    </section>
+
+    <section>
+      <h2>Road classes</h2>
+      <div id="classes"></div>
+    </section>
+
+    <section>
+      <h2>Junction types</h2>
+      <div id="junctionTypes"></div>
+    </section>
+
+    <section>
+      <h2>Rules</h2>
+      <div id="rules"></div>
+    </section>
+
+    <section>
+      <h2>What is in here</h2>
+      <div style="color:var(--dim)">
+        Every road type in the table, meshed from one cross-section solver: kerbs with gutters,
+        footways and verges, medians, bus and cycle lanes, parking lanes, bridges with piers and
+        fascias, tunnels, home zones with speed tables, roundabouts, signal junctions, give-way
+        junctions, shared surfaces, rail lines with level crossings, and the markings and street
+        furniture that go with them. Every surface is checked: no non-manifold edges, no
+        inside-out faces, no degenerate triangles.
+      </div>
+    </section>
+  </aside>
+
+  <main>
+    <canvas id="view"></canvas>
+    <div id="minimapWrap"><div class="cap">minimap · click to teleport</div><canvas id="minimap" width="412" height="412"></canvas></div>
+    <div id="hud"></div>
+    <div id="overlay" class="on">
+      <div class="box">
+        <div id="status">building</div>
+        <div class="track"><div id="bar"></div></div>
+      </div>
+    </div>
+    <div id="error"></div>
+  </main>
+</div>
+<script type="module" src="./road/app/main.js"></script>
+</body>
+</html>

@@ -1,0 +1,126 @@
+{
+ "seed": 11,
+ "blocks": 7,
+ "blockSize": 240,
+ "checks": [
+  {
+   "ok": true,
+   "what": "deck mesh validates",
+   "detail": ""
+  },
+  {
+   "ok": true,
+   "what": "markings mesh validates",
+   "detail": ""
+  },
+  {
+   "ok": true,
+   "what": "furniture mesh validates",
+   "detail": ""
+  },
+  {
+   "ok": true,
+   "what": "structures mesh validates",
+   "detail": ""
+  },
+  {
+   "ok": true,
+   "what": "tiling keeps every deck triangle",
+   "detail": "726052 of 726052"
+  },
+  {
+   "ok": true,
+   "what": "tiling keeps every markings triangle",
+   "detail": "97120 of 97120"
+  },
+  {
+   "ok": true,
+   "what": "tiling keeps every furniture triangle",
+   "detail": "419052 of 419052"
+  },
+  {
+   "ok": true,
+   "what": "tiling keeps every structures triangle",
+   "detail": "23814 of 23814"
+  },
+  {
+   "ok": true,
+   "what": "tile buffers are finite",
+   "detail": "0 non-finite values"
+  },
+  {
+   "ok": true,
+   "what": "tile bounds contain their vertices",
+   "detail": "0 outside"
+  },
+  {
+   "ok": true,
+   "what": "tile indices are whole triangles",
+   "detail": ""
+  },
+  {
+   "ok": true,
+   "what": "tiles cover the whole mesh",
+   "detail": "1266038 of 1266038"
+  },
+  {
+   "ok": true,
+   "what": "every view draws geometry",
+   "detail": "street:589443"
+  },
+  {
+   "ok": true,
+   "what": "the aerial view shows the road grid",
+   "detail": "undefined"
+  },
+  {
+   "ok": true,
+   "what": "the street view is mostly carriageway",
+   "detail": "0.4797444444444444"
+  }
+ ],
+ "images": [
+  {
+   "name": "street",
+   "file": "/home/user/Frontier-/Experimental/FrontierEditor/road/renders/city-seed11-street.png",
+   "drawn": 589443,
+   "coverage": 0.4797444444444444,
+   "ms": 468
+  }
+ ],
+ "stats": {
+  "roads": 93,
+  "junctions": 53,
+  "tris": 1266038,
+  "counts": {
+   "bands": 808,
+   "kerbs": 296,
+   "dashes": 94260,
+   "furniture": 5421,
+   "sleepers": 2,
+   "track": 57120,
+   "corners": 153,
+   "signals": 78,
+   "signs": 25
+  },
+  "warnings": [],
+  "skipped": [],
+  "trisByGroup": {
+   "deck": 726052,
+   "markings": 97120,
+   "furniture": 419052,
+   "structures": 23814
+  }
+ },
+ "buildMs": 5218,
+ "bounds": [
+  -282.43402099609375,
+  -12.470184326171875,
+  -257.1756896972656,
+  1775.7242431640625,
+  27.151817321777344,
+  1775.231689453125
+ ],
+ "tiles": 241,
+ "tris": 1266038
+}
