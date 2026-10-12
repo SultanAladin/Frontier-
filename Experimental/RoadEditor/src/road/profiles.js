@@ -26,6 +26,17 @@ const L = (type, width, dir, extra) => ({ type, width: width ?? LANE_TYPES[type]
 const mirror = (lanes) => lanes.map(l => ({ ...l, dir: l.dir !== undefined ? -l.dir : undefined })).reverse();
 // Build symmetric two-way profile from the right half (center → right edge).
 const sym = (rightHalf) => [...mirror(rightHalf), ...rightHalf];
+// A single median is one continuous center island, not one mirrored strip per carriageway.
+// Keep the total section width while joining both half-widths into one lane at the center.
+const symWithCenterMedian = (rightHalf) => {
+  const medianIndex = rightHalf.findIndex(l => l.type === 'median');
+  if (medianIndex < 0) return sym(rightHalf);
+  const median = rightHalf[medianIndex];
+  const sides = [...rightHalf.slice(0, medianIndex), ...rightHalf.slice(medianIndex + 1)];
+  const centerMedian = { ...median, width: median.width * 2 };
+  delete centerMedian.dir;
+  return [...mirror(sides), centerMedian, ...sides];
+};
 
 export const CATEGORIES = [
   { id: 'highway', label: 'Highways', blurb: 'Grade-separated, high speed' },
@@ -66,7 +77,7 @@ export const PROFILES = {
   boulevard: {
     name: 'Grand boulevard', category: 'arterial', speed: 60, surface: 'asphalt', lamps: 'both', lampSpacing: 32, trees: true, busStops: true,
     desc: '2+2 lanes, curbside bus lanes, tree-lined median and tree lawns.',
-    lanes: sym([L('median', 2.6, undefined, { trees: true }), L('drive', 3.3, 1), L('drive', 3.3, 1), L('bus', 3.5, 1), L('planter', 1.8, undefined, { trees: true }), L('sidewalk', 4.2)]),
+    lanes: symWithCenterMedian([L('median', 2.6, undefined, { trees: true }), L('drive', 3.3, 1), L('drive', 3.3, 1), L('bus', 3.5, 1), L('planter', 1.8, undefined, { trees: true }), L('sidewalk', 4.2)]),
   },
   avenueBike: {
     name: 'Avenue · protected bike', category: 'arterial', speed: 50, surface: 'asphalt', lamps: 'both', lampSpacing: 30, trees: true,
@@ -76,7 +87,7 @@ export const PROFILES = {
   arterialBRT: {
     name: 'Arterial · center BRT', category: 'arterial', speed: 50, surface: 'asphalt', lamps: 'both', lampSpacing: 30,
     desc: 'Center-running bus rapid transit with concrete islands.',
-    lanes: sym([L('bus', 3.6, 1), L('median', 1.2, undefined, { mat: 'concrete' }), L('drive', 3.3, 1), L('drive', 3.3, 1), L('sidewalk', 4.0)]),
+    lanes: symWithCenterMedian([L('bus', 3.6, 1), L('median', 1.2, undefined, { mat: 'concrete' }), L('drive', 3.3, 1), L('drive', 3.3, 1), L('sidewalk', 4.0)]),
   },
   tramAvenue: {
     name: 'Tram avenue', category: 'arterial', speed: 50, surface: 'asphalt', lamps: 'both', lampSpacing: 30, trees: true,

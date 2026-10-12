@@ -11,6 +11,7 @@ npm run dev            # vite on 0.0.0.0:5173
 npm run build          # production bundle in dist/
 npm run test:gen       # headless generator smoke test (node only, no browser)
 npm run test:topology  # rail topology, train, undo and lane-transition geometry checks
+npm run test:geometry  # centered medians, single rounded noses and roundabout placement
 ```
 
 ---
@@ -150,6 +151,9 @@ from acne-ing themselves.
 * `scripts/winding-test.mjs` — checks every swept quad and arc strip is CCW when seen from outside.
 * `scripts/transit-topology-test.mjs` — checks rail switches vs grade separation, suspended supports
   and trains, rail undo/redo, and angled two-to-three lane transition geometry.
+* `scripts/geometry-regression-test.mjs` — checks boulevard/BRT medians merge into one centered island
+  without changing road width, each road end gets one rounded nose, and roundabout islands remain
+  centered on their junction nodes.
 
 ## Notes & limits
 
