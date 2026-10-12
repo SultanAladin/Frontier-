@@ -602,7 +602,10 @@ void VehicleSolver::StepPacejka(float Δτ) noexcept
         const bool LowSpeedLateral = std::abs(VlatHub) < 0.5f && cs.AngularVelocity.Length() < 0.5f;
         // 📝 A locked rotor has Coulomb contact at every sliding speed. A low-speed-only eligibility gate
         //      alternated braking on/off around its threshold and left the vehicle creeping near that speed.
-        const bool Resting = onGnd && (LockedBrake || LowSpeedLateral)
+        // 📝 During braking, all contact patches share the lateral Coulomb solve, including freely
+        //      rolling front rotors. Otherwise rear-only braking makes front contacts fall out at
+        //      the lateral capture threshold, producing a persistent cross-slope slide/yaw cycle.
+        const bool Resting = onGnd && (BrakePriority || LockedBrake || LowSpeedLateral)
                            && RestingCount < RestingContacts.size();
         if (Resting)
         {
