@@ -12,3 +12,6 @@ Experimental/FrontierEditor/vendor/slate-new-icons/App.tsx -whitespace
 # Preserve imported upstream font licence bytes, including original line endings.
 EngineContent/FontArchives/*/OFL.txt -whitespace
 EngineContent/FontArchives/*/LICENSE.txt -whitespace
+
+# Unified-diff recovery transport needs literal blank context lines.
+Exhibits/Gallery/ProjectDrive/flight/ReconstructedSource.patch -whitespace
