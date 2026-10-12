@@ -58,6 +58,24 @@ for (const g of mismatched) {
     'corner ramp returns to the adjoining approach width');
 }
 
+// A two-edge alley/one-way elbow must round both sides of the bend instead of leaving a
+// straight chord that makes the connected roads look like an L-shaped collision.
+const elbowNet = new RoadNetwork();
+const elbow = elbowNet.addNode({ x: 0, z: 0, y: 0 });
+const west = elbowNet.addNode({ x: -120, z: 0, y: 0 });
+const north = elbowNet.addNode({ x: 0, z: -120, y: 0 });
+elbowNet.addEdge({ a: elbow.id, b: west.id, profile: 'alley' });
+elbowNet.addEdge({ a: elbow.id, b: north.id, profile: 'oneway' });
+const elbowJunction = computeJunction(elbowNet, elbow.id);
+assert.equal(elbowJunction.kind, 'junction');
+assert.equal(elbowJunction.gaps.filter(g => g.type === 'arc').length, 2,
+  'both inner and outer boundaries of a two-edge elbow should be rounded');
+assert.equal(elbowJunction.gaps.filter(g => g.outerSide).length, 1,
+  'the outside return uses its paired radius on the far side of the bend');
+const elbowMesh = buildJunction(elbowNet, elbowJunction, { markings: false, props: false });
+assert(elbowMesh.mesh.asphalt?.i.length > 0, 'rounded elbow builds a connected paved junction surface');
+for (const mesh of Object.values(elbowMesh.mesh)) assert(mesh.p.every(Number.isFinite), 'elbow mesh stays finite');
+
 // A roundabout's island must stay centered on its actual junction node, including off-origin nodes.
 const net = new RoadNetwork();
 const center = net.addNode({ x: 137, z: -83, y: 0, kind: 'roundabout', rbRadius: 24 });
@@ -78,4 +96,4 @@ assert.ok(grass, 'roundabout island produces its grass surface');
 assert.ok(Math.abs(grass.p[0] - center.x) < 1e-8 && Math.abs(grass.p[2] - center.z) < 1e-8,
   'roundabout island fill is positioned over its node, not displaced down an approach');
 
-console.log('geometry regression checks passed: corner-width blends, single centered medians and roundabout placement');
+console.log('geometry regression checks passed: corner-width blends, rounded L elbows, single centered medians and roundabout placement');

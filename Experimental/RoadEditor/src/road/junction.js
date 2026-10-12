@@ -1,7 +1,7 @@
 // Junction solver. For every node it determines where each incident road ends (setback) and
 // the boundary of the junction surface: curb returns are true circular fillets tangent to both
-// curb lines; the sidewalk outer line is a concentric arc, so corner strips are clean quads.
-// Roundabouts / cul-de-sacs use fillet → circle → fillet boundaries.
+// curb lines; mismatched sidewalk zones blend on approach legs instead of pinching along the arc.
+// Degree-2 bends get paired returns; roundabouts / cul-de-sacs use fillet → circle → fillet boundaries.
 import { getProfile, layout, RANK } from './profiles.js';
 import { TAU, wrapAngle, lineIntersect } from './math.js';
 
@@ -41,10 +41,14 @@ function endInfo(net, edge, nodeId) {
 // Position at distance t along d from node, lateral offset w along right-of-d.
 const P = (N, e, t, w) => [N.x + e.dx * t + e.rx * w, N.z + e.dz * t + e.rz * w];
 
-function arcPts(cx, cz, r, a0, sweep) {
+function arcPts(cx, cz, r0, a0, sweep, r1 = r0) {
   const n = Math.max(2, Math.ceil(Math.abs(sweep) / ARC_STEP));
   const out = [];
-  for (let k = 0; k <= n; k++) { const a = a0 + sweep * k / n; out.push([cx + Math.cos(a) * r, cz + Math.sin(a) * r]); }
+  for (let k = 0; k <= n; k++) {
+    const t = k / n, eased = t * t * (3 - 2 * t), r = r0 + (r1 - r0) * eased;
+    const a = a0 + sweep * t;
+    out.push([cx + Math.cos(a) * r, cz + Math.sin(a) * r]);
+  }
   return out;
 }
 
@@ -108,6 +112,38 @@ export function computeJunction(net, nodeId) {
     }
     gaps.push({ type: 'straight', A, B, swA, swB, hasCurb, phi });
   }
+  // A two-edge bend has two road boundaries: the ordinary return and its opposite,
+  // concentric return. Leaving the reflex boundary as a chord makes an alley-to-street bend
+  // look like a sharp L. Reuse the first return's center and project onto the opposite curbs.
+  if (n === 2) {
+    const inner = gaps.find(g => g.type === 'arc');
+    const reflex = gaps.find(g => g.type === 'straight' && g.phi > Math.PI);
+    if (inner && reflex) {
+      const O = inner.O;
+      const tangent = (e, offset) => {
+        const x = N.x + e.rx * offset, z = N.z + e.rz * offset;
+        const t = (O[0] - x) * e.dx + (O[1] - z) * e.dz;
+        const p = [x + e.dx * t, z + e.dz * t];
+        return { t, p, r: Math.hypot(p[0] - O[0], p[1] - O[1]) };
+      };
+      const ta = tangent(reflex.A, reflex.A.wr), tb = tangent(reflex.B, -reflex.B.wl);
+      const a0 = Math.atan2(ta.p[1] - O[1], ta.p[0] - O[0]);
+      const a1 = Math.atan2(tb.p[1] - O[1], tb.p[0] - O[0]);
+      const sweep = wrapPi(a1 - a0);
+      if (ta.t > 0.05 && tb.t > 0.05 && ta.r > 0.05 && tb.r > 0.05 && Math.abs(sweep) > 0.02 && Math.abs(sweep) < Math.PI * 0.94) {
+        const cornerWidth = reflex.hasCurb ? Math.max(reflex.swA, reflex.swB) : 0;
+        const blendA = blendLength(cornerWidth - reflex.swA), blendB = blendLength(cornerWidth - reflex.swB);
+        Object.assign(reflex, {
+          type: 'arc', O, tA: ta.t, sB: tb.t, a0, sweep,
+          R: ta.r, radiusA: ta.r, radiusB: tb.r,
+          cornerWidth, blendA, blendB, outerSide: true,
+        });
+        reflex.A.setback = Math.max(reflex.A.setback, ta.t + blendA);
+        reflex.B.setback = Math.max(reflex.B.setback, tb.t + blendB);
+      }
+    }
+  }
+
   // Straight / reflex gaps between near-opposite roads: keep a small transition so the two
   // end cross-sections never overlap.
   for (const g of gaps) if (g.type === 'straight') {
@@ -154,11 +190,14 @@ function buildGap(N, g) {
     const cornerWidth = g.cornerWidth ?? Math.max(g.swA, g.swB);
     approach(A, A.setback, g.tA, g.swA, cornerWidth, 'right');
     const arcStart = curb.length - 1;
-    const pts = arcPts(g.O[0], g.O[1], g.R, g.a0, g.sweep);
+    const radiusA = g.radiusA ?? g.R, radiusB = g.radiusB ?? g.R;
+    const pts = arcPts(g.O[0], g.O[1], radiusA, g.a0, g.sweep, radiusB);
     const n = pts.length - 1;
     for (let k = 1; k <= n; k++) {
-      const a = g.a0 + g.sweep * k / n, r = Math.max(0.05, g.R - cornerWidth);
-      push(pts[k], [g.O[0] + Math.cos(a) * r, g.O[1] + Math.sin(a) * r], N.y);
+      const t = k / n, eased = t * t * (3 - 2 * t);
+      const angle = g.a0 + g.sweep * t, radius = radiusA + (radiusB - radiusA) * eased;
+      const outerRadius = Math.max(0.05, radius + (g.outerSide ? cornerWidth : -cornerWidth));
+      push(pts[k], [g.O[0] + Math.cos(angle) * outerRadius, g.O[1] + Math.sin(angle) * outerRadius], N.y);
     }
     const arcEnd = curb.length - 1;
     arcRange = [arcStart, arcEnd];
@@ -169,7 +208,7 @@ function buildGap(N, g) {
   return {
     curb, outer, swA: g.swA, swB: g.swB, cornerWidth: g.cornerWidth,
     blendA: g.blendA || 0, blendB: g.blendB || 0, arcRange,
-    hasCurb: g.hasCurb, type: g.type, A: A.id, B: B.id,
+    outerSide: !!g.outerSide, hasCurb: g.hasCurb, type: g.type, A: A.id, B: B.id,
   };
 }
 

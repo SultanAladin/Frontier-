@@ -152,8 +152,8 @@ from acne-ing themselves.
 * `scripts/transit-topology-test.mjs` — checks rail switches vs grade separation, suspended supports
   and trains, rail undo/redo, and angled two-to-three lane transition geometry.
 * `scripts/geometry-regression-test.mjs` — checks mismatched sidewalk widths blend into a constant-width
-  rounded corner, boulevard/BRT medians merge into one centered island without changing road width,
-  each road end gets one rounded nose, and roundabout islands remain centered on their junction nodes.
+  rounded corner, alley/one-way L bends round both boundaries, boulevard/BRT medians merge into one
+  centered island without changing road width, and roundabout islands remain centered on their nodes.
 
 ## Notes & limits
 
