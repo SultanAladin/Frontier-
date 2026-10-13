@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>Frontier — centre tablet</title>
+<link rel="stylesheet" href="css/carhmi.css">
+</head>
+<body>
+<div id="tablet">
+  <div id="statusbar">
+    <span class="grip"></span>
+    <span class="clock" id="clock">--:--</span>
+    <span class="spacer"></span>
+    <span class="pill" id="sbSpeed"><b>0</b> km/h</span>
+    <span class="pill" id="sbGear">gear <b>N</b></span>
+    <span class="pill" id="sbTyre">tyre <b>—</b></span>
+    <span class="pill">⛽ <b>68%</b></span>
+  </div>
+  <div id="body">
+    <nav id="rail"></nav>
+    <main id="page"></main>
+  </div>
+</div>
+
+<div id="shade">
+  <div class="quick">
+    <div class="card"><h2>Drive snapshot</h2>
+      <div class="row"><label>Speed</label><output id="qSpeed">—</output></div>
+      <div class="row"><label>Gear</label><output id="qGear">—</output></div>
+    </div>
+    <div class="card"><h2>Quick</h2>
+      <div class="row"><label>Cluster page</label><a class="btn ghost" href="cluster.html" style="text-decoration:none">Open</a></div>
+      <div class="row"><label>Close shade</label><button class="btn ghost" id="shadeClose">Up ↑</button></div>
+    </div>
+  </div>
+</div>
+
+<div id="kb"></div>
+
+<div id="boot">
+  <canvas></canvas>
+  <div class="logo">FRONTIER</div>
+  <div class="ver">HMI 0.1 · PROTO-X · VIN FX-0001</div>
+  <div class="sys"></div>
+  <div class="skip">tap to skip after the logo</div>
+</div>
+
+<script type="module" src="js/tablet.js"></script>
+</body>
+</html>

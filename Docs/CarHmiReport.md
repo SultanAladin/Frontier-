@@ -272,7 +272,7 @@ prototype (§10), not here.
 
 ---
 
-## 6. The "Session" rename
+## 6. The "Session" name — decided: keep it
 
 "Session" is the worst available name *inside this codebase*: the networking
 plan already distinguishes the **lobby object** from the **match session
@@ -281,14 +281,19 @@ contains. Candidates, car-flavoured:
 
 | Name | Reads as | Verdict |
 |---|---|---|
-| **Paddock** | motorsport team area + race control; naturally holds lobby *and* race setup | **recommended** |
-| Convoy | driving together; weak for match settings/screens | runner-up (better if cruising > racing) |
-| Grid | the start grid; race-only, says nothing about the lobby | no |
-| Race Control | authoritative; cold, and clashes with "Controls" (car) | no |
-| Meetup | casual; undersells ranked/match machinery | no |
+| **Paddock** | motorsport team area + race control; naturally holds lobby *and* race setup | was recommended — **rejected by owner 2026-10-13** |
+| Convoy | driving together; weak for match settings/screens | rejected |
+| Grid | the start grid; race-only, says nothing about the lobby | rejected |
+| Race Control | authoritative; cold, and clashes with "Controls" (car) | rejected |
+| Meetup | casual; undersells ranked/match machinery | rejected |
+| **Session** | the current name; ambiguous lobby-vs-match in code, familiar in UI | **kept by owner 2026-10-13** |
 
-**Recommendation: Paddock.** Tabs inside: `Paddock / Browse / Setup / History`
-— the networking plan's four tabs, renamed, same contents.
+**Decision: Session.** Tabs inside: `Session / Browse / Setup / History` —
+the networking plan's four tabs, renamed, same contents. The code keeps the
+lobby-object vs match-session distinction internally; only the tab title says
+"Session". To limit the ambiguity damage, the UI copy inside the tab always
+says which object an action touches ("Leave lobby" vs "End match session",
+never "Leave session").
 
 ---
 
@@ -391,18 +396,20 @@ timeline (§7) — each with a named C++ landing spot, so the port is transcript
 
 ---
 
-## 10. Decisions needed from you
+## 10. Decisions — resolved 2026-10-13
 
-1. **Prototype scope**: tablet only first, or tablet + cluster side by side?
-   (Recommended: tablet first — it carries touch, pages, preview and boot;
-   the cluster is one page of gauges once the theme exists.)
-2. **Paddock** for the lobby+match section — yes, or one of the others?
-3. **Tablet orientation**: landscape (matches the 1440×845 SpatialHud target)
-   or portrait (matches the phone metaphor)? Landscape keeps every measured
-   number; portrait reads more "car tablet" but re-lays everything out.
+1. **Prototype scope**: ~~tablet only first, or tablet + cluster side by side?~~
+   → **tablet + cluster together** (`Experimental/CarHmi/index.html` +
+   `cluster.html`).
+2. **Session name**: ~~Paddock, Convoy, or keep Session?~~ → **keep Session**
+   (§6). UI copy must still disambiguate lobby vs match-session actions.
+3. **Tablet orientation**: ~~landscape or portrait?~~ → **landscape** (keeps
+   the measured 1440×845 SpatialHud target).
 4. The two look references didn't arrive as viewable images in this session —
    re-attach them (or confirm the dark-glass/cyan/amber read in §5.4) before
-   the prototype pins the theme.
+   the prototype's theme tokens are treated as final. The prototype currently
+   pins the SpatialHud-derived cyan/amber/near-black contract in
+   `Experimental/CarHmi/js/theme.js`.
 
 ## 11. Deferred alongside this task
 
