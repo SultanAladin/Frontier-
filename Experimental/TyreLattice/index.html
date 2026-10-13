@@ -311,7 +311,7 @@ struct Skin  { hubPos : vec4<f32>, frame : vec4<f32>, counts : vec4<u32> };
 @group(0) @binding(0) var<uniform> camera : Camera;
 @group(0) @binding(1) var<uniform> skin : Skin;
 @group(0) @binding(2) var<storage, read> nodes : array<vec4<f32>>;      // coarse solver nodes, world
-@group(0) @binding(3) var<storage, read> active : array<u32>;
+@group(0) @binding(3) var<storage, read> nodeActive : array<u32>;
 
 fn rotate(q : vec4<f32>, v : vec3<f32>) -> vec3<f32> { let t = 2.0 * cross(q.xyz, v); return v + q.w * t + cross(q.xyz, t); }
 
@@ -323,7 +323,7 @@ struct TyreVertex { @location(0) idx : vec4<u32>, @location(1) w : vec4<f32>, @l
   var p = nodes[v.idx.x].xyz * v.w.x + nodes[v.idx.y].xyz * v.w.y + nodes[v.idx.z].xyz * v.w.z + nodes[v.idx.w].xyz * v.w.w;
   p = p + rotate(skin.frame, v.offset);
   var o : VSOut; o.pos = camera.viewProj * vec4<f32>(p, 1.0); o.normal = rotate(skin.frame, v.restNormal); o.world = p;
-  let a = active[v.idx.x] + active[v.idx.y] + active[v.idx.z] + active[v.idx.w];
+  let a = nodeActive[v.idx.x] + nodeActive[v.idx.y] + nodeActive[v.idx.z] + nodeActive[v.idx.w];
   o.colour = select(vec3<f32>(0.22, 0.23, 0.26), vec3<f32>(0.35, 0.36, 0.40), a > 0u);
   return o;
 }
@@ -338,6 +338,8 @@ struct PlainVertex { @location(0) pos : vec3<f32>, @location(1) normal : vec3<f3
 @fragment fn fsFlat(i : VSOut) -> @location(0) vec4<f32> { return vec4<f32>(i.colour, 1.0); }
 `});
 
+{ const info = await shader.getCompilationInfo(); const bad = info.messages.filter(m => m.type === 'error'); if (bad.length) { errorBox.textContent = 'WGSL: ' + bad.map(m => `${m.lineNum}:${m.linePos} ${m.message}`).join('\n'); throw new Error('wgsl'); } }
+device.addEventListener('uncapturederror', e => { errorBox.textContent = 'WebGPU: ' + e.error.message; });
 const bindLayout = device.createBindGroupLayout({ entries: [
   { binding: 0, visibility: GPUShaderStage.VERTEX | GPUShaderStage.FRAGMENT, buffer: { type: 'uniform' } },
   { binding: 1, visibility: GPUShaderStage.VERTEX, buffer: { type: 'uniform' } },
