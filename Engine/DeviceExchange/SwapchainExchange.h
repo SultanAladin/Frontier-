@@ -30,6 +30,7 @@ class SceneStructure;
 class TraversalIndex;      // GeometricRaster/TraversalIndex.h (R3 CWBVH)
 class InstanceAcceleration; // GeometricRaster/InstanceAcceleration.h (D6/D7 two-level: BLASes + instance TLAS)
 class TextureIndex;     // ContentInterchange/TextureIndex.h (R4a)
+struct TextureDescriptor; // ContentInterchange/TextureIndex.h — QueueTextureRefresh payload
 // R7 à-trous levels. Five doublings reach an 81x81 pixel footprint (1+2+4+8+16 taps either side of centre) for
 //    5 x 25 taps instead of 6561 — the whole point of the "with holes" formulation.
 static constexpr uint32_t kDenoiseLevelCount    = 5u;   // CEILING: descriptor sets and images are allocated for
@@ -268,6 +269,9 @@ public:
     [[nodiscard]] uint32_t      QueryInstanceCount() const noexcept { return Visibility.QueryInstanceCount(); }
     void                        UploadTextures(const TextureIndex& Textures) noexcept;   // R4a bindless table → binding 18 (last since R6)
     void                        DestroyTextures() noexcept;
+    // Live refresh of one resident slot's texels (same shape/format/levels) — queued on the CPU, copied at the head
+    //    of the next frame's command buffer through per-cycle staging. SurfaceDisplay sheets (tablet, cluster) use it.
+    [[nodiscard]] bool          QueueTextureRefresh(uint32_t Slot, const TextureDescriptor& Texture) noexcept;
     void                        UploadShadingTables(const float* Energy, const float* Sheen, uint32_t Resolution) noexcept;   // R4b: two RGBA32F Resolution² planes (ShadingTableCodec bake) → bindings 13 / 14, once
     void                        UploadTraversal(const TraversalIndex& Traversal) noexcept;   // R3 CWBVH blobs → bindings 8-9
 
@@ -445,6 +449,7 @@ private:
     void                WriteDescriptorSet()   noexcept;
     void                RefuseFrame(const char* Operation, int32_t Code) noexcept;
     [[nodiscard]] bool  SubmitUpload(VkCommandBuffer Command) noexcept;
+    void                RecordTextureRefresh(VkCommandBuffer Command, uint32_t CycleSlot) noexcept;
     void                ConstructSceneBuffers() noexcept;
 
     [[nodiscard]] uint32_t ResolveMemoryType(uint32_t TypeMask, uint32_t PropertyMask) const noexcept;

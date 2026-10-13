@@ -45,6 +45,7 @@ for Folder in [Scratch, Raw, Gallery]:
 Shared = ["Engine/DisplayPresentation/ShadingTableCodec.cpp", "Engine/ContentInterchange/MaterialIndex.cpp",
           "Engine/GeometricRaster/SceneStructure.cpp", "Engine/GeometricRaster/GeometryStructure.cpp",
           "Engine/DeviceExchange/OrientationClassifier.cpp", "Projects/Project-Drive/Source/DriveSceneAuthor.cpp",
+          "Engine/SurfaceDisplay/DisplaySurfaceStructure.cpp",
           "Engine/PhysicalDynamics/Vehicle/XPBDSoftTyre.cpp"]
 ReSTIR = ["Engine/GeometricRaster/ReservoirIntegrator.cpp", "Engine/Host/RayTracingSolver.cpp",
           "Exhibits/Workbench/Automotive/DriveReservoirProof.cpp"]

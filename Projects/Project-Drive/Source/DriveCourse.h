@@ -68,7 +68,16 @@ enum CourseMaterial : uint32_t
     MatHeadlight      = 13u, // FrontLight         — authored white emitter at 48.7
     MatTaillight      = 14u, // RearLight          — authored red emitter at 6.5, IOR 8.0
     MatVehicleDefault = 15u, // Material.016 and any face the .blend leaves unassigned (Blender's own 0.8 grey)
-    MatCount          = 16u
+    MatCount          = 16u, // [-] the authored families; the cabin fixtures below are Drive-side additions
+
+    // Cabin HMI (DriveCabinLayout.h): the screens are emissive materials whose emission TEXTURE the host binds to
+    //    the project's live sheet, so the glass lights the cabin through the same GI as the lamps. Names are the
+    //    interchange subject names — DisplaySequence matches them verbatim.
+    MatCabinTablet    = 16u, // "Display:CabinTablet"
+    MatCabinCluster   = 17u, // "Display:DriverCluster"
+    MatCabinLamp      = 18u, // headliner lamp emitter
+    MatCabinBezel     = 19u, // screen housings, matte black
+    MatCabinCount     = 20u
 };
 
 // --- terrain sample (the tyre ground query) ---------------------------------------------------------------------------

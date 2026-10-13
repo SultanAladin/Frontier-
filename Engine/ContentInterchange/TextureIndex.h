@@ -59,6 +59,9 @@ public:
     //    chain is built immediately, so no Decode is owed. The same Name replaces the slot IN PLACE — the texels
     //    move, the slot stays, exactly what a re-bake wants (descriptors name slots, never heaps).
     uint32_t RegisterHalves(const std::string& Name, const uint16_t* Halves, uint32_t Width, uint32_t Height) noexcept;
+    // Register raw RGBA8 texels (sRGB-encoded unless Linear) — a SurfaceDisplay sheet. Same in-place rule as
+    //    RegisterHalves: a repeated Name re-seats its slot, so a resized display keeps its material binding.
+    uint32_t RegisterTexels(const std::string& Name, const uint8_t* Rgba, uint32_t Width, uint32_t Height, bool Linear) noexcept;
 
     // Decode everything registered and not yet decoded. Returns the number of failures (placeholders created).
     //    `Report` receives one line per failure and the final summary. MaximumEdge caps the level-0 size (0 = no cap).

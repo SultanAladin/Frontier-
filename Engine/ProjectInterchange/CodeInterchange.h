@@ -8,6 +8,7 @@
 #include "ProjectInterchange.h"
 #include "GeometryInterchange.h"
 #include "SmokeTransportInterchange.h"
+#include "DisplayInterchange.h"
 #include "ProjectSpecification.h"
 
 #include <string>
@@ -54,6 +55,10 @@ public:
     uint32_t ProjectSmoke(FrontierProjectSmokeReading& Reading) const
     { return SmokeEntry ? SmokeEntry(ProjectRecord, &Reading) : 0u; }
 
+    [[nodiscard]] bool DisplayAvailable() const noexcept { return DisplayEntry != nullptr; }
+    uint32_t ProjectDisplay(FrontierProjectDisplayReading& Reading) const
+    { return DisplayEntry ? DisplayEntry(ProjectRecord, &Reading) : 0u; }
+
     bool TransportAvailable() const noexcept { return TransportEntry != nullptr; }
     uint32_t ProjectTransport(FrontierSmokeTransportReading& Reading) const
     { return TransportEntry ? TransportEntry(ProjectRecord, &Reading) : 0u; }
@@ -64,6 +69,7 @@ private:
     FrontierProjectSmokeTransport TransportEntry = nullptr;
     FrontierProjectSmoke      SmokeEntry = nullptr;
     FrontierProjectGeometry   GeometryEntry = nullptr;
+    FrontierProjectDisplay    DisplayEntry = nullptr;
     void*                     CodeImage = nullptr;
     FrontierProjectInterchange ActiveInterchange{};
     void*                     ProjectRecord = nullptr;

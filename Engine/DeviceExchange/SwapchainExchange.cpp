@@ -171,8 +171,17 @@ struct SwapchainExchange::VulkanRecord
     VkBuffer                 SlabBuffer            = VK_NULL_HANDLE;   // R4a: MaterialSlabRecord[] (binding 10)
     VkDeviceMemory           SlabMemory            = VK_NULL_HANDLE;
     // R4a bindless textures (binding 15 since R4b, sampler2D[], partially bound): one image + view per resident texture
-    struct ResidentTexture { VkImage Image = VK_NULL_HANDLE; VkDeviceMemory Memory = VK_NULL_HANDLE; VkImageView View = VK_NULL_HANDLE; };
+    struct ResidentTexture { VkImage Image = VK_NULL_HANDLE; VkDeviceMemory Memory = VK_NULL_HANDLE; VkImageView View = VK_NULL_HANDLE;
+                             uint32_t Width = 0u, Height = 0u, LevelCount = 0u; VkFormat Format = VK_FORMAT_UNDEFINED; };
     std::vector<ResidentTexture> Textures;
+    // Live texture refresh (SurfaceDisplay sheets): texels queued on the CPU are copied into this cycle slot's
+    //    staging buffer and recorded as buffer→image copies at the head of the frame's command buffer — the slot's
+    //    fence has already been waited, so the staging memory is free, and the image barrier orders the copy
+    //    against the previous frame's samples. No device idle, no descriptor rewrite: the slot keeps its view.
+    struct TextureRefresh { uint32_t Slot; uint32_t Width, Height, LevelCount; std::vector<uint8_t> Texels; std::vector<uint32_t> LevelOffsets; };
+    std::vector<TextureRefresh> PendingTextureRefresh;
+    struct RefreshStaging { VkBuffer Buffer = VK_NULL_HANDLE; VkDeviceMemory Memory = VK_NULL_HANDLE; void* Mapped = nullptr; VkDeviceSize Bytes = 0u; };
+    std::array<RefreshStaging, kCycleSlotCount> TextureRefreshStaging = {};
     VkSampler                TextureSampler        = VK_NULL_HANDLE;
     ResidentTexture          ShadingTables[2];                       // R4b: 0 = GGX energy (A, B, E_avg), 1 = LTC sheen (aInv, bInv, R) — RGBA32F 32×32
     VkSampler                TableSampler          = VK_NULL_HANDLE; // linear, clamp-to-edge, no mips
@@ -2570,6 +2579,77 @@ void SwapchainExchange::DestroyTextures() noexcept
         if (T.Memory) vkFreeMemory      (Vulkan->Device, T.Memory, nullptr);
     }
     Vulkan->Textures.clear();
+    Vulkan->PendingTextureRefresh.clear();
+    for (VulkanRecord::RefreshStaging& S : Vulkan->TextureRefreshStaging)
+    {
+        if (S.Mapped) vkUnmapMemory(Vulkan->Device, S.Memory);
+        if (S.Buffer) vkDestroyBuffer(Vulkan->Device, S.Buffer, nullptr);
+        if (S.Memory) vkFreeMemory(Vulkan->Device, S.Memory, nullptr);
+        S = {};
+    }
+}
+
+bool SwapchainExchange::QueueTextureRefresh(uint32_t Slot, const TextureDescriptor& Texture) noexcept
+{
+    if (!Vulkan || !Vulkan->Device || Slot >= Vulkan->Textures.size()) return false;
+    const VulkanRecord::ResidentTexture& R = Vulkan->Textures[Slot];
+    const VkFormat Format = Texture.Encoding == TextureEncoding::Srgb8 ? VK_FORMAT_R8G8B8A8_SRGB : Texture.Encoding == TextureEncoding::Linear8 ? VK_FORMAT_R8G8B8A8_UNORM : VK_FORMAT_R16G16B16A16_SFLOAT;
+    // A refresh never resizes: a changed shape is a re-upload (the no-squash rule lives one layer up).
+    if (!R.Image || R.Width != Texture.Width || R.Height != Texture.Height || R.LevelCount != Texture.LevelCount || R.Format != Format ||
+        Texture.LevelOffsets.size() != Texture.LevelCount || Texture.Texels.empty()) return false;
+    for (VulkanRecord::TextureRefresh& Pending : Vulkan->PendingTextureRefresh)
+        if (Pending.Slot == Slot) { Pending.Texels = Texture.Texels; Pending.LevelOffsets = Texture.LevelOffsets; return true; }   // latest wins
+    Vulkan->PendingTextureRefresh.push_back({ Slot, Texture.Width, Texture.Height, Texture.LevelCount, Texture.Texels, Texture.LevelOffsets });
+    return true;
+}
+
+void SwapchainExchange::RecordTextureRefresh(VkCommandBuffer Command, uint32_t CycleSlot) noexcept
+{
+    if (Vulkan->PendingTextureRefresh.empty()) return;
+    VkDeviceSize Total = 0u;
+    for (const VulkanRecord::TextureRefresh& P : Vulkan->PendingTextureRefresh) Total += P.Texels.size();
+    VulkanRecord::RefreshStaging& Staging = Vulkan->TextureRefreshStaging[CycleSlot];
+    if (Staging.Bytes < Total)
+    {
+        if (Staging.Mapped) vkUnmapMemory(Vulkan->Device, Staging.Memory);
+        if (Staging.Buffer) vkDestroyBuffer(Vulkan->Device, Staging.Buffer, nullptr);
+        if (Staging.Memory) vkFreeMemory(Vulkan->Device, Staging.Memory, nullptr);
+        Staging = {};
+        const VkDeviceSize Rounded = (Total + 65535u) & ~static_cast<VkDeviceSize>(65535u);
+        if (AllocateBuffer(Vulkan->Device, Vulkan->MemoryProperties, Rounded, VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+                           VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, Staging.Buffer, Staging.Memory) != VK_SUCCESS)
+        { Vulkan->PendingTextureRefresh.clear(); return; }
+        if (vkMapMemory(Vulkan->Device, Staging.Memory, 0u, VK_WHOLE_SIZE, 0u, &Staging.Mapped) != VK_SUCCESS || !Staging.Mapped)
+        { Vulkan->PendingTextureRefresh.clear(); return; }
+        Staging.Bytes = Rounded;
+    }
+    VkDeviceSize Cursor = 0u;
+    for (const VulkanRecord::TextureRefresh& P : Vulkan->PendingTextureRefresh)
+    {
+        const VulkanRecord::ResidentTexture& R = Vulkan->Textures[P.Slot];
+        std::memcpy(static_cast<uint8_t*>(Staging.Mapped) + Cursor, P.Texels.data(), P.Texels.size());
+        VkImageMemoryBarrier ToTransfer{ VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER };
+        ToTransfer.srcAccessMask = VK_ACCESS_SHADER_READ_BIT; ToTransfer.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+        ToTransfer.oldLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL; ToTransfer.newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+        ToTransfer.srcQueueFamilyIndex = ToTransfer.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+        ToTransfer.image = R.Image; ToTransfer.subresourceRange = { VK_IMAGE_ASPECT_COLOR_BIT, 0u, P.LevelCount, 0u, 1u };
+        vkCmdPipelineBarrier(Command, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT | VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT, 0u, 0u, nullptr, 0u, nullptr, 1u, &ToTransfer);
+        std::vector<VkBufferImageCopy> Copies(P.LevelCount);
+        for (uint32_t L = 0u; L < P.LevelCount; ++L)
+        {
+            VkBufferImageCopy& C = Copies[L];
+            C.bufferOffset = Cursor + P.LevelOffsets[L];
+            C.imageSubresource = { VK_IMAGE_ASPECT_COLOR_BIT, L, 0u, 1u };
+            C.imageExtent = { std::max(1u, P.Width >> L), std::max(1u, P.Height >> L), 1u };
+        }
+        vkCmdCopyBufferToImage(Command, Staging.Buffer, R.Image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, P.LevelCount, Copies.data());
+        VkImageMemoryBarrier ToShader = ToTransfer;
+        ToShader.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT; ToShader.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+        ToShader.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL; ToShader.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+        vkCmdPipelineBarrier(Command, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT | VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, 0u, 0u, nullptr, 0u, nullptr, 1u, &ToShader);
+        Cursor += P.Texels.size();
+    }
+    Vulkan->PendingTextureRefresh.clear();
 }
 
 void SwapchainExchange::UploadTextures(const TextureIndex& Textures) noexcept
@@ -2632,6 +2712,7 @@ void SwapchainExchange::UploadTextures(const TextureIndex& Textures) noexcept
         ImageInfo.usage = VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
         ImageInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE; ImageInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
         if (vkCreateImage(Vulkan->Device, &ImageInfo, nullptr, &R.Image) != VK_SUCCESS) { R.Image = VK_NULL_HANDLE; continue; }
+        R.Width = T.Width; R.Height = T.Height; R.LevelCount = T.LevelCount; R.Format = Format;
         VkMemoryRequirements Requirements{};
         vkGetImageMemoryRequirements(Vulkan->Device, R.Image, &Requirements);
         VkMemoryAllocateInfo Allocate{ VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO };
@@ -2746,6 +2827,7 @@ void SwapchainExchange::UploadShadingTables(const float* Energy, const float* Sh
         ImageInfo.usage = VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
         ImageInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE; ImageInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
         if (vkCreateImage(Vulkan->Device, &ImageInfo, nullptr, &R.Image) != VK_SUCCESS) { R.Image = VK_NULL_HANDLE; continue; }
+        R.Width = N; R.Height = N; R.LevelCount = 1u; R.Format = VK_FORMAT_R32G32B32A32_SFLOAT;
         VkMemoryRequirements Requirements{};
         vkGetImageMemoryRequirements(Vulkan->Device, R.Image, &Requirements);
         VkMemoryAllocateInfo Allocate{ VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO };
@@ -3479,6 +3561,7 @@ bool SwapchainExchange::RecordComputeCommands(uint32_t ImageOrdinal, const Dispa
                              0u, 1u, &Transfer, 0u, nullptr, 0u, nullptr);
         Vulkan->PendingTraversal.clear();
     }
+    RecordTextureRefresh(Command, Vulkan->ActiveSlot);
     auto PublishUniform = [&](VkBuffer Buffer, const void* Bytes, uint32_t Count)
     {
         if (!Buffer) return;

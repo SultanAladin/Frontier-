@@ -10,6 +10,8 @@
 #include "../../../Engine/ProjectInterchange/GeometryInterchange.h"
 #include "../../../Engine/ProjectInterchange/VehicleInterchange.h"
 #include "ChaseCameraSolver.h"
+#include "DriveCabinDisplays.h"
+#include "../../../Engine/ProjectInterchange/DisplayInterchange.h"
 #include "../../../Engine/ProjectInterchange/DeploymentCodec.h"
 #include <fstream>
 #include <filesystem>
@@ -42,6 +44,8 @@ struct DriveSequence
     bool PreviousReset = false;
     uint64_t GeometryRevision = 0u;
     std::array<Frontier::Drive::TyreSequence, 4> Surfaces;
+    Frontier::Drive::DriveCabinDisplays Displays;   // the cabin tablet + cluster sheets (SurfaceDisplay)
+    double DisplaySeconds = 0.0;                    // [s] accumulated cycle time the display rates run on
 
     void CaptureSurfaces()
     {
@@ -208,6 +212,25 @@ uint32_t FRONTIER_CODE_IMAGE_CALL ConstructProject(
         }
     }
     Sequence->RestoreDeployment();
+
+    // Cabin displays: fonts live beside the engine content, two directories up from the project's .frontier
+    //    (Projects/Project-Drive/ProjectDrive.frontier → EngineContent/FontArchives/Inter). A missing archive is
+    //    a diagnostic, not a refusal — the car still drives, the screens stay authored-constant panels.
+    {
+        std::filesystem::path Fonts;
+        if (ActiveLaunch->SpecificationLocation && ActiveLaunch->SpecificationLocation[0])
+            Fonts = std::filesystem::u8path(ActiveLaunch->SpecificationLocation).parent_path().parent_path().parent_path() / "EngineContent" / "FontArchives" / "Inter";
+        std::string Explanation;
+        if (!Sequence->Displays.Construct(Fonts.string(), Sequence->Geometry.CoMModelZ(), &Explanation) && HostInterchange->ReceiveDiagnostic)
+        {
+            FrontierProjectDiagnostic Diagnostic{};
+            Diagnostic.StructureSize = sizeof(Diagnostic);
+            Diagnostic.SeverityNumber = 1u;
+            Diagnostic.SubjectName = "CabinDisplays";
+            Diagnostic.Explanation = Explanation.c_str();
+            HostInterchange->ReceiveDiagnostic(&Diagnostic, HostInterchange->ProjectReception);
+        }
+    }
     *ProjectRecord = Sequence;
     return 1u;
 }
@@ -251,6 +274,36 @@ uint32_t FRONTIER_CODE_IMAGE_CALL AdvanceProject(
     }
     Sequence.PreviousTransport = Transport;
     Sequence.PreviousReset = Reading->ResetPressed != 0u;
+
+    // Cabin displays run on the host cycle clock whether or not the car is in Play: the tablet is usable in the
+    //    editor, and the gauges fall to rest when the vehicle is absent.
+    {
+        Sequence.DisplaySeconds += std::clamp(ActiveCycle->CycleSeconds, 0.0f, 0.25f);
+        Frontier::Drive::CabinVehicleReading Cabin;
+        const Frontier::Vehicle::ChassisState* Chassis = nullptr;
+        static const char* const GearNames[] = { "R", "R", "N", "1", "2", "3", "4", "5", "6", "7", "8" };
+        if (Transport != 0u && Sequence.Vehicle)
+        {
+            const auto& Telemetry = Sequence.Vehicle->Telemetry();
+            Chassis = &Sequence.Vehicle->Chassis();
+            Cabin.Live = true;
+            Cabin.SpeedKph = std::fabs(Telemetry.ForwardSpeed) * 3.6f;
+            Cabin.EngineRpm = Telemetry.EngineRPM;
+            const int Gear = std::clamp(Telemetry.GearIndex, 0, 10);
+            Cabin.Gear = Telemetry.ForwardSpeed < -0.5f ? "R" : GearNames[Gear];
+            for (int W = 0; W < 4; ++W)
+            {
+                Cabin.TreadCelsius[W] = static_cast<float>(Telemetry.Wheels[W].Thermal.SurfaceTemperature - 273.15);
+                Cabin.PressureKpa[W] = static_cast<float>(Telemetry.Wheels[W].Thermal.GaugePressure * 1.0e-3);
+            }
+        }
+        else
+        {
+            Cabin.Gear = "P";
+            Cabin.EngineRpm = 0.0f;
+        }
+        Sequence.Displays.Advance(Chassis, Cabin, Sequence.DisplaySeconds);
+    }
     if (Transport == 0u || !Sequence.Vehicle) return 1u;
 
     const float Seconds = Reading->Paused ? (Reading->SimulationStep ? 1.0f / 60.0f : 0.0f)
@@ -330,6 +383,15 @@ extern "C" FRONTIER_CODE_IMAGE_EXPORT uint32_t FRONTIER_CODE_IMAGE_CALL ProjectG
         Current[0] = World.x; Current[1] = World.y; Current[2] = World.z;
     }
     return 1u;
+}
+
+extern "C" FRONTIER_CODE_IMAGE_EXPORT uint32_t FRONTIER_CODE_IMAGE_CALL ProjectDisplayInterchange(
+    void* ProjectRecord, FrontierProjectDisplayReading* Reading)
+{
+    if (!Reading) return 2u;
+    auto* Sequence = static_cast<DriveSequence*>(ProjectRecord);
+    if (!Sequence) return 0u;
+    return Sequence->Displays.Deliver(*Reading);
 }
 
 extern "C" FRONTIER_CODE_IMAGE_EXPORT uint32_t FRONTIER_CODE_IMAGE_CALL ProjectSmokeInterchange(

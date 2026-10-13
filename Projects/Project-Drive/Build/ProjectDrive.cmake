@@ -23,6 +23,7 @@ target_include_directories(ProjectDrive PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/Engine/ProjectInterchange
     ${Vulkan_INCLUDE_DIRS}
     ${CMAKE_CURRENT_SOURCE_DIR}/ExternalPackages/vulkan-headers/include
+    ${CMAKE_CURRENT_SOURCE_DIR}/ExternalPackages/stb   # SurfaceDisplay/TypefaceSheetCodec.cpp (stb_truetype)
 )
 set_target_properties(ProjectDrive PROPERTIES
     PREFIX ""

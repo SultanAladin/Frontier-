@@ -37,7 +37,7 @@ namespace Drive {
 
 // Advance this stamp and the versioned OpeningScene filename together when Construct() changes the scene.
 // Existing scenes are never overwritten by a build, including authored copies of an earlier opening.
-inline constexpr uint32_t kDriveSceneRevision = 6u;   // [-] - versioned authored course and solved tyre publication
+inline constexpr uint32_t kDriveSceneRevision = 7u;   // [-] - cabin HMI fixtures (screens + headliner lamp) on the body span
 
 // True when the file at Path was written by this revision (cheap header scan). Missing/older ⇒ false ⇒ re-export.
 [[nodiscard]] bool DriveSceneMatchesRevision(const std::string& Path) noexcept;
@@ -77,6 +77,7 @@ private:
     void AppendFace(const Vector3& A, const Vector3& B, const Vector3& C, uint32_t Material) noexcept;   // flat-shaded
 
     void AppendVehicleBody(float ComHeight, uint32_t Material) noexcept;
+    void AppendCabinFixtures(float Rebase) noexcept;   // DriveCabinLayout screens + lamp, CoM-local, body span
     void AppendWheel(const Vector3& LocalHub, float Radius, float HalfWidth, uint32_t Segments, uint32_t Material) noexcept;
     void AppendCourse() noexcept;
 

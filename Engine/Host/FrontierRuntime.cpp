@@ -65,6 +65,7 @@ int RunProjectFluidPreview();
 #include "../ProjectInterchange/CodeInterchange.h"
 #include "GeometrySequence.h"
 #include "SmokeSequence.h"
+#include "DisplaySequence.h"
 #include "../ProjectInterchange/ProjectSpecification.h"
 #include "../SpatialInterface/InterfaceScreenSequence.h"
 #include "../SpatialInterface/InterfaceTextProjection.h"
@@ -337,6 +338,7 @@ int Frontier::RunFrontierRuntime(
     Frontier::SceneStructure Level;
     Frontier::HostRuntime::GeometrySequence ProjectGeometry;
     Frontier::HostRuntime::SmokeSequence ProjectSmoke;
+    Frontier::HostRuntime::DisplaySequence ProjectDisplays;   // SurfaceDisplay sheets the project rasters (tablet, cluster)
     Frontier::TextureIndex   Textures;
     uint32_t MaxTextureLevels = 1u;   // R6 row 3: deepest mip chain resident (F3 scene-census row; computed once below)
     // Celestial moon atlas: bindless slots, filled right after the scene registers its own textures (below) and
@@ -744,6 +746,23 @@ int Frontier::RunFrontierRuntime(
             Logger.RecordMessage(Frontier::DiagnosticSeverity::Warning, "Textures", TextureLine);
         }
         Logger.RecordMessage(Frontier::DiagnosticSeverity::Information, "Startup", "Texture decode worker joined before scene upload.");
+    }
+
+    // Project displays: each sheet becomes a resident sRGB texture bound to the emission channel of the material
+    //    it names, so the screen is a textured luminaire like any other — it lights the cabin through the same
+    //    GI the lamps use. Registered before the upload so the first sheet rides it; refreshed per tick below.
+    {
+        std::string DisplayRefusal;
+        const uint32_t DisplayCount = ProjectDisplays.Construct(Level, Textures, ActiveInterchange, DisplayRefusal);
+        if (!DisplayRefusal.empty()) Logger.RecordMessage(Frontier::DiagnosticSeverity::Warning, "Project displays", DisplayRefusal.c_str());
+        if (DisplayCount)
+        {
+            Level.Finalise(std::max(1u, Level.QueryMaterials().QueryMetrics().SlabLimit));
+            char DisplayLine[160];
+            std::snprintf(DisplayLine, sizeof(DisplayLine), "%u project display(s) bound as emissive textures (%s%s).", DisplayCount,
+                          ProjectDisplays.QueryDisplays().front().SubjectName.c_str(), DisplayCount > 1u ? ", ..." : "");
+            Logger.RecordMessage(Frontier::DiagnosticSeverity::Information, "Project displays", DisplayLine);
+        }
     }
 
     FRONTIER_PROBE_PHASE_BEGIN("SceneUpload");
@@ -2251,6 +2270,22 @@ int Frontier::RunFrontierRuntime(
             const float AimOrigin[3] = { AimRay.OriginX, AimRay.OriginY, AimRay.OriginZ };
             const float AimToward[3] = { AimRay.DirectionX, AimRay.DirectionY, AimRay.DirectionZ };
 
+            // Project displays: the same pointer ray is the finger on the glass; a moved sheet revision is copied
+            //    into its slot and refreshed in place, a resized sheet re-seats the slot and re-uploads.
+            if (ProjectDisplays.Active())
+            {
+                bool DisplayReupload = false;
+                (void)ProjectDisplays.Advance(Level, Textures, Surface, ActiveInterchange,
+                                              Aiming ? AimOrigin : nullptr, Aiming ? AimToward : nullptr,
+                                              Aiming && Input.IsMouseButtonPressed(Frontier::MouseButtonCategory::ButtonLeft), DisplayReupload);
+                if (DisplayReupload)
+                {
+                    Level.Finalise(std::max(1u, Level.QueryMaterials().QueryMetrics().SlabLimit));
+                    Surface.UploadScene(Level, Traversal, &Textures, true);
+                    Integrator.ResetAccumulation("display resized");
+                }
+            }
+
             // The grip under the pointer — only while not dragging; a live drag keeps its grip hot.
             if (GizmoShown && !GizmoDragging)
                 GizmoHot = Aiming ? Frontier::ProbeGizmoGrip(GizmoModeNow, GizmoPoseNow, AimOrigin, AimToward)
@@ -2276,7 +2311,7 @@ int Frontier::RunFrontierRuntime(
 
             // The tap: a grip press begins the drag; a press past every grip flies as a GPU pick.
             float TapU = 0.0f, TapV = 0.0f; bool TapAdditive = false;
-            if (Panel.QueryEditorViewTap(&TapU, &TapV, &TapAdditive))
+            if (Panel.QueryEditorViewTap(&TapU, &TapV, &TapAdditive) && !ProjectDisplays.PointerCaptured())   // a tap on a screen belongs to the screen
             {
                 const Frontier::PointerRay TapRay = Frontier::InterfacePointerProjection::ConstructViewportRay(
                     TapU * static_cast<float>(RenderWidth), TapV * static_cast<float>(RenderHeight),

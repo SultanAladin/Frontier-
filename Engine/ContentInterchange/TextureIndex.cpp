@@ -171,6 +171,31 @@ uint32_t TextureIndex::RegisterHalves(const std::string& Name, const uint16_t* H
     return Slot;
 }
 
+uint32_t TextureIndex::RegisterTexels(const std::string& Name, const uint8_t* Rgba, uint32_t Width, uint32_t Height, bool Linear) noexcept
+{
+    if (Rgba == nullptr || Width == 0u || Height == 0u) return 0xFFFFFFFFu;
+    const TextureEncoding Encoding = Linear ? TextureEncoding::Linear8 : TextureEncoding::Srgb8;
+    uint32_t Slot = 0xFFFFFFFFu;
+    for (uint32_t I = 0u; I < Textures.size(); ++I)
+        if (Textures[I].Path.empty() && Textures[I].Name == Name && Textures[I].Encoding == Encoding) { Slot = I; break; }
+    if (Slot == 0xFFFFFFFFu)
+    {
+        Textures.emplace_back();
+        Sources.emplace_back();
+        Slot = static_cast<uint32_t>(Textures.size() - 1u);
+    }
+    TextureDescriptor& T = Textures[Slot];
+    T.Name = Name; T.Path.clear();
+    T.Linear = Linear; T.Encoding = Encoding;
+    T.Width = Width; T.Height = Height;
+    T.Placeholder = false;
+    T.Texels.assign(Rgba, Rgba + static_cast<size_t>(Width) * Height * 4u);
+    ConstructLevels(T);
+    Sources[Slot].Decoded = true;
+    Metrics.Count = static_cast<uint32_t>(Textures.size());
+    return Slot;
+}
+
 //------------------------------------------------------------------------------------------------------------------------
 //                                                          DECODE
 //------------------------------------------------------------------------------------------------------------------------

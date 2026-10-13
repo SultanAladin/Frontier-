@@ -55,7 +55,8 @@ Specification = tomllib.loads((Root / "Projects/Project-Drive/ProjectDrive.front
 assert Path(Specification["Project"]["OpeningScene"]).stem == json.loads(Original)["scenes"][0]["name"]
 subprocess.run([str(Author), "--ensure", str(Scene)], cwd=Scratch, check=True)
 assert Scene.read_bytes() == Original
-Older = Original.replace(b'"DriveCourse.r5"', b'"DriveCourse.r4"')
+Current = Path(Specification["Project"]["OpeningScene"]).stem.encode()
+Older = Original.replace(b'"' + Current + b'"', b'"DriveCourse.r4"')
 assert Older != Original
 Scene.write_bytes(Older)
 subprocess.run([str(Author), "--ensure", str(Scene)], cwd=Scratch, check=True)

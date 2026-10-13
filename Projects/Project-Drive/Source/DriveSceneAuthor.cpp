@@ -7,6 +7,7 @@
 #include "../../../Engine/ContentInterchange/SceneCodec.h"
 #include "DriveCourse.h"
 #include "ControlVehicleMesh.inl"
+#include "DriveCabinLayout.h"
 #include "ControlVehicleWheelMesh.inl"
 
 #include <algorithm>
@@ -302,6 +303,86 @@ void DriveSceneAuthor::AuthorMaterials() noexcept
     // Blender itself falls back to its default 0.8 grey there, so that is what is reproduced.
     MaterialSlabDescriptor fallback = Dielectric(0.8f, 0.8f, 0.8f, 0.50f);
     Materials.push_back(MakeMaterial("Material.016 / unassigned — Blender default grey", fallback));   // 15
+
+    // 16 / 17 — the cabin screens. Dark glass with a white emitter whose radiance the live sheet modulates
+    //    (the host binds the sheet to the emission channel at load; until then the authored constant is a
+    //    uniform panel of the fixture's luminance — the tablet ≈ 24, the cluster ≈ 28, both below the 48.7
+    //    headlamp so the cabin reads as lit by a screen, not floodlit).
+    const CabinFixture TabletFixture = CabinTabletFixture();
+    const CabinFixture ClusterFixture = CabinClusterFixture();
+    MaterialSlabDescriptor screen = Dielectric(0.01f, 0.01f, 0.012f, 0.08f);
+    screen.CoatWeight = 0.0f;
+    screen.EmissionColor[0] = screen.EmissionColor[1] = screen.EmissionColor[2] = 1.0f;
+    screen.EmissionLuminance = TabletFixture.Screen.EmissionLuminance;
+    Materials.push_back(MakeMaterial(TabletFixture.Name, screen));                                      // 16
+    screen.EmissionLuminance = ClusterFixture.Screen.EmissionLuminance;
+    Materials.push_back(MakeMaterial(ClusterFixture.Name, screen));                                     // 17
+
+    // 18 — the headliner lamp: a warm white disc, the cabin's own interior light.
+    MaterialSlabDescriptor lamp = Dielectric(0.9f, 0.9f, 0.88f, 0.30f);
+    lamp.EmissionLuminance = CabinLampFixture().Luminance;
+    lamp.EmissionColor[0] = 1.0f; lamp.EmissionColor[1] = 0.93f; lamp.EmissionColor[2] = 0.82f;
+    Materials.push_back(MakeMaterial("Cabin lamp — headliner emitter", lamp));                           // 18
+
+    // 19 — the screen housings, a matte black distinct from the glossy lower-trim Plastic.
+    MaterialSlabDescriptor bezel = Dielectric(0.02f, 0.02f, 0.022f, 0.70f);
+    bezel.CoatWeight = 0.0f;
+    Materials.push_back(MakeMaterial("Cabin bezel — screen housings", bezel));                          // 19
+}
+
+//------------------------------------------------------------------------------------------------------------------------ cabin fixtures (screens + lamp), body span, CoM-local
+// The screens come from DisplaySurfaceStructure in its local frame (X right, Y up, Z toward the viewer) and are
+//    placed with DriveCabinLayout's basis — the SAME basis DriveCabinDisplays uses to resolve touch, so the
+//    pixel the ray reports is the pixel that is lit. Glass gets its own material per screen (the emissive the
+//    host textures); the housing ring is bezel plastic. UVs are the sheet's: v = 0 at the top row.
+void DriveSceneAuthor::AppendCabinFixtures(float Rebase) noexcept
+{
+    auto Place = [&](const CabinFixture& Fixture, const DisplayTriangleList& List, uint32_t Material)
+    {
+        float Right[3], Up[3], Toward[3];
+        CabinScreenBasis(Fixture.Tilt, Right, Up, Toward);
+        auto World = [&](const float* L, bool Point)
+        {
+            Vector3 W{ L[0] * Right[0] + L[1] * Up[0] + L[2] * Toward[0],
+                       L[0] * Right[1] + L[1] * Up[1] + L[2] * Toward[1],
+                       L[0] * Right[2] + L[1] * Up[2] + L[2] * Toward[2] };
+            if (Point) { W.x += Fixture.Centre[0]; W.y += Fixture.Centre[1]; W.z += Fixture.Centre[2] - Rebase; }
+            return W;
+        };
+        for (uint32_t T = 0u; T < List.TriangleCount(); ++T)
+        {
+            Vector3 P[3], N[3]; float Uv[3][2];
+            for (int K = 0; K < 3; ++K)
+            {
+                const uint32_t I = List.Indices[T * 3u + K];
+                P[K] = World(&List.Positions[I * 3u], true);
+                N[K] = World(&List.Normals[I * 3u], false);
+                Uv[K][0] = List.TextureCoordinates[I * 2u]; Uv[K][1] = List.TextureCoordinates[I * 2u + 1u];
+            }
+            AppendTriangle(P, N, Uv, Material);
+        }
+    };
+    const CabinFixture Fixtures[2] = { CabinTabletFixture(), CabinClusterFixture() };
+    const uint32_t GlassMaterials[2] = { MatCabinTablet, MatCabinCluster };
+    for (int F = 0; F < 2; ++F)
+    {
+        DisplaySurfaceStructure Surface;
+        Surface.Construct(Fixtures[F].Screen);
+        Place(Fixtures[F], Surface.QueryGlass(), GlassMaterials[F]);
+        Place(Fixtures[F], Surface.QueryBezel(), MatCabinBezel);
+    }
+
+    // The lamp: a downward-facing disc in the headliner, plus a thin rim so it reads as a fitting.
+    const CabinLamp Lamp = CabinLampFixture();
+    const Vector3 Centre{ Lamp.Centre[0], Lamp.Centre[1], Lamp.Centre[2] - Rebase };
+    constexpr int Segments = 20;
+    for (int S = 0; S < Segments; ++S)
+    {
+        const float A0 = 6.2831853f * S / Segments, A1 = 6.2831853f * (S + 1) / Segments;
+        const Vector3 P0{ Centre.x + Lamp.Radius * std::cos(A0), Centre.y + Lamp.Radius * std::sin(A0), Centre.z };
+        const Vector3 P1{ Centre.x + Lamp.Radius * std::cos(A1), Centre.y + Lamp.Radius * std::sin(A1), Centre.z };
+        AppendFace(Centre, P1, P0, MatCabinLamp);   // normal −Z: the disc shines down into the cabin
+    }
 }
 
 //------------------------------------------------------------------------------------------------------------------------ Construct + Export
@@ -318,6 +399,7 @@ void DriveSceneAuthor::Construct(bool StaticPose) noexcept
     // span 0 — body (dynamic) -> instance 0.  Its faces are partitioned into MAMetalicCoat, MAGlass and MAPlastic.
     { auto s = OpenSpan("ControlVehicle — paint / glass / plastic", /*Dynamic=*/true); (void)s;
       AppendVehicleBody(comH, MatBodyPaint);
+      AppendCabinFixtures(geo.CoMModelZ());   // screens + lamp ride the body instance
       if (StaticPose)
           for (auto& Facet : Triangles)
           {

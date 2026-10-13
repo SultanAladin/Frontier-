@@ -12,6 +12,15 @@
     "Engine/PhysicalDynamics/Vehicle/PacejkaMagicFormula.cpp",
     "Engine/PhysicalDynamics/Vehicle/TyreSlipDynamics.cpp",
     "Engine/GeometricRaster/CameraProjection.cpp",
-    "Engine/DeviceExchange/OrientationClassifier.cpp"
+    "Engine/DeviceExchange/OrientationClassifier.cpp",
+    "Projects/Project-Drive/Source/DriveCabinDisplays.cpp",
+    "Engine/SurfaceDisplay/DisplaySheetStructure.cpp",
+    "Engine/SurfaceDisplay/TypefaceSheetCodec.cpp",
+    "Engine/SurfaceDisplay/DisplayRasterProjection.cpp",
+    "Engine/SurfaceDisplay/DisplaySurfaceStructure.cpp",
+    "Engine/SurfaceDisplay/DisplayTouchProjection.cpp",
+    "Engine/SurfaceDisplay/DisplayMeshProjection.cpp",
+    "Engine/SurfaceDisplay/TabletScreenSequence.cpp",
+    "Engine/SurfaceDisplay/ClusterScreenSequence.cpp"
   ]
 }

@@ -57,9 +57,11 @@ Project-Drive:
 
 | File | Role |
 |---|---|
-| `Projects/Project-Drive/Source/CabinDisplaySequence.{h,cpp}` | Places the console tablet and the cluster in the cabin (estimate above), authors the cabin lamp, feeds vehicle telemetry at the two update rates (cluster 60 Hz, tablet 30 Hz), serves the display interchange, and emits the two display spans' scene mutations each cycle (body pose × local mount). |
-| `DriveSceneAuthor.{h,cpp}` | Spans 6–8: "Cabin console display", "Cabin cluster display", "Cabin lamp" (scene revision 7). |
-| `ProjectDriveInterchange.cpp` | Exports `ProjectDisplayInterchange`; drives `CabinDisplaySequence`. |
+| `Projects/Project-Drive/Source/DriveCabinLayout.h` | The estimated placement (tablet, cluster, headliner lamp) in ControlVehicle model space and the shared `CabinScreenBasis` so the author and the DLL agree on the screen frame. |
+| `Projects/Project-Drive/Source/DriveCabinDisplays.{h,cpp}` | Feeds vehicle telemetry at the two update rates (cluster 60 Hz, tablet 30 Hz), resolves touch rays against the posed glass, and serves `FrontierProjectDisplayReading`. |
+| `DriveSceneAuthor.{h,cpp}` | `AppendCabinFixtures`: screen glass (materials 16/17 `Display:CabinTablet` / `Display:DriverCluster`, emissive 24/28 nit so the GI luminaire pass picks them up), bezels (19) and the headliner lamp disc (18, 40 nit) are part of the body span, so they ride with the chassis (scene revision 7). |
+| `ProjectDriveInterchange.cpp` | Exports `ProjectDisplayInterchange`; constructs/advances `DriveCabinDisplays`. |
+| `Engine/SurfaceDisplay/DisplayMeshProjection.{h,cpp}` | Flat CPU mesh projection used by the tablet's Garage car preview and the cabin diagnostic sheets. |
 
 Proof: `VisualProof/SurfaceDisplay/` — CPU-mirror harness that rasterises launcher, Settings picker, Garage,
 the four cluster outlines, runs the touch state machine, and self-checks (pixel assertions, aspect/no-stretch
@@ -68,12 +70,15 @@ invariants, revision monotonicity, interchange refusals), writing PNGs + `Surfac
 ## Steps
 
 1. ✅ Research (above).
-2. Engine module (sheet, raster, typeface, surface geometry, touch, tablet, cluster).
-3. Interchange + host + texture refresh.
-4. Drive integration (placement, lamp, mutations, rates).
-5. Rosters: `CMakeLists.txt`, `Tools/Build/ToolchainSequence.ps1`, `DriveSimulationSources.json`,
-   `DriveContentSources.json`, `Projects/Project-Drive/Makefile`.
-6. Proofs + commit + push.
+2. ✅ Engine module (sheet, raster, typeface, surface geometry, touch, tablet, cluster, mesh projection).
+3. ✅ Interchange + host + texture refresh (`DisplayInterchange.h`, `Host/DisplaySequence.h`, single-slot `TextureIndex` refresh).
+4. ✅ Drive integration (placement, lamp, rates) — fixtures live on the body span, so no extra mutations are needed.
+5. ✅ Rosters: `DriveSimulationSources.json` (DLL: SurfaceDisplay + `DriveCabinDisplays.cpp`), `DriveContentSources.json`
+   (`DisplaySurfaceStructure.cpp` for the author), `ProjectDrive.cmake` (stb include), `RunDriveExhibit.py`,
+   `CheckDrivePlayback.py`. Frontier.exe gained no new TU (`DisplaySequence.h` is header-only), so the MSVC
+   engine/host rosters are unchanged.
+6. ✅ Proofs (`Tools/Tests/CheckSurfaceDisplay.py` → `VisualProof/SurfaceDisplay/`) + commit. **Open:** a run on
+   hardware — the in-engine shot of the lit screens through Frontier.exe, and measuring the single-slot refresh.
 
 ## Deferred / known limits
 

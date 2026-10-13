@@ -11,7 +11,8 @@
     "Engine/GeometricRaster/GeometryStructure.cpp",
     "Engine/DeviceExchange/OrientationClassifier.cpp",
     "Engine/PhysicalDynamics/Vehicle/XPBDSoftTyre.cpp",
-    "Engine/GeometricRaster/DistanceFieldSpace.cpp"
+    "Engine/GeometricRaster/DistanceFieldSpace.cpp",
+    "Engine/SurfaceDisplay/DisplaySurfaceStructure.cpp"
   ],
   "includes": [
     ".",
