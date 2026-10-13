@@ -28,14 +28,20 @@ project car and orbits it when you drag on the panel.
   keeps the 16:10 layout at uniform scale and continues the panel background into the spare band; touch
   mapping goes through `QueryPanelPoint` / `QueryPanelFraction`. A resized canvas texture is disposed and
   reallocated (three.js uses immutable storage, so a sub-upload would silently keep the old picture).
-- **Driver cluster.** `ClusterSequence.js` rasters speed / rpm / gear into its own 1500 × 840 texture at
-  its own 30 Hz cadence, clipped to an irregular outline (hexagon, ≈70 % circle, trapezoid, wide pill).
-  `ConstructCluster` extrudes the housing from the same unit polygon so bezel, bed and masked face agree.
-- **Real car preview.** `Tools/Build/ExtractVehiclePreview.py` packs the body and four XPBD tyres of the
-  engine-authored `Projects/Project-Zero/Content/Scenes/Vehicle.gltf` into `ControlVehicle.glb`
-  (19,948 facets, manifest `ControlVehicle.json` with SHA256s). `VehiclePreviewSequence.js` renders it in
+- **Driver cluster.** `ClusterSequence.js` rasters speed / rpm / gear into its own texture at its own 30 Hz
+  cadence, clipped to an irregular outline (hexagon, ≈70 % circle, trapezoid, wide pill). The raster takes the
+  outline's physical aspect (`ResolveClusterHeight`: 1000 × 559 hexagon, 1000 × 1000 arc, 1000 × 472 trapezoid,
+  1000 × 325 pill) so nothing is stretched onto the housing, and `ConstructCluster` extrudes the housing from
+  the same unit polygon so bezel, bed and masked face agree.
+- **Real car preview.** This is the Project-Drive car. `Projects/Project-Zero/Content/Scenes/Vehicle.gltf` is
+  written by `Projects/Project-Drive/Source/DriveSceneAuthor.cpp` (the `ControlVehicleStructure.inl` body with
+  authored per-face families, the authored RimFL rims, the tread lattice, and `AuthorMaterials` colours such as
+  MetalicCoat 0.680005 / 0.800458 / 0). `Tools/Build/ExtractVehiclePreview.py` packs the body and four tyres of
+  that scene byte-for-byte into `ControlVehicle.glb` (19,948 facets, manifest `ControlVehicle.json` with SHA256s
+  and the authored base colours). The preview promotes the materials the way Drive describes them — lime
+  dielectric basecoat under a 0.03 clearcoat, smoked glazing, blue metal mag accents, emissive lamps. `VehiclePreviewSequence.js` renders it in
   its own scene with its own camera, floor and lighting into a 640 × 400 render target at 30 Hz, reads the
-  pixels back and composites them into the Garage page. It is visual only; nothing drives the physics.
+  pixels back and composites them 1:1 into the Garage page. It is visual only; nothing drives the physics.
 - Touch is resolved by ray intersection with the screen surface, converted to screen UV, then to
   retained hit regions. Captured drags continue off the display by plane intersection.
 - Twelve applications use original multicolour SVG icons in `IconDepot.js`. Application screens are local

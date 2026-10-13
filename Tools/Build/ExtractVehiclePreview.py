@@ -101,8 +101,10 @@ def Pack():
     Record = {
         "source": str(Source.relative_to(Root)), "sourceSHA256": hashlib.sha256(Source.read_bytes()).hexdigest(),
         "glbSHA256": hashlib.sha256(Glb).hexdigest(), "glbBytes": len(Glb), "nodes": [Node["name"] for Node in OutNodes],
-        "materials": [Material["name"] for Material in OutMaterials], "facets": Facets,
-        "statement": "Byte-identical geometry and materials of the authored ControlVehicle; the proving ground is omitted. Visual preview only.",
+        "materials": [{"name": Material["name"], "baseColor": Material.get("pbrMetallicRoughness", {}).get("baseColorFactor", [1, 1, 1, 1])[:3]}
+                      for Material in OutMaterials], "facets": Facets,
+        "authoredBy": "Projects/Project-Drive/Source/DriveSceneAuthor.cpp (ControlVehicleStructure.inl body, ControlWheelStructure.inl rims, tread lattice)",
+        "statement": "Byte-identical geometry and materials of the Drive-authored ControlVehicle; the proving ground is omitted. Visual preview only.",
     }
     return Glb, Record
 

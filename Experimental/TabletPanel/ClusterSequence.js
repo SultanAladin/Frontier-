@@ -4,15 +4,24 @@
 // 📦 Driver cluster: irregular display outlines (hexagon, 70 % circle, trapezoid, pill) drawn into one flat texture clipped to the outline.
 
 export const ClusterWidth = 1000;
-export const ClusterHeight = 560;
+export const ClusterHeight = 560;   // reference height; each outline rasters at its own physical aspect (see ResolveClusterHeight)
+
+// 📝 The texture is cut to the housing, so it must share the housing's proportions: a square 70 % circle gets a
+//    square raster, the wide pill a 3:1 raster. Stretching one fixed canvas onto every outline squashed the gauges.
+export function ResolveClusterHeight(Identifier)
+{
+    const Outline = ClusterOutlines[Identifier];
+    return Math.round(ClusterWidth * Outline.Height / Outline.Width);
+}
 
 // Outlines are unit polylines over [-1, 1]²; the same path clips the raster, cuts the bezel and sizes the hardware.
 export const ClusterOutlines = {
     hexagon:   { Name: "Hexagon",      Caption: "Six faces. One focus.",   Width: 0.34, Height: 0.19,
                  Points: () => [[-0.62, -1], [0.62, -1], [1, 0], [0.62, 1], [-0.62, 1], [-1, 0]] },
     arc:       { Name: "70 % circle",  Caption: "A ring, cut by the hood", Width: 0.26, Height: 0.26,
-                 Points: () => { const Points = []; const Start = Math.PI * 0.2, End = Math.PI * 1.6;
-                     for (let Index = 0; Index <= 72; ++Index) { const Angle = Start + (End - Start) * Index / 72; Points.push([Math.cos(Angle + Math.PI / 2) , Math.sin(Angle + Math.PI / 2)]); }
+                 Points: () => { // 📝 70 % of the circle, the missing 30 % cut symmetrically at the top where the hood line runs.
+                     const Points = []; const Start = Math.PI * 0.8, End = Math.PI * 2.2;
+                     for (let Index = 0; Index <= 72; ++Index) { const Angle = Start + (End - Start) * Index / 72; Points.push([Math.cos(Angle), Math.sin(Angle)]); }
                      return Points; } },
     trapezoid: { Name: "Trapezoid",    Caption: "Wide at the top, grounded", Width: 0.36, Height: 0.17,
                  Points: () => [[-0.78, -1], [0.78, -1], [1, 1], [-1, 1]] },
@@ -36,14 +45,23 @@ export class ClusterSequence
         this.LastRaster = -1;
         this.RateHz = 30;
         this.Demonstration = true;
-        Canvas.width = ClusterWidth * 1.5;
-        Canvas.height = ClusterHeight * 1.5;
+        this.Height = ClusterHeight;
+        this.Resized = false;
+        this.PresentOutline("hexagon");
     }
 
     PresentOutline(Identifier)
     {
         if (!ClusterOutlines[Identifier]) return false;
         this.Outline = Identifier;
+        this.Height = ResolveClusterHeight(Identifier);
+        const Width = ClusterWidth * 1.5, Height = this.Height * 1.5;
+        if (this.Canvas.width !== Width || this.Canvas.height !== Height)
+        {
+            this.Canvas.width = Width;
+            this.Canvas.height = Height;
+            this.Resized = true;   // the GPU texture must be reallocated, not sub-uploaded
+        }
         this.Dirty = true;
         return true;
     }
@@ -69,7 +87,7 @@ export class ClusterSequence
         for (const [Index, Point] of Points.entries())
         {
             const Across = ClusterWidth / 2 + Point[0] * (ClusterWidth / 2 - Inset);
-            const Down = ClusterHeight / 2 - Point[1] * (ClusterHeight / 2 - Inset);
+            const Down = this.Height / 2 - Point[1] * (this.Height / 2 - Inset);
             if (Index === 0) Context.moveTo(Across, Down); else Context.lineTo(Across, Down);
         }
         Context.closePath();
@@ -112,31 +130,31 @@ export class ClusterSequence
         this.LastRaster = Elapsed;
         const Context = this.Context;
         Context.setTransform(1.5, 0, 0, 1.5, 0, 0);
-        Context.clearRect(0, 0, ClusterWidth, ClusterHeight);
+        Context.clearRect(0, 0, ClusterWidth, this.Height);
         Context.save();
         this.TraceOutline();
         Context.clip();
-        const Colour = Context.createLinearGradient(0, 0, 0, ClusterHeight);
+        const Colour = Context.createLinearGradient(0, 0, 0, this.Height);
         Colour.addColorStop(0, "#111c20"); Colour.addColorStop(1, "#0b1113");
         Context.fillStyle = Colour;
-        Context.fillRect(0, 0, ClusterWidth, ClusterHeight);
+        Context.fillRect(0, 0, ClusterWidth, this.Height);
         const Narrow = this.Outline === "arc";
         const Flat = this.Outline === "pill";
-        const Radius = Narrow ? 122 : Flat ? 112 : 160;
-        const Row = Narrow ? 300 : ClusterHeight / 2 + (Flat ? 6 : 14);
-        const LeftCentre = Narrow ? 290 : Flat ? 230 : 250;
-        const RightCentre = Narrow ? 710 : Flat ? 770 : 750;
+        const Radius = Narrow ? 190 : Flat ? 112 : Math.min(160, this.Height * 0.3);
+        const Row = Narrow ? 470 : this.Height / 2 + (Flat ? 6 : 14);
+        const LeftCentre = Narrow ? 275 : Flat ? 230 : 250;
+        const RightCentre = Narrow ? 725 : Flat ? 770 : 750;
         this.RasterGauge(LeftCentre, Row, Radius, this.Speed / 240, Math.PI * 0.75, Math.PI * 1.5, "#8fd1ac", "SPEED", String(this.Speed), "km/h");
         this.RasterGauge(RightCentre, Row, Radius, this.Revolutions / 8000, Math.PI * 0.75, Math.PI * 1.5, "#f0c27a", "ENGINE", String(Math.round(this.Revolutions / 100) / 10), "× 1000 rpm", 0.84);
         Context.font = `300 ${Flat ? 66 : 84}px "DM Sans", sans-serif`; Context.textAlign = "center"; Context.fillStyle = "#f2f6ef";
         Context.fillText(this.Gear, ClusterWidth / 2, Row + (Flat ? 24 : 30));
         Context.font = '400 13px "DM Sans", sans-serif'; Context.fillStyle = "#8aa394";
-        Context.fillText(this.Demonstration ? "DEMONSTRATION DRIVE · NO LIVE VEHICLE" : "DEMONSTRATION PAUSED · NO LIVE VEHICLE", ClusterWidth / 2, Narrow ? 470 : ClusterHeight - 44);
+        Context.fillText(this.Demonstration ? "DEMONSTRATION DRIVE · NO LIVE VEHICLE" : "DEMONSTRATION PAUSED · NO LIVE VEHICLE", ClusterWidth / 2, Narrow ? 760 : this.Height - 44);
         Context.fillText("CONTROLVEHICLE", ClusterWidth / 2, Row - (Flat ? 46 : 60));
         for (const [Index, Lamp] of [["#8fd1ac", "ABS"], ["#f0c27a", "TCS"], ["#c9563d", "OIL"], ["#94caff", "LOW BEAM"]].entries())
         {
             const Across = ClusterWidth / 2 - 90 + Index * 60;
-            const Down = Narrow ? 118 : Flat ? 36 : 54;
+            const Down = Narrow ? 215 : Flat ? 36 : 54;
             Context.beginPath(); Context.arc(Across, Down, 6, 0, Math.PI * 2);
             Context.fillStyle = Index === 2 && this.Speed > 0 ? "#3a2b26" : Lamp; Context.fill();
             Context.font = '400 9px "DM Sans", sans-serif'; Context.fillStyle = "#7f978a"; Context.fillText(Lamp[1], Across, Down + 20);
@@ -152,7 +170,7 @@ export class ClusterSequence
     QueryReading()
     {
         return { Outline: this.Outline, Speed: this.Speed, Revolutions: this.Revolutions, Gear: this.Gear, Revision: this.Revision,
-            RateHz: this.RateHz, Width: ClusterWidth, Height: ClusterHeight, Demonstration: this.Demonstration,
+            RateHz: this.RateHz, Width: ClusterWidth, Height: this.Height, Demonstration: this.Demonstration,
             Hardware: { Width: ClusterOutlines[this.Outline].Width, Height: ClusterOutlines[this.Outline].Height } };
     }
 }

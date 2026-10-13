@@ -365,7 +365,11 @@ async function ConstructExperience()
         if (Layout.ClusterVisible)
         {
             Cluster.AdvanceDemonstration(Elapsed);
-            if (Cluster.RasterCluster(Elapsed)) { ClusterHardware.Texture.needsUpdate = true; SceneDirty = true; }
+            if (Cluster.RasterCluster(Elapsed))
+            {
+                if (Cluster.Resized) { ClusterHardware.Texture.dispose(); Cluster.Resized = false; }
+                ClusterHardware.Texture.needsUpdate = true; SceneDirty = true;
+            }
         }
         if (ActiveScreen.RasterScreen())
         {

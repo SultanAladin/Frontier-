@@ -2,7 +2,7 @@ import Assert from "node:assert/strict";
 import { Applications, LauncherDesigns, ScreenWidth, ScreenHeight, ResolveApplication, ResolveDesign } from "./AppSpecification.js";
 import { ResolveIconSvg } from "./IconDepot.js";
 import { ScreenSequence } from "./ScreenSequence.js";
-import { ClusterSequence, ClusterOutlines, ClusterWidth, ClusterHeight } from "./ClusterSequence.js";
+import { ClusterSequence, ClusterOutlines, ClusterWidth, ResolveClusterHeight } from "./ClusterSequence.js";
 import { readFileSync } from "node:fs";
 import { createHash } from "node:crypto";
 
@@ -128,8 +128,10 @@ for (const [Key, Outline] of Object.entries(ClusterOutlines))
 }
 const Arc = ClusterOutlines.arc.Points();
 Require(Math.hypot(Arc[0][0] - Arc.at(-1)[0], Arc[0][1] - Arc.at(-1)[1]) > 1, "Arc outline is a partial (≈70 %) circle, not a full ring");
+Require(Math.abs(Arc[0][0] + Arc.at(-1)[0]) < 1e-9 && Arc[0][1] > 0.5, "Arc cut is symmetric and at the top (hood line)");
+Require(Math.abs(ResolveClusterHeight("arc") - ClusterWidth) <= 1 && ResolveClusterHeight("pill") < ClusterWidth / 2.5, "Each outline rasters at its own housing aspect, never stretched");
 Require(!Cluster.PresentOutline("octagon") && Cluster.PresentOutline("trapezoid"), "Unknown cluster outlines are refused");
-Require(ClusterCanvas.width === ClusterWidth * 1.5 && ClusterCanvas.height === ClusterHeight * 1.5, "Cluster raster has its own resolution");
+Require(ClusterCanvas.width === ClusterWidth * 1.5 && ClusterCanvas.height === ResolveClusterHeight("trapezoid") * 1.5, "Cluster raster has its own resolution and follows the outline aspect");
 Require(Cluster.RasterCluster(0) && !Cluster.RasterCluster(0.01), "Cluster re-rasters only when dirty");
 Cluster.AdvanceDemonstration(1.0);
 Require(Cluster.Dirty && !Cluster.RasterCluster(0.02) && Cluster.RasterCluster(0.05), "Cluster cadence is capped at its own 30 Hz");
@@ -137,5 +139,7 @@ Require(Cluster.Dirty && !Cluster.RasterCluster(0.02) && Cluster.RasterCluster(0
 const Manifest = JSON.parse(readFileSync(new URL("./ControlVehicle.json", import.meta.url), "utf8"));
 const Digest = createHash("sha256").update(readFileSync(new URL("./ControlVehicle.glb", import.meta.url))).digest("hex");
 Require(Digest === Manifest.glbSHA256, "ControlVehicle.glb matches its extraction manifest");
+Require(Manifest.materials?.some(Material => Material.name === "MetalicCoat" && Math.abs(Material.baseColor[0] - 0.680005) < 1e-4 && Math.abs(Material.baseColor[1] - 0.800458) < 1e-4),
+    "Preview paint is the Drive-authored MetalicCoat (0.680005, 0.800458, 0) from DriveSceneAuthor::AuthorMaterials");
 Require(Manifest.facets === 19948 && Manifest.nodes?.length === 5, "Preview carries the body and four XPBD tyres of the project car");
 console.log(`PASS ${Assertions} source/layout/interaction assertions. These checks do not claim browser or GPU execution.`);

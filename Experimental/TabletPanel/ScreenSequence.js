@@ -563,31 +563,32 @@ export class ScreenSequence
         else if (Identifier === "garage")
         {
             const Preview = this.Preview;
-            this.RasterRectangle(78, 248, 700, 400, 22, "#0d1416");
+            // 📝 The preview target is 640 × 400; draw it 1:1 so the car is never squashed into the page layout.
+            this.RasterRectangle(78, 248, 640, 400, 22, "#0d1416");
             if (Preview?.Loaded)
             {
                 const Context = this.Context;
                 Context.save();
-                Context.beginPath(); Context.roundRect(78, 248, 700, 400, 22); Context.clip();
+                Context.beginPath(); Context.roundRect(78, 248, 640, 400, 22); Context.clip();
                 // 📝 GL render targets are bottom-up; flip once while compositing so the car sits on its wheels.
                 Context.translate(78, 648); Context.scale(1, -1);
-                Context.drawImage(Preview.Readback, 0, 0, 700, 400);
+                Context.drawImage(Preview.Readback, 0, 0, 640, 400);
                 Context.restore();
                 this.RasterText(Preview.Facets.toLocaleString("en-GB") + " facets · ControlVehicle · own camera & lighting", 96, 630, 13, "#8fa89c");
             }
             else this.RasterText(Preview?.Failure ? "Preview unavailable: " + Preview.Failure : "Loading your car…", 428, 455, 20, "#7d968b", "center");
-            this.AdmitRegion("preview-orbit", 78, 248, 700, 400, null, { Orbit: true });
-            this.RasterText("YOUR GARAGE", 822, 291, 12, "#98a98f");
-            this.RasterText("ControlVehicle", 820, 349, 39, "#dce8cc", "left", 300);
-            this.RasterText("Drag the car to orbit it. Visual only.", 823, 392, 17, "#849c81");
-            this.RasterText("Highlight colour for this UI study", 823, 440, 15, "#c5d9ba");
+            this.AdmitRegion("preview-orbit", 78, 248, 640, 400, null, { Orbit: true });
+            this.RasterText("YOUR GARAGE", 762, 291, 12, "#98a98f");
+            this.RasterText("ControlVehicle", 760, 349, 39, "#dce8cc", "left", 300);
+            this.RasterText("The Project-Drive car. Drag to orbit. Visual only.", 763, 392, 17, "#849c81");
+            this.RasterText("Highlight colour for this UI study", 763, 440, 15, "#c5d9ba");
             for (const [Index, Colour] of ["#a4d8be", "#d4bd88", "#9eb8df", "#e2ada4"].entries())
             {
-                const Left = 822 + (Index % 2) * 128, Top = 462 + Math.floor(Index / 2) * 74;
+                const Left = 762 + (Index % 2) * 128, Top = 462 + Math.floor(Index / 2) * 74;
                 this.RasterRectangle(Left, Top, 110, 58, 16, Colour, this.FinishColour === Colour ? "#e8e8d5" : null);
                 this.AdmitRegion("colour:" + Index, Left, Top, 110, 58, () => { this.FinishColour = Colour; this.Notice = "UI highlight selected. Vehicle materials have not been changed."; this.Dirty = true; });
             }
-            this.RasterButton("preview-spin", Preview?.Spin ? "Pause turntable" : "Resume turntable", 822, 618, 238, 42,
+            this.RasterButton("preview-spin", Preview?.Spin ? "Pause turntable" : "Resume turntable", 762, 618, 238, 42,
                 () => { if (Preview) { Preview.Spin = !Preview.Spin; Preview.Dirty = true; this.Dirty = true; } }, "#243931", "#acbba8");
         }
         else

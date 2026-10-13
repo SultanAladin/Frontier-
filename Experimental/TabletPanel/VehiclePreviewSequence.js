@@ -76,15 +76,40 @@ export class VehiclePreviewSequence
             const Bounds = new THREE.Box3().setFromObject(Document.scene);
             const Centre = Bounds.getCenter(new THREE.Vector3());
             Document.scene.position.set(-Centre.x, -Bounds.min.y, -Centre.z);
+            // 📝 Materials follow DriveSceneAuthor::AuthorMaterials: MetalicCoat is a lime dielectric basecoat under a
+            //    0.03-roughness clearcoat with a flake lobe (approximated by a touch of metalness), the glazing is smoked
+            //    transmissive, the mag accent Material.024 is a blue metal, and the lamps emit. Colours stay authored.
+            const Promote = (Source, Overrides) =>
+            {
+                const Material = new THREE.MeshPhysicalMaterial({ color: Source.color.clone(), metalness: 0, roughness: Source.roughness, name: Source.name, ...Overrides });
+                Source.dispose();
+                return Material;
+            };
+            const Materials = new Map();
             Document.scene.traverse(Entity =>
             {
                 if (!Entity.isMesh) return;
                 Entity.castShadow = true;
                 Entity.receiveShadow = true;
                 this.Facets += Entity.geometry.index ? Entity.geometry.index.count / 3 : Entity.geometry.attributes.position.count / 3;
-                if (Entity.material?.transmission > 0) Entity.material.transmission = 0;
-                if (Entity.material?.name === "Glass") { Entity.material.opacity = 0.55; Entity.material.transparent = true; Entity.material.roughness = 0.05; Entity.material.metalness = 0.6; }
-                if (Entity.material?.name === "MetalicCoat") { Entity.material.metalness = 0.35; Entity.material.roughness = 0.32; Entity.material.clearcoat = 1; Entity.material.clearcoatRoughness = 0.08; }
+                const Source = Entity.material;
+                if (!Materials.has(Source.name))
+                {
+                    const Name = Source.name;
+                    let Material = Source;
+                    if (Name === "MetalicCoat") Material = Promote(Source, { metalness: 0.18, roughness: 0.42, clearcoat: 1, clearcoatRoughness: 0.03, envMapIntensity: 1.3 });
+                    else if (Name === "Glass") Material = Promote(Source, { color: new THREE.Color("#0b1116"), metalness: 0, roughness: 0.04, transparent: true, opacity: 0.78, envMapIntensity: 1.6, clearcoat: 1, clearcoatRoughness: 0.02 });
+                    else if (Name === "Material.024") Material = Promote(Source, { metalness: 1, roughness: 0.32, envMapIntensity: 1.2 });
+                    else if (Name === "Material.016") Material = Promote(Source, { color: new THREE.Color("#141414"), metalness: 0.6, roughness: 0.45 });
+                    else if (Name === "FrontLight") Material = Promote(Source, { color: new THREE.Color("#e9f2ff"), roughness: 0.15, emissive: new THREE.Color("#dfeeff"), emissiveIntensity: 0.9, clearcoat: 1 });
+                    else if (Name === "RearLight") Material = Promote(Source, { roughness: 0.2, emissive: new THREE.Color("#ff1a1a"), emissiveIntensity: 0.7, clearcoat: 1 });
+                    else if (Name === "StandardRubber") Material = Promote(Source, { roughness: 0.86 });
+                    else if (Name === "Plastic") Material = Promote(Source, { roughness: 0.5 });
+                    else if (Name === "Plastic2") Material = Promote(Source, { color: new THREE.Color("#2a2d30"), roughness: 0.5 });
+                    else if (Source.transmission > 0) Source.transmission = 0;
+                    Materials.set(Name, Material);
+                }
+                Entity.material = Materials.get(Source.name);
             });
             this.Vehicle.add(Document.scene);
             this.Loaded = true;
