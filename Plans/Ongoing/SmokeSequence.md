@@ -12,6 +12,8 @@ Occasional tyre fire follows sustained overheating and available combustible mat
 
 SDF tyre deformation is deferred. Existing XPBD carcass deformation remains active. Preserve the current brake,
 rotor/contact solve and shared host/project ownership. Do not add a project window or a replacement renderer.
+Stationary wheelspin/burnout workflow and dedicated actual-car proof were deferred by the user on 2026-10-13;
+see `Plans/Deferred/WheelspinSequence.md`. The immediate focus has moved to vehicle HMI/interior work.
 
 ## Inspected starting point
 
