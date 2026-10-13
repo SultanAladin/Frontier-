@@ -39,7 +39,13 @@ async function Contact(Identifier, Touch = false)
     await WaitForTexture();
     const Region = await Page.evaluate(Identifier => window.TabletPrototype.QueryRegions().find(Region => Region.Identifier === Identifier), Identifier);
     Assert.ok(Region, "Missing live hit region: " + Identifier);
-    const Position = await Page.evaluate(Region => window.TabletPrototype.ProjectScreenPoint(Region.Left + Region.Width / 2, Region.Top + Region.Height / 2), Region);
+    let Position = await Page.evaluate(Region => window.TabletPrototype.ProjectScreenPoint(Region.Left + Region.Width / 2, Region.Top + Region.Height / 2), Region);
+    if (Position.Top < 0 || Position.Top > await Page.evaluate(() => window.innerHeight))
+    {
+        // 📝 With the cluster above it the console can sit below the fold; a real finger scrolls first, so do we.
+        await Page.evaluate(Top => window.scrollBy(0, Top - window.innerHeight / 2), Position.Top);
+        Position = await Page.evaluate(Region => window.TabletPrototype.ProjectScreenPoint(Region.Left + Region.Width / 2, Region.Top + Region.Height / 2), Region);
+    }
     if (Touch) await Page.touchscreen.tap(Position.Left, Position.Top);
     else await Page.mouse.click(Position.Left, Position.Top);
     await WaitForTexture();
@@ -63,11 +69,65 @@ try
     Assert.equal(Initial.Hardware.CoverThickness, 0.0024);
     Assert.equal(Initial.PhysicallyTransmissiveGlass, true);
     Assert.equal(Initial.FlatDeviceTexture, true);
-    Assert.equal(Initial.TextureWidth, 1920);
-    Assert.equal(Initial.TextureHeight, 1200);
+    Assert.ok(Initial.TextureWidth >= 1920 && Initial.TextureHeight === 1200, "Reference console keeps the full 1200-row launcher raster");
     Assert.ok(await Page.evaluate(() => [...document.fonts].every(Font => Font.status === "loaded")));
     Proof.initial = Initial;
+    Assert.equal(Initial.Preview.OwnCamera, true);
+    Assert.equal(Initial.Cluster.Outline, "hexagon");
+    Assert.ok(Initial.Cluster.Revision >= 1, "Cluster raster has been produced");
+    // 📝 The demonstration drive deliberately redraws the cluster at 30 Hz; software rasterisation cannot screenshot under that load.
+    await Page.evaluate(() => window.TabletPrototype.PresentClusterDemonstration(false));
     await Capture("Tablet");
+
+    // Real car preview: the extracted project ControlVehicle in its own lit scene, orbited by dragging on the panel.
+    await Page.waitForFunction(() => window.TabletPrototype.QueryReading().Preview.Loaded || window.TabletPrototype.QueryReading().Preview.Failure, undefined, { timeout: 90000 });
+    const PreviewState = await Page.evaluate(() => window.TabletPrototype.QueryReading().Preview);
+    Assert.equal(PreviewState.Failure, "");
+    Assert.equal(PreviewState.Facets, 19948);
+    await Page.evaluate(() => window.TabletPrototype.PresentPreviewSpin(false));
+    await Contact("app:garage");
+    await WaitForTexture();
+    Assert.equal(await Page.evaluate(() => window.TabletPrototype.QueryReading().Application), "garage");
+    await Page.waitForFunction(() => window.TabletPrototype.QueryReading().Preview.Revision >= 1, undefined, { timeout: 60000 });
+    const OrbitRegion = await Page.evaluate(() => window.TabletPrototype.QueryRegions().find(Region => Region.Identifier === "preview-orbit"));
+    await Page.evaluate(Region => { const Point = window.TabletPrototype.ProjectScreenPoint(Region.Left + Region.Width / 2, Region.Top + Region.Height / 2); window.scrollBy(0, Point.Top - window.innerHeight / 2); }, OrbitRegion);
+    const OrbitStart = await Page.evaluate(Region => window.TabletPrototype.ProjectScreenPoint(Region.Left + Region.Width / 2, Region.Top + Region.Height / 2), OrbitRegion);
+    const RevisionBefore = (await Page.evaluate(() => window.TabletPrototype.QueryReading().Preview)).Revision;
+    await Page.mouse.move(OrbitStart.Left, OrbitStart.Top); await Page.mouse.down();
+    await Page.mouse.move(OrbitStart.Left + 70, OrbitStart.Top + 8, { steps: 6 }); await Page.mouse.up();
+    await Page.waitForFunction(Previous => window.TabletPrototype.QueryReading().Preview.Revision > Previous, RevisionBefore, { timeout: 60000 });
+    await Capture("GaragePreview");
+    await FS.writeFile(Path.join(Output, "GaragePreviewScreen.png"), Buffer.from((await Page.evaluate(() => window.TabletPrototype.QueryScreenPng())).split(",")[1], "base64"));
+    Proof.vehiclePreview = { asset: "ControlVehicle.glb", facets: PreviewState.Facets, ownScene: true, renderTarget: [PreviewState.Width, PreviewState.Height], rateHz: PreviewState.RateHz, orbitByPanelDrag: true, visualOnly: true };
+    await Page.keyboard.press("Escape");
+
+    // Modular console: each car family rebuilds the chassis; the launcher keeps its layout and touch mapping.
+    Proof.consoleFamilies = {};
+    for (const [Family, Outline] of [["coupe", "trapezoid"], ["estate", "pill"], ["utility", "arc"]])
+    {
+        await Page.locator('.DesignOption[data-design="launchpad"]').click();
+        await Page.locator(`[data-family="${Family}"]`).click();
+        await Page.locator(`[data-outline="${Outline}"]`).click();
+        await WaitForTexture();
+        const Reading = await Page.evaluate(() => window.TabletPrototype.QueryReading());
+        Assert.equal(Reading.Hardware.Family, Family);
+        Assert.equal(Reading.Cluster.Outline, Outline);
+        Assert.ok(Math.abs(Reading.TextureWidth / Reading.TextureHeight - Reading.Hardware.DisplayWidth / Reading.Hardware.DisplayHeight) < 0.01, "Panel texture follows the console aspect");
+        await Contact("app:settings");
+        Assert.equal(await Page.evaluate(() => window.TabletPrototype.QueryReading().Application), "settings");
+        const Choice = Family === "coupe" ? "focus" : Family === "estate" ? "console" : "collections";
+        await Contact("design:" + Choice);
+        Assert.equal(await Page.evaluate(() => window.TabletPrototype.QueryReading().Design), Choice);
+        await Page.keyboard.press("Escape");
+        await Capture("Console-" + Family);
+        await FS.writeFile(Path.join(Output, "Cluster-" + Outline + ".png"), Buffer.from((await Page.evaluate(() => window.TabletPrototype.QueryClusterPng())).split(",")[1], "base64"));
+        Proof.consoleFamilies[Family] = { widthMm: Math.round(Reading.Hardware.Width * 1000), heightMm: Math.round(Reading.Hardware.Height * 1000), thicknessMm: Math.round(Reading.Hardware.Thickness * 1000),
+            texture: [Reading.TextureWidth, Reading.TextureHeight], clusterOutline: Outline, launcherChosenInSettings: Choice };
+    }
+    await Page.locator('[data-family="grand"]').click();
+    await Page.locator('[data-outline="hexagon"]').click();
+    await Page.locator('.DesignOption[data-design="launchpad"]').click();
+    await WaitForTexture();
     const Designs = await Page.evaluate(() => window.TabletPrototype.Designs);
     const Applications = await Page.evaluate(() => window.TabletPrototype.Applications);
     for (const Design of Designs)
@@ -147,10 +207,10 @@ try
     Assert.equal(await Page.evaluate(() => window.TabletPrototype.QueryReading().Application), null);
     await Capture("TabletBack");
     await Page.locator("#ResetCamera").click();
-    await Page.locator(".GlassControl").click();
+    await Page.locator(".GlassControl:has(#GlassEnabled)").click();
     await WaitForTexture();
     Assert.equal(await Page.evaluate(() => window.TabletPrototype.QueryReading().GlassVisible), false);
-    await Page.locator(".GlassControl").click();
+    await Page.locator(".GlassControl:has(#GlassEnabled)").click();
     Assert.equal(await Page.evaluate(() => window.TabletPrototype.QueryReading().GlassVisible), true);
     await Page.locator('[data-finish="graphite"]').click();
     Assert.equal(await Page.locator('[data-finish="graphite"]').getAttribute("aria-pressed"), "true");
@@ -159,6 +219,7 @@ try
     Proof.cameraAndHardware = { perspective: true, orthographic: true, touchInFlatMode: true, edgeView: true,
         backViewCannotActivateFrontScreen: true, glassToggle: true, finishChanges: true, fixedTextureAcrossCameraChanges: true };
 
+    await Page.evaluate(() => window.scrollTo(0, document.getElementById("Viewport").getBoundingClientRect().top + window.scrollY - 8));
     const CanvasBounds = await Page.locator("#TabletCanvas").boundingBox();
     const PreviousYaw = await Page.evaluate(() => window.TabletPrototype.QueryReading().Camera.Yaw);
     await Page.mouse.move(CanvasBounds.x + 30, CanvasBounds.y + 35);
@@ -179,16 +240,16 @@ try
     await Capture("MobileTablet");
     Proof.mobile = { viewport: "390x844", noHorizontalOverflow: true, projectedTouchOpensApp: true };
     Assert.deepEqual(Errors, []);
-    const Files = ["index.html", "TabletPanel.css", "AppSpecification.js", "IconDepot.js", "ScreenSequence.js", "TabletStructure.js", "TabletSequence.js", "Build.mjs", "package.json", "package-lock.json", "TabletRuntime.js", "TabletMetrics.mjs", "BrowserMetrics.mjs"];
+    const Files = ["index.html", "TabletPanel.css", "AppSpecification.js", "IconDepot.js", "ScreenSequence.js", "TabletStructure.js", "TabletSequence.js", "ClusterSequence.js", "VehiclePreviewSequence.js", "ControlVehicle.glb", "ControlVehicle.json", "Build.mjs", "package.json", "package-lock.json", "TabletRuntime.js", "TabletMetrics.mjs", "BrowserMetrics.mjs"];
     Proof.sourceSHA256 = {};
     for (const Name of Files) Proof.sourceSHA256[Name] = createHash("sha256").update(await FS.readFile(Path.join(Folder, Name))).digest("hex");
     Proof.imageSHA256 = {};
     for (const Name of (await FS.readdir(Output)).filter(Name => Name.endsWith(".png")))
         Proof.imageSHA256[Name] = createHash("sha256").update(await FS.readFile(Path.join(Output, Name))).digest("hex");
     Proof.passed = true;
-    Proof.scope = "Actual WebGL tablet hardware and cover glass, flat canvas-to-GPU screen texture, five launcher designs and pointer/touch/text interaction. Local UI demos only; no native or online execution.";
+    Proof.scope = "Actual WebGL tablet hardware and cover glass, flat canvas-to-GPU screen texture, five launcher designs chosen in Settings, four console families, four irregular cluster outlines, the extracted project car preview, and pointer/touch/text interaction. Local UI demos only; no native or online execution.";
     await FS.writeFile(Path.join(Output, "BrowserMetrics.json"), JSON.stringify(Proof, null, 2) + "\n");
-    console.log("PASS actual tablet/browser interaction, five launchers, hardware, camera modes and mobile touch.");
+    console.log("PASS actual tablet/browser interaction: launchers, Settings picker, console families, cluster outlines, car preview, camera modes and mobile touch.");
 }
 finally
 {

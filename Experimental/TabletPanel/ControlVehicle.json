@@ -1,0 +1,26 @@
+{
+  "source": "Projects/Project-Zero/Content/Scenes/Vehicle.gltf",
+  "sourceSHA256": "4324b29b73e2af226965c5623f81267ddda4581845b120bc203936130ab96051",
+  "glbSHA256": "c08466f8d04e305bfecd0d16fd58b78a7ee33f54945ea87351ea85eb8886cbf5",
+  "glbBytes": 1687392,
+  "nodes": [
+    "ControlVehicle \u2014 paint / glass / plastic",
+    "XPBD Tyre FL",
+    "XPBD Tyre FR",
+    "XPBD Tyre RL",
+    "XPBD Tyre RR"
+  ],
+  "materials": [
+    "MetalicCoat",
+    "Glass",
+    "Plastic",
+    "StandardRubber",
+    "Plastic2",
+    "FrontLight",
+    "RearLight",
+    "Material.016",
+    "Material.024"
+  ],
+  "facets": 19948,
+  "statement": "Byte-identical geometry and materials of the authored ControlVehicle; the proving ground is omitted. Visual preview only."
+}

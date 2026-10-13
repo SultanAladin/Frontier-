@@ -24,7 +24,7 @@
                 <div class="Failure" id="Failure" role="alert" hidden></div>
             </div>
             <div class="StageFoot">
-                <div class="ProductCaption"><span class="CaptionIndex">01</span><span><strong>Precision, under glass.</strong><small>400 × 250 mm · 2.4 mm cover glass</small></span></div>
+                <div class="ProductCaption"><span class="CaptionIndex">01</span><span><strong>Precision, under glass.</strong><small id="DimensionCaption">400 × 250 mm · 12 mm console · 2.4 mm cover glass</small></span></div>
                 <div class="InteractionHint"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 12V5a2 2 0 0 1 4 0v6l2-1a2 2 0 0 1 3 2l-1 7H8l-4-6a2 2 0 0 1 3-2z" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></svg><span>Tap an app · Drag the background to orbit<br>Scroll to zoom · Esc to return home</span></div>
             </div>
         </section>
@@ -42,6 +42,21 @@
                 <input id="CameraYaw" type="range" min="-180" max="180" value="-24" aria-label="Camera rotation">
                 <label class="ControlRow" for="CameraPitch"><span>Elevation</span><output id="CameraPitchReading">12°</output></label>
                 <input id="CameraPitch" type="range" min="-45" max="65" value="12" aria-label="Camera elevation">
+            </section>
+            <section class="InspectorSection">
+                <div class="SectionTitle"><h2>Console size</h2><span>PER CAR</span></div>
+                <p class="SectionNote">Every car has its own console. The launcher stays the same.</p>
+                <div class="Finishes" role="group" aria-label="Tablet family"><button data-family="coupe" aria-pressed="false">Coupé<small>300 × 200</small></button><button data-family="grand" aria-pressed="true">Grand tourer<small>400 × 250</small></button><button data-family="estate" aria-pressed="false">Wide estate<small>480 × 220</small></button><button data-family="utility" aria-pressed="false">Utility<small>260 × 330</small></button></div>
+                <label class="ControlRow" for="TabletWidth"><span>Width</span><output id="TabletWidthReading">400 mm</output></label><input id="TabletWidth" type="range" min="200" max="560" value="400" aria-label="Tablet width in millimetres">
+                <label class="ControlRow" for="TabletHeight"><span>Height</span><output id="TabletHeightReading">250 mm</output></label><input id="TabletHeight" type="range" min="140" max="360" value="250" aria-label="Tablet height in millimetres">
+                <label class="ControlRow" for="TabletThickness"><span>Console thickness</span><output id="TabletThicknessReading">12 mm</output></label><input id="TabletThickness" type="range" min="6" max="30" value="12" aria-label="Console thickness in millimetres">
+            </section>
+            <section class="InspectorSection">
+                <div class="SectionTitle"><h2>Driver cluster</h2><span>30 Hz</span></div>
+                <p class="SectionNote">Irregular outlines, one masked texture.</p>
+                <div class="Finishes" role="group" aria-label="Cluster outline"><button data-outline="hexagon" aria-pressed="true">Hexagon</button><button data-outline="arc" aria-pressed="false">70 % circle</button><button data-outline="trapezoid" aria-pressed="false">Trapezoid</button><button data-outline="pill" aria-pressed="false">Wide pill</button></div>
+                <label class="GlassControl"><span>Show cluster<small>Above the console</small></span><input id="ClusterEnabled" type="checkbox" checked><i class="Switch"></i></label>
+                <label class="GlassControl"><span>Demonstration drive<small>Animated speed and rpm</small></span><input id="ClusterDemonstration" type="checkbox" checked><i class="Switch"></i></label>
             </section>
             <section class="InspectorSection">
                 <div class="SectionTitle"><h2>Hardware</h2><span>FINISH</span></div>

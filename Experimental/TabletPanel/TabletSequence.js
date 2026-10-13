@@ -4,10 +4,12 @@
 // 📦 Shared-device prototype workflow: ray-to-UV touch input, independent camera views and a flat live screen texture.
 
 import * as THREE from "three";
-import { Applications, LauncherDesigns, ConstructDesignGlyph, ScreenWidth, ScreenHeight, ResolveDesign } from "./AppSpecification.js";
+import { Applications, LauncherDesigns, ConstructDesignGlyph, ResolveDesign } from "./AppSpecification.js";
 import { ConstructIconImages } from "./IconDepot.js";
 import { ScreenSequence } from "./ScreenSequence.js";
-import { ConstructTablet, DisplayWidth, DisplayHeight, DisplayDepth, DeviceWidth, DeviceHeight } from "./TabletStructure.js";
+import { ConstructTablet, ConstructCluster, DisplayDepth, TabletFamilies } from "./TabletStructure.js";
+import { VehiclePreviewSequence } from "./VehiclePreviewSequence.js";
+import { ClusterSequence, ClusterOutlines } from "./ClusterSequence.js";
 
 async function ConstructExperience()
 {
@@ -32,6 +34,47 @@ async function ConstructExperience()
     Renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     Renderer.transmissionResolutionScale = 1;
     const Hardware = ConstructTablet(Renderer, Artwork);
+    const Preview = new VehiclePreviewSequence(Renderer);
+    ActiveScreen.Preview = Preview;
+    Preview.Load(new URL("./ControlVehicle.glb", document.baseURI).href);
+    const ClusterCanvas = document.createElement("canvas");
+    const Cluster = new ClusterSequence(ClusterCanvas);
+    const ClusterHardware = ConstructCluster(Hardware.Scene, Renderer, ClusterCanvas, Hardware.Materials);
+    const Layout = { Family: "grand", Width: TabletFamilies.grand.Width, Height: TabletFamilies.grand.Height, Thickness: TabletFamilies.grand.Thickness, ClusterVisible: true };
+    function ArrangeConsole()
+    {
+        // 📝 Console tablet below, cluster above and tilted toward the driver; the pair reframes whenever the car's dimensions change.
+        const Outline = ClusterOutlines[Cluster.Outline];
+        ClusterHardware.Build(Outline.Points(), Outline.Width, Outline.Height);
+        ClusterHardware.Group.visible = Layout.ClusterVisible;
+        ClusterHardware.Group.position.set(0, Layout.Height / 2 + 0.03 + Outline.Height / 2, -0.03);
+        ClusterHardware.Group.rotation.x = -0.14;
+        Hardware.Scene.updateMatrixWorld(true);
+        Cluster.Dirty = true;
+        SceneDirty = true;
+        Renderer.shadowMap.needsUpdate = true;
+    }
+    function BuildConsole(Width, Height, Thickness, Family = "custom")
+    {
+        Layout.Width = Width; Layout.Height = Height; Layout.Thickness = Thickness; Layout.Family = Family;
+        Hardware.BuildHardware(Width, Height, Thickness);
+        Hardware.Hardware.Family = Family;
+        const PreviousWidth = Artwork.width, PreviousHeight = Artwork.height;
+        ActiveScreen.PresentAspect(Hardware.Hardware.DisplayWidth / Hardware.Hardware.DisplayHeight);
+        // 📝 Canvas textures are allocated with immutable storage; a resized panel needs a fresh allocation, not a sub-upload.
+        if (Artwork.width !== PreviousWidth || Artwork.height !== PreviousHeight) Hardware.DisplayTexture.dispose();
+        Hardware.DisplayTexture.needsUpdate = true;
+        Hardware.Cover.visible = document.getElementById("GlassEnabled").checked;
+        document.getElementById("DimensionCaption").textContent = `${Math.round(Width * 1000)} × ${Math.round(Height * 1000)} mm · ${(Thickness * 1000).toFixed(0)} mm console · 2.4 mm cover glass`;
+        for (const [Identifier, Value] of [["TabletWidth", Width], ["TabletHeight", Height], ["TabletThickness", Thickness]])
+        {
+            document.getElementById(Identifier).value = Math.round(Value * 1000);
+            document.getElementById(Identifier + "Reading").textContent = Math.round(Value * 1000) + " mm";
+        }
+        for (const Button of document.querySelectorAll("[data-family]")) Button.setAttribute("aria-pressed", String(Button.dataset.family === Family));
+        ArrangeConsole();
+        ProjectCamera();
+    }
     const Perspective = new THREE.PerspectiveCamera(35, 1, 0.01, 5);
     const Orthographic = new THREE.OrthographicCamera(-0.25, 0.25, 0.15, -0.15, 0.01, 5);
     const Raycaster = new THREE.Raycaster();
@@ -48,7 +91,12 @@ async function ConstructExperience()
     {
         SceneDirty = true;
         const Aspect = SceneWidth / Math.max(1, SceneHeight);
-        const FrameHeight = Math.max(DeviceHeight * 1.24, DeviceWidth / Aspect * 1.24) / CameraValues.Zoom;
+        const WithCluster = Layout.ClusterVisible && CameraValues.Mode === "3d";
+        const SceneExtentHeight = Layout.Height + (WithCluster ? 0.03 + ClusterOutlines[Cluster.Outline].Height : 0);
+        const SceneExtentWidth = Math.max(Layout.Width, WithCluster ? ClusterOutlines[Cluster.Outline].Width : 0);
+        const FrameHeight = Math.max(SceneExtentHeight * 1.18, SceneExtentWidth / Aspect * 1.24) / CameraValues.Zoom;
+        // 📝 Frame the console and cluster together; the 2D view keeps the tablet screen alone so touch stays precise.
+        const Focus = new THREE.Vector3(0, CameraValues.Mode === "3d" && Layout.ClusterVisible ? (0.03 + ClusterOutlines[Cluster.Outline].Height) / 2 : 0, 0);
         Perspective.aspect = Aspect;
         Perspective.updateProjectionMatrix();
         const Reach = FrameHeight / (2 * Math.tan(THREE.MathUtils.degToRad(Perspective.fov) / 2));
@@ -67,8 +115,8 @@ async function ConstructExperience()
         {
             const θ = THREE.MathUtils.degToRad(CameraValues.Yaw);
             const φ = THREE.MathUtils.degToRad(CameraValues.Pitch);
-            Perspective.position.set(Reach * Math.sin(θ) * Math.cos(φ), Reach * Math.sin(φ), Reach * Math.cos(θ) * Math.cos(φ));
-            Perspective.lookAt(0, 0, 0);
+            Perspective.position.set(Reach * Math.sin(θ) * Math.cos(φ), Focus.y + Reach * Math.sin(φ), Reach * Math.cos(θ) * Math.cos(φ));
+            Perspective.lookAt(Focus);
             ActiveCamera = Perspective;
         }
         ActiveCamera.updateMatrixWorld();
@@ -109,10 +157,10 @@ async function ConstructExperience()
         {
             const Point = Raycaster.ray.intersectPlane(ContactPlane, new THREE.Vector3());
             if (!Point) return null;
-            return { Across: (Point.x / DisplayWidth + 0.5) * ScreenWidth, Down: (0.5 - Point.y / DisplayHeight) * ScreenHeight };
+            return ActiveScreen.QueryPanelPoint(Point.x / Hardware.Hardware.DisplayWidth + 0.5, 0.5 - Point.y / Hardware.Hardware.DisplayHeight);
         }
         const Contact = Raycaster.intersectObject(Hardware.Screen, false)[0];
-        return Contact ? { Across: Contact.uv.x * ScreenWidth, Down: (1 - Contact.uv.y) * ScreenHeight } : null;
+        return Contact ? ActiveScreen.QueryPanelPoint(Contact.uv.x, 1 - Contact.uv.y) : null;
     }
 
     function ForwardCancel()
@@ -257,25 +305,49 @@ async function ConstructExperience()
     {
         if (Event.key === "Escape") { ForwardCancel(); ActiveScreen.PresentHome(); }
     });
+    for (const Button of document.querySelectorAll("[data-family]"))
+        Button.addEventListener("click", () => { ForwardCancel(); const Family = TabletFamilies[Button.dataset.family]; BuildConsole(Family.Width, Family.Height, Family.Thickness, Button.dataset.family); });
+    for (const Identifier of ["TabletWidth", "TabletHeight", "TabletThickness"])
+        document.getElementById(Identifier).addEventListener("input", () =>
+            BuildConsole(Number(document.getElementById("TabletWidth").value) / 1000, Number(document.getElementById("TabletHeight").value) / 1000, Number(document.getElementById("TabletThickness").value) / 1000, "custom"));
+    for (const Button of document.querySelectorAll("[data-outline]"))
+        Button.addEventListener("click", () =>
+        {
+            Cluster.PresentOutline(Button.dataset.outline);
+            for (const Choice of document.querySelectorAll("[data-outline]")) Choice.setAttribute("aria-pressed", String(Choice === Button));
+            ArrangeConsole(); ProjectCamera();
+        });
+    document.getElementById("ClusterEnabled").addEventListener("change", Event => { Layout.ClusterVisible = Event.target.checked; ArrangeConsole(); ProjectCamera(); });
+    document.getElementById("ClusterDemonstration").addEventListener("change", Event => { Cluster.Demonstration = Event.target.checked; Cluster.Dirty = true; });
     const Resize = new ResizeObserver(ResizeExperience);
     Resize.observe(Viewport);
     ResizeExperience();
-    Hardware.Scene.updateMatrixWorld(true);
+    BuildConsole(Layout.Width, Layout.Height, Layout.Thickness, "grand");
 
     window.TabletPrototype = {
         QueryReading: () => ({ ...ActiveScreen.QueryReading(), Camera: { ...CameraValues }, Hardware: { ...Hardware.Hardware },
+            Preview: Preview.QueryReading(), Cluster: { ...Cluster.QueryReading(), Visible: Layout.ClusterVisible },
+            Families: Object.fromEntries(Object.entries(TabletFamilies).map(([Key, Family]) => [Key, { ...Family }])),
             GlassVisible: Hardware.Cover.visible, PhysicallyTransmissiveGlass: Hardware.CoverMaterial.transmission === 1,
             TextureWidth: Artwork.width, TextureHeight: Artwork.height, FrameCount, Renderer: Renderer.info.render, FlatDeviceTexture: true }),
         QueryRegions: () => ActiveScreen.Regions.map(({ Action, ...Region }) => ({ ...Region })),
         ProjectScreenPoint: (Across, Down) =>
         {
-            const Position = new THREE.Vector3((Across / ScreenWidth - 0.5) * DisplayWidth,
-                (0.5 - Down / ScreenHeight) * DisplayHeight, DisplayDepth);
+            const Fraction = ActiveScreen.QueryPanelFraction(Across, Down);
+            const Position = new THREE.Vector3((Fraction.Across - 0.5) * Hardware.Hardware.DisplayWidth,
+                (0.5 - Fraction.Down) * Hardware.Hardware.DisplayHeight, DisplayDepth);
             Position.project(ActiveCamera);
             const Rectangle = Canvas.getBoundingClientRect();
             return { Left: Rectangle.left + (Position.x + 1) / 2 * Rectangle.width, Top: Rectangle.top + (1 - Position.y) / 2 * Rectangle.height };
         },
         QueryScreenPng: () => Artwork.toDataURL("image/png"),
+        QueryClusterPng: () => ClusterCanvas.toDataURL("image/png"),
+        QueryPreviewPng: () => Preview.Readback.toDataURL("image/png"),
+        PresentFamily: Identifier => { const Family = TabletFamilies[Identifier]; if (!Family) return false; BuildConsole(Family.Width, Family.Height, Family.Thickness, Identifier); return true; },
+        PresentClusterDemonstration: Enabled => { Cluster.Demonstration = Boolean(Enabled); document.getElementById("ClusterDemonstration").checked = Cluster.Demonstration; Cluster.Dirty = true; },
+        PresentPreviewSpin: Enabled => { Preview.Spin = Boolean(Enabled); Preview.Dirty = true; ActiveScreen.Dirty = true; },
+        PresentConsole: (Width, Height, Thickness) => BuildConsole(Width, Height, Thickness, "custom"),
+        PresentOutline: Identifier => { if (!Cluster.PresentOutline(Identifier)) return false; ArrangeConsole(); ProjectCamera(); return true; },
         Applications: Applications.map(Application => ({ ...Application })),
         Designs: LauncherDesigns.map(Design => ({ ...Design }))
     };
@@ -288,6 +360,13 @@ async function ConstructExperience()
         requestAnimationFrame(AdvanceFrame);
         if (document.hidden) return;
         ActiveScreen.AdvanceClock();
+        const Elapsed = performance.now() / 1000;
+        if (ActiveScreen.Application === "garage" && Preview.Advance(Elapsed)) ActiveScreen.Dirty = true;
+        if (Layout.ClusterVisible)
+        {
+            Cluster.AdvanceDemonstration(Elapsed);
+            if (Cluster.RasterCluster(Elapsed)) { ClusterHardware.Texture.needsUpdate = true; SceneDirty = true; }
+        }
         if (ActiveScreen.RasterScreen())
         {
             SceneDirty = true;
@@ -317,6 +396,8 @@ async function ConstructExperience()
             }
         });
         Hardware.DisplayTexture.dispose();
+        ClusterHardware.Texture.dispose();
+        Preview.Dispose();
         Hardware.Lighting.dispose();
         Renderer.dispose();
     }, { once: true });

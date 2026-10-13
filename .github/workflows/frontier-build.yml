@@ -84,6 +84,9 @@ jobs:
       - name: Tablet HMI — launcher designs, icons, hit regions and interaction without a GPU
         run: python3 Tools/Build/RunAnnounced.py "tablet hmi" -- node Experimental/TabletPanel/TabletMetrics.mjs
 
+      - name: Tablet HMI car preview — the packed ControlVehicle against its extraction manifest
+        run: python3 Tools/Build/RunAnnounced.py "tablet car preview" -- python3 Tools/Build/ExtractVehiclePreview.py --check
+
       - name: Force field parity — the native taxonomy against the browser it was ported from
         run: python3 Tools/Build/RunAnnounced.py "force field parity" -- python3 Tools/Build/ForceFieldParity.py
 

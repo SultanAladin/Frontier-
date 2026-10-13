@@ -6,12 +6,22 @@
 import * as THREE from "three";
 import { RoomEnvironment } from "three/addons/environments/RoomEnvironment.js";
 
-export const DeviceWidth = 0.4;
-export const DeviceHeight = 0.25;
-export const DisplayWidth = 0.376;
-export const DisplayHeight = 0.235;
-export const DisplayDepth = 0.003;
+export const TabletFamilies = {
+    coupe:   { Name: "Coupé console",   Caption: "Compact, upright",        Width: 0.30, Height: 0.20, Thickness: 0.010 },
+    grand:   { Name: "Grand tourer",    Caption: "The reference 400 × 250", Width: 0.40, Height: 0.25, Thickness: 0.012 },
+    estate:  { Name: "Wide estate",     Caption: "Low and panoramic",       Width: 0.48, Height: 0.22, Thickness: 0.014 },
+    utility: { Name: "Utility",         Caption: "Tall portrait console",   Width: 0.26, Height: 0.33, Thickness: 0.016 }
+};
+
 export const CoverThickness = 0.0024;
+export const DisplayDepth = 0.003;
+
+export function ResolveTabletGeometry(Width, Height, Thickness)
+{
+    const Bezel = Math.max(0.006, Math.min(Width, Height) * 0.03);
+    return { Width, Height, Thickness, Bezel, DisplayWidth: Width - Bezel * 2, DisplayHeight: Height - Bezel * 2,
+        Radius: Math.min(Width, Height) * 0.064, DisplayRadius: Math.min(Width, Height) * 0.0376 };
+}
 
 function ConstructRoundedShape(Width, Height, Radius)
 {
@@ -52,6 +62,40 @@ function ConstructSolid(Width, Height, Radius, Thickness, Bevel, Material, Depth
     return Surface;
 }
 
+// 📝 The driver cluster is a second flat texture whose housing is cut to the same irregular outline as its raster mask.
+export function ConstructCluster(Scene, Renderer, ClusterCanvas, Materials)
+{
+    const Group = new THREE.Group();
+    Group.name = "Driver cluster";
+    Scene.add(Group);
+    const Texture = new THREE.CanvasTexture(ClusterCanvas);
+    Texture.colorSpace = THREE.SRGBColorSpace;
+    Texture.anisotropy = Math.min(8, Renderer.capabilities.getMaxAnisotropy());
+    const FaceMaterial = new THREE.MeshBasicMaterial({ map: Texture, toneMapped: false, transparent: true });
+    const Parts = [];
+    const Reading = { Outline: "", Width: 0, Height: 0 };
+    function Build(Points, Width, Height)
+    {
+        for (const Part of Parts) { Group.remove(Part); Part.geometry.dispose(); }
+        Parts.length = 0;
+        const Shape = (Scale) => { const Outline = new THREE.Shape(); Points.forEach(([Across, Down], Index) => Outline[Index ? "lineTo" : "moveTo"](Across * Width / 2 * Scale, Down * Height / 2 * Scale)); Outline.closePath(); return Outline; };
+        const Housing = new THREE.Mesh(new THREE.ExtrudeGeometry(Shape(1.06), { depth: 0.014, bevelEnabled: true, bevelThickness: 0.0015, bevelSize: 0.0015, bevelSegments: 2 }), Materials.Metal);
+        Housing.position.z = -0.015; Housing.castShadow = true; Housing.receiveShadow = true;
+        const Bed = new THREE.Mesh(new THREE.ShapeGeometry(Shape(1.02)), Materials.Bed);
+        Bed.position.z = 0.0003;
+        const Face = new THREE.Mesh(new THREE.ShapeGeometry(Shape(1)), FaceMaterial);
+        const Attributes = Face.geometry.attributes.position;
+        const Coordinates = Face.geometry.attributes.uv;
+        for (let Index = 0; Index < Attributes.count; ++Index)
+            Coordinates.setXY(Index, Attributes.getX(Index) / Width + 0.5, Attributes.getY(Index) / Height + 0.5);
+        Coordinates.needsUpdate = true;
+        Face.position.z = 0.0008;
+        for (const Part of [Housing, Bed, Face]) { Group.add(Part); Parts.push(Part); }
+        Object.assign(Reading, { Width, Height });
+    }
+    return { Group, Texture, Build, Reading };
+}
+
 export function ConstructTablet(Renderer, ScreenCanvas)
 {
     const Scene = new THREE.Scene();
@@ -87,24 +131,11 @@ export function ConstructTablet(Renderer, ScreenCanvas)
     const Bed = new THREE.MeshStandardMaterial({ color: "#151d23", metalness: 0.12, roughness: 0.37 });
     const Dark = new THREE.MeshStandardMaterial({ color: "#192024", metalness: 0.35, roughness: 0.4 });
 
-    const Body = ConstructSolid(DeviceWidth - 0.003, DeviceHeight - 0.003, 0.016, 0.012, 0.0015, Metal, -0.013);
-    Body.name = "Machined tablet body";
-    Device.add(Body);
-    const RimSurface = ConstructSolid(0.396, 0.246, 0.015, 0.001, 0.0006, EdgeMetal, -0.0005);
-    RimSurface.name = "Polished perimeter";
-    Device.add(RimSurface);
-    const Bezel = ConstructSheet(0.393, 0.243, 0.0148, Bed, 0.001);
-    Bezel.name = "Recessed black bezel";
-    Device.add(Bezel);
-
     const DisplayTexture = new THREE.CanvasTexture(ScreenCanvas);
     DisplayTexture.colorSpace = THREE.SRGBColorSpace;
     DisplayTexture.anisotropy = Math.min(8, Renderer.capabilities.getMaxAnisotropy());
     DisplayTexture.minFilter = THREE.LinearMipmapLinearFilter;
     const ScreenMaterial = new THREE.MeshBasicMaterial({ map: DisplayTexture, toneMapped: false });
-    const Screen = ConstructSheet(DisplayWidth, DisplayHeight, 0.0094, ScreenMaterial, DisplayDepth);
-    Screen.name = "Flat HMI render texture";
-    Device.add(Screen);
 
     const CoverMaterial = new THREE.MeshPhysicalMaterial({
         color: "#ffffff", metalness: 0, roughness: 0, transmission: 1, thickness: CoverThickness,
@@ -120,31 +151,45 @@ export function ConstructTablet(Renderer, ScreenCanvas)
         Shader.fragmentShader = Shader.fragmentShader.replace("#include <transmission_pars_fragment>", Transmission);
     };
     CoverMaterial.customProgramCacheKey = () => "clear-tablet-cover";
-    const Cover = ConstructSolid(0.389, 0.239, 0.013, CoverThickness, 0.00012, CoverMaterial, DisplayDepth + 0.0002);
-    Cover.name = "2.4 mm transmissive glass";
-    Cover.castShadow = false;
-    Cover.receiveShadow = false;
-    Cover.renderOrder = 4;
-    Device.add(Cover);
+    const SensorMaterial = new THREE.MeshStandardMaterial({ color: "#1f2d39", metalness: 0.6, roughness: 0.2 });
 
-    const Sensor = new THREE.Mesh(new THREE.SphereGeometry(0.0015, 16, 8), new THREE.MeshStandardMaterial({ color: "#1f2d39", metalness: 0.6, roughness: 0.2 }));
-    Sensor.scale.z = 0.14;
-    Sensor.position.set(0, 0.1194, 0.0018);
-    Device.add(Sensor);
-    for (const Position of [0.042, 0.082])
+    const Hardware = { Width: 0, Height: 0, Thickness: 0, Bezel: 0, DisplayWidth: 0, DisplayHeight: 0, CoverThickness, DisplayDepth, Family: "grand" };
+    const Parts = { Screen: null, Cover: null, Items: [] };
+
+    // 📝 Every car carries its own console: the chassis is rebuilt from width, height and thickness while the launcher stays the same texture.
+    function BuildHardware(Width, Height, Thickness)
     {
-        const Button = new THREE.Mesh(new THREE.BoxGeometry(0.0022, Position === 0.042 ? 0.020 : 0.011, 0.004), EdgeMetal);
-        Button.position.set(0.201, Position, -0.006);
-        Device.add(Button);
-    }
-    const Port = new THREE.Mesh(new THREE.BoxGeometry(0.013, 0.0014, 0.004), Dark);
-    Port.position.set(0, -0.126, -0.006);
-    Device.add(Port);
-    for (let Index = 0; Index < 14; ++Index)
-    {
-        const Slot = new THREE.Mesh(new THREE.BoxGeometry(0.0011, 0.0014, 0.002), Dark);
-        Slot.position.set(-0.048 + Index * 0.0028, -0.126, -0.006);
-        Device.add(Slot);
+        for (const Item of Parts.Items) { Device.remove(Item); Item.geometry.dispose(); }
+        Parts.Items.length = 0;
+        const Geometry = ResolveTabletGeometry(Width, Height, Thickness);
+        Object.assign(Hardware, Geometry);
+        const Add = (Mesh, Name) => { Mesh.name = Name; Device.add(Mesh); Parts.Items.push(Mesh); return Mesh; };
+        const Body = Add(ConstructSolid(Width - 0.003, Height - 0.003, Geometry.Radius, Thickness, 0.0015, Metal, -Thickness - 0.001), "Machined tablet body");
+        Add(ConstructSolid(Width - 0.004, Height - 0.004, Geometry.Radius * 0.94, 0.001, 0.0006, EdgeMetal, -0.0005), "Polished perimeter");
+        Add(ConstructSheet(Width - 0.007, Height - 0.007, Geometry.Radius * 0.92, Bed, 0.001), "Recessed black bezel");
+        Parts.Screen = Add(ConstructSheet(Geometry.DisplayWidth, Geometry.DisplayHeight, Geometry.DisplayRadius, ScreenMaterial, DisplayDepth), "Flat HMI render texture");
+        Parts.Cover = Add(ConstructSolid(Width - 0.011, Height - 0.011, Geometry.Radius * 0.81, CoverThickness, 0.00012, CoverMaterial, DisplayDepth + 0.0002), "2.4 mm transmissive glass");
+        Parts.Cover.castShadow = false; Parts.Cover.receiveShadow = false; Parts.Cover.renderOrder = 4;
+        const Sensor = Add(new THREE.Mesh(new THREE.SphereGeometry(0.0015, 16, 8), SensorMaterial), "Ambient sensor");
+        Sensor.scale.z = 0.14;
+        Sensor.position.set(0, Height / 2 - Geometry.Bezel * 0.5, 0.0018);
+        for (const Position of [0.042, 0.082])
+        {
+            const Button = Add(new THREE.Mesh(new THREE.BoxGeometry(0.0022, Position === 0.042 ? 0.020 : 0.011, Thickness * 0.33), EdgeMetal), "Side button");
+            Button.position.set(Width / 2 + 0.001, Math.min(Position, Height / 2 - 0.03), -Thickness / 2);
+        }
+        const Port = Add(new THREE.Mesh(new THREE.BoxGeometry(0.013, 0.0014, Thickness * 0.33), Dark), "Port");
+        Port.position.set(0, -Height / 2 - 0.001, -Thickness / 2);
+        for (let Index = 0; Index < 14; ++Index)
+        {
+            const Slot = Add(new THREE.Mesh(new THREE.BoxGeometry(0.0011, 0.0014, 0.002), Dark), "Speaker slot");
+            Slot.position.set(-0.048 + Index * 0.0028, -Height / 2 - 0.001, -Thickness / 2);
+        }
+        const Rear = Add(ConstructSheet(Width - 0.015, Height - 0.015, Geometry.Radius * 0.75, BackMaterial, 0), "Rear engraving");
+        Rear.rotation.y = Math.PI;
+        Rear.position.z = -Thickness - 0.0027;
+        Body.castShadow = true;
+        return Geometry;
     }
 
     const BackCanvas = document.createElement("canvas");
@@ -157,11 +202,7 @@ export function ConstructTablet(Renderer, ScreenCanvas)
     const BackTexture = new THREE.CanvasTexture(BackCanvas);
     BackTexture.colorSpace = THREE.SRGBColorSpace;
     const BackMaterial = new THREE.MeshStandardMaterial({ map: BackTexture, metalness: 0.72, roughness: 0.42 });
-    const BackSurface = ConstructSheet(0.385, 0.235, 0.012, BackMaterial, 0);
-    BackSurface.rotation.y = Math.PI;
-    BackSurface.position.z = -0.0147;
-    BackSurface.name = "Rear engraving";
-    Device.add(BackSurface);
+    BuildHardware(TabletFamilies.grand.Width, TabletFamilies.grand.Height, TabletFamilies.grand.Thickness);
 
     const Floor = new THREE.Mesh(new THREE.PlaneGeometry(4, 4), new THREE.ShadowMaterial({ color: "#5d6865", opacity: 0.15 }));
     Floor.rotation.x = -Math.PI / 2;
@@ -169,6 +210,6 @@ export function ConstructTablet(Renderer, ScreenCanvas)
     Floor.receiveShadow = true;
     Scene.add(Floor);
 
-    return { Scene, Device, Screen, Cover, DisplayTexture, Metal, EdgeMetal, BackMaterial, CoverMaterial, Lighting,
-        Hardware: { Width: DeviceWidth, Height: DeviceHeight, BodyThickness: 0.012, CoverThickness, DisplayWidth, DisplayHeight, DisplayDepth } };
+    return { Scene, Device, get Screen() { return Parts.Screen; }, get Cover() { return Parts.Cover; }, DisplayTexture, Metal, EdgeMetal, BackMaterial, CoverMaterial, Lighting,
+        Hardware, BuildHardware, Materials: { Metal, EdgeMetal, Bed, Dark } };
 }

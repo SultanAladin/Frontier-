@@ -13,12 +13,29 @@ python3 Tools/Build/ServeExperiments.py --port 8099
 
 `/` opens the tablet. Tap or click apps on the screen; drag the background to orbit; scroll to zoom;
 `2D view` shows the display straight on; `Esc` returns to the launcher. The inspector switches between
-five launcher designs (Launchpad, Dashboard, Collections, Focus, Console), three finishes and the cover glass.
+five launcher designs (Launchpad, Dashboard, Collections, Focus, Console), four console families or any
+custom width / height / thickness, four driver-cluster outlines, three finishes and the cover glass.
+On the device itself the launcher design is chosen in the **Settings** app; the **Garage** app shows the
+project car and orbits it when you drag on the panel.
 
 ## How it is built
 
-- The user interface is drawn into one 1920 × 1200 canvas at a fixed device resolution and used as the
-  flat screen texture of a 400 × 250 mm tablet with a 2.4 mm transmissive cover glass.
+- The user interface is drawn into one canvas (1200 × 750 logical points at 1.6× ) and used as the flat
+  screen texture of the console tablet with a 2.4 mm transmissive cover glass.
+- **Modular console.** `TabletStructure.js` rebuilds the chassis from width, height and console thickness
+  (`TabletFamilies`: Coupé 300 × 200 × 10, Grand tourer 400 × 250 × 12, Wide estate 480 × 220 × 14,
+  Utility 260 × 330 × 16 mm, or custom sliders). The launcher never stretches: `ScreenSequence.PresentAspect`
+  keeps the 16:10 layout at uniform scale and continues the panel background into the spare band; touch
+  mapping goes through `QueryPanelPoint` / `QueryPanelFraction`. A resized canvas texture is disposed and
+  reallocated (three.js uses immutable storage, so a sub-upload would silently keep the old picture).
+- **Driver cluster.** `ClusterSequence.js` rasters speed / rpm / gear into its own 1500 × 840 texture at
+  its own 30 Hz cadence, clipped to an irregular outline (hexagon, ≈70 % circle, trapezoid, wide pill).
+  `ConstructCluster` extrudes the housing from the same unit polygon so bezel, bed and masked face agree.
+- **Real car preview.** `Tools/Build/ExtractVehiclePreview.py` packs the body and four XPBD tyres of the
+  engine-authored `Projects/Project-Zero/Content/Scenes/Vehicle.gltf` into `ControlVehicle.glb`
+  (19,948 facets, manifest `ControlVehicle.json` with SHA256s). `VehiclePreviewSequence.js` renders it in
+  its own scene with its own camera, floor and lighting into a 640 × 400 render target at 30 Hz, reads the
+  pixels back and composites them into the Garage page. It is visual only; nothing drives the physics.
 - Touch is resolved by ray intersection with the screen surface, converted to screen UV, then to
   retained hit regions. Captured drags continue off the display by plane intersection.
 - Twelve applications use original multicolour SVG icons in `IconDepot.js`. Application screens are local
@@ -32,6 +49,7 @@ npm --prefix Experimental/TabletPanel install
 npm --prefix Experimental/TabletPanel run build          # TabletRuntime.js from the sources
 node Experimental/TabletPanel/TabletMetrics.mjs         # CPU: layouts, icons, regions, interaction
 node Experimental/TabletPanel/BrowserMetrics.mjs        # real headless browser; writes VisualProof/TabletSequence
+python3 Tools/Build/ExtractVehiclePreview.py --check    # packed car matches its manifest (and the source scene when present)
 ```
 
 The browser check needs the served page on port 8099 and either the scratch Chromium or
@@ -40,4 +58,6 @@ The browser check needs the served page on port 8099 and either the scratch Chro
 
 ## Not yet done
 
-Dashboard cluster, actual-car 3D preview, boot sequence, live vehicle bindings and the C++ port.
+Boot sequence with particles, live vehicle / cluster bindings (the cluster shows a demonstration drive),
+the remaining HMIs and the C++ port. The cluster is placed above the console in the studio scene; in-car
+placement belongs to the interior stage.

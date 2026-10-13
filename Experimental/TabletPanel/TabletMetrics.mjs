@@ -2,6 +2,9 @@ import Assert from "node:assert/strict";
 import { Applications, LauncherDesigns, ScreenWidth, ScreenHeight, ResolveApplication, ResolveDesign } from "./AppSpecification.js";
 import { ResolveIconSvg } from "./IconDepot.js";
 import { ScreenSequence } from "./ScreenSequence.js";
+import { ClusterSequence, ClusterOutlines, ClusterWidth, ClusterHeight } from "./ClusterSequence.js";
+import { readFileSync } from "node:fs";
+import { createHash } from "node:crypto";
 
 let Assertions = 0;
 function Require(Condition, Explanation)
@@ -80,4 +83,59 @@ Require(ActiveScreen.Messages.length === 3 && ActiveScreen.MessageDraft === "", 
 ActiveScreen.TextTarget = "nickname";
 ActiveScreen.AdmitText("ABCDEFGHIJKLMNOPQRSTUVWXYZ");
 Require(ActiveScreen.Nickname.length === 22, "Profile text entry has a finite bound");
+// Modular panel: the same launcher at every console aspect, with exact round-trip touch mapping.
+for (const Aspect of [1.5, 1.6, 2.22, 0.79])
+{
+    ActiveScreen.PresentAspect(Aspect);
+    Require(Math.abs(ActiveScreen.PanelWidth / ActiveScreen.PanelHeight - Aspect) < 0.002, "Panel raster follows console aspect " + Aspect);
+    Require(ActiveScreen.PanelWidth >= ScreenWidth - 0.001 && ActiveScreen.PanelHeight >= ScreenHeight - 0.001, "Launcher layout is never cropped at aspect " + Aspect);
+    const Fraction = ActiveScreen.QueryPanelFraction(300, 200);
+    const Point = ActiveScreen.QueryPanelPoint(Fraction.Across, Fraction.Down);
+    Require(Math.abs(Point.Across - 300) < 1e-6 && Math.abs(Point.Down - 200) < 1e-6, "Touch mapping round-trips at aspect " + Aspect);
+    ActiveScreen.PresentHome();
+    ActiveScreen.RasterScreen();
+    Require(ActiveScreen.Regions.some(Region => Region.Identifier === "app:garage"), "Launcher regions exist at aspect " + Aspect);
+}
+ActiveScreen.PresentAspect(1.6);
+// Settings app owns the launcher picker.
+ActiveScreen.PresentApplication("settings");
+ActiveScreen.RasterScreen();
+for (const Design of LauncherDesigns)
+    Require(ActiveScreen.Regions.some(Region => Region.Identifier === "design:" + Design.Identifier), "Settings offers launcher " + Design.Name);
+const Pick = ActiveScreen.Regions.find(Region => Region.Identifier === "design:focus");
+ActiveScreen.ForwardPointer("down", Pick.Left + 5, Pick.Top + 5); ActiveScreen.ForwardPointer("up", Pick.Left + 5, Pick.Top + 5);
+Require(ActiveScreen.Design === "focus", "Launcher design is chosen from inside the Settings app");
+// Garage page carries the real-car preview region and orbit gesture.
+const Orbits = [];
+ActiveScreen.Preview = { Loaded: true, Facets: 19948, Spin: true, Readback: {}, Orbit: (Yaw, Pitch) => Orbits.push([Yaw, Pitch]) };
+ActiveScreen.PresentApplication("garage");
+ActiveScreen.RasterScreen();
+const OrbitRegion = ActiveScreen.Regions.find(Region => Region.Identifier === "preview-orbit");
+Require(OrbitRegion?.Orbit === true, "Garage exposes a car-preview orbit surface");
+ActiveScreen.ForwardPointer("down", OrbitRegion.Left + 100, OrbitRegion.Top + 100);
+ActiveScreen.ForwardPointer("move", OrbitRegion.Left + 160, OrbitRegion.Top + 110);
+ActiveScreen.ForwardPointer("up", OrbitRegion.Left + 160, OrbitRegion.Top + 110);
+Require(Orbits.length === 1 && Orbits[0][0] > 0, "Dragging the preview orbits the car instead of activating a button");
+// Cluster: irregular outlines, masked raster, independent 30 Hz cadence.
+const ClusterCanvas = { width: 0, height: 0, getContext: () => Context };
+const Cluster = new ClusterSequence(ClusterCanvas);
+Require(Object.keys(ClusterOutlines).length === 4 && ["hexagon", "arc", "trapezoid", "pill"].every(Key => ClusterOutlines[Key]), "Four irregular cluster outlines");
+for (const [Key, Outline] of Object.entries(ClusterOutlines))
+{
+    const Points = Outline.Points();
+    Require(Points.length >= 4 && Points.every(([Across, Down]) => Math.abs(Across) <= 1.0001 && Math.abs(Down) <= 1.0001), Key + " outline is a closed unit polygon");
+    Require(Outline.Width > 0.1 && Outline.Height > 0.1, Key + " has physical housing dimensions");
+}
+const Arc = ClusterOutlines.arc.Points();
+Require(Math.hypot(Arc[0][0] - Arc.at(-1)[0], Arc[0][1] - Arc.at(-1)[1]) > 1, "Arc outline is a partial (≈70 %) circle, not a full ring");
+Require(!Cluster.PresentOutline("octagon") && Cluster.PresentOutline("trapezoid"), "Unknown cluster outlines are refused");
+Require(ClusterCanvas.width === ClusterWidth * 1.5 && ClusterCanvas.height === ClusterHeight * 1.5, "Cluster raster has its own resolution");
+Require(Cluster.RasterCluster(0) && !Cluster.RasterCluster(0.01), "Cluster re-rasters only when dirty");
+Cluster.AdvanceDemonstration(1.0);
+Require(Cluster.Dirty && !Cluster.RasterCluster(0.02) && Cluster.RasterCluster(0.05), "Cluster cadence is capped at its own 30 Hz");
+// Real-car preview asset is the extracted project vehicle.
+const Manifest = JSON.parse(readFileSync(new URL("./ControlVehicle.json", import.meta.url), "utf8"));
+const Digest = createHash("sha256").update(readFileSync(new URL("./ControlVehicle.glb", import.meta.url))).digest("hex");
+Require(Digest === Manifest.glbSHA256, "ControlVehicle.glb matches its extraction manifest");
+Require(Manifest.facets === 19948 && Manifest.nodes?.length === 5, "Preview carries the body and four XPBD tyres of the project car");
 console.log(`PASS ${Assertions} source/layout/interaction assertions. These checks do not claim browser or GPU execution.`);

@@ -12,6 +12,7 @@ export class ScreenSequence
     constructor(Canvas, Icons, Announce)
     {
         this.Canvas = Canvas;
+        this.Preview = null;
         this.Context = Canvas.getContext("2d", { alpha: false });
         this.Icons = Icons;
         this.Announce = Announce;
@@ -38,8 +39,36 @@ export class ScreenSequence
         this.Notice = "";
         this.Clock = "";
         this.ActiveTextInput = null;
-        Canvas.width = ScreenWidth * 1.6;
-        Canvas.height = ScreenHeight * 1.6;
+        this.Scale = 1.6;
+        this.OffsetAcross = 0;
+        this.OffsetDown = 0;
+        this.PanelWidth = ScreenWidth;
+        this.PanelHeight = ScreenHeight;
+        this.PresentAspect(ScreenWidth / ScreenHeight);
+    }
+
+    // 📝 Every car's panel has its own proportions; the launcher keeps its 16:10 layout at uniform scale and the panel
+    //    background continues into the spare band, so one UI serves every console without stretching.
+    PresentAspect(Aspect)
+    {
+        const Reference = ScreenWidth / ScreenHeight;
+        this.PanelWidth = Aspect >= Reference ? ScreenHeight * Aspect : ScreenWidth;
+        this.PanelHeight = Aspect >= Reference ? ScreenHeight : ScreenWidth / Aspect;
+        this.OffsetAcross = (this.PanelWidth - ScreenWidth) / 2;
+        this.OffsetDown = (this.PanelHeight - ScreenHeight) / 2;
+        this.Canvas.width = Math.round(this.PanelWidth * this.Scale);
+        this.Canvas.height = Math.round(this.PanelHeight * this.Scale);
+        this.Dirty = true;
+    }
+
+    QueryPanelPoint(FractionAcross, FractionDown)
+    {
+        return { Across: FractionAcross * this.PanelWidth - this.OffsetAcross, Down: FractionDown * this.PanelHeight - this.OffsetDown };
+    }
+
+    QueryPanelFraction(Across, Down)
+    {
+        return { Across: (Across + this.OffsetAcross) / this.PanelWidth, Down: (Down + this.OffsetDown) / this.PanelHeight };
     }
 
     PresentDesign(Identifier)
@@ -134,12 +163,12 @@ export class ScreenSequence
         Colour.addColorStop(0, Light ? "#f1f1e7" : "#17262c");
         Colour.addColorStop(1, Light ? "#dfe8db" : "#121a22");
         Context.fillStyle = Colour;
-        Context.fillRect(0, 0, ScreenWidth, ScreenHeight);
+        Context.fillRect(-this.OffsetAcross, -this.OffsetDown, this.PanelWidth, this.PanelHeight);
         const Glow = Context.createRadialGradient(1010, 70, 20, 960, 50, 670);
         Glow.addColorStop(0, Light ? "#ffffff85" : "#8eb29b26");
         Glow.addColorStop(1, "#8eb29b00");
         Context.fillStyle = Glow;
-        Context.fillRect(0, 0, ScreenWidth, ScreenHeight);
+        Context.fillRect(-this.OffsetAcross, -this.OffsetDown, this.PanelWidth, this.PanelHeight);
     }
 
     RasterStatus(Light = false)
@@ -329,7 +358,7 @@ export class ScreenSequence
     RasterConsole()
     {
         this.RasterBackground();
-        this.RasterRectangle(0, 0, 250, ScreenHeight, 0, "#edf0e3");
+        this.RasterRectangle(-this.OffsetAcross, -this.OffsetDown, 250 + this.OffsetAcross, this.PanelHeight, 0, "#edf0e3");
         this.RasterText("F R O N T I E R", 34, 51, 13, "#62745f");
         this.RasterText("0", 125, 184, 93, "#344739", "center", 300);
         this.RasterText("km/h", 125, 216, 15, "#8c9b80", "center");
@@ -533,27 +562,61 @@ export class ScreenSequence
         }
         else if (Identifier === "garage")
         {
-            this.RasterIcon("garage", 89, 278, 170);
-            this.RasterText("YOUR GARAGE", 306, 291, 12, "#98a98f");
-            this.RasterText("ControlVehicle", 304, 349, 39, "#dce8cc", "left", 300);
-            this.RasterText("Choose a highlight colour for this UI study.", 307, 396, 17, "#849c81");
+            const Preview = this.Preview;
+            this.RasterRectangle(78, 248, 700, 400, 22, "#0d1416");
+            if (Preview?.Loaded)
+            {
+                const Context = this.Context;
+                Context.save();
+                Context.beginPath(); Context.roundRect(78, 248, 700, 400, 22); Context.clip();
+                // 📝 GL render targets are bottom-up; flip once while compositing so the car sits on its wheels.
+                Context.translate(78, 648); Context.scale(1, -1);
+                Context.drawImage(Preview.Readback, 0, 0, 700, 400);
+                Context.restore();
+                this.RasterText(Preview.Facets.toLocaleString("en-GB") + " facets · ControlVehicle · own camera & lighting", 96, 630, 13, "#8fa89c");
+            }
+            else this.RasterText(Preview?.Failure ? "Preview unavailable: " + Preview.Failure : "Loading your car…", 428, 455, 20, "#7d968b", "center");
+            this.AdmitRegion("preview-orbit", 78, 248, 700, 400, null, { Orbit: true });
+            this.RasterText("YOUR GARAGE", 822, 291, 12, "#98a98f");
+            this.RasterText("ControlVehicle", 820, 349, 39, "#dce8cc", "left", 300);
+            this.RasterText("Drag the car to orbit it. Visual only.", 823, 392, 17, "#849c81");
+            this.RasterText("Highlight colour for this UI study", 823, 440, 15, "#c5d9ba");
             for (const [Index, Colour] of ["#a4d8be", "#d4bd88", "#9eb8df", "#e2ada4"].entries())
             {
-                const Left = 308 + Index * 133;
-                this.RasterRectangle(Left, 450, 106, 74, 18, Colour, this.FinishColour === Colour ? "#e8e8d5" : null);
-                this.AdmitRegion("colour:" + Index, Left, 450, 106, 74, () => { this.FinishColour = Colour; this.Notice = "UI highlight selected. Vehicle materials have not been changed."; this.Dirty = true; });
+                const Left = 822 + (Index % 2) * 128, Top = 462 + Math.floor(Index / 2) * 74;
+                this.RasterRectangle(Left, Top, 110, 58, 16, Colour, this.FinishColour === Colour ? "#e8e8d5" : null);
+                this.AdmitRegion("colour:" + Index, Left, Top, 110, 58, () => { this.FinishColour = Colour; this.Notice = "UI highlight selected. Vehicle materials have not been changed."; this.Dirty = true; });
             }
-            this.RasterText("The 3D car preview is a later HMI step.", 308, 573, 17, "#8ca380");
+            this.RasterButton("preview-spin", Preview?.Spin ? "Pause turntable" : "Resume turntable", 822, 618, 238, 42,
+                () => { if (Preview) { Preview.Spin = !Preview.Spin; Preview.Dirty = true; this.Dirty = true; } }, "#243931", "#acbba8");
         }
         else
         {
             this.RasterText("MAKE THIS SCREEN YOURS", 84, 264, 12, "#8da086");
             this.RasterSlider("brightness", "Screen brightness", "%", 91, 361, 962, 40, 100);
-            this.RasterText("Launcher design", 93, 471, 21, "#c5d9ba");
+            this.RasterText("App grid", 93, 452, 21, "#c5d9ba");
+            this.RasterText("Pick how your launcher arranges the same twelve apps.", 93, 480, 15, "#84997f");
             for (const [Index, Design] of LauncherDesigns.entries())
-                this.RasterButton("design:" + Design.Identifier, Design.Name, 89 + Index * 202, 501, 188, 57,
-                    () => this.PresentDesign(Design.Identifier), this.Design === Design.Identifier ? "#b2c899" : "#29432e", this.Design === Design.Identifier ? "#365035" : "#a9c49c");
+            {
+                const Left = 89 + Index * 202, Top = 500, Chosen = this.Design === Design.Identifier;
+                this.RasterRectangle(Left, Top, 188, 118, 16, Chosen ? "#b2c899" : "#1f3328", Chosen ? "#dcebc8" : null);
+                this.RasterDesignSchematic(Design.Identifier, Left + 16, Top + 14, 156, 54, Chosen ? "#365035" : "#a9c49c");
+                this.RasterText(Design.Name, Left + 16, Top + 94, 17, Chosen ? "#365035" : "#d4e3c8", "left", 500);
+                this.RasterText(Design.Number, Left + 172, Top + 94, 13, Chosen ? "#4d6a48" : "#7f9a7a", "right");
+                this.AdmitRegion("design:" + Design.Identifier, Left, Top, 188, 118, () => this.PresentDesign(Design.Identifier));
+            }
         }
+    }
+
+    RasterDesignSchematic(Identifier, Left, Top, Width, Height, Colour)
+    {
+        // 📝 Miniature of each grid so the Settings picker shows the arrangement, not just a name.
+        const Cell = (Across, Down, CellWidth, CellHeight) => this.RasterRectangle(Left + Across, Top + Down, CellWidth, CellHeight, 3, Colour);
+        if (Identifier === "launchpad") { for (let Row = 0; Row < 2; ++Row) for (let Column = 0; Column < 6; ++Column) Cell(Column * 26, Row * 28, 20, 22); }
+        else if (Identifier === "dashboard") { Cell(0, 0, 50, 54); for (let Row = 0; Row < 2; ++Row) for (let Column = 0; Column < 3; ++Column) Cell(58 + Column * 34, Row * 28, 30, 24); }
+        else if (Identifier === "collections") { for (let Column = 0; Column < 3; ++Column) { Cell(Column * 54, 0, 48, 10); for (let Row = 0; Row < 2; ++Row) Cell(Column * 54, 16 + Row * 20, 48, 16); } }
+        else if (Identifier === "focus") { Cell(50, 0, 56, 54); Cell(10, 14, 30, 30); Cell(116, 14, 30, 30); }
+        else { Cell(0, 0, 40, 54); for (let Row = 0; Row < 4; ++Row) Cell(48, Row * 14, 108, 10); }
     }
 
     IncrementValue(Identifier, Difference, Minimum, Maximum)
@@ -594,7 +657,7 @@ export class ScreenSequence
     {
         if (!this.Dirty) return false;
         const Context = this.Context;
-        Context.setTransform(1.6, 0, 0, 1.6, 0, 0);
+        Context.setTransform(this.Scale, 0, 0, this.Scale, this.OffsetAcross * this.Scale, this.OffsetDown * this.Scale);
         this.Regions = [];
         if (this.Application) this.RasterApplication();
         else if (this.Design === "dashboard") this.RasterDashboard();
@@ -605,7 +668,7 @@ export class ScreenSequence
         if (this.Values.brightness < 100)
         {
             Context.fillStyle = `rgba(0, 0, 0, ${(100 - this.Values.brightness) / 140})`;
-            Context.fillRect(0, 0, ScreenWidth, ScreenHeight);
+            Context.fillRect(-this.OffsetAcross, -this.OffsetDown, this.PanelWidth, this.PanelHeight);
         }
         ++this.Revision;
         this.Dirty = false;
@@ -629,7 +692,7 @@ export class ScreenSequence
         }
         if (Phase === "down")
         {
-            this.Pointer = { Contact, Across, Down, LastAcross: Across, Moved: false };
+            this.Pointer = { Contact, Across, Down, LastAcross: Across, PreviousAcross: Across, PreviousDown: Down, Moved: false };
             this.Pressed = Contact?.Identifier || "";
             if (Contact?.Slider) this.AdvanceSlider(Contact, Across);
             this.Dirty = true;
@@ -641,6 +704,8 @@ export class ScreenSequence
             Active.LastAcross = Across;
             if (Math.hypot(Across - Active.Across, Down - Active.Down) > 9) Active.Moved = true;
             if (Active.Contact?.Slider) this.AdvanceSlider(Active.Contact, Across);
+            if (Active.Contact?.Orbit && this.Preview) { this.Preview.Orbit((Across - Active.PreviousAcross) * 0.012, (Down - Active.PreviousDown) * 0.008); this.Dirty = true; }
+            Active.PreviousAcross = Across; Active.PreviousDown = Down;
             return true;
         }
         if (Phase === "up" && this.Pointer)
