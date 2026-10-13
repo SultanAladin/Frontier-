@@ -7,6 +7,31 @@
 
 #include <algorithm>
 #include <cmath>
+#include <thread>
+#include <vector>
+
+
+namespace {
+// The four carcasses are independent inside one fixed step: each reads its own hub motion and the static
+//    ground query, and the chassis only reads the reactions afterwards. Stepping them on four threads is
+//    where the step's time goes (XPBDSoftTyre::Step was ~70% of a Drive frame single-threaded).
+void StepTyresConcurrently(std::vector<Frontier::Vehicle::XPBDSoftTyre>& Tyres, const std::vector<Frontier::Vehicle::HubMotion>& Motions,
+                           float Δτ, uint32_t Substeps, const Frontier::Vehicle::XPBDSoftTyre::GroundQuery& Ground)
+{
+    const size_t Count = std::min(Tyres.size(), Motions.size());
+    if (Count <= 1u || std::thread::hardware_concurrency() <= 1u)
+    {
+        for (size_t i = 0u; i < Count; ++i) Tyres[i].Step(Δτ, Substeps, Motions[i], Frontier::Vehicle::Vec3{0.0f, 0.0f, 0.0f}, Ground);
+        return;
+    }
+    std::vector<std::thread> Workers;
+    Workers.reserve(Count - 1u);
+    for (size_t i = 1u; i < Count; ++i)
+        Workers.emplace_back([&, i] { Tyres[i].Step(Δτ, Substeps, Motions[i], Frontier::Vehicle::Vec3{0.0f, 0.0f, 0.0f}, Ground); });
+    Tyres[0].Step(Δτ, Substeps, Motions[0], Frontier::Vehicle::Vec3{0.0f, 0.0f, 0.0f}, Ground);
+    for (std::thread& Worker : Workers) Worker.join();
+}
+} // namespace
 
 namespace Frontier::Vehicle {
 
@@ -245,6 +270,29 @@ void VehicleSolver::StepSimple(float Δτ) noexcept
 
     const float mu = ActiveConfiguration.GripCoefficient;
 
+    // Pre-pass: hub motions for every wheel, then all carcasses step at once (see StepTyresConcurrently).
+    std::vector<HubMotion> Motions(SoftTyres.size());
+    for (size_t i = 0; i < SoftTyres.size(); ++i)
+    {
+        const WheelMount& wheel = ActiveConfiguration.Wheels[i];
+        const Vec3 hub = cs.Position + cs.Orientation.Rotate(wheel.LocalOffset);
+        const Quat steerQ  = wheel.Steered ? Quat::AxisAngle(up, SteerAngle) : Quat{0, 0, 0, 1};
+        const Quat hubRot  = QuatNormalize(QuatMul(steerQ, cs.Orientation));
+        const Vec3 hubVel = cs.LinearVelocity + Cross(cs.AngularVelocity, hub - cs.Position);
+        HubMotion& motion = Motions[i];
+        motion.Position       = hub + hubVel * Δτ;
+        const float AngularSpeed = cs.AngularVelocity.Length();
+        const Quat BearingIncrement = AngularSpeed > 1.0e-8f ? Quat::AxisAngle(cs.AngularVelocity * (1.0f / AngularSpeed), AngularSpeed * Δτ) : Quat{};
+        motion.Orientation = (BearingIncrement * hubRot).Normalized();
+        motion.AngularVelocity = cs.AngularVelocity;
+        motion.LinearVelocity = hubVel;
+        motion.SpinRate       = WheelSpin[i];
+        if (ActiveConfiguration.TyreThermal.Enabled && i < WheelThermals.size() && WheelThermals[i].Valid)
+            SoftTyres[i].ResolveGasTemperature(static_cast<float>(WheelThermals[i].GasTemperature),
+                                               static_cast<float>(WheelThermals[i].ReferenceTemperature));
+    }
+    StepTyresConcurrently(SoftTyres, Motions, Δτ, ActiveConfiguration.TyreSubsteps, ChassisHooks.Ground);
+
     for (size_t i = 0; i < SoftTyres.size(); ++i)
     {
         const WheelMount& wheel = ActiveConfiguration.Wheels[i];
@@ -264,18 +312,7 @@ void VehicleSolver::StepSimple(float Δτ) noexcept
         //    not a belt moving at hub speed. The belt was a stand-in for a tyre that could not rotate, and it
         //    made every contacting node scrub at road speed. The in-plane forces the carcass now generates are
         //    its own; this scheme still takes only Fz from it and drives through the friction-circle layer below.
-        HubMotion motion;
-        motion.Position       = hub + hubVel * Δτ;
-        const float AngularSpeed = cs.AngularVelocity.Length();
-        const Quat BearingIncrement = AngularSpeed > 1.0e-8f ? Quat::AxisAngle(cs.AngularVelocity * (1.0f / AngularSpeed), AngularSpeed * Δτ) : Quat{};
-        motion.Orientation = (BearingIncrement * hubRot).Normalized();
-        motion.AngularVelocity = cs.AngularVelocity;
-        motion.LinearVelocity = hubVel;
-        motion.SpinRate       = WheelSpin[i];
-        if (ActiveConfiguration.TyreThermal.Enabled && i < WheelThermals.size() && WheelThermals[i].Valid)
-            tyre.ResolveGasTemperature(static_cast<float>(WheelThermals[i].GasTemperature),
-                                       static_cast<float>(WheelThermals[i].ReferenceTemperature));
-        tyre.Step(Δτ, ActiveConfiguration.TyreSubsteps, motion, Vec3{0.0f, 0.0f, 0.0f}, ChassisHooks.Ground);
+        const HubMotion& motion = Motions[i]; (void)motion;
         const TyreReaction& reaction = tyre.Reaction();
 
         const float Fz    = reaction.SupportReaction.Length();
@@ -533,6 +570,31 @@ void VehicleSolver::StepPacejka(float Δτ) noexcept
     const float rearDownforcePerWheel  = (nRearWheels  > 0) ? std::max(0.0f, aero.RearDownforce_N)  / static_cast<float>(nRearWheels)  : 0.0f;
     CurrentTelemetry.Aero = aero;
 
+    // Pre-pass: hub motions for every wheel, then all carcasses step at once (see StepTyresConcurrently).
+    std::vector<HubMotion> Motions(SoftTyres.size());
+    for (size_t i = 0; i < SoftTyres.size(); ++i)
+    {
+        const WheelMount& wheel = ActiveConfiguration.Wheels[i];
+        Vec3 mountWorld{}, axisUp{};
+        const Vec3 hub    = ResolveHub(i, cs, mountWorld, axisUp);
+        const Quat steerQ = wheel.Steered ? Quat::AxisAngle(up, SteerAngle) : Quat{0, 0, 0, 1};
+        const Quat hubRot = QuatNormalize(QuatMul(steerQ, cs.Orientation));
+        Vec3 hubVel = cs.LinearVelocity + Cross(cs.AngularVelocity, hub - cs.Position);
+        if (ActiveConfiguration.SuspensionEnabled) hubVel += axisUp * StrutRate[i];
+        HubMotion& motion = Motions[i];
+        motion.Position       = hub + hubVel * Δτ;
+        const float AngularSpeed = cs.AngularVelocity.Length();
+        const Quat BearingIncrement = AngularSpeed > 1.0e-8f ? Quat::AxisAngle(cs.AngularVelocity * (1.0f / AngularSpeed), AngularSpeed * Δτ) : Quat{};
+        motion.Orientation = (BearingIncrement * hubRot).Normalized();
+        motion.AngularVelocity = cs.AngularVelocity;
+        motion.LinearVelocity = hubVel;
+        motion.SpinRate       = WheelSpin[i];
+        if (ActiveConfiguration.TyreThermal.Enabled && i < WheelThermals.size() && WheelThermals[i].Valid)
+            SoftTyres[i].ResolveGasTemperature(static_cast<float>(WheelThermals[i].GasTemperature),
+                                               static_cast<float>(WheelThermals[i].ReferenceTemperature));
+    }
+    StepTyresConcurrently(SoftTyres, Motions, Δτ, ActiveConfiguration.TyreSubsteps, ChassisHooks.Ground);
+
     for (size_t i = 0; i < SoftTyres.size(); ++i)
     {
         const WheelMount& wheel = ActiveConfiguration.Wheels[i];
@@ -554,18 +616,7 @@ void VehicleSolver::StepPacejka(float Δτ) noexcept
         //    static. WheelSpin is this wheel's own rotation, integrated at the foot of this routine from the
         //    drivetrain and brake torques, so the carcass turns at the rate the rest of the model believes it
         //    does. Traction and cornering still come from the Pacejka layer below; only Fz is read back here.
-        HubMotion motion;
-        motion.Position       = hub + hubVel * Δτ;
-        const float AngularSpeed = cs.AngularVelocity.Length();
-        const Quat BearingIncrement = AngularSpeed > 1.0e-8f ? Quat::AxisAngle(cs.AngularVelocity * (1.0f / AngularSpeed), AngularSpeed * Δτ) : Quat{};
-        motion.Orientation = (BearingIncrement * hubRot).Normalized();
-        motion.AngularVelocity = cs.AngularVelocity;
-        motion.LinearVelocity = hubVel;
-        motion.SpinRate       = WheelSpin[i];
-        if (ActiveConfiguration.TyreThermal.Enabled && i < WheelThermals.size() && WheelThermals[i].Valid)
-            tyre.ResolveGasTemperature(static_cast<float>(WheelThermals[i].GasTemperature),
-                                       static_cast<float>(WheelThermals[i].ReferenceTemperature));
-        tyre.Step(Δτ, ActiveConfiguration.TyreSubsteps, motion, Vec3{0.0f, 0.0f, 0.0f}, ChassisHooks.Ground);
+        const HubMotion& motion = Motions[i]; (void)motion;
         const TyreReaction& reaction = tyre.Reaction();
 
         const float Fz    = reaction.SupportReaction.Length();

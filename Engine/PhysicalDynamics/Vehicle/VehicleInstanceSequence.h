@@ -33,6 +33,9 @@ struct VehicleInstanceConfiguration
     bool DriftSmokeEnabled = false;              // [-] - one on-demand world-space domain for this vehicle
     bool FitTerrain = true;                       // [-] - equilibrium placement before physics begins
     float    MaxFrameSeconds = 0.10f;      // [s]   clamp a long frame so a hitch never explodes the integrator
+    float    StepWallBudgetSeconds = 0.012f; // [s] wall-clock budget for the fixed-step loop per frame; when the
+                                             //     solver cannot keep up the remaining simulated time is dropped
+                                             //     (brief slow-motion) instead of spiralling into 1 fps catch-up
 };
 
 // The shared rigid chassis: semi-implicit integration and unilateral authored-surface contact.
@@ -152,6 +155,7 @@ private:
     std::vector<Frontier::Vehicle::Vec3> CollisionLocations; // [m] - authored body vertices rebased onto the CoM
     std::vector<float>                      WheelSpin;      // [rad] integrated spin angle per wheel (visual)
     float                                   Accumulator = 0.0f;
+    float                                   DroppedSimulationSeconds = 0.0f; // [s] simulated time discarded last frame by the wall budget
 
     SmokeSequence                          DriftTransport;
     std::array<SmokeOnsetMetrics, 8u>       WheelOnset{};

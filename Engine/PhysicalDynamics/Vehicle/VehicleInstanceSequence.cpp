@@ -9,6 +9,7 @@
 #include <cstdio>
 
 #include <algorithm>
+#include <chrono>
 #include <cassert>
 #include <cmath>
 
@@ -354,8 +355,20 @@ void VehicleInstanceSequence::AdvanceVehicle(const Frontier::Vehicle::DriverInpu
     Accumulator += std::min(std::max(DeltaSeconds, 0.0f), Instancing.MaxFrameSeconds);
     const float h = Instancing.SubStepSeconds;
     const auto& tel = ActiveVehicleSolver.Telemetry();
+    const auto LoopStart = std::chrono::steady_clock::now();
+    DroppedSimulationSeconds = 0.0f;
     while (Accumulator >= h)
     {
+        const float Elapsed = std::chrono::duration<float>(std::chrono::steady_clock::now() - LoopStart).count();
+        if (Instancing.StepWallBudgetSeconds > 0.0f && Elapsed > Instancing.StepWallBudgetSeconds)
+        {
+            // Over budget: the frame already cost more than it should, so taking more fixed steps would only
+            //    make the next frame longer still (the death spiral). Drop the remainder; the caller can read
+            //    DroppedSimulationSeconds to show the dilation.
+            DroppedSimulationSeconds = Accumulator;
+            Accumulator = 0.0f;
+            break;
+        }
         ActiveVehicleSolver.Step(h);   // reads chassis, steps tyres, applies wheel forces
         Body.Integrate(h);
         const Vec3 BeforePosition = Body.Position;
