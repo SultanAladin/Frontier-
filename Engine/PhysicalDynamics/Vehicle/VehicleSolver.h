@@ -32,6 +32,7 @@
 
 #include "SuspensionSpecification.h"
 #include "XPBDSoftTyre.h"
+#include "TraceContactTyre.h"
 #include "PacejkaMagicFormula.h"
 #include "TyreSlipDynamics.h"
 #include "ThermalIntegrator.h"
@@ -46,6 +47,13 @@
 #include <vector>
 
 namespace Frontier::Vehicle {
+
+// Where the wheel's vertical load, patch and contact normal come from.
+enum class TyreContactModel
+{
+    RayTrace,      // GRIT's fan of ground samples around a rigid rim + residual radial spring (TraceContactTyre.h)
+    XPBDCarcass,   // the particle carcass (XPBDSoftTyre) — deformation study and calibration rigs
+};
 
 // Which in-plane tyre-force model the solver runs.
 enum class DrivingScheme
@@ -111,6 +119,10 @@ struct VehicleSolverConfiguration
     Vec3 InvChassisInertia{}; // [1/(kg·m²)] - sprung-body principal inverse inertia
     SoftTyreParameters Tyre;                     // shared soft-tyre parameters (Phase-2 calibration by default)
     std::vector<WheelMount> Wheels;              // typically 4
+    // Wheel contact. RayTrace is the production path (the pre-XPBD GRIT contact, ~57 ground samples per wheel per
+    //    step, schedule-independent load); XPBDCarcass keeps the particle tyre for the deformation study.
+    TyreContactModel        ContactModel = TyreContactModel::RayTrace;
+    TraceContactParameters  TraceContact{};
 
     float    MaxSteerAngleRad   = 0.52f;         // [rad] ~30° lock
     float    SteerRatePerSecond = 6.0f;          // [1/s] first-order steer smoothing
@@ -297,6 +309,7 @@ private:
 
     // The two driving layers Step() dispatches to (selected by ActiveConfiguration.ActiveScheme).
     void IntegrateConditions(float Seconds) noexcept;
+    void AdvanceTyreContact(const std::vector<HubMotion>& Motions, float Δτ, std::vector<TyreReaction>& Reactions) noexcept;
     void StepSimple(float Δτ) noexcept;   // Phase-3 friction-circle layer (validated fallback)
     void StepPacejka(float Δτ) noexcept;  // production drivetrain + Pacejka slip layer
 

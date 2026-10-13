@@ -182,7 +182,9 @@ float PacejkaMagicFormula::SelfAligningTorque(float SlipAngleRad, float SlipRati
     const float C_alpha = By * Cy * Dy;
 
     // Equivalent slip angle (MF6.1 eq. 80) with tan() domain guard
-    const float StiffnessRatio = std::sqrt(C_kappa / std::max(C_alpha, kSmall));
+    // Outside the fitted load range the slip-stiffness products can change sign (pBx2/pDx2·dfz at Fz ≫ Fz0);
+    //    a negative ratio is meaningless, so it is floored before the root rather than fed to it as NaN.
+    const float StiffnessRatio = std::sqrt(std::max(0.0f, C_kappa) / std::max(C_alpha, kSmall));
     constexpr float MaxSlipInput = 1.5f;
     const float ClampedSlip = Clampf(SlipRatio * 0.5f, -MaxSlipInput, MaxSlipInput);
     const float SlipAngleCorrection = std::atan(StiffnessRatio * std::tan(ClampedSlip));

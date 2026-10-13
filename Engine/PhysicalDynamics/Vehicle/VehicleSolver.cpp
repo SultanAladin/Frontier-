@@ -46,6 +46,31 @@ namespace {
 } // namespace
 
 //------------------------------------------------------------------------------------------------------------------------
+// The wheel contact for this step. RayTrace poses every carcass rigidly on its hub (so the renderer and the gas
+//    thermal path still see a wheel) and reads load/patch/normal from the sample fan; XPBDCarcass steps the particle
+//    tyres as before. Either way `Reactions[i]` is what the force loop consumes.
+void VehicleSolver::AdvanceTyreContact(const std::vector<HubMotion>& Motions, float Δτ, std::vector<TyreReaction>& Reactions) noexcept
+{
+    Reactions.assign(SoftTyres.size(), TyreReaction{});
+    if (ActiveConfiguration.ContactModel != TyreContactModel::RayTrace)
+    {
+        StepTyresConcurrently(SoftTyres, Motions, Δτ, ActiveConfiguration.TyreSubsteps, ChassisHooks.Ground);
+        for (size_t i = 0u; i < SoftTyres.size(); ++i) Reactions[i] = SoftTyres[i].Reaction();
+        return;
+    }
+    for (size_t i = 0u; i < SoftTyres.size(); ++i)
+    {
+        const HubMotion& motion = Motions[i];
+        SoftTyres[i].PoseRigid(Δτ, motion);
+        const TraceContactReading Contact = TraceWheelContact(ActiveConfiguration.TraceContact, ActiveConfiguration.Tyre.Radius,
+                                                              ActiveConfiguration.Tyre.Width, motion.Position, motion.Orientation,
+                                                              motion.LinearVelocity, ChassisHooks.Ground);
+        Reactions[i] = Contact.Reaction;
+        Reactions[i].EnclosedVolume = SoftTyres[i].RestVolume();
+        Reactions[i].GaugePressure  = ActiveConfiguration.Tyre.InflationPressure;
+    }
+}
+
 void VehicleSolver::Build(const VehicleSolverConfiguration& config, const Hooks& hooks, const ChassisState& initial) noexcept
 {
     ActiveConfiguration = config;
@@ -291,7 +316,8 @@ void VehicleSolver::StepSimple(float Δτ) noexcept
             SoftTyres[i].ResolveGasTemperature(static_cast<float>(WheelThermals[i].GasTemperature),
                                                static_cast<float>(WheelThermals[i].ReferenceTemperature));
     }
-    StepTyresConcurrently(SoftTyres, Motions, Δτ, ActiveConfiguration.TyreSubsteps, ChassisHooks.Ground);
+    std::vector<TyreReaction> TraceReactions;
+    AdvanceTyreContact(Motions, Δτ, TraceReactions);
 
     for (size_t i = 0; i < SoftTyres.size(); ++i)
     {
@@ -313,7 +339,7 @@ void VehicleSolver::StepSimple(float Δτ) noexcept
         //    made every contacting node scrub at road speed. The in-plane forces the carcass now generates are
         //    its own; this scheme still takes only Fz from it and drives through the friction-circle layer below.
         const HubMotion& motion = Motions[i]; (void)motion;
-        const TyreReaction& reaction = tyre.Reaction();
+        const TyreReaction& reaction = ActiveConfiguration.ContactModel == TyreContactModel::RayTrace ? TraceReactions[i] : tyre.Reaction();
 
         const float Fz    = reaction.SupportReaction.Length();
         const bool  onGnd = reaction.ContactCount > 0u && Fz > 1.0f;
@@ -593,7 +619,8 @@ void VehicleSolver::StepPacejka(float Δτ) noexcept
             SoftTyres[i].ResolveGasTemperature(static_cast<float>(WheelThermals[i].GasTemperature),
                                                static_cast<float>(WheelThermals[i].ReferenceTemperature));
     }
-    StepTyresConcurrently(SoftTyres, Motions, Δτ, ActiveConfiguration.TyreSubsteps, ChassisHooks.Ground);
+    std::vector<TyreReaction> TraceReactions;
+    AdvanceTyreContact(Motions, Δτ, TraceReactions);
 
     for (size_t i = 0; i < SoftTyres.size(); ++i)
     {
@@ -617,7 +644,7 @@ void VehicleSolver::StepPacejka(float Δτ) noexcept
         //    drivetrain and brake torques, so the carcass turns at the rate the rest of the model believes it
         //    does. Traction and cornering still come from the Pacejka layer below; only Fz is read back here.
         const HubMotion& motion = Motions[i]; (void)motion;
-        const TyreReaction& reaction = tyre.Reaction();
+        const TyreReaction& reaction = ActiveConfiguration.ContactModel == TyreContactModel::RayTrace ? TraceReactions[i] : tyre.Reaction();
 
         const float Fz    = reaction.SupportReaction.Length();
         const bool  onGnd = reaction.ContactCount > 0u && Fz > 1.0f;

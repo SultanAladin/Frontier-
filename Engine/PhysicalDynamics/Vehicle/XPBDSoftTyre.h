@@ -383,6 +383,29 @@ public:
     void Step(float dt, uint32_t substeps, const HubMotion& hub,
               const Vec3& surfaceVelocity, const GroundQuery& ground) noexcept;
 
+    // Ride the hub rigidly: no constraints, no ground. The carcass keeps its rest shape, rolls by SpinRate·dt and
+    //    reports no reaction — the wheel contact comes from somewhere else (TraceContactTyre.h). The renderer and the
+    //    gas-volume thermal path keep reading the same nodes and rest volume as before.
+    void PoseRigid(float dt, const HubMotion& hub) noexcept
+    {
+        SpinAngle += hub.SpinRate * dt;
+        constexpr float Pi = 3.14159265358979323846f;
+        if (SpinAngle > Pi || SpinAngle < -Pi) SpinAngle = std::fmod(SpinAngle + Pi, 2.0f * Pi) - Pi;
+        SnapshotPosition = hub.Position;
+        SnapshotRotation = hub.Orientation;
+        const Quat Frame = MaterialFrame(hub.Orientation);
+        for (SoftTyreNode& node : NodeRecords)
+        {
+            node.Previous = node.Position;
+            node.Position = hub.Position + Frame.Rotate(node.TreadLocal);
+            node.Velocity = dt > 0.0f ? (node.Position - node.Previous) * (1.0f / dt) : Vec3{};
+            node.InContact = false;
+        }
+        ContactReaction = TyreReaction{};
+        ContactReaction.EnclosedVolume = GasRestVolume;
+        ContactReaction.GaugePressure  = Parameters.InflationPressure;
+    }
+
     // A hub held still: the settle, kerb and calibration rigs, where the wheel neither travels nor rolls.
     void Step(float dt, uint32_t substeps, const Vec3& hubPos, const Quat& hubRot,
               const Vec3& surfaceVelocity, const GroundQuery& ground) noexcept
