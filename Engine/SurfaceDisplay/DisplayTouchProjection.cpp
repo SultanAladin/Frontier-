@@ -5,6 +5,7 @@
 
 #include "DisplayTouchProjection.h"
 
+#include <algorithm>
 #include <cmath>
 
 namespace Frontier {

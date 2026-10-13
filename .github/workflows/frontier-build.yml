@@ -279,6 +279,10 @@ jobs:
             Stop-Transcript | Out-Null
             $Tail = (Get-Content $Transcript -Tail 45) -join '%0A'
             Write-Host "::error title=Windows MSVC build failed::$($Failure.Replace('%','%25'))%0A$Tail"
+            # The actual diagnostics, separately: warnings swamp the tail, and the annotation is the only part of
+            #    the log readable from a sandbox that cannot reach the blob store the raw log lives on.
+            $Diagnostics = @(Get-Content $Transcript | Where-Object { $_ -match 'error (C|LNK|D)\d+|fatal error' } | Select-Object -Unique -First 40)
+            foreach ($Line in $Diagnostics) { Write-Host "::error title=MSVC diagnostic::$($Line.Trim().Replace('%','%25'))" }
             throw
           }
           Stop-Transcript | Out-Null

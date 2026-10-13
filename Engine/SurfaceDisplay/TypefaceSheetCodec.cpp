@@ -8,6 +8,7 @@
 #include <cmath>
 #include <cstring>
 #include <fstream>
+#include <utility>
 
 #define STB_TRUETYPE_IMPLEMENTATION
 #define STBTT_STATIC

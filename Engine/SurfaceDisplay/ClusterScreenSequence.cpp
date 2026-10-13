@@ -6,6 +6,7 @@
 #include "ClusterScreenSequence.h"
 
 #include <algorithm>
+#include <cctype>
 #include <cmath>
 #include <cstdio>
 #include <cstring>
