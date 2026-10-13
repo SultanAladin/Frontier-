@@ -7,6 +7,132 @@ import { appName } from './icons.js';
 const head = (t, s) => `<div class="aw-head"><button class="aw-back" data-close>‹</button>
   <div><b>${t}</b><span>${s}</span></div></div>`;
 
+const esc = (s) => s.replace(/[&<>"']/g, (c) =>
+  ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
+// ── full chat interface (Messages app) ─────────────────────────────
+// 3-pane layout after the supplied reference: threads | conversation |
+// group info. Sized for the tablet window (~900x480 content box).
+let chatActive = 'group1';
+
+const CAV = (init, cls) => `<span class="cav ${cls}">${init}</span>`;
+
+const CHAT_ONLINE = [['SA', 'av1'], ['RK', 'av2'], ['DG', 'av3'], ['ZA', 'av4'], ['MO', 'av5']];
+
+const CHAT_THREADS = [
+  { id: 'suneo', name: 'Suneo Marinir', init: 'SM', cls: 'av1', sub: 'Suneo is typing…', typing: true,
+    unread: 2, time: '', reply: 'Copy — flashing it now.',
+    msgs: [
+      { from: 'Suneo Marinir', init: 'SM', cls: 'av1', time: '2m',
+        text: 'New tune feels great through sector 2.', reacts: [['👍', 3]] },
+      { self: true, init: 'YO', cls: 'av0', time: '1m', text: 'Wing 18 next run — try it.' },
+    ] },
+  { id: 'kick', name: 'Kick Andy', init: 'KA', cls: 'av2', sub: 'Voice message', dot: true,
+    unread: 0, time: '', reply: 'Exactly. See you on track.',
+    msgs: [
+      { from: 'Kick Andy', init: 'KA', cls: 'av2', time: '9:40',
+        text: 'Line through the last corner:', voice: { dur: '0:09' } },
+      { self: true, init: 'YO', cls: 'av0', time: '9:41', text: 'Late apex, got it.' },
+    ] },
+  { id: 'group1', name: 'Sunday GT3', init: 'G1', cls: 'av4', sub: "You: wow, that's an interesting…",
+    time: '9:32', group: true, reply: 'Setup file is in Shared Media.',
+    msgs: [
+      { from: 'Nagita salavina', init: 'NS', cls: 'av1', time: '1d',
+        text: 'Hii, are we going to Kyalami this Sunday?', reacts: [['👍', 6], ['👎', 2]] },
+      { date: 'Today, 17 Nov' },
+      { from: 'Dedy Gunawan', init: 'DG', cls: 'av3', time: '10m',
+        text: "So, here i have some recommended setups, let's see",
+        voice: { dur: '0:13' }, imgs: ['ph1', 'ph2'], reacts: [['🔥', 8], ['👍', 1]] },
+      { self: true, init: 'YO', cls: 'av0', time: '10m', text: "wow, that's an interesting place" },
+    ] },
+  { id: 'mara', name: 'Mara Voss', init: 'MV', cls: 'av5', sub: 'Voice message', dot: true,
+    unread: 0, time: '', reply: 'Join when ready 🏁',
+    msgs: [
+      { from: 'Mara Voss', init: 'MV', cls: 'av5', time: '8:15',
+        text: 'Lobby password changed:', voice: { dur: '0:06' } },
+    ] },
+];
+
+const CHAT_PARTS = [
+  ['Marimo Zoldic', 'Busy! Sorry for Slowers', 'MZ', 'av2'],
+  ['Rojer Mozart', 'At Work', 'RM', 'av3'],
+  ['Convy Suchinda', 'Gaming and IT', 'CS', 'av5'],
+];
+const CHAT_MEDIA = [
+  ['Setup Kyalami.pdf', '2.1 Mb', 'pdf'], ['Telemetry L12.zip', '18 Mb', 'zip'],
+  ['Livery v3.png', '4.6 Mb', 'img'], ['Onboard AUD.mp4', '96 Mb', 'vid'],
+];
+
+function voiceHtml(dur) {
+  let bars = '';
+  for (let i = 0; i < 26; i++) bars += `<i style="height:${5 + ((i * 37 + 11) % 17)}px"></i>`;
+  return `<div class="voice" data-voice><button class="vplay">▶</button>` +
+    `<span class="vbars">${bars}</span><span class="vtime">${dur}</span></div>`;
+}
+
+function renderChatLog(t) {
+  return t.msgs.map((m) => {
+    if (m.date) return `<div class="cdate"><span>${m.date}</span></div>`;
+    const who = m.self
+      ? `<div class="cwho me"><b>You</b><span>${m.time}</span>${CAV(m.init, m.cls)}</div>`
+      : `<div class="cwho">${CAV(m.init, m.cls)}<b>${m.from}</b><span>${m.time}</span></div>`;
+    const txt = m.text ? `<div class="cbub${m.self ? ' me' : ''}">${m.text}</div>` : '';
+    const voi = m.voice ? voiceHtml(m.voice.dur) : '';
+    const img = m.imgs ? `<div class="cimgs">${m.imgs.map((c) => `<span class="cimg ${c}"></span>`).join('')}</div>` : '';
+    const react = m.reacts ? `<div class="creacts">${m.reacts.map((r) =>
+      `<button data-react>${r[0]} <b>${r[1]}</b></button>`).join('')}</div>` : '';
+    return `<div class="cmsg${m.self ? ' self' : ''}">${who}${txt}${voi}${img}${react}</div>`;
+  }).join('');
+}
+
+function chatShell() {
+  const t = CHAT_THREADS.find((x) => x.id === chatActive);
+  return `<div class="chatwrap">
+    <div class="chat-top"><button data-close>‹</button><b>Messages</b>
+      <span class="csp"></span><span class="cdot-live">● 3 online in Session</span></div>
+    <div class="chat3">
+      <aside class="c-left">
+        <div class="c-me">${CAV('RK', 'av0')}<div><b>Rohmad Khoir</b><span>My account</span></div></div>
+        <div class="c-sect"><b>Online now</b><span class="cbadge">10</span></div>
+        <div class="c-online">${CHAT_ONLINE.map((o) =>
+          `<span class="cavo">${CAV(o[0], o[1])}<i class="cdot"></i></span>`).join('')}</div>
+        <div class="c-sect"><b>Messages ▾</b><span class="csp"></span><span class="cic">✎ ☆</span></div>
+        <div class="c-search"><input id="cq" placeholder="⌕ Search"></div>
+        <div class="c-threads">${CHAT_THREADS.map((x) => `
+          <button class="cthread${x.id === chatActive ? ' on' : ''}" data-thread="${x.id}">
+            ${CAV(x.init, x.cls)}<span class="ct">
+              <span class="ct1"><b>${x.name}</b>${x.time ? `<span class="ctime">${x.time}</span>` : ''}</span>
+              <span class="ct2"><i class="${x.typing ? 'typing' : ''}">${x.sub}</i>
+              ${x.unread ? `<span class="cbadge">${x.unread}</span>` : ''}${x.dot ? '<span class="cdot2"></span>' : ''}</span>
+            </span></button>`).join('')}</div>
+        <div class="c-live"><span class="livedot"></span><b>LIVE</b><span>23:54</span>
+          <span class="csp"></span>${CAV('ZA', 'av4')}<span class="cbadge">6</span></div>
+      </aside>
+      <section class="c-main">
+        <div class="c-ghead"><div><b id="cgtitle">${t.name}</b>
+          <span id="cgsub">${t.group ? '@Kyalami · 24 participants' : 'online'}</span></div>
+          <span class="csp"></span><span class="cic">🎥 📞 🖼 ❏</span>
+          <span class="cstack">${CAV('RK', 'av0')}${CAV('NS', 'av1')}<span class="cmore">+6</span></span></div>
+        <div class="c-log" id="clog">${renderChatLog(t)}</div>
+        <div class="c-typing" id="ctyping" hidden></div>
+        <div class="c-compose">${CAV('YO', 'av0')}<input id="cinput" placeholder="Your message…">
+          <button id="cmic" title="Voice">🎙</button><button id="cattach" title="Attach">📎</button>
+          <button id="csend" title="Send">➤</button></div>
+      </section>
+      <aside class="c-right">
+        <div class="c-ginfo"><span class="cav big av4">G1</span><b>Sunday GT3</b><span>@Kyalami</span></div>
+        <div class="c-sect"><b>24 Participants</b><span class="csp"></span>
+          <button class="clink" data-see="participants">See all</button></div>
+        ${CHAT_PARTS.map((p) => `<div class="prow sm">${CAV(p[2], p[3])}` +
+          `<div class="who"><b>${p[0]}</b><span>${p[1]}</span></div></div>`).join('')}
+        <div class="c-sect"><b>Shared Media</b><span class="csp"></span>
+          <button class="clink" data-see="media">See all</button></div>
+        ${CHAT_MEDIA.map((m) => `<div class="frow"><span class="fic ${m[2]}">${m[2].toUpperCase()}</span>` +
+          `<div class="who"><b>${m[0]}</b><span>${m[1]}</span></div></div>`).join('')}
+      </aside>
+    </div></div>`;
+}
+
 export function renderAppScreen(id) {
   switch (id) {
     case 'nav': return head('Navigation', 'Route preview · live') + `
@@ -32,12 +158,7 @@ export function renderAppScreen(id) {
         .map((d) => `<button data-d="${d}">${d}</button>`).join('')}</div>
       <button class="btn call" id="callbtn">📞 Call</button>
       <span class="dim" id="callstatus"></span></div>`;
-    case 'messages': return head('Messages', 'Mara Voss · online') + `
-      <div class="aw-body"><div class="chat" id="chat">
-        <div class="b">Lobby is up — join when ready</div>
-        <div class="b me">Two minutes, finishing a tune</div></div>
-      <div class="composer"><input id="chatinput" placeholder="Message…">
-      <button class="btn" id="chatsend">Send</button></div></div>`;
+    case 'messages': return `<div class="aw-body wide">${chatShell()}</div>`;
     case 'climate': return head('Climate', 'Dual zone · auto') + `
       <div class="aw-body"><div class="clim">
         <button data-t="-1">−</button><div class="temp"><b id="ctemp">21.5°</b><span>driver</span></div>
@@ -112,6 +233,7 @@ export function renderAppScreen(id) {
 export function wireAppScreen(root, id, api) {
   const cleanups = [];
   const every = (ms, fn) => { const h = setInterval(fn, ms); cleanups.push(() => clearInterval(h)); };
+  const later = (ms, fn) => { const h = setTimeout(fn, ms); cleanups.push(() => clearTimeout(h)); };
   const on = (sel, ev, fn) => root.querySelector(sel)?.addEventListener(ev, fn);
 
   root.querySelectorAll('[data-close]').forEach((b) => b.addEventListener('click', api.close));
@@ -120,13 +242,11 @@ export function wireAppScreen(root, id, api) {
     let k = 0;
     every(60, () => {
       k = (k + 0.008) % 1;
-      const p = root.querySelector('#route')?.getPointAtLength?.(0);
       const route = root.querySelector('#route'), dot = root.querySelector('#navdot');
       if (route && dot && route.getTotalLength) {
         const pt = route.getPointAtLength(route.getTotalLength() * k);
         dot.setAttribute('cx', pt.x); dot.setAttribute('cy', pt.y);
       }
-      void p;
     });
     root.querySelectorAll('.chip').forEach((c) => c.addEventListener('click', () => {
       root.querySelectorAll('.chip').forEach((x) => x.classList.toggle('on', x === c));
@@ -155,14 +275,78 @@ export function wireAppScreen(root, id, api) {
     });
   }
   if (id === 'messages') {
-    const log = root.querySelector('#chat'), input = root.querySelector('#chatinput');
-    const send = () => {
-      const v = input.value.trim(); if (!v) return;
-      const d = document.createElement('div'); d.className = 'b me'; d.textContent = v;
-      log.appendChild(d); input.value = ''; log.scrollTop = log.scrollHeight;
+    const thread = () => CHAT_THREADS.find((x) => x.id === chatActive);
+    const logEl = () => root.querySelector('#clog');
+    const scrollEnd = () => { const l = logEl(); if (l) l.scrollTop = l.scrollHeight; };
+    scrollEnd();
+    const hideTyping = () => { const el = root.querySelector('#ctyping'); if (el) el.hidden = true; };
+    const showTyping = (who) => {
+      const el = root.querySelector('#ctyping');
+      if (el) {
+        el.hidden = false;
+        el.innerHTML = `<span class="tdots"><i></i><i></i><i></i></span> <b>${who}</b> is typing…`;
+      }
     };
-    on('#chatsend', 'click', send);
+    const setThread = (nid) => {
+      chatActive = nid;
+      const t = thread();
+      root.querySelectorAll('[data-thread]').forEach((b) =>
+        b.classList.toggle('on', b.dataset.thread === nid));
+      root.querySelector('#cgtitle').textContent = t.name;
+      root.querySelector('#cgsub').textContent = t.group ? '@Kyalami · 24 participants' : 'online';
+      const l = logEl();
+      if (l) { l.innerHTML = renderChatLog(t); l.scrollTop = l.scrollHeight; }
+      hideTyping();
+    };
+    root.querySelectorAll('[data-thread]').forEach((b) =>
+      b.addEventListener('click', () => setThread(b.dataset.thread)));
+    root.querySelector('#cq')?.addEventListener('input', (e) => {
+      const q = e.target.value.toLowerCase();
+      root.querySelectorAll('[data-thread]').forEach((b) => {
+        const t = CHAT_THREADS.find((x) => x.id === b.dataset.thread);
+        b.style.display = t.name.toLowerCase().includes(q) ? '' : 'none';
+      });
+    });
+    logEl()?.addEventListener('click', (e) => {
+      const r = e.target.closest('[data-react]');
+      if (r) {
+        const n = r.querySelector('b'), v = parseInt(n.textContent, 10);
+        n.textContent = r.classList.toggle('voted') ? v + 1 : v - 1;
+        return;
+      }
+      const v = e.target.closest('[data-voice]');
+      if (v) {
+        const p = v.querySelector('.vplay');
+        p.textContent = v.classList.toggle('playing') ? '⏸' : '▶';
+      }
+    });
+    const input = root.querySelector('#cinput');
+    const send = () => {
+      const v = input.value.trim();
+      if (!v) return;
+      const t = thread();
+      logEl().insertAdjacentHTML('beforeend',
+        `<div class="cmsg self"><div class="cwho me"><b>You</b><span>now</span>${CAV('YO', 'av0')}</div>` +
+        `<div class="cbub me">${esc(v)}</div></div>`);
+      input.value = ''; scrollEnd();
+      t.sub = `You: ${v.length > 24 ? `${v.slice(0, 24)}…` : v}`;
+      const row = root.querySelector(`[data-thread="${t.id}"] .ct2 i`);
+      if (row) { row.textContent = t.sub; row.classList.remove('typing'); }
+      showTyping('Zaidan');
+      later(1400, () => {
+        hideTyping();
+        logEl().insertAdjacentHTML('beforeend',
+          `<div class="cmsg"><div class="cwho">${CAV('ZA', 'av4')}<b>Zaidan</b><span>now</span></div>` +
+          `<div class="cbub">${t.reply}</div></div>`);
+        scrollEnd();
+      });
+    };
+    on('#csend', 'click', send);
     input?.addEventListener('keydown', (e) => { if (e.key === 'Enter') send(); });
+    on('#cmic', 'click', () => api.toast('Voice note · 0:06 recorded'));
+    on('#cattach', 'click', () => api.toast('Attach · setup + photo + file'));
+    root.querySelectorAll('[data-see]').forEach((b) => b.addEventListener('click', () =>
+      api.toast(`${b.dataset.see === 'media' ? 'Shared media' : 'Participants'} · full list soon`)));
   }
   if (id === 'climate') {
     let temp = 21.5;

@@ -56,3 +56,16 @@ test('apps: every icon opens a non-empty screen', () => {
     assert.ok(html.includes('data-close'), `${a.id}: has a back button`);
   }
 });
+
+test('chat: messages app is a full 3-pane interface', () => {
+  const html = renderAppScreen('messages');
+  for (const pane of ['c-left', 'c-main', 'c-right']) {
+    assert.ok(html.includes(pane), `chat has ${pane} pane`);
+  }
+  assert.ok(html.includes('data-thread='), 'chat has switchable threads');
+  assert.ok(html.includes('id="clog"'), 'chat has a conversation log');
+  assert.ok(html.includes('id="cinput"'), 'chat has a composer');
+  assert.ok(html.includes('data-react'), 'chat has reactions');
+  assert.ok(html.includes('data-voice'), 'chat has a voice message');
+  assert.ok((html.match(/data-thread=/g) || []).length >= 3, 'chat has 3+ threads');
+});

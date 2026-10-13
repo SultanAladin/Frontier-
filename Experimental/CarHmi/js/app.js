@@ -10,6 +10,7 @@ import { VIEWS, initScene } from './scene.js';
 const $ = (s) => document.querySelector(s);
 const gridArea = $('#gridArea'), appwin = $('#appwin'), toastEl = $('#toast');
 let grid = 'pages', pageIdx = 0, folderOpen = -1, appCleanup = null, wall = 0;
+let lastSwipeAt = 0; // a swipe must not also fire the tile click under the release point.
 
 let toastT = 0;
 function toast(msg) {
@@ -76,7 +77,8 @@ function renderPages() {
   track.addEventListener('pointerdown', (e) => { sx = e.clientX; });
   track.addEventListener('pointerup', (e) => {
     const dx = e.clientX - sx;
-    if (dx < -40) go(1); else if (dx > 40) go(-1);
+    if (dx < -40) { lastSwipeAt = Date.now(); go(1); }
+    else if (dx > 40) { lastSwipeAt = Date.now(); go(-1); }
   });
 }
 
@@ -103,20 +105,24 @@ function renderTiles() {
       <svg viewBox="0 0 200 60"><path d="M8 50 L70 42 L130 30 L192 12" stroke="#14b8f2"
       stroke-width="6" fill="none" stroke-linecap="round"/><circle cx="8" cy="50" r="6" fill="#3ddc84"/>
       <circle cx="192" cy="12" r="6" fill="#ff5a5a"/></svg><span>Home · 12 min · light traffic</span></button>
-    <button class="wtile w-media" data-app="media"><b id="wt-m">⏸ Night Drive</b>
-      <span>Neon Coast · tap tile to play/pause</span></button>
+    <button class="wtile w-media" id="wmedia"><b id="wt-m">⏸ Night Drive</b>
+      <span>tap = play/pause · double-tap = open</span></button>
     <button class="wtile w-clim" data-app="climate"><b id="wt-c">21.5°</b><span>auto · fan 3</span></button>
     ${rest.map((a) => `<button class="wtile sm" data-app="${a.id}"><span class="ti">${icon(a.id)}</span><em>${a.name}</em></button>`).join('')}
   </div>`;
-  // live widgets act without opening the app (stopPropagation).
-  const wm = gridArea.querySelector('.w-media');
-  let playing = true;
-  wm.addEventListener('click', (e) => {
-    if (e.detail === 0) return;
-    playing = !playing;
-    gridArea.querySelector('#wt-m').textContent = `${playing ? '⏸' : '▶'} Night Drive`;
-    e.stopPropagation();
-  }, true);
+  // media widget acts in place (no data-app, so the tile binder skips it):
+  // single tap toggles play, double-tap opens the app.
+  const wm = gridArea.querySelector('#wmedia');
+  let playing = true, clickTimer = 0;
+  wm.addEventListener('click', () => {
+    clearTimeout(clickTimer);
+    clickTimer = setTimeout(() => {
+      playing = !playing;
+      const el = gridArea.querySelector('#wt-m');
+      if (el) el.textContent = `${playing ? '⏸' : '▶'} Night Drive`;
+    }, 260);
+  });
+  wm.addEventListener('dblclick', () => { clearTimeout(clickTimer); openApp('media'); });
 }
 
 function renderDrawer() {
@@ -155,7 +161,10 @@ function renderGrid() {
 function bindTiles(scope) {
   scope.querySelectorAll('[data-app]').forEach((b) => {
     if (b.dataset.bound) return; b.dataset.bound = '1';
-    b.addEventListener('click', (e) => { e.stopPropagation(); openApp(b.dataset.app); });
+    b.addEventListener('click', (e) => {
+      if (Date.now() - lastSwipeAt < 350) return; // a swipe is not a tap.
+      e.stopPropagation(); openApp(b.dataset.app);
+    });
   });
 }
 
