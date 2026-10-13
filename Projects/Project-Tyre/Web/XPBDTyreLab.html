@@ -110,7 +110,7 @@ let sim=null; // built by buildSim()
 function mIdent(){return new Float32Array([1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1])}
 function mMul(a,b){const o=new Float32Array(16);for(let c=0;c<4;c++)for(let r=0;r<4;r++){let s=0;for(let k=0;k<4;k++)s+=a[k*4+r]*b[c*4+k];o[c*4+r]=s}return o}
 function mPersp(f,asp,n,fa){const t=1/Math.tan(f/2),o=new Float32Array(16);o[0]=t/asp;o[5]=t;o[10]=fa/(n-fa);o[11]=-1;o[14]=2*fa*n/(n-fa);return o}
-function mLook(eye,at){let zx=eye[0]-at[0],zy=eye[1]-at[1],zz=eye[2]-at[2];let l=Math.hypot(zx,zy,zz);zx/=l;zy/=l;zz/=l;let xx=-zz,xy=0,xz=zx; l=Math.hypot(xx,xy,xz)||1;xx/=l;xy/=l;xz/=l;const yx=zy*xz-zz*xy,yy=zz*xx-zx*xz,yz=zx*xy-zy*xx;
+function mLook(eye,at){let zx=eye[0]-at[0],zy=eye[1]-at[1],zz=eye[2]-at[2];let l=Math.hypot(zx,zy,zz);zx/=l;zy/=l;zz/=l;let xx=zz,xy=0,xz=-zx;l=Math.hypot(xx,xy,xz)||1;xx/=l;xy/=l;xz/=l;const yx=zy*xz-zz*xy,yy=zz*xx-zx*xz,yz=zx*xy-zy*xx;
  return new Float32Array([xx,yx,zx,0, xy,yy,zy,0, xz,yz,zz,0, -(xx*eye[0]+xy*eye[1]+xz*eye[2]),-(yx*eye[0]+yy*eye[1]+yz*eye[2]),-(zx*eye[0]+zy*eye[1]+zz*eye[2]),1])}
 function rotX(a){const c=Math.cos(a),s=Math.sin(a);return new Float32Array([1,0,0,0, 0,c,s,0, 0,-s,c,0, 0,0,0,1])}
 function rotY(a){const c=Math.cos(a),s=Math.sin(a);return new Float32Array([c,0,-s,0, 0,1,0,0, s,0,c,0, 0,0,0,1])}
@@ -276,7 +276,7 @@ function buildRenderGeometry(){
            skinCPU:{pos,nor,off,idx,wgt,tyre}};
 }
 const tyreWGSL=`
-struct U{vp:mat4x4<f32>,models:array<mat4x4<f32>,4>,params:vec4<f32>};
+struct U{vp:mat4x4<f32>,models:array<mat4x4<f32>,4>,params:vec4<f32>,spins:vec4<f32>};
 @group(0)@binding(0)var<uniform>u:U;
 @group(0)@binding(1)var<storage,read>nodes:array<vec4<f32>>;
 struct In{@location(0)rest:vec3<f32>,@location(1)nrm:vec3<f32>,@location(2)off:vec3<f32>,@location(3)si:vec4<u32>,@location(4)sw:vec4<f32>,@location(5)tyre:u32,@location(6)dyn:vec3<f32>};
@@ -284,14 +284,15 @@ struct Out{@builtin(position)clip:vec4<f32>,@location(0)wn:vec3<f32>,@location(1
 @vertex fn vs(a:In)->Out{var o:Out;let M=u.models[a.tyre];let base=u32(u.params.y)*a.tyre;
  var local:vec3<f32>;
  if(u.params.x>0.5){local=a.dyn;}else{
-   var s=vec3<f32>(0.);var rs=vec3<f32>(0.);
-   for(var n=0;n<4;n++){let nd=nodes[base+a.si[n]];s+=nd.xyz*a.sw[n];}
-   // rest anchor reconstruction: skinned surface point + rigid offset stored in 'off' is relative to anchor at rest;
-   // deformation delta = s - restAnchor, and restAnchor = rest - off (all in wheel-local space)
-   let restAnchor=a.rest-a.off; local=a.rest+(s-restAnchor);
+   var s=vec3<f32>(0.);var df=0.;
+   for(var n=0;n<4;n++){let nd=nodes[base+a.si[n]];s+=nd.xyz*a.sw[n];df+=nd.w*a.sw[n];}
+   // skinned surface point s (sim nodes have spun with the wheel) + profile offset rotated by spin about the axle (local Z)
+   let sp=u.spins[a.tyre];let cs=cos(sp);let sn=sin(sp);
+   let offR=vec3<f32>(cs*a.off.x-sn*a.off.y, sn*a.off.x+cs*a.off.y, a.off.z);
+   local=s+offR; o.deform=df;
  }
  let wp=(M*vec4<f32>(local,1.)).xyz;o.wp=wp;o.clip=u.vp*vec4<f32>(wp,1.);
- o.wn=normalize((M*vec4<f32>(a.nrm,0.)).xyz);o.deform=length(local-a.rest);return o;}
+ o.wn=normalize((M*vec4<f32>(a.nrm,0.)).xyz);return o;}
 @fragment fn fs(o:Out)->@location(0)vec4<f32>{
  let L=normalize(vec3<f32>(-0.4,0.85,0.35));let n=normalize(o.wn);
  let diff=max(dot(n,L),0.);let tread=smoothstep(0.25,0.30,abs(o.wn.y)*0.+1.) ;
@@ -384,10 +385,10 @@ function buildCarSoup(){
 function cpuSkin(){
   const {nor,off,idx,wgt,tyre}=tyreGeo.skinCPU, out=tyreGeo.skinCPU.out||(tyreGeo.skinCPU.out=new Float32Array(RENDER_VERTS*4*3));
   // node local positions are precomputed into nodeData (wheel-local xyz) by uploadNodes()
-  for(let v=0;v<RENDER_VERTS*4;v++){const t=tyre[v],base=t*sim.N;let sx=0,sy=0,sz=0;
+  for(let v=0;v<RENDER_VERTS*4;v++){const t=tyre[v],base=t*MAXN;let sx=0,sy=0,sz=0; // node buffer stride is MAXN/tyre, not sim.N
     for(let n=0;n<4;n++){const nd=(base+idx[v*4+n])*4,w=wgt[v*4+n];sx+=nodeData[nd]*w;sy+=nodeData[nd+1]*w;sz+=nodeData[nd+2]*w;}
-    const rx=tyreGeo.skinCPU.pos[v*3]-off[v*3],ry=tyreGeo.skinCPU.pos[v*3+1]-off[v*3+1],rz=tyreGeo.skinCPU.pos[v*3+2]-off[v*3+2];
-    out[v*3]=tyreGeo.skinCPU.pos[v*3]+(sx-rx);out[v*3+1]=tyreGeo.skinCPU.pos[v*3+1]+(sy-ry);out[v*3+2]=tyreGeo.skinCPU.pos[v*3+2]+(sz-rz);}
+    const sp=sim.tyres[t].spin,cs=Math.cos(sp),sn=Math.sin(sp),ox=off[v*3],oy=off[v*3+1];
+    out[v*3]=sx+(cs*ox-sn*oy);out[v*3+1]=sy+(sn*ox+cs*oy);out[v*3+2]=sz+off[v*3+2];}
   device.queue.writeBuffer(tyreGeo.dyn,0,out);
   return out;
 }
@@ -396,7 +397,7 @@ function uploadNodes(){
   for(let ti=0;ti<4;ti++){const t=sim.tyres[ti],M=hubMatrix(t);
     for(let i=0;i<t.N;i++){const wp=[t.pos[i*3],t.pos[i*3+1],t.pos[i*3+2]];
       const rel=[wp[0]-M[12],wp[1]-M[13],wp[2]-M[14]];const lp=xformDirT(M,rel);
-      const o=(ti*MAXN+i)*4;nodeData[o]=lp[0];nodeData[o+1]=lp[1];nodeData[o+2]=lp[2];nodeData[o+3]=1;}}
+      const o=(ti*MAXN+i)*4;nodeData[o]=lp[0];nodeData[o+1]=lp[1];nodeData[o+2]=lp[2];nodeData[o+3]=Math.max(0,R_TYRE-Math.hypot(lp[0],lp[1]));}}
   device.queue.writeBuffer(nodeBuf,0,nodeData);
 }
 
@@ -505,6 +506,7 @@ function frame(now){
   const uni=new Float32Array(256);uni.set(mMul(vp,view),0);
   sim.tyres.forEach((t,i)=>uni.set(hubMatrix(t),16+i*16)); // vp=16 floats, models follow
   uni[80]=CFG.skin==='cpu'?1:0;uni[81]=MAXN;uni[82]=0;uni[83]=0; // params after vp+4 models; .y = node stride/tyre
+  sim.tyres.forEach((t,i)=>uni[84+i]=t.spin%(Math.PI*2));
   device.queue.writeBuffer(uniBuf,0,uni);
   const suni=new Float32Array(24);suni.set(mMul(vp,view),0);device.queue.writeBuffer(simpleUni,0,suni);
   {const g=new Float32Array(24);g.set(mMul(vp,view),0);g[16]=distance;g[17]=CFG.bumps;g[18]=1;device.queue.writeBuffer(simpleUniG,0,g);}
