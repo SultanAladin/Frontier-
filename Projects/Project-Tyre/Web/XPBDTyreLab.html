@@ -1,0 +1,542 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Frontier — XPBD Tyre Lab (WebGPU)</title>
+<style>
+:root{color-scheme:dark;--ink:#e9f2f0;--mut:#93a7a4;--glass:rgba(7,17,20,.88);--line:rgba(140,230,210,.18);--cy:#5eead4;--am:#fbbf24;--rd:#f87171}
+*{box-sizing:border-box}html,body{margin:0;height:100%;overflow:hidden;background:#060d10;font-family:Inter,ui-sans-serif,system-ui,sans-serif;color:var(--ink)}
+canvas#view{position:fixed;inset:0;width:100%;height:100%;display:block}
+.panel{position:fixed;left:18px;top:16px;width:min(392px,calc(100vw - 36px));max-height:calc(100vh - 32px);overflow:auto;padding:18px;border:1px solid var(--line);border-radius:16px;background:var(--glass);backdrop-filter:blur(16px)}
+.eyebrow{font:700 10px monospace;letter-spacing:.18em;color:var(--cy);text-transform:uppercase}.title{margin:6px 0 4px;font-size:23px;letter-spacing:-.03em}
+.desc{font-size:11.5px;line-height:1.5;color:var(--mut);margin-bottom:12px}
+.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin:10px 0}.metric{background:#ffffff08;border:1px solid #ffffff10;border-radius:9px;padding:7px 8px}
+.metric b{display:block;font:700 13px monospace;color:#fff}.metric span{font-size:8.5px;color:var(--mut);text-transform:uppercase;letter-spacing:.08em}
+.metric.hot b{color:var(--am)} .metric.bad b{color:var(--rd)}
+label.ctl{display:grid;grid-template-columns:104px 1fr 52px;gap:8px;align-items:center;margin:8px 0;font-size:11px;color:#c7d6d3}
+label.ctl output{text-align:right;font:11px monospace;color:var(--cy)}input[type=range]{width:100%;accent-color:var(--cy)}
+select{background:#0b1c20;color:var(--ink);border:1px solid var(--line);border-radius:7px;padding:5px;font-size:11px;width:100%}
+.row{display:flex;gap:7px;margin:10px 0;flex-wrap:wrap}button{appearance:none;border:1px solid var(--line);background:#ffffff0a;color:var(--ink);border-radius:8px;padding:8px 11px;font:650 11px system-ui;cursor:pointer}
+button:hover{background:#5eead422}button.pri{background:#5eead41e;color:#99f6e4}
+#graph{width:100%;height:64px;background:#00000033;border:1px solid #ffffff10;border-radius:9px}
+table{width:100%;border-collapse:collapse;font:10.5px monospace;margin:8px 0}td,th{padding:3px 4px;border-bottom:1px solid #ffffff0d;text-align:right}td:first-child,th:first-child{text-align:left;color:var(--mut)}
+pre#log{white-space:pre-wrap;font:9.5px/1.45 monospace;color:#a7c4bf;background:#00000038;border:1px solid #ffffff10;border-radius:9px;padding:8px;max-height:150px;overflow:auto}
+.legend{position:fixed;right:18px;bottom:16px;padding:9px 12px;border-radius:10px;background:#071318c9;border:1px solid var(--line);font:10px/1.5 monospace;color:var(--mut)}
+#error{position:fixed;inset:0;display:none;place-items:center;padding:30px;background:#081114;color:#fca5a5;text-align:center;font:13px/1.6 monospace;z-index:9}
+.warn{color:var(--am);font-size:10.5px;line-height:1.45}
+</style>
+</head>
+<body>
+<canvas id="view"></canvas>
+<section class="panel">
+ <div class="eyebrow">Frontier · Project-Tyre · WebGPU prototype</div>
+ <h1 class="title">XPBD Tyre Lab</h1>
+ <div class="desc"><b style="color:#d9f6ef">Theory under test:</b> physics never touches the render mesh. CPU XPBD runs a coarse
+ lattice (default <b>4 rings × 48 = 192 nodes/tyre</b>); the GPU skins a <b>18 432-vertex/tyre</b> render mesh from those nodes in the
+ vertex shader. Presets let you A/B the old design (9×128 lattice, 8 substeps × 4 sweeps) against the new one and read the frame times yourself.</div>
+
+ <div class="grid">
+  <div class="metric"><b id="mFps">—</b><span>fps</span></div>
+  <div class="metric"><b id="mFrame">—</b><span>frame ms</span></div>
+  <div class="metric" id="boxSim"><b id="mSim">—</b><span>cpu physics ms</span></div>
+  <div class="metric"><b id="mSkin">—</b><span>cpu skin ms</span></div>
+  <div class="metric"><b id="mGpu">—</b><span>gpu render ms</span></div>
+  <div class="metric"><b id="mNodes">—</b><span>sim nodes/tyre</span></div>
+  <div class="metric"><b id="mSweeps">—</b><span>node-sweeps/fr</span></div>
+  <div class="metric"><b id="mGround">—</b><span>ground q / step</span></div>
+  <div class="metric"><b id="mVerts">—</b><span>render verts</span></div>
+ </div>
+ <canvas id="graph" width="700" height="128"></canvas>
+ <div style="font:9px monospace;color:var(--mut)">frame ms history — white line = 16.7 ms (60 fps). amber = physics, cyan = frame.</div>
+
+ <label class="ctl"><span>Preset</span><select id="preset">
+   <option value="new" selected>NEW — 4×48 · 8 sub × 1 sweep · GPU skin</option>
+   <option value="hoist">A — 9×128 render-coupled · 8×1 (hoisted only)</option>
+   <option value="old">OLD — 9×128 · 8 sub × 4 sweeps (as described)</option>
+   <option value="lean">LEAN — 3×32 · 8 sub × 1 sweep · GPU skin</option>
+ </select><output></output></label>
+ <label class="ctl"><span>Skinning</span><select id="skinMode"><option value="gpu" selected>GPU (vertex-shader)</option><option value="cpu">CPU (writes 73 728 verts/frame)</option></select><output></output></label>
+ <label class="ctl"><span>Speed</span><input id="speed" type="range" min="0" max="22" step="0.5" value="8"><output></output></label>
+ <label class="ctl"><span>Tyre pressure</span><input id="pressure" type="range" min="1.2" max="3.2" step="0.1" value="2.2"><output></output></label>
+ <label class="ctl"><span>Chassis load</span><input id="load" type="range" min="800" max="2400" step="50" value="1350"><output></output></label>
+ <label class="ctl"><span>Steering</span><input id="steer" type="range" min="-26" max="26" step="1" value="0"><output></output></label>
+ <label class="ctl"><span>Substeps / step</span><input id="substeps" type="range" min="1" max="32" step="1" value="8"><output></output></label>
+ <label class="ctl"><span>Sweeps / substep</span><input id="sweeps" type="range" min="1" max="4" step="1" value="1"><output></output></label>
+ <label class="ctl"><span>Bumps</span><input id="bumps" type="range" min="0" max="1" step="0.05" value="0.7"><output></output></label>
+
+ <table><tr><th>per-tyre telemetry</th><th>Fz (kN)</th><th>patch nodes</th><th>deflection (mm)</th></tr>
+ <tr><td>FL / FR</td><td id="fzF">—</td><td id="patchF">—</td><td id="defF">—</td></tr>
+ <tr><td>RL / RR</td><td id="fzR">—</td><td id="patchR">—</td><td id="defR">—</td></tr></table>
+
+ <div class="row">
+  <button class="pri" id="btnLog">⬇ Download log (.json)</button>
+  <button id="btnCopy">Copy summary</button>
+  <button id="btnDrop">Drop test</button>
+  <button id="btnPause">Pause</button>
+  <button id="btnCam">Camera: orbit</button>
+ </div>
+ <div class="warn">Physics fixed step 240 Hz (4 steps per 60 fps frame). OLD preset is expected to crawl — that is the measurement.
+ When you send the log, use the downloaded JSON: it carries adapter info, config, avg/p95 frame·physics·skin·GPU times and the raw series.</div>
+ <pre id="log">warming up…</pre>
+</section>
+<div class="legend">drag: orbit · wheel: zoom<br>amber patch tint = contact deformation (GPU-skinned)<br>road is a treadmill: bumps travel under a stationary car</div>
+<div id="error"></div>
+
+<script type="module">
+'use strict';
+const $=s=>document.querySelector(s), errBox=$('#error');
+function fail(m){errBox.style.display='grid';errBox.textContent=m;throw new Error(m)}
+window.addEventListener('error',e=>{const l=document.querySelector('#log');if(l)l.textContent='ERROR: '+(e.message||e.error);errBox.style.display='grid';errBox.textContent='Prototype error: '+(e.message||e.error)+'\n(refresh after fix; this text is the diagnostic)'});
+window.addEventListener('unhandledrejection',e=>{const l=document.querySelector('#log');if(l)l.textContent='ERROR (async): '+(e.reason?.message||e.reason);errBox.style.display='grid';errBox.textContent='Prototype error (async): '+(e.reason?.message||e.reason)});
+const boot=m=>{const l=document.querySelector('#log');if(l)l.textContent=m};
+if(!navigator.gpu) fail('WebGPU is not available in this browser.\nUse current Chrome/Edge (or Safari 26+) with WebGPU enabled, over https or localhost.');
+const adapter=await navigator.gpu.requestAdapter({powerPreference:'high-performance'});
+if(!adapter) fail('No WebGPU adapter found.');
+const hasTs=adapter.features.has('timestamp-query');
+const device=await adapter.requestDevice({requiredFeatures:hasTs?['timestamp-query']:[]});
+const adapterInfo=adapter.info||{}; boot('WebGPU adapter OK — creating pipelines…');
+const canvas=$('#view'), ctx=canvas.getContext('webgpu');
+const format=navigator.gpu.getPreferredCanvasFormat();
+ctx.configure({device,format,alphaMode:'opaque'});
+
+// ============================================================ constants / config
+const FIXED=1/240, R_TYRE=0.335, R_RIM=0.195, HALF_W=0.115;
+const RSEG=256, PROF=72, RENDER_VERTS=RSEG*PROF;           // 18 432 / tyre
+const WHEELS=[{x: 1.38,z:-0.84,steer:true},{x: 1.38,z:0.84,steer:true},{x:-1.38,z:-0.84,steer:false},{x:-1.38,z:0.84,steer:false}];
+const CFG={rings:4,seg:48,substeps:8,sweeps:1,skin:'gpu',speed:8,pressure:2.2,load:1350,steer:0,bumps:0.7,paused:false};
+let sim=null; // built by buildSim()
+
+// ============================================================ tiny mat4 (column-major)
+function mIdent(){return new Float32Array([1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1])}
+function mMul(a,b){const o=new Float32Array(16);for(let c=0;c<4;c++)for(let r=0;r<4;r++){let s=0;for(let k=0;k<4;k++)s+=a[k*4+r]*b[c*4+k];o[c*4+r]=s}return o}
+function mPersp(f,asp,n,fa){const t=1/Math.tan(f/2),o=new Float32Array(16);o[0]=t/asp;o[5]=t;o[10]=fa/(n-fa);o[11]=-1;o[14]=2*fa*n/(n-fa);return o}
+function mLook(eye,at){let zx=eye[0]-at[0],zy=eye[1]-at[1],zz=eye[2]-at[2];let l=Math.hypot(zx,zy,zz);zx/=l;zy/=l;zz/=l;let xx=-zz,xy=0,xz=zx; l=Math.hypot(xx,xy,xz)||1;xx/=l;xy/=l;xz/=l;const yx=zy*xz-zz*xy,yy=zz*xx-zx*xz,yz=zx*xy-zy*xx;
+ return new Float32Array([xx,yx,zx,0, xy,yy,zy,0, xz,yz,zz,0, -(xx*eye[0]+xy*eye[1]+xz*eye[2]),-(yx*eye[0]+yy*eye[1]+yz*eye[2]),-(zx*eye[0]+zy*eye[1]+zz*eye[2]),1])}
+function rotX(a){const c=Math.cos(a),s=Math.sin(a);return new Float32Array([1,0,0,0, 0,c,s,0, 0,-s,c,0, 0,0,0,1])}
+function rotY(a){const c=Math.cos(a),s=Math.sin(a);return new Float32Array([c,0,-s,0, 0,1,0,0, s,0,c,0, 0,0,0,1])}
+function rotZ(a){const c=Math.cos(a),s=Math.sin(a);return new Float32Array([c,s,0,0, -s,c,0,0, 0,0,1,0, 0,0,0,1])}
+function mTrans(x,y,z){const o=mIdent();o[12]=x;o[13]=y;o[14]=z;return o}
+function xform(M,v){return [M[0]*v[0]+M[4]*v[1]+M[8]*v[2]+M[12], M[1]*v[0]+M[5]*v[1]+M[9]*v[2]+M[13], M[2]*v[0]+M[6]*v[1]+M[10]*v[2]+M[14]]}
+function xformDir(M,v){return [M[0]*v[0]+M[4]*v[1]+M[8]*v[2], M[1]*v[0]+M[5]*v[1]+M[9]*v[2], M[2]*v[0]+M[6]*v[1]+M[10]*v[2]]}
+function xformDirT(M,v){return [M[0]*v[0]+M[1]*v[1]+M[2]*v[2], M[4]*v[0]+M[5]*v[1]+M[6]*v[2], M[8]*v[0]+M[9]*v[1]+M[10]*v[2]]} // R^T v (rotation only)
+
+// ============================================================ terrain (CPU mirror of WGSL below)
+let distance=0;
+function groundH(x){const X=x+distance;const d=((X%7)+7)%7;const bump=0.085*Math.exp(-((d-3.5)*(d-3.5))/(2*0.28*0.28));return CFG.bumps*(bump+0.012*Math.sin(X*2.1)+0.006*Math.sin(X*5.3+1.7))}
+
+// ============================================================ SIM — CPU XPBD, coarse lattice only
+// Node layout per tyre: rings (across width) x seg (around). Constraints: spokes (node->rim anchor),
+// ring (circumferential), cross (across width), 1 global pressure (mean-radius) term, ground contact
+// cached ONCE per substep for sector-culled candidates only. 1 sweep/substep by default (Small Steps).
+function buildSim(rings,seg){
+  const N=rings*seg, nodeMass=9.0/N;
+  const tyres=WHEELS.map(w=>({
+    w, N, pos:new Float32Array(N*3), prev:new Float32Array(N*3), vel:new Float32Array(N*3),
+    anchor:new Float32Array(N*3), gH:new Float32Array(N), contact:new Uint8Array(N),
+    hubY:R_TYRE+0.02, hubVy:0, spin:0, fz:0, patch:0, defl:0, hubForceY:0,
+  }));
+  // constraints precomputed ONCE at build (rest lengths! topology!) as flat typed arrays — §5.1
+  const _c=[];
+  const restAt=(k,j)=>{const th=j/seg*Math.PI*2;return [Math.cos(th)*R_TYRE, Math.sin(th)*R_TYRE, -HALF_W+2*HALF_W*(rings===1?0.5:k/(rings-1))]};
+  for(let k=0;k<rings;k++)for(let j=0;j<seg;j++){const i=k*seg+j;
+    _c.push([0,i,0,R_TYRE-R_RIM]);
+    const r0=restAt(k,j), r1=restAt(k,(j+1)%seg); _c.push([1,i,k*seg+(j+1)%seg,Math.sqrt((r1[0]-r0[0])**2+(r1[1]-r0[1])**2+(r1[2]-r0[2])**2)]);
+    if(k+1<rings){const r2=restAt(k+1,j); _c.push([1,i,(k+1)*seg+j,Math.sqrt((r2[0]-r0[0])**2+(r2[1]-r0[1])**2+(r2[2]-r0[2])**2)]);}
+  }
+  const cons={n:_c.length,t:new Uint8Array(_c.length),i:new Uint32Array(_c.length),j:new Uint32Array(_c.length),r:new Float32Array(_c.length)};
+  _c.forEach((c,n)=>{cons.t[n]=c[0];cons.i[n]=c[1];cons.j[n]=c[2];cons.r[n]=c[3]});
+  sim={rings,seg,N,nodeMass,tyres,cons,chY:0.86,chVy:0,pitch:0,pitchV:0,roll:0,rollV:0,
+       counters:{groundQ:0,culled:0,sweeps:0,steps:0}};
+  resetSim(0);
+}
+function hubMatrix(t){ // world matrix of wheel frame (no spin): chassis rot * steer * translate
+  const steerA=t.w.steer?CFG.steer*Math.PI/180:0;
+  const attachY=CFG_attachY(t);
+  let M=mMul(mTrans(t.w.x,attachY,t.w.z), mMul(rotZ(sim.pitch),rotX(sim.roll)));
+  M=mMul(M,rotY(steerA)); M[12]=t.w.x; M[13]=t.hubY; M[14]=t.w.z; // hub centre overrides translation (y from suspension DOF)
+  return M;
+}
+function CFG_attachY(t){return sim.chY + sim.pitch*t.w.x + sim.roll*t.w.z - 0.30}
+function resetSim(drop){
+  sim.chY=0.82+drop; sim.chVy=0; sim.pitch=0; sim.pitchV=0; sim.roll=0; sim.rollV=0; distance=0;
+  for(const t of sim.tyres){t.hubY=R_TYRE+0.02+drop; t.hubVy=0; t.spin=0; t.fz=0;
+    const Mhub=mTrans(t.w.x,t.hubY,t.w.z);
+    for(let k=0;k<sim.rings;k++)for(let j=0;j<sim.seg;j++){const i=(k*sim.seg+j)*3;const th=j/sim.seg*Math.PI*2;
+      const p=xform(Mhub,[Math.cos(th)*R_TYRE,Math.sin(th)*R_TYRE,-HALF_W+2*HALF_W*(sim.rings===1?0.5:k/(sim.rings-1))]);
+      t.pos[i]=p[0];t.pos[i+1]=p[1];t.pos[i+2]=p[2]; t.prev.set(t.pos.subarray(i,i+3),i); t.vel.fill(0);}}
+}
+function stepFixed(){
+  const S=CFG.substeps, h=FIXED/S; sim.counters.steps++;
+  distance+=CFG.speed*FIXED;
+  for(let s=0;s<S;s++) substep(h);
+}
+function substep(h){
+  const {tyres,cons,nodeMass}=sim, C=sim.counters;
+  const press=Math.max(0.6,CFG.pressure/2.2);
+  const aSpoke=3.0e-7/press, aRing=1.0e-6/press, aCross=2.0e-6/press;        // XPBD compliance alpha (alpha_tilde = alpha/h^2)
+  const kSpoke=1/(1+aSpoke/(h*h)), kNN=0.5/(1+aRing/(h*h)), kCross=0.5/(1+aCross/(h*h));
+  for(const t of tyres){
+    const M=hubMatrix(t), axle=xformDir(M,[0,0,1]), hub=[t.w.x,t.hubY,t.w.z];
+    t.spin+= (CFG.speed/Math.max(R_TYRE,0.01))*h;
+    // -- anchors: rim material points, once per substep (hoisted; was per node per sweep) — inlined, no allocation
+    {const m0=M[0],m1=M[1],m2=M[2],m4=M[4],m5=M[5],m6=M[6],m8=M[8],m9=M[9],m10=M[10],hx=M[12],hy=M[13],hz=M[14];
+     for(let k=0;k<sim.rings;k++){const lz=-HALF_W+2*HALF_W*(sim.rings===1?0.5:k/(sim.rings-1));
+      for(let j=0;j<sim.seg;j++){const i=(k*sim.seg+j)*3,th=j/sim.seg*Math.PI*2+t.spin,lx=Math.cos(th)*R_RIM,ly=Math.sin(th)*R_RIM;
+       t.anchor[i]=m0*lx+m4*ly+m8*lz+hx; t.anchor[i+1]=m1*lx+m5*ly+m9*lz+hy; t.anchor[i+2]=m2*lx+m6*ly+m10*lz+hz;}}}
+    // -- ground cache: ONE coarse query at hub + candidate sector only, once per substep
+    const coarse=groundH(t.w.x)+0.10; C.groundQ++;
+    for(let i=0;i<t.N;i++){const ix=i*3;
+      t.vel[ix+1]-=9.81*h;
+      t.prev[ix]=t.pos[ix];t.prev[ix+1]=t.pos[ix+1];t.prev[ix+2]=t.pos[ix+2];
+      t.pos[ix]+=t.vel[ix]*h;t.pos[ix+1]+=t.vel[ix+1]*h;t.pos[ix+2]+=t.vel[ix+2]*h;
+      if(t.pos[ix+1]<coarse){t.gH[i]=groundH(t.pos[ix]);t.contact[i]=2;C.groundQ++} else {t.contact[i]=0;C.culled++}}
+    let contactLambda=0, patch=0, spokeFy=0;
+    for(let sw=0;sw<CFG.sweeps;sw++){
+      // ground contact (cached sample; no query in here)
+      for(let i=0;i<t.N;i++){if(t.contact[i]!==2)continue;const ix=i*3;
+        if(t.pos[ix+1]<t.gH[i]){const d=t.gH[i]-t.pos[ix+1];t.pos[ix+1]=t.gH[i];contactLambda+=nodeMass*d;patch++;t.contact[i]=1}}
+      // distance constraints (flat arrays, one sqrt each — the tight XPBD projection)
+      for(let ci=0;ci<cons.n;ci++){C.sweeps++;
+        if(cons.t[ci]===0){const ix=cons.i[ci]*3;
+          const dx=t.pos[ix]-t.anchor[ix],dy=t.pos[ix+1]-t.anchor[ix+1],dz=t.pos[ix+2]-t.anchor[ix+2];
+          const L=Math.sqrt(dx*dx+dy*dy+dz*dz)||1e-9, corr=(L-cons.r[ci])/L*kSpoke;
+          t.pos[ix]-=dx*corr;t.pos[ix+1]-=dy*corr;t.pos[ix+2]-=dz*corr;}
+        else{const ix=cons.i[ci]*3,jx=cons.j[ci]*3;
+          const dx=t.pos[jx]-t.pos[ix],dy=t.pos[jx+1]-t.pos[ix+1],dz=t.pos[jx+2]-t.pos[ix+2];
+          const L=Math.sqrt(dx*dx+dy*dy+dz*dz)||1e-9, corr=(L-cons.r[ci])/L*(cons.r[ci]>0.05?kCross:kNN);
+          t.pos[ix]+=dx*corr;t.pos[ix+1]+=dy*corr;t.pos[ix+2]+=dz*corr;t.pos[jx]-=dx*corr;t.pos[jx+1]-=dy*corr;t.pos[jx+2]-=dz*corr;}}
+      // pressure: mean-radius restoration (the pneumatic term a rings-and-spokes lattice lacks)
+      {let mean=0;const axx=axle[0],axy=axle[1],axz=axle[2];
+        for(let i=0;i<t.N;i++){const ix=i*3;const rx=t.pos[ix]-hub[0],ry=t.pos[ix+1]-hub[1],rz=t.pos[ix+2]-hub[2];
+          const d=rx*axx+ry*axy+rz*axz,px=rx-axx*d,py=ry-axy*d,pz=rz-axz*d; mean+=Math.sqrt(px*px+py*py+pz*pz);}
+        mean/=t.N;const push=(R_TYRE-mean)*0.25*press;
+        if(push>0)for(let i=0;i<t.N;i++){const ix=i*3;let rx=t.pos[ix]-hub[0],ry=t.pos[ix+1]-hub[1],rz=t.pos[ix+2]-hub[2];
+          const d=rx*axx+ry*axy+rz*axz;rx-=axx*d;ry-=axy*d;rz-=axz*d;const L=Math.sqrt(rx*rx+ry*ry+rz*rz)||1e-9;
+          t.pos[ix]+=rx/L*push;t.pos[ix+1]+=ry/L*push;t.pos[ix+2]+=rz/L*push;}}
+    }
+    // velocities + contact friction (toward rolling surface velocity)
+    let defl=0, patchCount=0;
+    for(let i=0;i<t.N;i++){const ix=i*3;
+      t.vel[ix]=(t.pos[ix]-t.prev[ix])/h;t.vel[ix+1]=(t.pos[ix+1]-t.prev[ix+1])/h;t.vel[ix+2]=(t.pos[ix+2]-t.prev[ix+2])/h;
+      if(t.contact[i]===1){patchCount++;t.vel[ix]*=0.35;t.vel[ix+2]*=0.35;if(t.vel[ix+1]<0)t.vel[ix+1]=0;}
+      const sp2=t.vel[ix]*t.vel[ix]+t.vel[ix+1]*t.vel[ix+1]+t.vel[ix+2]*t.vel[ix+2]; if(sp2>2500){const f=50/Math.sqrt(sp2);t.vel[ix]*=f;t.vel[ix+1]*=f;t.vel[ix+2]*=f;}
+      {const dx=t.pos[ix]-hub[0],dy=t.pos[ix+1]-hub[1],dz=t.pos[ix+2]-hub[2]; defl=Math.max(defl, R_TYRE-Math.sqrt(dx*dx+dy*dy+dz*dz));}}
+    // hub DOF: suspension pushes hub/chassis apart when compressed; spoke reaction on hub is +up under compression
+    const attachY=CFG_attachY(t), gap=attachY-t.hubY, disp=0.30-gap;
+    const dispRate=t.hubVy-(sim.chVy+sim.pitchV*t.w.x+sim.rollV*t.w.z); // d(disp)/dt: disp grows as hub falls away downward... hub moving down increases compression rate via ground, sign checked vs Fmag damping
+    const Fmag=Math.max(0, 21000*disp + 900*dispRate);
+    // Tyre load path: XPBD lattice measures deflection; load comes from the deflection curve
+    // (185 N/mm class). The raw lambda/h^2 sum is kept out of the hub loop — at h=1/1920 s it is
+    // an impulse estimate noisy enough to pump energy into the hub/chassis modes.
+    const deflTyre=Math.max(0, R_TYRE-(t.hubY-groundH(t.w.x)));
+    const Ftyre=185000*deflTyre + 1200*Math.max(0,-t.hubVy);
+    t.hubVy += ((-Fmag + Ftyre) / 38 - 9.81)*h; t.hubVy=Math.max(-30,Math.min(30,t.hubVy)); t.hubY += t.hubVy*h;
+    t.hubForceY=Fmag; t.fz=Ftyre/1000; t.patch=patchCount; t.defl=deflTyre;
+  }
+  // chassis: heave/pitch/roll from suspension reactions
+  let F=0,Mp=0,Mr=0; for(const t of tyres){F+=t.hubForceY;Mp+=t.hubForceY*t.w.x;Mr+=t.hubForceY*t.w.z;}
+  const m=CFG.load;
+  sim.chVy+=(F/m - 9.81)*h; sim.chVy=Math.max(-30,Math.min(30,sim.chVy));
+  sim.chY+=sim.chVy*h; sim.pitchV+=(Mp/1400 - sim.pitchV*0.4)*h; sim.pitch+=sim.pitchV*h; sim.rollV+=(Mr/900 - sim.rollV*0.4)*h; sim.roll+=sim.rollV*h;
+}
+
+// ============================================================ GPU — render mesh (~18k verts/tyre), skinned from sim nodes
+const MAXN=1152;
+const nodeBuf=device.createBuffer({size:MAXN*4*16,usage:GPUBufferUsage.STORAGE|GPUBufferUsage.COPY_DST});
+const nodeData=new Float32Array(MAXN*4*4);
+const uniBuf=device.createBuffer({size:1024,usage:GPUBufferUsage.UNIFORM|GPUBufferUsage.COPY_DST});
+let tyreGeo=null;
+function buildRenderGeometry(){
+  // expanded x4 tyres (so CPU-skin A/B can write every vertex); per-vertex: restPos, normal, offset(rest-anchor bilinear rest), skinIdx x4, skinW x4, tyreId
+  const rings=sim.rings, seg=sim.seg, total=RENDER_VERTS*4;
+  const pos=new Float32Array(total*3), nor=new Float32Array(total*3), off=new Float32Array(total*3),
+        idx=new Uint32Array(total*4), wgt=new Float32Array(total*4), tyre=new Uint32Array(total);
+  const nodeRest=(k,j)=>{const th=j/seg*Math.PI*2;return [Math.cos(th)*R_TYRE,Math.sin(th)*R_TYRE,-HALF_W+2*HALF_W*(rings===1?0.5:k/(rings-1))]};
+  let v=0;
+  for(let t=0;t<4;t++)for(let i=0;i<RSEG;i++){const th=i/RSEG*Math.PI*2;
+    for(let p=0;p<PROF;p++){const phi=p/PROF*Math.PI*2;
+      const Rc=0.255, rt=0.082;
+      const radial=Rc+rt*Math.cos(phi), lat=rt*Math.sin(phi)*(HALF_W/0.082)*0.92;
+      const rp=[Math.cos(th)*radial, Math.sin(th)*radial, lat];
+      // anchor = bilinear sim-surface point at same theta/lat; offset = rest - anchor
+      const u=((th/(Math.PI*2))*seg), j0=Math.floor(u)%seg, j1=(j0+1)%seg, fu=u-Math.floor(u);
+      const kk=Math.min(rings-1.001,Math.max(0,(lat+HALF_W)/(2*HALF_W)*(rings-1))), k0=Math.floor(kk), k1=Math.min(rings-1,k0+1), fk=kk-k0;
+      const ids=[k0*seg+j0,k0*seg+j1,k1*seg+j0,k1*seg+j1], ws=[(1-fk)*(1-fu),(1-fk)*fu,fk*(1-fu),fk*fu];
+      let ax=0,ay=0,az=0; ids.forEach((id,n)=>{const r=nodeRest(Math.floor(id/seg),id%seg);ax+=r[0]*ws[n];ay+=r[1]*ws[n];az+=r[2]*ws[n]});
+      pos.set(rp,v*3); nor.set([Math.cos(th)*Math.cos(phi),Math.sin(th)*Math.cos(phi),Math.sin(phi)],v*3);
+      off.set([rp[0]-ax,rp[1]-ay,rp[2]-az],v*3); idx.set(ids,v*4); wgt.set(ws,v*4); tyre[v]=t; v++;
+    }}
+  const indices=[];
+  for(let t=0;t<4;t++){const B=t*RENDER_VERTS;
+    for(let i=0;i<RSEG;i++)for(let p=0;p<PROF;p++){const a=B+i*PROF+p,b=B+((i+1)%RSEG)*PROF+p,c=B+i*PROF+(p+1)%PROF,d=B+((i+1)%RSEG)*PROF+(p+1)%PROF;indices.push(a,b,d,a,d,c)}}
+  const mk=(arr,usage=GPUBufferUsage.VERTEX)=>{const b=device.createBuffer({size:arr.byteLength,usage:usage|GPUBufferUsage.COPY_DST});device.queue.writeBuffer(b,0,arr);return b};
+  if(tyreGeo)for(const k of['pos','nor','off','idx','wgt','tyre','dyn','index'])tyreGeo[k]?.destroy?.();
+  const dyn=new Float32Array(total*3);
+  tyreGeo={pos:mk(pos),nor:mk(nor),off:mk(off),idx:mk(idx),wgt:mk(wgt),tyre:mk(tyre),dyn:mk(dyn),index:mk(new Uint32Array(indices),GPUBufferUsage.INDEX),count:indices.length,
+           skinCPU:{pos,nor,off,idx,wgt,tyre}};
+}
+const tyreWGSL=`
+struct U{vp:mat4x4<f32>,models:array<mat4x4<f32>,4>,params:vec4<f32>};
+@group(0)@binding(0)var<uniform>u:U;
+@group(0)@binding(1)var<storage,read>nodes:array<vec4<f32>>;
+struct In{@location(0)rest:vec3<f32>,@location(1)nrm:vec3<f32>,@location(2)off:vec3<f32>,@location(3)si:vec4<u32>,@location(4)sw:vec4<f32>,@location(5)tyre:u32,@location(6)dyn:vec3<f32>};
+struct Out{@builtin(position)clip:vec4<f32>,@location(0)wn:vec3<f32>,@location(1)deform:f32,@location(2)wp:vec3<f32>};
+@vertex fn vs(a:In)->Out{var o:Out;let M=u.models[a.tyre];let base=u32(u.params.y)*a.tyre;
+ var local:vec3<f32>;
+ if(u.params.x>0.5){local=a.dyn;}else{
+   var s=vec3<f32>(0.);var rs=vec3<f32>(0.);
+   for(var n=0;n<4;n++){let nd=nodes[base+a.si[n]];s+=nd.xyz*a.sw[n];}
+   // rest anchor reconstruction: skinned surface point + rigid offset stored in 'off' is relative to anchor at rest;
+   // deformation delta = s - restAnchor, and restAnchor = rest - off (all in wheel-local space)
+   let restAnchor=a.rest-a.off; local=a.rest+(s-restAnchor);
+ }
+ let wp=(M*vec4<f32>(local,1.)).xyz;o.wp=wp;o.clip=u.vp*vec4<f32>(wp,1.);
+ o.wn=normalize((M*vec4<f32>(a.nrm,0.)).xyz);o.deform=length(local-a.rest);return o;}
+@fragment fn fs(o:Out)->@location(0)vec4<f32>{
+ let L=normalize(vec3<f32>(-0.4,0.85,0.35));let n=normalize(o.wn);
+ let diff=max(dot(n,L),0.);let tread=smoothstep(0.25,0.30,abs(o.wn.y)*0.+1.) ;
+ var base=vec3<f32>(0.05,0.05,0.055);
+ let patchAmt=clamp(o.deform*22.,0.,1.);base=mix(base,vec3<f32>(0.85,0.45,0.10),patchAmt*0.65);
+ let groove=0.92+0.08*sin(atan2(o.wp.y,o.wp.x)*0.0+o.wp.x*40.);
+ return vec4<f32>(base*(0.32+0.75*diff)*groove,1.);}`;
+const tyreModule=device.createShaderModule({code:tyreWGSL});
+const dynBufSize=()=>tyreGeo.dyn.size;
+async function makePipelines(){
+  const tyrePipe=await device.createRenderPipelineAsync({layout:'auto',
+    vertex:{module:tyreModule,entryPoint:'vs',buffers:[
+      {arrayStride:12,attributes:[{shaderLocation:0,offset:0,format:'float32x3'}]},
+      {arrayStride:12,attributes:[{shaderLocation:1,offset:0,format:'float32x3'}]},
+      {arrayStride:12,attributes:[{shaderLocation:2,offset:0,format:'float32x3'}]},
+      {arrayStride:16,attributes:[{shaderLocation:3,offset:0,format:'uint32x4'}]},
+      {arrayStride:16,attributes:[{shaderLocation:4,offset:0,format:'float32x4'}]},
+      {arrayStride:4, attributes:[{shaderLocation:5,offset:0,format:'uint32'}]},
+      {arrayStride:12,attributes:[{shaderLocation:6,offset:0,format:'float32x3'}]}]},
+    fragment:{module:tyreModule,entryPoint:'fs',targets:[{format}]},
+    primitive:{topology:'triangle-list'},depthStencil:{format:'depth24plus',depthWriteEnabled:true,depthCompare:'less'}});
+  return tyrePipe;
+}
+const tyrePipe=await makePipelines();
+boot('tyre pipeline OK — building geometry…');
+const tyreBind=device.createBindGroup({layout:tyrePipe.getBindGroupLayout(0),entries:[{binding:0,resource:{buffer:uniBuf}},{binding:1,resource:{buffer:nodeBuf}}]});
+
+// simple coloured-triangle pipeline: ground + chassis soup
+const simpleWGSL=`
+struct U{vp:mat4x4<f32>,misc:vec4<f32>};
+@group(0)@binding(0)var<uniform>u:U;
+struct In{@location(0)p:vec3<f32>,@location(1)c:vec3<f32>};
+struct Out{@builtin(position)clip:vec4<f32>,@location(0)c:vec3<f32>,@location(1)wp:vec3<f32>};
+fn groundH(x:f32)->f32{let X=x+u.misc.x;let d=X-7.*floor(X/7.);let bump=0.085*exp(-((d-3.5)*(d-3.5))/(2.*0.0784));return u.misc.y*(bump+0.012*sin(X*2.1)+0.006*sin(X*5.3+1.7));}
+@vertex fn vs(a:In)->Out{var o:Out;var p=a.p;if(u.misc.z>0.5){p.y=groundH(p.x);}o.wp=p;o.clip=u.vp*vec4<f32>(p,1.);o.c=a.c;return o;}
+@fragment fn fs(o:Out)->@location(0)vec4<f32>{var c=o.c;
+ if(u.misc.z>0.5){let g=abs(fract(o.wp.x)-.5)+abs(fract(o.wp.z)-.5);c*=0.85+0.3*smoothstep(.48,.5,max(abs(fract(o.wp.x)-.5),abs(fract(o.wp.z)-.5)));}
+ let L=normalize(vec3<f32>(-0.4,0.85,0.35));return vec4<f32>(c*(0.45+0.55*max(L.y,0.)),1.);}`;
+const simpleModule=device.createShaderModule({code:simpleWGSL});
+const simpleUni=device.createBuffer({size:96,usage:GPUBufferUsage.UNIFORM|GPUBufferUsage.COPY_DST});
+const simpleUniG=device.createBuffer({size:96,usage:GPUBufferUsage.UNIFORM|GPUBufferUsage.COPY_DST});
+const simplePipe=await device.createRenderPipelineAsync({layout:'auto',
+  vertex:{module:simpleModule,entryPoint:'vs',buffers:[{arrayStride:24,attributes:[{shaderLocation:0,offset:0,format:'float32x3'},{shaderLocation:1,offset:12,format:'float32x3'}]}]},
+  fragment:{module:simpleModule,entryPoint:'fs',targets:[{format}]},primitive:{topology:'triangle-list'},depthStencil:{format:'depth24plus',depthWriteEnabled:true,depthCompare:'less'}});
+const simpleBind=device.createBindGroup({layout:simplePipe.getBindGroupLayout(0),entries:[{binding:0,resource:{buffer:simpleUni}}]});
+const simpleBindG=device.createBindGroup({layout:simplePipe.getBindGroupLayout(0),entries:[{binding:0,resource:{buffer:simpleUniG}}]});
+function soupBuffer(maxVerts){
+  const b=device.createBuffer({size:maxVerts*24,usage:GPUBufferUsage.VERTEX|GPUBufferUsage.COPY_DST});
+  return {b,data:new Float32Array(maxVerts*6),n:0,
+    tri(a,c,d,col){for(const p of[a,c,d]){this.data.set(p,this.n*6);this.data.set(col,this.n*6+3);this.n++}},
+    quad(a,c,d,e,col){this.tri(a,c,d,col);this.tri(a,d,e,col)},
+    box(cx,cy,cz,sx,sy,sz,M,col){const h=[[ -sx,-sy,-sz],[sx,-sy,-sz],[sx,sy,-sz],[-sx,sy,-sz],[-sx,-sy,sz],[sx,-sy,sz],[sx,sy,sz],[-sx,sy,sz]].map(p=>xform(M,[cx+p[0]/1,cy+p[1]/1,cz+p[2]/1]));
+      // p are half extents already scaled by caller via sx.. as half sizes
+      const F=[[0,1,2,3],[5,4,7,6],[4,0,3,7],[1,5,6,2],[3,2,6,7],[4,5,1,0]];for(const f of F)this.quad(h[f[0]],h[f[1]],h[f[2]],h[f[3]],col);},
+    flush(){device.queue.writeBuffer(this.b,0,this.data.subarray(0,this.n*6));const n=this.n;this.n=0;return n}};
+}
+const groundSoup=soupBuffer(16384), carSoup=soupBuffer(8192); // ground strip alone needs 9 600 verts
+let groundCount=0;
+{ // static ground strip (heights displaced in shader)
+  const col=[0.13,0.15,0.16];
+  for(let i=0;i<100;i++)for(let j=0;j<16;j++){const x0=-30+i*0.6,x1=x0+0.6,z0=-8+j,z1=z0+1;
+    groundSoup.tri([x0,0,z0],[x1,0,z0],[x1,0,z1],col);groundSoup.tri([x0,0,z0],[x1,0,z1],[x0,0,z1],col);}
+  groundCount=groundSoup.flush();
+}
+function buildCarSoup(){
+  const body=[0.16,0.35,0.62], dark=[0.08,0.09,0.11], silver=[0.62,0.65,0.68];
+  const Mc=mMul(mTrans(0,sim.chY,0),mMul(rotZ(sim.pitch),rotX(sim.roll)));
+  carSoup.box(0,0.02,0, 1.62,0.26,0.86, Mc, body);
+  carSoup.box(0.05,0.34,0, 0.95,0.22,0.78, Mc, [0.10,0.16,0.24]);
+  carSoup.box(1.55,-0.10,0, 0.25,0.14,0.80, Mc, dark);
+  carSoup.box(-1.55,-0.10,0, 0.25,0.14,0.80, Mc, dark);
+  for(const t of sim.tyres){const M=hubMatrix(t);
+    // rim: 12-seg cylinder + 5 spokes, spun by t.spin
+    const Ms=mMul(M,rotZ(0)); // wheel frame: axle = local Z after hubMatrix basis (x fwd,y up,z lat) -> spin about Z
+    const segN=14;
+    for(let i=0;i<segN;i++){const a0=t.spin+i/segN*Math.PI*2,a1=t.spin+(i+1)/segN*Math.PI*2;
+      const p=(a,z)=>xform(M,[Math.cos(a)*R_RIM,Math.sin(a)*R_RIM,z]);
+      carSoup.quad(p(a0,-0.09),p(a1,-0.09),p(a1,0.09),p(a0,0.09),silver);}
+    for(let sIdx=0;sIdx<5;sIdx++){const a=t.spin+sIdx/5*Math.PI*2;
+      const tip=xform(M,[Math.cos(a)*(R_RIM-0.02),Math.sin(a)*(R_RIM-0.02),0.0]);
+      const hub=xform(M,[0,0,0]);const perp=[-Math.sin(a)*0.035,Math.cos(a)*0.035,0];
+      const q=(p,dz)=>[p[0]+perp[0],p[1]+perp[1],dz], q2=(p,dz)=>[p[0]-perp[0],p[1]-perp[1],dz];
+      carSoup.quad(q(hub,-0.10),q2(hub,-0.10),q2(tip,-0.10),q(tip,-0.10),dark);
+      carSoup.quad(q(hub,0.10),q2(hub,0.10),q2(tip,0.10),q(tip,0.10),dark);}
+  }
+  return carSoup.flush();
+}
+
+// ============================================================ CPU-skin A/B path
+function cpuSkin(){
+  const {nor,off,idx,wgt,tyre}=tyreGeo.skinCPU, out=tyreGeo.skinCPU.out||(tyreGeo.skinCPU.out=new Float32Array(RENDER_VERTS*4*3));
+  // node local positions are precomputed into nodeData (wheel-local xyz) by uploadNodes()
+  for(let v=0;v<RENDER_VERTS*4;v++){const t=tyre[v],base=t*sim.N;let sx=0,sy=0,sz=0;
+    for(let n=0;n<4;n++){const nd=(base+idx[v*4+n])*4,w=wgt[v*4+n];sx+=nodeData[nd]*w;sy+=nodeData[nd+1]*w;sz+=nodeData[nd+2]*w;}
+    const rx=tyreGeo.skinCPU.pos[v*3]-off[v*3],ry=tyreGeo.skinCPU.pos[v*3+1]-off[v*3+1],rz=tyreGeo.skinCPU.pos[v*3+2]-off[v*3+2];
+    out[v*3]=tyreGeo.skinCPU.pos[v*3]+(sx-rx);out[v*3+1]=tyreGeo.skinCPU.pos[v*3+1]+(sy-ry);out[v*3+2]=tyreGeo.skinCPU.pos[v*3+2]+(sz-rz);}
+  device.queue.writeBuffer(tyreGeo.dyn,0,out);
+  return out;
+}
+function uploadNodes(){
+  nodeData.fill(0);
+  for(let ti=0;ti<4;ti++){const t=sim.tyres[ti],M=hubMatrix(t);
+    for(let i=0;i<t.N;i++){const wp=[t.pos[i*3],t.pos[i*3+1],t.pos[i*3+2]];
+      const rel=[wp[0]-M[12],wp[1]-M[13],wp[2]-M[14]];const lp=xformDirT(M,rel);
+      const o=(ti*MAXN+i)*4;nodeData[o]=lp[0];nodeData[o+1]=lp[1];nodeData[o+2]=lp[2];nodeData[o+3]=1;}}
+  device.queue.writeBuffer(nodeBuf,0,nodeData);
+}
+
+// ============================================================ timing / logging
+const LOG={created:new Date().toISOString(),userAgent:navigator.userAgent,adapter:adapterInfo,timestampQuery:hasTs,config:null,series:[],summary:null};
+const stats={frame:[],sim:[],skin:[],gpu:[],visits:[],fps:0};
+function push(arr,v){arr.push(v);if(arr.length>600)arr.shift()}
+function summarise(a){if(!a.length)return null;const s=[...a].sort((x,y)=>x-y);const avg=a.reduce((x,y)=>x+y,0)/a.length;return{avg:+avg.toFixed(3),p50:+s[Math.floor(s.length*.5)].toFixed(3),p95:+s[Math.floor(s.length*.95)].toFixed(3),max:+s[s.length-1].toFixed(3),n:a.length}}
+const graph=$('#graph').getContext('2d');
+function drawGraph(){
+  const g=graph;g.clearRect(0,0,700,128);g.fillStyle='#00000040';g.fillRect(0,0,700,128);
+  const y167=128-(16.7/40)*128;g.strokeStyle='#ffffff55';g.beginPath();g.moveTo(0,y167);g.lineTo(700,y167);g.stroke();
+  const draw=(arr,col)=>{g.strokeStyle=col;g.beginPath();arr.slice(-140).forEach((v,i)=>{const x=i/(139)*700,y=128-Math.min(40,v)/40*128;i?g.lineTo(x,y):g.moveTo(x,y)});g.stroke()};
+  draw(stats.frame,'#e9f2f0');draw(stats.sim,'#fbbf24');
+}
+let logTimer=0;
+function refreshPanel(now){
+  if(now-logTimer<250)return;logTimer=now;
+  const f=summarise(stats.frame.slice(-240)),s=summarise(stats.sim.slice(-240)),k=summarise(stats.skin.slice(-240)),gp=summarise(stats.gpu.slice(-240));
+  $('#mFps').textContent=f?Math.round(1000/f.avg):'—';$('#mFrame').textContent=f?f.avg.toFixed(2)+' / '+f.p95.toFixed(1):'—';
+  $('#mSim').textContent=s?s.avg.toFixed(2)+' / '+s.p95.toFixed(1):'—';$('#mSkin').textContent=k?k.avg.toFixed(2):'—';
+  $('#mGpu').textContent=gp?gp.avg.toFixed(2):(hasTs?'…':'n/a');
+  $('#boxSim').className='metric '+((s&&s.avg>4)?'bad':(s&&s.avg>1?'hot':''));
+  $('#mNodes').textContent=sim.N;$('#mVerts').textContent=(RENDER_VERTS*4).toLocaleString()+' (4×'+RENDER_VERTS.toLocaleString()+')';
+  $('#mSweeps').textContent=Math.round(sim.counters.sweeps*Math.min(1,1)).toLocaleString();
+  $('#mGround').textContent=Math.round(sim.counters.groundQ/Math.max(1,sim.counters.steps)).toLocaleString()+' (+'+Math.round(sim.counters.culled/Math.max(1,sim.counters.steps)).toLocaleString()+' culled)';
+  const T=sim.tyres;$('#fzF').textContent=T[0].fz.toFixed(2)+' / '+T[1].fz.toFixed(2);$('#fzR').textContent=T[2].fz.toFixed(2)+' / '+T[3].fz.toFixed(2);
+  $('#patchF').textContent=T[0].patch+' / '+T[1].patch;$('#patchR').textContent=T[2].patch+' / '+T[3].patch;
+  $('#defF').textContent=(T[0].defl*1000).toFixed(0)+' / '+(T[1].defl*1000).toFixed(0);$('#defR').textContent=(T[2].defl*1000).toFixed(0)+' / '+(T[3].defl*1000).toFixed(0);
+  LOG.config={...CFG,rings:sim.rings,seg:sim.seg,renderVertsPerTyre:RENDER_VERTS,fixedStepHz:240};
+  LOG.summary={frameMs:summarise(stats.frame),physicsCpuMs:summarise(stats.sim),cpuSkinMs:summarise(stats.skin),gpuMs:summarise(stats.gpu),
+    counters:{simNodesPerTyre:sim.N,groundQueriesPerFixedStep:Math.round(sim.counters.groundQ/Math.max(1,sim.counters.steps)),culledPerFixedStep:Math.round(sim.counters.culled/Math.max(1,sim.counters.steps))}};
+  $('#log').textContent=
+`config  ${sim.rings} rings × ${sim.seg} seg = ${sim.N} nodes/tyre · ${CFG.substeps} substeps × ${CFG.sweeps} sweep(s) @240 Hz · skin=${CFG.skin}
+frame   avg ${f?f.avg.toFixed(2):'—'} ms · p95 ${f?f.p95.toFixed(2):'—'} · max ${f?f.max.toFixed(2):'—'}
+physics avg ${s?s.avg.toFixed(3):'—'} ms · p95 ${s?s.p95.toFixed(3):'—'}   cpu-skin avg ${k?k.avg.toFixed(3):'—'} ms   gpu ${gp?gp.avg.toFixed(3)+' ms':'n/a'}
+ground queries/fixed step ${LOG.summary.counters.groundQueriesPerFixedStep} (+${LOG.summary.counters.culledPerFixedStep} sector-culled)
+Fz kN  FL ${T[0].fz.toFixed(2)}  FR ${T[1].fz.toFixed(2)}  RL ${T[2].fz.toFixed(2)}  RR ${T[3].fz.toFixed(2)}`;
+  sim.counters.groundQ=0;sim.counters.culled=0;sim.counters.sweeps/=Math.max(1,sim.counters.steps);sim.counters.steps=0;
+  drawGraph();
+}
+
+// ============================================================ GPU timestamp ring
+const tsSlots=[];
+if(hasTs){for(let i=0;i<4;i++){const resolve=device.createBuffer({size:16,usage:GPUBufferUsage.QUERY_RESOLVE|GPUBufferUsage.COPY_SRC});
+  const read=device.createBuffer({size:16,usage:GPUBufferUsage.COPY_DST|GPUBufferUsage.MAP_READ});
+  tsSlots.push({resolve,read,busy:false});}}
+const tsQuery=hasTs?device.createQuerySet({type:'timestamp',count:2}):null;
+let tsSlot=0, frameNo=0;
+async function pollTs(slot){if(slot.busy)return;slot.busy=true;try{await slot.read.mapAsync(GPUMapMode.READ);const v=new BigUint64Array(slot.read.getMappedRange().slice(0));slot.read.unmap();
+  if(v[1]>v[0])push(stats.gpu,Number(v[1]-v[0])/1e6);}catch(e){}slot.busy=false;}
+
+// ============================================================ UI
+function bindCtl(id,key,fmt,parse=v=>+v){const e=$(id),o=e.parentElement.querySelector('output');
+  const show=()=>o.textContent=fmt(CFG[key]);e.addEventListener('input',()=>{CFG[key]=parse(e.value);show()});show();}
+bindCtl('#speed','speed',v=>v.toFixed(1)+' m/s');bindCtl('#pressure','pressure',v=>v.toFixed(1)+' bar');
+bindCtl('#load','load',v=>v.toFixed(0)+' kg');bindCtl('#steer','steer',v=>v.toFixed(0)+'°');
+bindCtl('#substeps','substeps',v=>v.toFixed(0));bindCtl('#sweeps','sweeps',v=>v.toFixed(0));bindCtl('#bumps','bumps',v=>(v*100).toFixed(0)+'%');
+$('#skinMode').addEventListener('change',e=>CFG.skin=e.target.value);
+$('#preset').addEventListener('change',e=>{
+  const p=e.target.value;
+  if(p==='new'){CFG.substeps=8;CFG.sweeps=1;CFG.skin='gpu';buildSim(4,48)}
+  if(p==='lean'){CFG.substeps=8;CFG.sweeps=1;CFG.skin='gpu';buildSim(3,32)}
+  if(p==='hoist'){CFG.substeps=8;CFG.sweeps=1;CFG.skin='gpu';buildSim(9,128)}
+  if(p==='old'){CFG.substeps=8;CFG.sweeps=4;CFG.skin='gpu';buildSim(9,128)}
+  buildRenderGeometry();
+  for(const[id,v]of[['#substeps',CFG.substeps],['#sweeps',CFG.sweeps]]){const el=$(id);el.value=v;el.dispatchEvent(new Event('input'))}
+  $('#skinMode').value=CFG.skin;
+});
+$('#btnPause').addEventListener('click',e=>{CFG.paused=!CFG.paused;e.target.textContent=CFG.paused?'Resume':'Pause'});
+$('#btnDrop').addEventListener('click',()=>resetSim(0.28));
+let autoCam=true;$('#btnCam').addEventListener('click',e=>{autoCam=!autoCam;e.target.textContent='Camera: '+(autoCam?'orbit':'free')});
+$('#btnLog').addEventListener('click',()=>{
+  LOG.downloadedAt=new Date().toISOString();
+  const blob=new Blob([JSON.stringify(LOG,null,1)],{type:'application/json'});
+  const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='xpbd-tyre-log.json';a.click();URL.revokeObjectURL(a.href);});
+$('#btnCopy').addEventListener('click',()=>navigator.clipboard.writeText($('#log').textContent));
+let yaw=-0.85,pitch=0.42,zoom=7.5,drag=false,last=[0,0];
+canvas.addEventListener('pointerdown',e=>{drag=true;last=[e.clientX,e.clientY];canvas.setPointerCapture(e.pointerId)});
+canvas.addEventListener('pointerup',()=>drag=false);
+canvas.addEventListener('pointermove',e=>{if(!drag)return;yaw+=(e.clientX-last[0])*0.005;pitch=Math.max(0.12,Math.min(1.25,pitch+(e.clientY-last[1])*0.004));last=[e.clientX,e.clientY];autoCam=false;$('#btnCam').textContent='Camera: free'});
+canvas.addEventListener('wheel',e=>{zoom=Math.max(3.5,Math.min(18,zoom+e.deltaY*0.01));e.preventDefault()},{passive:false});
+
+// ============================================================ main loop
+buildSim(4,48); buildRenderGeometry(); boot('boot OK — first frame…');
+let depthTex=null,lastT=performance.now(),acc=0,simMs=0,skinMs=0,frameStart=performance.now();
+function resize(){const d=Math.min(devicePixelRatio,1.75),w=Math.floor(innerWidth*d),h=Math.floor(innerHeight*d);
+  if(canvas.width!==w||canvas.height!==h){canvas.width=w;canvas.height=h;
+    if(depthTex)depthTex.destroy();depthTex=device.createTexture({size:[w,h],format:'depth24plus',usage:GPUTextureUsage.RENDER_ATTACHMENT});}}
+function frame(now){
+  requestAnimationFrame(frame);
+  const tFrame0=performance.now();
+  let dt=(now-lastT)/1000;lastT=now;dt=Math.min(dt,0.05);
+  simMs=0;skinMs=0;
+  if(!CFG.paused){acc+=dt;const t0=performance.now();let n=0;
+    while(acc>=FIXED&&n<8){stepFixed();acc-=FIXED;n++}
+    if(n===8)acc=0;
+    simMs=performance.now()-t0;}
+  uploadNodes();
+  if(CFG.skin==='cpu'){const t0=performance.now();cpuSkin();skinMs=performance.now()-t0;}
+  // uniforms
+  resize();
+  if(autoCam)yaw+=dt*0.12;
+  const eye=[Math.cos(yaw)*Math.cos(pitch)*zoom,Math.sin(pitch)*zoom+0.6,Math.sin(yaw)*Math.cos(pitch)*zoom];
+  const vp=mPersp(0.72,canvas.width/canvas.height,0.05,120), view=mLook(eye,[0,0.35,0]);
+  const uni=new Float32Array(256);uni.set(mMul(vp,view),0);
+  sim.tyres.forEach((t,i)=>uni.set(hubMatrix(t),16+i*16)); // vp=16 floats, models follow
+  uni[80]=CFG.skin==='cpu'?1:0;uni[81]=MAXN;uni[82]=0;uni[83]=0; // params after vp+4 models; .y = node stride/tyre
+  device.queue.writeBuffer(uniBuf,0,uni);
+  const suni=new Float32Array(24);suni.set(mMul(vp,view),0);device.queue.writeBuffer(simpleUni,0,suni);
+  {const g=new Float32Array(24);g.set(mMul(vp,view),0);g[16]=distance;g[17]=CFG.bumps;g[18]=1;device.queue.writeBuffer(simpleUniG,0,g);}
+  const carCount=buildCarSoup();
+  const enc=device.createCommandEncoder();
+  let slot=null; if(hasTs){const cand=tsSlots[tsSlot%4]; tsSlot++; if(!cand.busy) slot=cand;} // never touch a readback buffer whose map is pending
+  const passDesc={colorAttachments:[{view:ctx.getCurrentTexture().createView(),loadOp:'clear',clearValue:{r:0.03,g:0.06,b:0.075,a:1},storeOp:'store'}],
+    depthStencilAttachment:{view:depthTex.createView(),depthLoadOp:'clear',depthClearValue:1,depthStoreOp:'store'}};
+  if(slot)passDesc.timestampWrites={querySet:tsQuery,beginningOfPassWriteIndex:0,endOfPassWriteIndex:1};
+  const pass=enc.beginRenderPass(passDesc);
+  pass.setPipeline(simplePipe);pass.setBindGroup(0,simpleBindG);pass.setVertexBuffer(0,groundSoup.b);pass.draw(groundCount);
+  pass.setBindGroup(0,simpleBind);pass.setVertexBuffer(0,carSoup.b);pass.draw(carCount);
+  // tyres
+  pass.setPipeline(tyrePipe);pass.setBindGroup(0,tyreBind);
+  pass.setVertexBuffer(0,tyreGeo.pos);pass.setVertexBuffer(1,tyreGeo.nor);pass.setVertexBuffer(2,tyreGeo.off);
+  pass.setVertexBuffer(3,tyreGeo.idx);pass.setVertexBuffer(4,tyreGeo.wgt);pass.setVertexBuffer(5,tyreGeo.tyre);pass.setVertexBuffer(6,tyreGeo.dyn);
+  pass.setIndexBuffer(tyreGeo.index,'uint32');pass.drawIndexed(tyreGeo.count);
+  pass.end();
+  if(slot){enc.resolveQuerySet(tsQuery,0,2,slot.resolve,0);enc.copyBufferToBuffer(slot.resolve,0,slot.read,0,16);}
+  device.queue.submit([enc.finish()]);
+  if(slot)pollTs(slot);
+  const frameMs=performance.now()-tFrame0;
+  push(stats.frame,frameMs);push(stats.sim,simMs);push(stats.skin,skinMs);
+  if(frameNo%2===0)LOG.series.push({f:+frameMs.toFixed(3),sim:+simMs.toFixed(3),skin:+skinMs.toFixed(3),gpu:stats.gpu.length?+stats.gpu[stats.gpu.length-1].toFixed(3):null,c:sim.rings+'x'+sim.seg+'/'+CFG.substeps+'subx'+CFG.sweeps+'sw/'+CFG.skin+'/v'+CFG.speed});
+  if(LOG.series.length>1800)LOG.series.shift();
+  frameNo++;refreshPanel(now);
+}
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>
+onFrame(frame);
+</script>
+</body>
+</html>
