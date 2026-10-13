@@ -77,8 +77,21 @@ invariants, revision monotonicity, interchange refusals), writing PNGs + `Surfac
    (`DisplaySurfaceStructure.cpp` for the author), `ProjectDrive.cmake` (stb include), `RunDriveExhibit.py`,
    `CheckDrivePlayback.py`. Frontier.exe gained no new TU (`DisplaySequence.h` is header-only), so the MSVC
    engine/host rosters are unchanged.
-6. ✅ Proofs (`Tools/Tests/CheckSurfaceDisplay.py` → `VisualProof/SurfaceDisplay/`) + commit. **Open:** a run on
-   hardware — the in-engine shot of the lit screens through Frontier.exe, and measuring the single-slot refresh.
+6. ✅ Proofs (`Tools/Tests/CheckSurfaceDisplay.py` → `VisualProof/SurfaceDisplay/`, gallery `index.html`, live sheets
+   from the code image under `Live/`) + commit.
+7. ✅ Windows binaries from GitHub Actions (`Frontier build` → artifact `frontier-windows-desktop`). Two things stood
+   between the branch and a green MSVC job, neither HMI-specific: `std::max`/`std::toupper` without their headers
+   (MSVC's `<cmath>` does not drag `<algorithm>` in), and `ToolchainSequence.ps1` writing both
+   `VehicleInstanceSequence.cpp` files to the same `.obj` under `/Fo<dir>\` — same-named sources now get a
+   folder-qualified object of their own. The workflow also emits every `error C…/LNK…` line as an annotation, so a
+   failure is readable without the raw log.
+8. **Open — needs a GPU:** the in-engine frame of the lit screens in GI; measuring the single-slot texture refresh.
+
+## Harness note
+
+A touch ray computed from the *previous* body mutation lands off-centre at speed (≈0.5 m of travel per frame at
+100 km/h); the host builds the pointer ray against the frame it displays, so this only affects offline harnesses —
+tap while paused or stationary there.
 
 ## Deferred / known limits
 
