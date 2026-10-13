@@ -122,6 +122,15 @@ Engine\GeometricRaster\DistanceFieldBakeSolver.cpp|CPU offline distance field ba
 Engine\GeometricRaster\DistanceFieldSpace.cpp|CPU local distance field volume representation
 Engine\GeometricRaster\GlobalDistanceFieldSpace.cpp|CPU global distance field clipmaps representation
 Engine\GeometricRaster\SurfaceCacheStructure.cpp|CPU surface cache atlas and lighting card representation
+Engine\SurfaceDisplay\DisplaySheetStructure.cpp|SurfaceDisplay sheets: linked by the ProjectDrive DLL roster (DriveSimulationSources.json); header-only on the host side
+Engine\SurfaceDisplay\TypefaceSheetCodec.cpp|SurfaceDisplay sheets: linked by the ProjectDrive DLL roster (DriveSimulationSources.json); header-only on the host side
+Engine\SurfaceDisplay\DisplayRasterProjection.cpp|SurfaceDisplay sheets: linked by the ProjectDrive DLL roster (DriveSimulationSources.json); header-only on the host side
+Engine\SurfaceDisplay\DisplaySurfaceStructure.cpp|SurfaceDisplay sheets: linked by the ProjectDrive DLL roster (DriveSimulationSources.json); header-only on the host side
+Engine\SurfaceDisplay\DisplayTouchProjection.cpp|SurfaceDisplay sheets: linked by the ProjectDrive DLL roster (DriveSimulationSources.json); header-only on the host side
+Engine\SurfaceDisplay\DisplayMeshProjection.cpp|SurfaceDisplay sheets: linked by the ProjectDrive DLL roster (DriveSimulationSources.json); header-only on the host side
+Engine\SurfaceDisplay\TabletScreenSequence.cpp|SurfaceDisplay sheets: linked by the ProjectDrive DLL roster (DriveSimulationSources.json); header-only on the host side
+Engine\SurfaceDisplay\ClusterScreenSequence.cpp|SurfaceDisplay sheets: linked by the ProjectDrive DLL roster (DriveSimulationSources.json); header-only on the host side
+Engine\GeometricRaster\ReservoirIntegrator.cpp|CPU ReSTIR reference integrator, linked by the Drive reservoir proof only
 
 ALLOW
 
