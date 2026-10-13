@@ -11,6 +11,10 @@
 #include "DisplayInterchange.h"
 #include "ProjectSpecification.h"
 
+// Optional per-frame conclusion hook (exported by the project as "ProjectFrameConcludedInterchange"). Not part
+//    of the fingerprinted FrontierProjectInterchange structure: older projects simply do not export it.
+typedef void (FRONTIER_CODE_IMAGE_CALL* FrontierProjectFrameConcluded)(void* ProjectRecord);
+
 #include <string>
 
 namespace Frontier
@@ -59,6 +63,13 @@ public:
     uint32_t ProjectDisplay(FrontierProjectDisplayReading& Reading) const
     { return DisplayEntry ? DisplayEntry(ProjectRecord, &Reading) : 0u; }
 
+    // Optional: the host has finished every per-frame query (geometry, smoke, display) and is about to render.
+    //    A project that steps physics on a worker launches the next frame's job here, so the work overlaps the
+    //    host's GPU wait instead of sitting inside AdvanceProject on the render thread.
+    [[nodiscard]] bool FrameConclusionAvailable() const noexcept { return FrameConcludedEntry != nullptr; }
+    void ConcludeFrame() const noexcept
+    { if (FrameConcludedEntry && ProjectRecord) FrameConcludedEntry(ProjectRecord); }
+
     bool TransportAvailable() const noexcept { return TransportEntry != nullptr; }
     uint32_t ProjectTransport(FrontierSmokeTransportReading& Reading) const
     { return TransportEntry ? TransportEntry(ProjectRecord, &Reading) : 0u; }
@@ -67,6 +78,7 @@ public:
 
 private:
     FrontierProjectSmokeTransport TransportEntry = nullptr;
+    FrontierProjectFrameConcluded FrameConcludedEntry = nullptr;
     FrontierProjectSmoke      SmokeEntry = nullptr;
     FrontierProjectGeometry   GeometryEntry = nullptr;
     FrontierProjectDisplay    DisplayEntry = nullptr;

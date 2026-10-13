@@ -1906,6 +1906,10 @@ int Frontier::RunFrontierRuntime(
             break;
         }
         ProjectMoved = ProjectMoved || GeometryChanged;
+        // Every vehicle-state query of this frame is done (poses, geometry, smoke); the project may now run its
+        //    physics for the next frame on a worker while the host records and waits on the GPU. The display
+        //    query below reads the project's display sheets only, which the worker never touches.
+        ActiveInterchange.ConcludeFrame();
         if (Transport == 0u && PreviousTransport != 0u)
         {
             if (ProjectGeometry.Active() && !ProjectGeometry.Restore(Level))

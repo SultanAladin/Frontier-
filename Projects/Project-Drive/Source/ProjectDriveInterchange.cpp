@@ -16,6 +16,7 @@
 #include <fstream>
 #include <filesystem>
 #include <memory>
+#include <future>
 #include "../../../Engine/PhysicalDynamics/Vehicle/DriverInputIntegrator.h"
 
 #include <algorithm>
@@ -47,6 +48,48 @@ struct DriveSequence
     Frontier::Drive::DriveCabinDisplays Displays;   // the cabin tablet + cluster sheets (SurfaceDisplay)
     double DisplaySeconds = 0.0;                    // [s] accumulated cycle time the display rates run on
 
+    // ── physics job ───────────────────────────────────────────────────────────────────────────────────────────
+    // The vehicle steps on a worker between the host's frame conclusion (every vehicle query of the frame is
+    //    done) and the next AdvanceProject, so the fixed-step loop overlaps the host's recording and GPU wait
+    //    instead of running on the render thread. AdvanceProject joins the job before anything reads the
+    //    vehicle again. A host without the conclusion hook never sets HostConcludesFrames and the vehicle
+    //    steps synchronously, exactly as before.
+    std::future<void> PhysicsJob;
+    Frontier::Vehicle::DriverInput PendingCommand{};
+    float PendingSeconds = 0.0f;
+    float PendingBudgetSeconds = 0.012f;   // [s] wall budget handed to the job: a frame's worth when overlapped
+    bool  PendingStep = false;
+    bool  HostConcludesFrames = false;
+    bool  ResultsPending = false;          // a job ran since the last consume → surfaces/poses need refreshing
+
+    void JoinPhysics()
+    {
+        if (PhysicsJob.valid()) PhysicsJob.get();
+    }
+    void ConsumePhysics()
+    {
+        JoinPhysics();
+        if (!ResultsPending || !Vehicle) { ResultsPending = false; return; }
+        ResultsPending = false;
+        CaptureSurfaces();
+        DeliverPoses();
+    }
+    void LaunchPhysics()
+    {
+        if (!PendingStep || !Vehicle) return;
+        PendingStep = false;
+        auto* Active = Vehicle.get();
+        const auto Command = PendingCommand;
+        const float Seconds = PendingSeconds;
+        const float Budget = PendingBudgetSeconds;
+        ResultsPending = true;
+        PhysicsJob = std::async(std::launch::async, [Active, Command, Seconds, Budget, this]
+        {
+            Active->AssignStepWallBudget(Budget);
+            Active->AdvanceVehicle(Command, Poses, Seconds);
+        });
+    }
+
     void CaptureSurfaces()
     {
         const auto& Tyres = Vehicle->Tyres();
@@ -64,6 +107,8 @@ struct DriveSequence
 
     void RestoreDeployment()
     {
+        JoinPhysics();
+        ResultsPending = false; PendingStep = false;
         Deployments.Retire(DeploymentIdentifier);
         DeploymentIdentifier = Deployments.Register(DeploymentTemplate);
         Vehicle.reset();
@@ -87,6 +132,8 @@ struct DriveSequence
                 Placement.SpawnHeight = Point.Position[2];
                 Placement.SpawnRotation = {Point.Rotation[0], Point.Rotation[1], Point.Rotation[2], Point.Rotation[3]};
                 if (!Candidate->Construct(Geometry, Placement)) return 0u;
+                JoinPhysics();
+                ResultsPending = false; PendingStep = false;
                 Vehicle = std::move(Candidate); // hooks retain their allocated object's address
                 return ++SpawnNumber;
             });
@@ -253,6 +300,8 @@ uint32_t FRONTIER_CODE_IMAGE_CALL AdvanceProject(
         WriteRefusal(Refusal, FrontierProjectRefusalStructure, "ProjectDrive requires revision-3 input readings");
         return 0u;
     }
+    // Any physics job launched at the previous frame's conclusion finishes here, before the vehicle is read.
+    Sequence.ConsumePhysics();
     const uint32_t Transport = Reading->TransportNumber;
     const bool Started = Transport != 0u && Sequence.PreviousTransport == 0u;
     const bool Reset = Reading->ResetPressed != 0u && !Sequence.PreviousReset && Reading->KeyboardCaptured == 0u;
@@ -319,17 +368,38 @@ uint32_t FRONTIER_CODE_IMAGE_CALL AdvanceProject(
     const auto Command = Sequence.Input.Advance(Seconds);
     if (Seconds > 0.0f || Deployed)
     {
-        Sequence.Vehicle->AdvanceVehicle(Command.Drive, Sequence.Poses, Seconds);
-        Sequence.CaptureSurfaces();
-        Sequence.DeliverPoses();
+        Sequence.PendingCommand = Command.Drive;
+        Sequence.PendingSeconds = Seconds;
+        // Overlapped, the job may spend most of a frame; synchronous it must stay short. Either way the budget
+        //    stops a slow solver from compounding into the next frame (VehicleInstanceSequence drops the rest).
+        Sequence.PendingBudgetSeconds = Sequence.HostConcludesFrames
+            ? std::clamp(ActiveCycle->CycleSeconds * 0.9f, 0.012f, 0.05f) : 0.012f;
+        Sequence.PendingStep = true;
+        // The first frame after deployment steps synchronously so the poses exist before the host reads them;
+        //    so does every frame on a host without the conclusion hook.
+        if (Deployed || !Sequence.HostConcludesFrames)
+        {
+            Sequence.LaunchPhysics();
+            Sequence.ConsumePhysics();
+        }
     }
     if (Transport == 1u) Sequence.DeliverCamera(Seconds, Deployed);
     return 1u;
 }
 
+void FRONTIER_CODE_IMAGE_CALL FrameConcluded(void* ProjectRecord)
+{
+    auto* Sequence = static_cast<DriveSequence*>(ProjectRecord);
+    if (!Sequence) return;
+    Sequence->HostConcludesFrames = true;
+    Sequence->LaunchPhysics();
+}
+
 void FRONTIER_CODE_IMAGE_CALL RetireProject(void* ProjectRecord)
 {
-    delete static_cast<DriveSequence*>(ProjectRecord);
+    auto* Sequence = static_cast<DriveSequence*>(ProjectRecord);
+    if (Sequence) Sequence->JoinPhysics();
+    delete Sequence;
 }
 
 } // namespace
@@ -355,6 +425,11 @@ extern "C" FRONTIER_CODE_IMAGE_EXPORT uint32_t FRONTIER_CODE_IMAGE_CALL Construc
     DeliveredInterchange->AdvanceProject = &AdvanceProject;
     DeliveredInterchange->RetireProject = &RetireProject;
     return 1u;
+}
+
+extern "C" FRONTIER_CODE_IMAGE_EXPORT void FRONTIER_CODE_IMAGE_CALL ProjectFrameConcludedInterchange(void* ProjectRecord)
+{
+    FrameConcluded(ProjectRecord);
 }
 
 extern "C" FRONTIER_CODE_IMAGE_EXPORT uint32_t FRONTIER_CODE_IMAGE_CALL ProjectGeometryInterchange(

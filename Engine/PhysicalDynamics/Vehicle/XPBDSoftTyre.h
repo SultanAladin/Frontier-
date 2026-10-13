@@ -455,6 +455,27 @@ private:
     std::vector<Vec3>             BeadLocalVertices;   // material-frame rim vertices (two circles)
     std::vector<Vec3>             BeadWorldVertices;   // the same, posed by the hub this substep
     std::vector<Vec3>             InflationGradient;   // ∂V/∂x per free node [m²]
+
+    // ── per-substep scratch (hoisted out of the sweep loop) ─────────────────────────────────────────────────────
+    // The spoke anchors, rest positions and radial/tangent frame of every node depend only on the hub pose of
+    //    the substep, not on the sweep, so they are rotated ONCE per substep here instead of four quaternion
+    //    rotations per node per sweep. Measured: that was most of a 7.5 ms Step.
+    struct NodeSubstepFrame
+    {
+        Vec3 Anchor, AnchorPrev;     // [m] bead anchor now / at the previous substep pose
+        Vec3 RestWorld, RestPrev;    // [m] undeformed tread position now / previous
+        Vec3 Tangent;                // [-] unit rolling tangent at the rest position (zero when degenerate)
+        bool RadialValid = false;    // [-] false where the rest position sits on the spin axis
+    };
+    struct NodeGroundSample
+    {
+        Vec3  Point{}, Normal{0.0f, 0.0f, 1.0f};   // [m],[-] cached surface plane for this substep
+        float Clearance = 0.0f;                     // [m] signed distance above the cached plane at the last query
+        bool  Valid = false;                        // [-] query answered (surface exists under the node)
+    };
+    std::vector<float>            SpokeRestLength;   // [m] |TreadLocal − BeadLocal| per node (constant after Build)
+    std::vector<NodeSubstepFrame> SubstepFrames;     // scratch, sized to NodeRecords
+    std::vector<NodeGroundSample> GroundSamples;     // persists across substeps for the clearance cull
     TyreReaction                  ContactReaction;
     SoftTyreResidual              ConstraintResidual;
 };

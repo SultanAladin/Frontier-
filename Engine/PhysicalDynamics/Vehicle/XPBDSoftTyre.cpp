@@ -133,6 +133,10 @@ void XPBDSoftTyre::BuildGasSurface() noexcept
     }
     BeadWorldVertices.assign(BeadLocalVertices.size(), Vec3{});
     InflationGradient.assign(N, Vec3{});
+    SpokeRestLength.assign(N, 0.0f);
+    for (uint32_t i = 0u; i < N; ++i) SpokeRestLength[i] = (NodeRecords[i].TreadLocal - NodeRecords[i].BeadLocal).Length();
+    SubstepFrames.assign(N, NodeSubstepFrame{});
+    GroundSamples.assign(N, NodeGroundSample{});
 
     GasSurface.clear();
     GasSurface.reserve(static_cast<size_t>(S) * (2u * (R - 1u) + 6u));
@@ -197,6 +201,13 @@ void XPBDSoftTyre::Step(float dt, uint32_t substeps, const HubMotion& motion,
 
     substeps = std::max<uint32_t>(1u, substeps);
     const float h = dt / static_cast<float>(substeps);
+    if (SubstepFrames.size() != NodeRecords.size()) SubstepFrames.assign(NodeRecords.size(), NodeSubstepFrame{});
+    if (GroundSamples.size() != NodeRecords.size()) GroundSamples.assign(NodeRecords.size(), NodeGroundSample{});
+    if (SpokeRestLength.size() != NodeRecords.size())
+    {
+        SpokeRestLength.assign(NodeRecords.size(), 0.0f);
+        for (size_t i = 0u; i < NodeRecords.size(); ++i) SpokeRestLength[i] = (NodeRecords[i].TreadLocal - NodeRecords[i].BeadLocal).Length();
+    }
     const float h2 = h * h;
     const float invH2 = 1.0f / h2;
 
@@ -281,6 +292,50 @@ void XPBDSoftTyre::Step(float dt, uint32_t substeps, const HubMotion& motion,
             node.Position += node.Velocity * h;
         }
 
+        // ── per-substep node frames (hoisted) ─────────────────────────────────────────────────────────────────
+        // Everything below is a function of the substep's hub pose only, so it is rotated once here and read
+        //    by every sweep. The expressions are the same ones the sweep used to evaluate inline.
+        float MaxTravel = 0.0f;   // [m] largest node displacement this substep, for the ground-query cull
+        for (uint32_t i = 0u; i < static_cast<uint32_t>(NodeRecords.size()); ++i)
+        {
+            const SoftTyreNode& node = NodeRecords[i];
+            NodeSubstepFrame& F = SubstepFrames[i];
+            if (node.InverseMass <= 0.0f) { F.RadialValid = false; continue; }
+            F.Anchor     = hubPos     + frame.Rotate(node.BeadLocal);
+            F.AnchorPrev = hubPosPrev + framePrev.Rotate(node.BeadLocal);
+            F.RestWorld  = hubPos     + frame.Rotate(node.TreadLocal);
+            F.RestPrev   = hubPosPrev + framePrev.Rotate(node.TreadLocal);
+            Vec3 RadialDir = F.RestWorld - hubPos;
+            RadialDir = RadialDir - axisWorld * Dot(RadialDir, axisWorld);
+            const float RadialLen = RadialDir.Length();
+            F.RadialValid = RadialLen > 1e-6f;
+            F.Tangent = F.RadialValid ? Cross(axisWorld, RadialDir * (1.0f / RadialLen)) : Vec3{};
+            MaxTravel = std::max(MaxTravel, (node.Position - node.Previous).Length());
+        }
+
+        // ── ground sample once per substep, and only for nodes that can possibly reach the surface ───────────
+        // The query used to run per node per SWEEP (4× here). The surface does not move between sweeps, so the
+        //    plane it returns is sampled once and the sweeps re-measure penetration against that plane. Nodes
+        //    whose last measured clearance exceeds what they could travel are not queried at all: the
+        //    clearance is decayed conservatively (4× the largest node displacement) until it falls into range.
+        if (ground)
+        {
+            const float Reach = 4.0f * MaxTravel + 0.01f;   // [m] generous: lattice segments are ~25 mm
+            for (uint32_t i = 0u; i < static_cast<uint32_t>(NodeRecords.size()); ++i)
+            {
+                const SoftTyreNode& node = NodeRecords[i];
+                NodeGroundSample& G = GroundSamples[i];
+                if (node.InverseMass <= 0.0f) { G.Valid = false; continue; }
+                if (G.Valid && G.Clearance > Reach) { G.Clearance -= 4.0f * MaxTravel; continue; }
+                Vec3 surfPt{}; Vec3 normal{0, 0, 1};
+                const bool onGround = ground(node.Position, surfPt, normal);
+                G.Valid  = onGround;
+                G.Normal = onGround ? normal.Normalized() : Vec3{0, 0, 1};
+                G.Point  = surfPt;
+                G.Clearance = onGround ? -Dot(surfPt - node.Position, G.Normal) : 0.0f;
+            }
+        }
+
         // ── project: Gauss-Seidel sweeps over every constraint ───────────────────────────────────────────────────
         // Macklin et al. 2019 prefer substeps to iterations, and one sweep per substep is the small-steps
         // default. It is not always enough HERE, and the measurement says so: the quantity the vehicle
@@ -299,16 +354,18 @@ void XPBDSoftTyre::Step(float dt, uint32_t substeps, const HubMotion& motion,
             const float alphaSpokeLateral    = Parameters.SpokeLateralCompliance * invH2;
             const float gammaSpokeTangential = Parameters.SpokeTangentialCompliance * SpokeTangentialBeta / h;
             const float gammaSpokeLateral    = Parameters.SpokeLateralCompliance * SpokeLateralBeta / h;
-            for (SoftTyreNode& node : NodeRecords)
+            for (uint32_t i = 0u; i < static_cast<uint32_t>(NodeRecords.size()); ++i)
             {
+                SoftTyreNode& node = NodeRecords[i];
                 if (node.InverseMass <= 0.0f) continue;
-                const Vec3 anchor     = hubPos     + frame.Rotate(node.BeadLocal);
-                const Vec3 anchorPrev = hubPosPrev + framePrev.Rotate(node.BeadLocal);
+                const NodeSubstepFrame& F = SubstepFrames[i];
+                const Vec3& anchor     = F.Anchor;
+                const Vec3& anchorPrev = F.AnchorPrev;
                 Vec3 d = node.Position - anchor;
                 const float dist = d.Length();
                 if (dist < 1e-6f) continue;
                 const Vec3 dir = d * (1.0f / dist);
-                const float SpokeRest = (node.TreadLocal - node.BeadLocal).Length();
+                const float SpokeRest = SpokeRestLength[i];
                 const float C = dist - SpokeRest;
                 // Tension-only: a cord sidewall shorter than its rest length has buckled and carries nothing.
                 // Dropping the projection (and the multiplier with it) is the unilateral form of eq. 18.
@@ -335,18 +392,14 @@ void XPBDSoftTyre::Step(float dt, uint32_t substeps, const HubMotion& motion,
                 // ── shear spokes: hold the node on its own radial LINE, not just its distance sphere ─────────────
                 // Radially soft, tangentially and axially stiff. Without these the band drifts off the hub (14.6 mm
                 // measured) and every node's radius about the hub reads scattered even when the band is round.
-                const Vec3 RestWorld = hubPos     + frame.Rotate(node.TreadLocal);
-                const Vec3 RestPrev  = hubPosPrev + framePrev.Rotate(node.TreadLocal);
+                const Vec3& RestWorld = F.RestWorld;
+                const Vec3& RestPrev  = F.RestPrev;
                 const Vec3 Offset = node.Position - RestWorld;
                 const Vec3 Relative = (node.Position - node.Previous) - (RestWorld - RestPrev);
                 const Vec3 AxisDir = axisWorld;
-                Vec3 RadialDir = RestWorld - hubPos;
-                RadialDir = RadialDir - AxisDir * Dot(RadialDir, AxisDir);
-                const float RadialLen = RadialDir.Length();
-                if (RadialLen > 1e-6f)
+                if (F.RadialValid)
                 {
-                    RadialDir = RadialDir * (1.0f / RadialLen);
-                    const Vec3 TangentDir = Cross(AxisDir, RadialDir);   // unit: both are unit and orthogonal
+                    const Vec3& TangentDir = F.Tangent;   // unit: axis and radial are unit and orthogonal
                     const Vec3 ShearDir[2] = { TangentDir, AxisDir };
                     const float ShearAlpha[2] = { alphaSpokeTangential, alphaSpokeLateral };
                     const float ShearGamma[2] = { gammaSpokeTangential, gammaSpokeLateral };
@@ -396,14 +449,16 @@ void XPBDSoftTyre::Step(float dt, uint32_t substeps, const HubMotion& motion,
                 // guarded were computed against different stiffnesses and disagreed by a factor of Δτ².
                 const float alphaTread = Parameters.TreadTangentialCompliance * invH2;
                 const float gammaTread = Parameters.TreadTangentialCompliance * TreadBeta / h;
-                for (SoftTyreNode& node : NodeRecords)
+                for (uint32_t i = 0u; i < static_cast<uint32_t>(NodeRecords.size()); ++i)
                 {
+                    SoftTyreNode& node = NodeRecords[i];
                     if (node.InverseMass <= 0.0f) continue;
-                    Vec3 surfPt{}; Vec3 normal{0, 0, 1};
-                    bool onGround = ground(node.Position, surfPt, normal);
-                    normal = onGround ? normal.Normalized() : Vec3{0, 0, 1};
-                    const float penetration = onGround ? Dot(surfPt - node.Position, normal) : -1.0f;
+                    const NodeGroundSample& G = GroundSamples[i];
+                    const bool onGround = G.Valid && G.Clearance <= 4.0f * MaxTravel + 0.01f;
+                    const Vec3& normal = G.Normal;
+                    const float penetration = onGround ? Dot(G.Point - node.Position, normal) : -1.0f;
                     if (penetration <= 0.0f) { node.InContact = false; continue; }   // release the bristle
+                    const Vec3 surfPt = node.Position + normal * penetration;   // foot on the cached plane
 
 
                     // 📝 A changed face is a new unilateral constraint, not the previous face's multiplier.

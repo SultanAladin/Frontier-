@@ -128,6 +128,11 @@ public:
     [[nodiscard]] const std::vector<Frontier::Vehicle::XPBDSoftTyre>& Tyres() const noexcept
     { return ActiveVehicleSolver.Tyres(); }
 
+    // Wall-clock budget for one AdvanceVehicle's fixed-step loop (see VehicleInstanceConfiguration); the caller
+    //    widens it when the call is overlapped with rendering and keeps it short when it is not.
+    void AssignStepWallBudget(float Seconds) noexcept { Instancing.StepWallBudgetSeconds = Seconds; }
+    [[nodiscard]] float QueryDroppedSimulationSeconds() const noexcept { return DroppedSimulationSeconds; }
+
     [[nodiscard]] const CoarseGasField* QuerySmoke() const noexcept { return DriftTransport.QueryField(); }
     [[nodiscard]] const SmokeMetrics& QuerySmokeMetrics() const noexcept { return DriftTransport.QueryMetrics(); }
 
