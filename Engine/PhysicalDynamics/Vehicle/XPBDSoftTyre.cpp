@@ -203,6 +203,7 @@ void XPBDSoftTyre::Step(float dt, uint32_t substeps, const HubMotion& motion,
     const float h = dt / static_cast<float>(substeps);
     if (SubstepFrames.size() != NodeRecords.size()) SubstepFrames.assign(NodeRecords.size(), NodeSubstepFrame{});
     if (GroundSamples.size() != NodeRecords.size()) GroundSamples.assign(NodeRecords.size(), NodeGroundSample{});
+    if (ActiveNodes.size() != NodeRecords.size()) ActiveNodes.assign(NodeRecords.size(), 1u);
     if (SpokeRestLength.size() != NodeRecords.size())
     {
         SpokeRestLength.assign(NodeRecords.size(), 0.0f);
@@ -257,6 +258,39 @@ void XPBDSoftTyre::Step(float dt, uint32_t substeps, const HubMotion& motion,
         frame = MaterialFrame(SubstepRotation);
         axisWorld = SubstepRotation.Rotate({0.0f, 1.0f, 0.0f}).Normalized();
 
+        // ── active window: which segments face the ground this substep ──────────────────────────────────────────
+        // Direction to the ground in the wheel plane: gravity with the axis component removed. Segments whose
+        //    rest radial lies within the half-angle of it are solved; so is any node whose last ground sample
+        //    is within reach (a kerb beside the tyre is not below it). Everything else is pinned to the hub.
+        if (Parameters.ActiveWindowEnabled && Parameters.SegmentCount > 0u)
+        {
+            Vec3 Down = Parameters.Gravity;
+            Down = Down - axisWorld * Dot(Down, axisWorld);
+            const float DownLen = Down.Length();
+            Down = DownLen > 1e-6f ? Down * (1.0f / DownLen) : Vec3{0.0f, 0.0f, -1.0f};
+            const float CosWindow = std::cos(Parameters.ActiveWindowHalfAngle);
+            const uint32_t S = Parameters.SegmentCount, R = Parameters.RingCount;
+            const uint32_t MidRing = R / 2u;
+            for (uint32_t seg = 0u; seg < S; ++seg)
+            {
+                const SoftTyreNode& Probe = NodeRecords[Index(MidRing, seg)];
+                Vec3 Radial = frame.Rotate(Probe.TreadLocal);
+                Radial = Radial - axisWorld * Dot(Radial, axisWorld);
+                const float RadialLen = Radial.Length();
+                const bool InWindow = RadialLen > 1e-6f && Dot(Radial, Down) >= CosWindow * RadialLen;
+                for (uint32_t ring = 0u; ring < R; ++ring)
+                {
+                    const uint32_t i = Index(ring, seg);
+                    const NodeGroundSample& G = GroundSamples[i];
+                    ActiveNodes[i] = (InWindow || (G.Valid && G.Clearance <= 0.05f)) ? 1u : 0u;
+                }
+            }
+        }
+        else
+        {
+            std::fill(ActiveNodes.begin(), ActiveNodes.end(), uint8_t{1u});
+        }
+
         // ── reset the Lagrange multipliers ───────────────────────────────────────────────────────────────────────
         // XPBD §3.2: λ is zeroed at the START of each substep and accumulated across that substep's iterations.
         // Carrying it between substeps would make the constraint remember a force it has already applied.
@@ -282,6 +316,19 @@ void XPBDSoftTyre::Step(float dt, uint32_t substeps, const HubMotion& motion,
         {
             SoftTyreNode& node = NodeRecords[i];
             if (node.InverseMass <= 0.0f) { node.Previous = node.Position; continue; }
+            if (!ActiveNodes[i])
+            {
+                // Outside the active window: the node rides the hub at its rest position. Its gas lift is not
+                //    reacted onto the rim because the spoke tension that balances it is not solved either.
+                node.Previous = node.Position;
+                node.Position = hubPos + frame.Rotate(node.TreadLocal);
+                // Kinematic velocity from the hub (not Δx/h: a hub teleport by the chassis contact correction
+                //    would otherwise become a launch velocity the moment the node re-enters the window).
+                node.Velocity = motion.LinearVelocity + Cross(motion.AngularVelocity + axisWorld * motion.SpinRate, node.Position - hubPos);
+                node.InContact = false;
+                node.ContactLambda = 0.0f; node.TreadLambda = 0.0f; node.RimLambda = 0.0f;
+                continue;
+            }
 
             const Vec3 pressureForce = InflationGradient[i] * gasGauge;
             ReactOnRim(pressureForce, node.Position - hubPos);
@@ -300,7 +347,7 @@ void XPBDSoftTyre::Step(float dt, uint32_t substeps, const HubMotion& motion,
         {
             const SoftTyreNode& node = NodeRecords[i];
             NodeSubstepFrame& F = SubstepFrames[i];
-            if (node.InverseMass <= 0.0f) { F.RadialValid = false; continue; }
+            if (node.InverseMass <= 0.0f || !ActiveNodes[i]) { F.RadialValid = false; continue; }
             F.Anchor     = hubPos     + frame.Rotate(node.BeadLocal);
             F.AnchorPrev = hubPosPrev + framePrev.Rotate(node.BeadLocal);
             F.RestWorld  = hubPos     + frame.Rotate(node.TreadLocal);
@@ -357,7 +404,7 @@ void XPBDSoftTyre::Step(float dt, uint32_t substeps, const HubMotion& motion,
             for (uint32_t i = 0u; i < static_cast<uint32_t>(NodeRecords.size()); ++i)
             {
                 SoftTyreNode& node = NodeRecords[i];
-                if (node.InverseMass <= 0.0f) continue;
+                if (node.InverseMass <= 0.0f || !ActiveNodes[i]) continue;
                 const NodeSubstepFrame& F = SubstepFrames[i];
                 const Vec3& anchor     = F.Anchor;
                 const Vec3& anchorPrev = F.AnchorPrev;
@@ -422,7 +469,12 @@ void XPBDSoftTyre::Step(float dt, uint32_t substeps, const HubMotion& motion,
             {
                 SoftTyreNode& A = NodeRecords[e.a];
                 SoftTyreNode& B = NodeRecords[e.b];
-                const float wsum = A.InverseMass + B.InverseMass;
+                const bool ActiveA = ActiveNodes[e.a] != 0u, ActiveB = ActiveNodes[e.b] != 0u;
+                if (!ActiveA && !ActiveB) continue;
+                // A pinned end is kinematic for this edge: it holds its rest position and takes no correction.
+                const float wA = ActiveA ? A.InverseMass : 0.0f;
+                const float wB = ActiveB ? B.InverseMass : 0.0f;
+                const float wsum = wA + wB;
                 if (wsum <= 0.0f) continue;
                 Vec3 d = B.Position - A.Position;
                 const float dist = d.Length();
@@ -435,8 +487,13 @@ void XPBDSoftTyre::Step(float dt, uint32_t substeps, const HubMotion& motion,
                 const float dLambda = (-C - alpha * e.lambda - gamma * cDot)
                                     / ((1.0f + gamma) * wsum + alpha);
                 e.lambda += dLambda;
-                A.Position -= dir * (dLambda * A.InverseMass);
-                B.Position += dir * (dLambda * B.InverseMass);
+                A.Position -= dir * (dLambda * wA);
+                B.Position += dir * (dLambda * wB);
+                // A pinned end is part of the rim for this edge, so the force the lattice puts into it is
+                //    handed to the rim instead of vanishing (the window must not leak hoop tension or belt
+                //    wind-up torque out of the model).
+                if (!ActiveA) ReactOnRim(dir * ( dLambda * invH2), A.Position - hubPos);
+                if (!ActiveB) ReactOnRim(dir * (-dLambda * invH2), B.Position - hubPos);
             }
 
             // ── project: ground contact (normal) + compliant tread-bristle friction (brush model) ─────────────────────
@@ -452,7 +509,7 @@ void XPBDSoftTyre::Step(float dt, uint32_t substeps, const HubMotion& motion,
                 for (uint32_t i = 0u; i < static_cast<uint32_t>(NodeRecords.size()); ++i)
                 {
                     SoftTyreNode& node = NodeRecords[i];
-                    if (node.InverseMass <= 0.0f) continue;
+                    if (node.InverseMass <= 0.0f || !ActiveNodes[i]) continue;
                     const NodeGroundSample& G = GroundSamples[i];
                     const bool onGround = G.Valid && G.Clearance <= 4.0f * MaxTravel + 0.01f;
                     const Vec3& normal = G.Normal;
@@ -555,9 +612,10 @@ void XPBDSoftTyre::Step(float dt, uint32_t substeps, const HubMotion& motion,
                 const float alphaRim = Parameters.RimBottomingCompliance * invH2;
                 const float gammaRim = Parameters.RimBottomingCompliance * RimBeta / h;
                 const float rimLimit = Parameters.RimRadius + Parameters.RimBottomingClearance;
-                for (SoftTyreNode& node : NodeRecords)
+                for (uint32_t i = 0u; i < static_cast<uint32_t>(NodeRecords.size()); ++i)
                 {
-                    if (node.InverseMass <= 0.0f) continue;
+                    SoftTyreNode& node = NodeRecords[i];
+                    if (node.InverseMass <= 0.0f || !ActiveNodes[i]) continue;
                     const Vec3  rel     = node.Position - hubPos;
                     const Vec3  radial  = rel - axisWorld * Dot(rel, axisWorld);
                     const float rLen    = radial.Length();
@@ -632,9 +690,11 @@ void XPBDSoftTyre::Step(float dt, uint32_t substeps, const HubMotion& motion,
         //    Restitution is zero here: a tyre carcass does not bounce off the road. So any OUTWARD normal
         //    velocity on a node that is in contact is an artefact of the projection and is removed. Inward
         //    motion is left alone, because that is the tyre genuinely being loaded.
-        for (SoftTyreNode& node : NodeRecords)
+        for (uint32_t i = 0u; i < static_cast<uint32_t>(NodeRecords.size()); ++i)
         {
+            SoftTyreNode& node = NodeRecords[i];
             if (node.InverseMass <= 0.0f) { node.Velocity = {0, 0, 0}; continue; }
+            if (!ActiveNodes[i]) continue;   // pinned: velocity is the hub's, set in the predict pass
             node.Velocity = (node.Position - node.Previous) * (1.0f / h);
 
             if (node.InContact)
