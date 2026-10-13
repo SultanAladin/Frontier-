@@ -21,6 +21,7 @@ public:
     const FrontierProjectSmokeReading& QueryReading() const noexcept { return CurrentReading; }
     const std::vector<float>& QueryDensity() const noexcept { return CurrentDensity; }
     const std::vector<float>& QueryTemperature() const noexcept { return CurrentTemperature; }
+    const FrontierSmokeTransportReading& QueryTransport() const noexcept { return CurrentTransport; }
 
     void Reclaim() noexcept
     {
@@ -29,6 +30,9 @@ public:
         std::vector<float>().swap(PendingDensity);
         std::vector<float>().swap(PendingTemperature);
         CurrentReading = {};
+        CurrentTransport = {};
+        std::vector<float>().swap(CurrentVelocity);
+        std::vector<float>().swap(PendingVelocity);
     }
 
     /// 📦 Negotiates an optional smoke extension without changing the host/project ABI3 opening contract.
@@ -36,7 +40,14 @@ public:
     bool Advance(const CodeInterchange& Project, std::string& Refusal)
     {
         if (!Project.SmokeAvailable()) { Reclaim(); return true; }
-        return Capture([&Project](FrontierProjectSmokeReading& Reading) { return Project.ProjectSmoke(Reading); }, Refusal);
+        if (!Capture([&Project](FrontierProjectSmokeReading& Reading) { return Project.ProjectSmoke(Reading); }, Refusal)) return false;
+        if (!CurrentReading.Extent || !Project.TransportAvailable())
+        {
+            CurrentTransport = {};
+            std::vector<float>().swap(CurrentVelocity);
+            return true;
+        }
+        return CaptureTransport([&Project](FrontierSmokeTransportReading& Reading) { return Project.ProjectTransport(Reading); }, Refusal);
     }
 
     /// 📦 Captures completed scalar samples into host-owned storage only when a resident volume demands it.
@@ -111,7 +122,62 @@ public:
         return true;
     }
 
+    template<class ReadingSource>
+    bool CaptureTransport(const ReadingSource& Source, std::string& Refusal)
+    {
+        FrontierSmokeTransportReading Reading{};
+        Reading.StructureSize = sizeof(Reading);
+        Reading.InterchangeNumber = FrontierSmokeTransportNumber;
+        if (Source(Reading) != 1u || Reading.StructureSize != sizeof(Reading) ||
+            Reading.InterchangeNumber != FrontierSmokeTransportNumber || Reading.Extent != CurrentReading.Extent ||
+            Reading.CarrierIdentifier != CurrentReading.CarrierIdentifier || Reading.Revision != CurrentReading.Revision ||
+            Reading.Span != CurrentReading.Span || Reading.SourceCount > FrontierSmokeSourceCeiling || Reading.CompletedTicks > 6u ||
+            !std::equal(std::begin(Reading.Origin), std::end(Reading.Origin), std::begin(CurrentReading.Origin)))
+        {
+            Refusal = "project transport metadata does not match its completed scalar snapshot";
+            return false;
+        }
+        const uint32_t Count = Reading.Extent * Reading.Extent * Reading.Extent;
+        const bool Reused = CurrentTransport.Extent == Reading.Extent &&
+            CurrentTransport.CarrierIdentifier == Reading.CarrierIdentifier && CurrentTransport.Revision == Reading.Revision &&
+            std::equal(std::begin(Reading.Origin), std::end(Reading.Origin), std::begin(CurrentTransport.Origin));
+        if (!Reused)
+        {
+            const auto Negotiated = Reading;
+            try { PendingVelocity.resize(Count * 4u); }
+            catch (...) { Refusal = "host could not acquire transport snapshot storage"; return false; }
+            Reading.Capacity = Count;
+            Reading.VelocityOccupancy = PendingVelocity.data();
+            if (Source(Reading) != 1u || Reading.StructureSize != sizeof(Reading) ||
+                Reading.InterchangeNumber != FrontierSmokeTransportNumber || Reading.Extent != Negotiated.Extent ||
+                Reading.CarrierIdentifier != Negotiated.CarrierIdentifier || Reading.Revision != Negotiated.Revision ||
+                Reading.Span != Negotiated.Span || Reading.SourceCount != Negotiated.SourceCount ||
+                Reading.CompletedTicks != Negotiated.CompletedTicks ||
+                !std::equal(std::begin(Reading.SourceOffsets), std::end(Reading.SourceOffsets), std::begin(Negotiated.SourceOffsets)) ||
+                Reading.VelocityOccupancy != PendingVelocity.data() ||
+                !std::equal(std::begin(Reading.Origin), std::end(Reading.Origin), std::begin(Negotiated.Origin)))
+            {
+                Refusal = "project transport changed during synchronous copying";
+                return false;
+            }
+            for (uint32_t Component = 0u; Component < Count * 4u; ++Component)
+                if (!std::isfinite(PendingVelocity[Component]) ||
+                    (Component % 4u == 3u && (PendingVelocity[Component] < 0.0f || PendingVelocity[Component] > 1.0f)))
+                {
+                    Refusal = "project transport contains invalid world velocities or terrain occupancy";
+                    return false;
+                }
+            CurrentVelocity.swap(PendingVelocity);
+        }
+        CurrentTransport = Reading;
+        CurrentTransport.Capacity = Count;
+        CurrentTransport.VelocityOccupancy = CurrentVelocity.data();
+        return true;
+    }
+
 private:
+    FrontierSmokeTransportReading CurrentTransport{};
+    std::vector<float> CurrentVelocity, PendingVelocity;
     FrontierProjectSmokeReading CurrentReading{};
     std::vector<float> CurrentDensity, CurrentTemperature;
     std::vector<float> PendingDensity, PendingTemperature;

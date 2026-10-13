@@ -135,11 +135,14 @@ bool CodeInterchange::Construct(const ProjectSpecification& ResolvedSpecificatio
         return false;
 
 #if defined(_WIN32)
+    TransportEntry = reinterpret_cast<FrontierProjectSmokeTransport>(
+        GetProcAddress(static_cast<HMODULE>(CodeImage), "ProjectSmokeTransportInterchange"));
     SmokeEntry = reinterpret_cast<FrontierProjectSmoke>(
         GetProcAddress(static_cast<HMODULE>(CodeImage), "ProjectSmokeInterchange"));
     GeometryEntry = reinterpret_cast<FrontierProjectGeometry>(
         GetProcAddress(static_cast<HMODULE>(CodeImage), "ProjectGeometryInterchange"));
 #else
+    TransportEntry = reinterpret_cast<FrontierProjectSmokeTransport>(dlsym(CodeImage, "ProjectSmokeTransportInterchange"));
     SmokeEntry = reinterpret_cast<FrontierProjectSmoke>(dlsym(CodeImage, "ProjectSmokeInterchange"));
     GeometryEntry = reinterpret_cast<FrontierProjectGeometry>(dlsym(CodeImage, "ProjectGeometryInterchange"));
 #endif
@@ -244,6 +247,7 @@ void CodeInterchange::Retire() noexcept
 
     ProjectRecord = nullptr;
     GeometryEntry = nullptr;
+    TransportEntry = nullptr;
     SmokeEntry = nullptr;
     ActiveInterchange = {};
     ReleaseCodeImage(CodeImage);

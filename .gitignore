@@ -62,3 +62,6 @@ _AgentScratch/
 
 # The shader compiler recreates this provenance manifest with the ignored SPIR-V outputs.
 /Engine/Shaders/ShaderManifest.json
+
+# Rebuildable Project-Zero opening authored once by the shared VehicleStructure.
+/Projects/Project-Zero/Content/Scenes/Vehicle.gltf

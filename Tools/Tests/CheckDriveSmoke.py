@@ -32,11 +32,13 @@ def Main():
     Roster = json.loads((Root / "Projects/Project-Drive/Build/DriveSimulationSources.json").read_text())["sources"]
     NativeSources = ["VisualProof/SmokeSequence/SmokeMetrics.cpp", "VisualProof/SmokeSequence/VehicleMetrics.cpp"]
     Files = {Root / Source for Source in Roster + NativeSources}
-    for Prefix in ["Engine/PhysicalDynamics/Vehicle", "Engine/VolumetricDynamics", "Projects/Project-Drive/Source"]:
+    for Prefix in ["Engine/PhysicalDynamics/Vehicle", "Engine/VolumetricDynamics", "Engine/GeometricRaster", "Engine/DisplayPresentation",
+                   "EngineContent/GeometryArchives", "Projects/Project-Drive/Source"]:
         Files.update(File for File in (Root / Prefix).rglob("*") if File.suffix in [".h", ".inl"])
     Files.update(Root / Name for Name in ["Engine/Host/SmokeSequence.h", "Engine/Host/FrontierRuntime.cpp",
         "Engine/ProjectInterchange/CodeInterchange.h", "Engine/ProjectInterchange/CodeInterchange.cpp",
-        "Engine/ProjectInterchange/SmokeInterchange.h", "Tools/Tests/CheckDriveSmoke.py"])
+        "Engine/ProjectInterchange/SmokeInterchange.h", "Engine/ProjectInterchange/SmokeTransportInterchange.h",
+        "Engine/ProjectInterchange/VehicleInterchange.h", "Tools/Tests/CheckDriveSmoke.py"])
     Initial = Fingerprint(Files)
     Includes = [Root / "Engine", RestoreVulkanHeaders()]
     Flags = ["/nologo", "/std:c++20", "/EHsc", "/utf-8", "/O2", "/MD", "/UNDEBUG", "/DNOMINMAX"] if Windows else [
@@ -64,7 +66,7 @@ def Main():
         Completed.check_returncode()
         Commands.extend([Command, Invocation])
     assert Fingerprint(Files) == Initial, "Source changed during the native recording"
-    Proof = {"recordedDate": "2026-10-12", "passed": True, "cpuOnly": True, "gpuExecution": False,
+    Proof = {"recordedDate": "2026-10-13", "passed": True, "cpuOnly": True, "gpuExecution": False,
         "windowsExecution": Windows, "sanitized": Arguments.sanitize, "physicsRateHz": 240,
         "gasRateHz": 60, "captureRateHz": 20, "captureSeconds": 6, "commands": Commands,
         "sourceSHA256": Initial, "outputs": Fingerprint(set(Folder.glob("*.csv")) | set(Folder.glob("*.smoke")) | set(Folder.glob("*.log"))),

@@ -106,13 +106,15 @@ find_program(GLSLC_EXECUTABLE glslc HINTS "$ENV{VULKAN_SDK}/bin" "/usr/bin" "/us
 find_program(SLANGC_EXECUTABLE slangc HINTS "$ENV{VULKAN_SDK}/bin" "/usr/bin" "/usr/local/bin")
 
 set(SHADER_ROOT "${CMAKE_SOURCE_DIR}/Engine/Shaders")
-set(SHADER_INCLUDES "${SHADER_ROOT}/ViewportIntegrator.slang" "${SHADER_ROOT}/RayQueryTraversal.slang" "${SHADER_ROOT}/ReSTIRViewport.slang" "${SHADER_ROOT}/DistanceFieldGatherBody.slang" "${SHADER_ROOT}/DistanceFieldCaptureBody.slang" "${SHADER_ROOT}/DistanceFieldMaterial.slang" "${SHADER_ROOT}/DistanceFieldTransport.slang" "${SHADER_ROOT}/DistanceFieldGIResolveBody.slang" "${SHADER_ROOT}/SceneMaterialResolve.slang" "${SHADER_ROOT}/DistanceFieldRecords.slang" "${SHADER_ROOT}/GlobalDistanceField.slang" "${SHADER_ROOT}/SurfaceCacheRecords.slang" "${SHADER_ROOT}/PatchSelection.slang" "${SHADER_ROOT}/PatchPolicy.shared.h" "${SHADER_ROOT}/PresentationDither.slang" "${SHADER_ROOT}/WeatherMedia.slang" "${SHADER_ROOT}/CloudShadow.slang" "${SHADER_ROOT}/SkyRecords.slang" "${SHADER_ROOT}/MoonRecords.slang" "${SHADER_ROOT}/PostRecords.slang" "${CMAKE_SOURCE_DIR}/Engine/DisplayPresentation/LensFlareKernel.h" "${SHADER_ROOT}/SceneRecords.slang" "${SHADER_ROOT}/RayGeneration.slang" "${SHADER_ROOT}/TraversalCWBVH.slang"
+set(SHADER_INCLUDES "${SHADER_ROOT}/SmokeIntegrator.slang" "${SHADER_ROOT}/ViewportIntegrator.slang" "${SHADER_ROOT}/RayQueryTraversal.slang" "${SHADER_ROOT}/ReSTIRViewport.slang" "${SHADER_ROOT}/DistanceFieldGatherBody.slang" "${SHADER_ROOT}/DistanceFieldCaptureBody.slang" "${SHADER_ROOT}/DistanceFieldMaterial.slang" "${SHADER_ROOT}/DistanceFieldTransport.slang" "${SHADER_ROOT}/DistanceFieldGIResolveBody.slang" "${SHADER_ROOT}/SceneMaterialResolve.slang" "${SHADER_ROOT}/DistanceFieldRecords.slang" "${SHADER_ROOT}/GlobalDistanceField.slang" "${SHADER_ROOT}/SurfaceCacheRecords.slang" "${SHADER_ROOT}/PatchSelection.slang" "${SHADER_ROOT}/PatchPolicy.shared.h" "${SHADER_ROOT}/PresentationDither.slang" "${SHADER_ROOT}/WeatherMedia.slang" "${SHADER_ROOT}/CloudShadow.slang" "${SHADER_ROOT}/SkyRecords.slang" "${SHADER_ROOT}/MoonRecords.slang" "${SHADER_ROOT}/PostRecords.slang" "${CMAKE_SOURCE_DIR}/Engine/DisplayPresentation/LensFlareKernel.h" "${SHADER_ROOT}/SceneRecords.slang" "${SHADER_ROOT}/RayGeneration.slang" "${SHADER_ROOT}/TraversalCWBVH.slang"
                     "${SHADER_ROOT}/InterfaceRecords.slang" "${SHADER_ROOT}/InterfaceSignedDistance.slang"
                     "${SHADER_ROOT}/ShadowRecords.slang" "${SHADER_ROOT}/ShadowSample.slang"
                     "${SHADER_ROOT}/OutlineRecords.slang" "${SHADER_ROOT}/GizmoRecords.slang")
 set(SHADER_TABLE
     "FluidExtract.slang|compute|FluidExtract.spv"
     "GasVolumeRaymarch.slang|compute|GasVolumeRaymarch.spv"
+    "SmokeTransport.slang|compute|SmokeTransport.spv"
+    "SmokeViewport.slang|compute|SmokeViewport.spv"
     "../../Projects/Project-Fluid/Shaders/ParticleClear.slang|compute|FluidParticleClear.spv"
     "../../Projects/Project-Fluid/Shaders/ParticleSplat.slang|compute|FluidParticleSplat.spv"
     "../../Projects/Project-Fluid/Shaders/SurfaceResolve.slang|compute|FluidSurfaceResolve.spv"
@@ -205,6 +207,8 @@ set(FRONTIER_ENGINE_SOURCES
     Engine/ContentInterchange/ShaderBallGeometry.cpp
     Engine/ContentInterchange/AssetResolution.cpp
     Engine/ContentInterchange/MaterialSwatchStructure.cpp
+    Engine/ContentInterchange/VehicleStructure.cpp
+    Engine/PhysicalDynamics/Vehicle/VehicleGeometry.cpp
     Engine/ContentInterchange/FbxCodec.cpp
     Engine/ContentInterchange/ObjCodec.cpp
     Engine/ContentInterchange/ContentCodec.cpp
@@ -319,6 +323,7 @@ set(FRONTIER_HOST_SOURCES
     Engine/Host/FlyThroughSolver.cpp
     Engine/Host/EditorFeedSequence.cpp
     Engine/DeviceExchange/SwapchainExchange.cpp
+    Engine/DeviceExchange/SmokeExchange.cpp
     Engine/DeviceExchange/RayQueryExchange.cpp
     Engine/GeometricRaster/DistanceFieldStructure.cpp
     Engine/DeviceExchange/DistanceFieldGIStage.cpp
@@ -405,7 +410,16 @@ if(WIN32)
 endif()
 
 # Project code images contain project semantics only. They do not compile the window, device, renderer, editor, or host.
-add_library(ProjectZero SHARED Projects/Project-Zero/Source/ProjectZeroInterchange.cpp)
+file(READ "${CMAKE_SOURCE_DIR}/Projects/Project-Zero/Build/ZeroSimulationSources.json" ZeroSimulationManifest)
+set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${CMAKE_SOURCE_DIR}/Projects/Project-Zero/Build/ZeroSimulationSources.json")
+string(JSON ZeroSimulationCount LENGTH "${ZeroSimulationManifest}" sources)
+math(EXPR ZeroSimulationLast "${ZeroSimulationCount} - 1")
+foreach(Slot RANGE 0 ${ZeroSimulationLast})
+    string(JSON Source GET "${ZeroSimulationManifest}" sources ${Slot})
+    list(APPEND ZERO_CODE_IMAGE "${Source}")
+endforeach()
+add_library(ProjectZero SHARED ${ZERO_CODE_IMAGE})
+target_include_directories(ProjectZero PRIVATE ${Vulkan_INCLUDE_DIRS} ${CMAKE_SOURCE_DIR}/ExternalPackages/vulkan-headers/include)
 include(Projects/Project-Drive/Build/ProjectDrive.cmake)
 foreach(ProjectCodeImage IN ITEMS ProjectZero ProjectDrive)
     target_include_directories(${ProjectCodeImage} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/Engine/ProjectInterchange)

@@ -20,6 +20,7 @@ struct DistanceFieldStageInit
     VkDescriptorSetLayout            ShadowDescriptorLayout = VK_NULL_HANDLE;
     uint32_t                         QueueFamily            = 0u;
     uint32_t                         CycleSlotCount         = 2u;
+    VkImageView                      LinearImageView        = VK_NULL_HANDLE;
     VkImageView                      OutputImageView        = VK_NULL_HANDLE;
     VkImageView                      SurfaceImageView       = VK_NULL_HANDLE;
     VkImageView                      NormalImageView        = VK_NULL_HANDLE;

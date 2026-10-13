@@ -49,3 +49,29 @@ def RestoreVulkanHeaders():
         Input.extractall(Destination)
     assert (Include / "vulkan/vulkan.h").exists()
     return Include
+
+
+def RestoreProofDependency(Name):
+    """Restore one hash-locked source dependency into disposable native-proof storage."""
+    Entries = json.loads((Root / "ExternalPackages/Dependencies.lock.json").read_text())["packages"]
+    Specification = next(Entry for Entry in Entries if Entry["name"] == Name)
+    Destination = Root / "_AgentScratch/tmp/Dependencies"
+    Folder = Destination / (Name + "-" + Specification["revision"])
+    if Folder.exists():
+        return Folder
+    Destination.mkdir(parents=True, exist_ok=True)
+    Compressed = Destination / (Name + ".tar.gz")
+    if not Compressed.exists() or hashlib.sha256(Compressed.read_bytes()).hexdigest() != Specification["sha256"]:
+        Compressed.write_bytes(urllib.request.urlopen(Specification["url"], timeout=60).read())
+    assert hashlib.sha256(Compressed.read_bytes()).hexdigest() == Specification["sha256"]
+    with tarfile.open(Compressed) as Input:
+        Members = Input.getmembers()
+        Top = Members[0].name.split("/")[0]
+        for Member in Members:
+            assert not Path(Member.name).is_absolute() and ".." not in Path(Member.name).parts
+        # Source archives are locked; do not materialize archive links in disposable proof storage.
+        Input.extractall(Destination, members=[Member for Member in Members if not Member.issym() and not Member.islnk()])
+    Extracted = Destination / Top
+    if Extracted != Folder:
+        Extracted.rename(Folder)
+    return Folder

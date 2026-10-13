@@ -31,7 +31,8 @@ CMakeFile='CMakeLists.txt'
 # 2026-10-01: Projects/Project-Zero/Build/ToolchainSequence.ps1 is now a forwarding shim to the root script.
 #    Parsing the shim found no $EngineRelative at all and reported every CMake TU as missing.
 Ps1File='Tools/Build/ToolchainSequence.ps1'
-Work="$(mktemp -d /tmp/BuildSourceList.XXXXXX)"
+mkdir -p _AgentScratch/tmp
+Work="$(mktemp -d "$PWD/_AgentScratch/tmp/BuildSourceList.XXXXXX")"
 trap 'rm -rf "$Work"' EXIT
 
 Failures=0
@@ -48,7 +49,7 @@ CmakeList() { # $1 = variable name
         | sed 's/^[[:space:]]*//; s/[[:space:]]*$//' | tr '/' '\\' | sort -u
 }
 CmakeList FRONTIER_ENGINE_SOURCES  > "$Work/cmake_engine.txt"
-CmakeList PROJECT_ZERO_SOURCES     > "$Work/cmake_project.txt"
+: > "$Work/cmake_project.txt" # ProjectZero is a separate code image, not a second host-source batch.
 # 2026-10-01: FRONTIER_HOST_SOURCES was never read, so TUs the Frontier target compiles only from that block
 #    (ShaderballPreview.cpp among them) looked absent from CMake and check ⑤ failed on a tree that was correct.
 CmakeList FRONTIER_HOST_SOURCES    > "$Work/cmake_host.txt"
@@ -114,6 +115,8 @@ Engine\PhysicalDynamics\Vehicle\TyreSlipDynamics.cpp|Project-Drive vehicle stack
 Engine\PhysicalDynamics\Vehicle\VehicleGeometry.cpp|Project-Drive vehicle stack: no image links it yet
 Engine\PhysicalDynamics\Vehicle\VehicleSolver.cpp|Project-Drive vehicle stack: no image links it yet
 Engine\PhysicalDynamics\Vehicle\XPBDSoftTyre.cpp|Project-Drive vehicle stack: no image links it yet
+Engine\DisplayPresentation\ChaseCameraSolver.cpp|shared mechanism linked by explicit Drive/Zero DLL simulation rosters
+Engine\PhysicalDynamics\Vehicle\VehicleInstanceSequence.cpp|shared mechanics linked by explicit Drive/Zero DLL simulation rosters
 Engine\DisplayPresentation\DistanceFieldIntegrator.cpp|CPU offline reference integrator for distance field GI
 Engine\GeometricRaster\DistanceFieldBakeSolver.cpp|CPU offline distance field baker
 Engine\GeometricRaster\DistanceFieldSpace.cpp|CPU local distance field volume representation

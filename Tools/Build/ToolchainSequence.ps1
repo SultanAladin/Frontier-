@@ -379,6 +379,8 @@ function Resolve-ShaderCompiler([string] $VulkanRoot)
 $ShaderTable = @(
     @{ Source = 'FluidExtract.slang'; Stage = 'compute'; Output = 'FluidExtract.spv' }
     @{ Source = 'GasVolumeRaymarch.slang'; Stage = 'compute'; Output = 'GasVolumeRaymarch.spv' }
+    @{ Source = 'SmokeTransport.slang'; Stage = 'compute'; Output = 'SmokeTransport.spv' }
+    @{ Source = 'SmokeViewport.slang'; Stage = 'compute'; Output = 'SmokeViewport.spv' }
     @{ Source = '../../Projects/Project-Fluid/Shaders/ParticleClear.slang'; Stage = 'compute'; Output = 'FluidParticleClear.spv' }
     @{ Source = '../../Projects/Project-Fluid/Shaders/ParticleSplat.slang'; Stage = 'compute'; Output = 'FluidParticleSplat.spv' }
     @{ Source = '../../Projects/Project-Fluid/Shaders/SurfaceResolve.slang'; Stage = 'compute'; Output = 'FluidSurfaceResolve.spv' }
@@ -416,7 +418,7 @@ $ShaderTable = @(
     @{ Source = 'GizmoRaster.vert.slang';      Stage = 'vertex';   Output = 'GizmoRaster.vert.spv' }
     @{ Source = 'GizmoRaster.frag.slang';      Stage = 'fragment'; Output = 'GizmoRaster.frag.spv' }
 )
-$ShaderIncludeNames = @('ViewportIntegrator.slang', 'RayQueryTraversal.slang', 'DistanceFieldGatherBody.slang', 'DistanceFieldCaptureBody.slang', 'DistanceFieldMaterial.slang', 'DistanceFieldTransport.slang', 'DistanceFieldGIResolveBody.slang', 'SceneMaterialResolve.slang', 'DistanceFieldRecords.slang', 'GlobalDistanceField.slang', 'SurfaceCacheRecords.slang', 'PatchSelection.slang', 'PatchPolicy.shared.h', 'PresentationDither.slang', 'SceneRecords.slang', 'RayGeneration.slang', 'TraversalCWBVH.slang', 'InterfaceRecords.slang', 'InterfaceSignedDistance.slang', 'SkyRecords.slang', 'MoonRecords.slang', 'PostRecords.slang', 'CloudShadow.slang', 'WeatherMedia.slang', 'MaterialEvaluation.slang', 'ShadowRecords.slang', 'ShadowSample.slang', 'OutlineRecords.slang', 'GizmoRecords.slang')
+$ShaderIncludeNames = @('SmokeIntegrator.slang', 'ViewportIntegrator.slang', 'RayQueryTraversal.slang', 'DistanceFieldGatherBody.slang', 'DistanceFieldCaptureBody.slang', 'DistanceFieldMaterial.slang', 'DistanceFieldTransport.slang', 'DistanceFieldGIResolveBody.slang', 'SceneMaterialResolve.slang', 'DistanceFieldRecords.slang', 'GlobalDistanceField.slang', 'SurfaceCacheRecords.slang', 'PatchSelection.slang', 'PatchPolicy.shared.h', 'PresentationDither.slang', 'SceneRecords.slang', 'RayGeneration.slang', 'TraversalCWBVH.slang', 'InterfaceRecords.slang', 'InterfaceSignedDistance.slang', 'SkyRecords.slang', 'MoonRecords.slang', 'PostRecords.slang', 'CloudShadow.slang', 'WeatherMedia.slang', 'MaterialEvaluation.slang', 'ShadowRecords.slang', 'ShadowSample.slang', 'OutlineRecords.slang', 'GizmoRecords.slang')
 
 function Invoke-ShaderLowering([string] $VulkanRoot)
 {
@@ -600,6 +602,7 @@ $EngineRelative = @(
     #    renamed/deleted entry; `Tools/Build/CheckBuildSourceList.sh` catches an absent one and holds the CMake
     #    agreement, so run it with any build-system change.
     'Engine\DeviceExchange\SwapchainExchange.cpp'
+    'Engine\DeviceExchange\SmokeExchange.cpp'
     'Engine\DeviceExchange\RayQueryExchange.cpp'
     'Engine\GeometricRaster\DistanceFieldStructure.cpp'
     'Engine\DeviceExchange\DistanceFieldGIStage.cpp'
@@ -673,6 +676,8 @@ $EngineRelative = @(
     'Engine\ContentInterchange\ShaderBallGeometry.cpp'
     'Engine\ContentInterchange\AssetResolution.cpp'
     'Engine\ContentInterchange\MaterialSwatchStructure.cpp'
+    'Engine\ContentInterchange\VehicleStructure.cpp'
+    'Engine\PhysicalDynamics\Vehicle\VehicleGeometry.cpp'
     'Engine\ContentInterchange\FbxCodec.cpp'
     'Engine\ContentInterchange\ObjCodec.cpp'
     'Engine\ContentInterchange\ContentCodec.cpp'
@@ -906,7 +911,8 @@ function Invoke-ProjectCodeImage
     Write-Produced $ImagePath
 }
 
-Invoke-ProjectCodeImage 'Project-Zero' 'ProjectZero' 'Projects\\Project-Zero\\Source\\ProjectZeroInterchange.cpp'
+$ZeroSimulation = Get-Content (Join-Path $RepositoryRoot 'Projects/Project-Zero/Build/ZeroSimulationSources.json') -Raw | ConvertFrom-Json
+Invoke-ProjectCodeImage 'Project-Zero' 'ProjectZero' $ZeroSimulation.sources
 $DriveSimulation = Get-Content (Join-Path $RepositoryRoot 'Projects/Project-Drive/Build/DriveSimulationSources.json') -Raw | ConvertFrom-Json
 Invoke-ProjectCodeImage 'Project-Drive' 'ProjectDrive' $DriveSimulation.sources
 

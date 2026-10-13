@@ -1,0 +1,52 @@
+{
+  "command": [
+    "g++",
+    "-std=c++20",
+    "-O2",
+    "-UNDEBUG",
+    "-ffunction-sections",
+    "-fdata-sections",
+    "-I/home/user/Frontier-/Engine",
+    "-I/home/user/Frontier-/_AgentScratch/tmp/Dependencies/Vulkan-Headers-b379292b2ab6df5771ba9870d53cf8b2c9295daf/include",
+    "/home/user/Frontier-/Projects/Project-Drive/Source/VehicleInstanceSequence.cpp",
+    "/home/user/Frontier-/Engine/PhysicalDynamics/Vehicle/VehicleInstanceSequence.cpp",
+    "/home/user/Frontier-/Engine/DisplayPresentation/ChaseCameraSolver.cpp",
+    "/home/user/Frontier-/Engine/PhysicalDynamics/Vehicle/VehicleSolver.cpp",
+    "/home/user/Frontier-/Engine/PhysicalDynamics/Vehicle/VehicleGeometry.cpp",
+    "/home/user/Frontier-/Engine/PhysicalDynamics/Vehicle/XPBDSoftTyre.cpp",
+    "/home/user/Frontier-/Engine/PhysicalDynamics/Vehicle/Drivetrain.cpp",
+    "/home/user/Frontier-/Engine/PhysicalDynamics/Vehicle/Aerodynamics.cpp",
+    "/home/user/Frontier-/Engine/PhysicalDynamics/Vehicle/PacejkaMagicFormula.cpp",
+    "/home/user/Frontier-/Engine/PhysicalDynamics/Vehicle/TyreSlipDynamics.cpp",
+    "/home/user/Frontier-/Engine/GeometricRaster/CameraProjection.cpp",
+    "/home/user/Frontier-/Engine/DeviceExchange/OrientationClassifier.cpp",
+    "/home/user/Frontier-/Exhibits/Workbench/Automotive/DriveDynamicsProof.cpp",
+    "-o",
+    "/home/user/Frontier-/_AgentScratch/build/DriveDynamics/DriveDynamicsProof"
+  ],
+  "sources": {
+    "Projects/Project-Drive/Source/VehicleInstanceSequence.cpp": "1fcfd3038d019fe9b922d071f7885ab47ad338447fdb7851d461c3a36df6622b",
+    "Engine/PhysicalDynamics/Vehicle/VehicleInstanceSequence.cpp": "4ef2bd324cd7d747ff4f55d2c78460cefa17ab62d48ceac183d00053d5751e54",
+    "Engine/DisplayPresentation/ChaseCameraSolver.cpp": "b37e0659b2851255211c6087f113ab0a44afba062fd445fc0431e53ac2b0afb0",
+    "Engine/PhysicalDynamics/Vehicle/VehicleSolver.cpp": "abb417d7a7df4cb43bf658c765f80e55d033cb3b1421a148725e3a176d75b9fd",
+    "Engine/PhysicalDynamics/Vehicle/VehicleGeometry.cpp": "11623b3c30cda53e2059ff32c49355cd32ed35901b9c8fd83bc6dd809b93f282",
+    "Engine/PhysicalDynamics/Vehicle/XPBDSoftTyre.cpp": "c29bac7aa2a460e11e245ade6f8fe061a272195318756ab2ddf32a5da0191843",
+    "Engine/PhysicalDynamics/Vehicle/Drivetrain.cpp": "2c8b4fccf03aa7a7c0dfb0439a80c8cdccdb57252343b61f89bba39748283446",
+    "Engine/PhysicalDynamics/Vehicle/Aerodynamics.cpp": "5892828fddbe4148409a3a7ef7d52829f37d5b0b983aef427fcbc737264d5e0b",
+    "Engine/PhysicalDynamics/Vehicle/PacejkaMagicFormula.cpp": "eb267d4913c987adb789b86173db4f65365677776f16c2b6f8a27b939c535773",
+    "Engine/PhysicalDynamics/Vehicle/TyreSlipDynamics.cpp": "611282b76022c39d7dbfb9ca6177107f41fb9f563dddb10148e7b5616283b102",
+    "Engine/GeometricRaster/CameraProjection.cpp": "86e74d83cd1627a6a9529390493af15c582a65b12e4b6db621f1bc042b75a74b",
+    "Engine/DeviceExchange/OrientationClassifier.cpp": "b615eaa69802aad11e974d50fd10cbe929be602f88b1d8b293699f72473f1fd1",
+    "Exhibits/Workbench/Automotive/DriveDynamicsProof.cpp": "a178f950f3524aa20b83c57c79e2806da3da16d3d8eeb14599e80e85fc73cbb6"
+  },
+  "gpuExecution": false,
+  "windowsExecution": false,
+  "sanitized": false,
+  "traces": {
+    "settled.csv": "de3c6c6bf1f95e8cd0cbc9f6691aaf871ed4827789e95f19752ca7f9fd19df0d",
+    "kerb.csv": "dd8a7afc06b8e29d62b0215710d025b44f74091ddcf88106b526e79bcce75dc2",
+    "airborne.csv": "c9a6b40ac06cea2594bb9cbeff5e0280f4165685ffb11f8e8fdda961c6f92455",
+    "rollover.csv": "2ef8bd34e6ab8564dc70f2c61576b0d5178751ee63eb9dfafc3c5fdb98f5ffd1",
+    "landing.csv": "8f7ce473f069272c6ae740c2c13b35dae8be8aa05b3ac04602a118406923843c"
+  }
+}

@@ -90,3 +90,8 @@ clean:
 
 .PHONY: all clean
 # .staged-denoise holds generated headers (StageAtrousDenoise.py output) — never committed.
+
+# Actual car, actual ProjectZero.dll and the shared Vulkan volume facility, not a project-owned renderer.
+.PHONY: zero-smoke-native
+zero-smoke-native:
+	cd ../../.. && python3 Tools/Tests/RunZeroSmokeExhibit.py --compiler $(CXX)

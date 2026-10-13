@@ -1,0 +1,32 @@
+{
+  "sources": [
+    "VisualProof/SmokeSequence/ZeroViewportMetrics.cpp",
+    "Engine/DeviceExchange/SmokeExchange.cpp",
+    "Engine/ProjectInterchange/ProjectSpecification.cpp",
+    "Engine/ProjectInterchange/CodeInterchange.cpp",
+    "Engine/ContentInterchange/VehicleStructure.cpp",
+    "Engine/ContentInterchange/SceneCodec.cpp",
+    "Engine/ContentInterchange/MaterialCodec.cpp",
+    "Engine/ContentInterchange/MaterialIndex.cpp",
+    "Engine/ContentInterchange/TextureIndex.cpp",
+    "Engine/ContentInterchange/AssetResolution.cpp",
+    "Engine/GeometricRaster/SceneStructure.cpp",
+    "Engine/GeometricRaster/GeometryStructure.cpp",
+    "Engine/GeometricRaster/InstanceAcceleration.cpp",
+    "Engine/GeometricRaster/VisibilityRaster.cpp",
+    "Engine/GeometricRaster/DistanceFieldStructure.cpp",
+    "Engine/GeometricRaster/StarCatalogueIndex.cpp",
+    "Engine/PhysicalDynamics/Vehicle/VehicleGeometry.cpp",
+    "Engine/DeviceExchange/OrientationClassifier.cpp",
+    "Engine/DisplayPresentation/ShadingTableCodec.cpp",
+    "Engine/DisplayPresentation/CelestialSolver.cpp"
+  ],
+  "includes": [
+    "Engine",
+    "Engine/Shaders",
+    "Engine/GeometricRaster",
+    "Engine/DeviceExchange",
+    "Engine/ContentInterchange",
+    "Engine/DisplayPresentation"
+  ]
+}

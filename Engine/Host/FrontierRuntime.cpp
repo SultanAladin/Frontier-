@@ -44,6 +44,7 @@
 #include "../../Projects/Project-Fluid/Source/GpuSurfaceExtractor.h"
 int RunProjectFluidPreview();
 #include "../ContentInterchange/MaterialSwatchStructure.h"
+#include "../ContentInterchange/VehicleStructure.h"
 #include "ShowroomStructure.h"
 #include "EditorFeedSequence.h"
 #include "EditorInspectorSequence.h"
@@ -275,6 +276,19 @@ int Frontier::RunFrontierRuntime(
         }
         // M10 material library level. Same export-once-then-import discipline: the swatch level is generated headless
         //    (MaterialSwatchStructure) and every later run reads the file like any other level.
+        if (ScenePath.find("Vehicle.gltf") != std::string::npos && !std::filesystem::exists(ScenePath))
+        {
+            std::filesystem::create_directories(std::filesystem::path(ScenePath).parent_path());
+            Frontier::VehicleStructure VehicleContent;
+            VehicleContent.Construct();
+            std::string Explanation;
+            if (!VehicleContent.Export(ScenePath, Explanation))
+            {
+                Logger.RecordMessage(Frontier::DiagnosticSeverity::Refusal, "Vehicle opening", Explanation.c_str());
+                return 1;
+            }
+        }
+
         const bool IsMaterials = ScenePath.find("Materials.gltf") != std::string::npos;
         if (IsMaterials && !std::filesystem::exists(ScenePath, FsError))
         {
@@ -1866,7 +1880,12 @@ int Frontier::RunFrontierRuntime(
             Logger.RecordMessage(Frontier::DiagnosticSeverity::Refusal, "Project smoke", ProjectRefusal.c_str());
             break;
         }
-        // 📝 These are host-owned coarse snapshots; fine GPU residency/depth-aware composition is a separate stage.
+        if ((ProjectSmoke.QueryReading().Extent == 0u || ProjectSmoke.QueryTransport().Extent != 0u) &&
+            !Surface.CaptureSmoke(ProjectSmoke.QueryReading(), ProjectSmoke.QueryTransport()))
+        {
+            Logger.RecordMessage(Frontier::DiagnosticSeverity::Refusal, "Smoke presentation", Surface.QuerySmokeRefusal().c_str());
+            break;
+        }
         ProjectMoved = ProjectMoved || GeometryChanged;
         if (Transport == 0u && PreviousTransport != 0u)
         {

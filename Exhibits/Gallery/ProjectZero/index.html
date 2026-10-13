@@ -1,0 +1,64 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Project-Zero · actual car, tyre smoke and fire</title><style>
+:root{color-scheme:dark;font-family:Inter,Segoe UI,Arial,sans-serif;background:#0c1118;color:#e8eef4}
+*{box-sizing:border-box}body{margin:0}main{max-width:1160px;margin:auto;padding:56px 28px 40px}
+.eyebrow{text-transform:uppercase;font-size:12px;letter-spacing:.2em;color:#a4b2bf}h1{font-size:clamp(32px,5vw,55px);line-height:1.08;font-weight:620;margin:15px 0 22px;letter-spacing:-.035em}
+.intro{max-width:810px;color:#b6c5d3;line-height:1.7;font-size:16px}code{color:#d8eaae}.toolbar{display:flex;gap:14px;align-items:center;flex-wrap:wrap;margin:26px 0 38px}
+button,a{color:#cce0b0}button{background:#1b2836;border:1px solid #354b61;border-radius:8px;padding:10px 16px;cursor:pointer}.note{font-size:13px;color:#98aabc}
+.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:24px}.card{overflow:hidden;background:#151e29;border:1px solid #2b3949;border-radius:12px}
+.media{position:relative;background:#5b626b}video{display:block;width:100%;aspect-ratio:8/5}.badge{position:absolute;top:14px;left:14px;background:#10161ee6;color:#d7e1eb;padding:6px 9px;border-radius:5px;font-size:11px;pointer-events:none}
+.card-body{padding:23px}h2{font-size:20px;margin:0 0 10px}.card p{min-height:70px;font-size:14px;line-height:1.55;color:#aebfcf}.stats{display:grid;grid-template-columns:1fr 1fr;gap:15px;margin:22px 0;font-size:11px;color:#99acbf}.stats b{display:block;color:#e6eef6;margin-top:5px;font-size:17px}
+.card a{font-size:12px}.boundary{margin-top:35px;padding:24px;border-left:3px solid #738856;background:#151e29;font-size:13px;line-height:1.7;color:#afbfce}.boundary h2{font-size:16px;color:#e8eef4}
+footer{font-size:12px;color:#8094a8;margin-top:25px}@media(max-width:750px){.grid{grid-template-columns:1fr}main{padding:30px 18px}.card p{min-height:0}}
+</style></head><body><main><div class="eyebrow">Frontier / Project-Zero / native evidence</div>
+<h1>The actual car.<br>Real mechanics. World-space smoke.</h1>
+<p class="intro">The authored <b>ControlVehicle</b> is decoded as a 3D scene and simulated by the actual <code>ProjectZero.dll</code>.
+XPBD carcass contact, Pacejka powered response, thermal pressure and tyre fuel drive the sources.
+The shared Vulkan facility advects a fine world volume and clips its linear-radiance resolve against the actual scene surface.</p>
+<div class="toolbar"><button id="pause">Pause all clips</button><span class="note">All clips start paused. Playing one pauses the others.</span>
+<a href="metrics/NativeProof.json">Execution certificate</a><a href="metrics/PlaybackAudit.json">Playback audit</a></div><section class="grid"><article class="card" id="combined-drift">
+      <div class="media"><video controls preload="none" muted loop playsinline poster="pictures/combined-drift.png" aria-label="Combined-slip drift">
+        <source src="motion/combined-drift.mp4" type="video/mp4"></video><span class="badge">Native 3D · 6 seconds</span></div>
+      <div class="card-body"><h2>Combined-slip drift</h2><p>One initial velocity seed; actual powered/coast contact, per-wheel heat and world-space tyre smoke.</p>
+      <div class="stats"><span>Peak wheel sliding <b>120.7 kW</b></span><span>Fine storage <b>4.52 MiB</b></span>
+      <span>World scrolls <b>3</b></span><span>Tread peak <b>42.6 °C</b></span></div>
+      <a href="metrics/combined-drift.csv" download>Native measurements CSV</a></div></article>
+<article class="card" id="turning-drift">
+      <div class="media"><video controls preload="none" muted loop playsinline poster="pictures/turning-drift.png" aria-label="Turning drift">
+        <source src="motion/turning-drift.mp4" type="video/mp4"></video><span class="badge">Native 3D · 6 seconds</span></div>
+      <div class="card-body"><h2>Turning drift</h2><p>Steering and a short rear-brake input; the car changes heading while emitted gas keeps its world orientation.</p>
+      <div class="stats"><span>Peak wheel sliding <b>100.2 kW</b></span><span>Fine storage <b>4.52 MiB</b></span>
+      <span>World scrolls <b>5</b></span><span>Tread peak <b>49.4 °C</b></span></div>
+      <a href="metrics/turning-drift.csv" download>Native measurements CSV</a></div></article>
+<article class="card" id="scrolling-drift">
+      <div class="media"><video controls preload="none" muted loop playsinline poster="pictures/scrolling-drift.png" aria-label="Whole-cell scrolling">
+        <source src="motion/scrolling-drift.mp4" type="video/mp4"></video><span class="badge">Native 3D · 6 seconds</span></div>
+      <div class="card-body"><h2>Whole-cell scrolling</h2><p>A faster physical seed crosses the guard region. Retained gas is scrolled by whole cells, not carried with the chassis.</p>
+      <div class="stats"><span>Peak wheel sliding <b>278.3 kW</b></span><span>Fine storage <b>4.52 MiB</b></span>
+      <span>World scrolls <b>9</b></span><span>Tread peak <b>127.2 °C</b></span></div>
+      <a href="metrics/scrolling-drift.csv" download>Native measurements CSV</a></div></article>
+<article class="card" id="diagnostic-ignition">
+      <div class="media"><video controls preload="none" muted loop playsinline poster="pictures/diagnostic-ignition.png" aria-label="Heat-driven tyre fire">
+        <source src="motion/diagnostic-ignition.mp4" type="video/mp4"></video><span class="badge">Native 3D · 6 seconds</span></div>
+      <div class="card-body"><h2>Heat-driven tyre fire</h2><p>Explicit visual diagnostic: 100 J/K tread capacity, 315 K ignition, 310 K extinction and 0.2 s exposure. Production thresholds are unchanged.</p>
+      <div class="stats"><span>Peak wheel sliding <b>120.7 kW</b></span><span>Fine storage <b>4.52 MiB</b></span>
+      <span>World scrolls <b>3</b></span><span>Tread peak <b>289.1 °C</b></span></div>
+      <a href="metrics/diagnostic-ignition.csv" download>Native measurements CSV</a></div></article>
+<article class="card" id="holding">
+      <div class="media"><video controls preload="none" muted loop playsinline poster="pictures/holding.png" aria-label="Stationary holding">
+        <source src="motion/holding.mp4" type="video/mp4"></video><span class="badge">Native 3D · 6 seconds</span></div>
+      <div class="card-body"><h2>Stationary holding</h2><p>Static support produces no sliding heat, no friction smoke and zero acquired fine-domain bytes.</p>
+      <div class="stats"><span>Peak wheel sliding <b>0 W</b></span><span>Fine storage <b>0.00 MiB</b></span>
+      <span>World scrolls <b>0</b></span><span>Tread peak <b>20.0 °C</b></span></div>
+      <a href="metrics/holding.csv" download>Native measurements CSV</a></div></article></section>
+<section class="boundary"><h2>What was actually executed</h2>
+<p>Actual Project-Zero DLL, actual authored 3D geometry and live tyre geometry, the engine's diagnostic CPU visibility raster,
+and the production Vulkan fine-transport/viewport shaders on <b>SwiftShader software Vulkan</b>. These are not 2D density projections or a substitute car.</p>
+<p><b>Device checks:</b> per-tick batch equivalence, exact three-axis GPU relocation, world-yaw independence, caller-owned snapshot lifetime,
+rapid restart reuse, malformed-payload refusal, measured 64/128 storage and full retirement. The clips also assert opaque-depth interception and paused revision reuse.</p>
+<p><b>Boundary:</b> software-device timestamps are not hardware-GPU frame budgets. The full windowed Frontier executable was not run here.
+The flame clip deliberately shortens ignition settings; an additional thermal test exercises the untouched 623.15 K / 4 s production settings.
+Appearance is art-directed, not a calibrated Planck spectrum. Empirical compound calibration and deformed tyre SDFs are not claimed.</p></section>
+<footer>Recorded 13 October 2026 · 240 Hz physics · 60 Hz gas · 10 Hz diagnostic captures · one on-demand world domain per car</footer>
+</main><script>const clips=[...document.querySelectorAll('video')];for(const clip of clips){clip.pause();clip.addEventListener('play',()=>{for(const other of clips)if(other!==clip)other.pause()})}
+document.getElementById('pause').addEventListener('click',()=>clips.forEach(clip=>clip.pause()));</script></body></html>

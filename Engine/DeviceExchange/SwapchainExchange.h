@@ -14,6 +14,7 @@
 #include "OrientationClassifier.h"
 #include "VisibilityExchange.h"
 #include "DistanceFieldGIStage.h"
+#include "SmokeExchange.h"
 #include "TriangleSpan.h"
 #include <cstdint>
 #include <string>
@@ -332,6 +333,10 @@ public:
     //    image — VisibilityExchange::RecordSelectionOutline). Count 0 turns the stroke off.
     void                        AssignSelectionOutline(const uint32_t* PickedInstances, uint32_t PickedCount) noexcept;
 
+    bool CaptureSmoke(const FrontierProjectSmokeReading& Scalar, const FrontierSmokeTransportReading& Transport);
+    const std::string& QuerySmokeRefusal() const noexcept { return TyreSmoke.QueryRefusal(); }
+    const SmokeDeviceMetrics& QuerySmokeMetrics() const noexcept { return TyreSmoke.QueryMetrics(); }
+
     void                        RecordAndPresent(const DispatchConfiguration& Dispatch) noexcept;
     [[nodiscard]] bool          QueryFrameFailed() const noexcept { return FrameFailed; }
     [[nodiscard]] const char*   QueryFrameFailureOperation() const noexcept { return FrameFailureOperation; }
@@ -468,6 +473,8 @@ private:
     bool                   SceneUploadInProgress = false;
     void                   RefreshMaterialDescriptors() noexcept;
     DistanceFieldStructure DistanceGeometry;
+    SmokeExchange          TyreSmoke;
+    bool                   SmokeDeviceConstructed = false;
     DistanceFieldGIStage    DistanceFieldStage;  // [-]   shared non-raytraced distance-field GI route (RenderPath == 1)
     std::vector<VkImageView> DistanceTextureViews; // borrowed texture views survive descriptor reseating
     bool                    DistanceGeometryResident = false;

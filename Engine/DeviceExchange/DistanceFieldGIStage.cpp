@@ -21,7 +21,7 @@ bool DistanceFieldGIStage::Bring(const DistanceFieldStageInit& Input) noexcept
         Input.Geometry->QuerySamples().empty() || Input.Geometry->QueryPlacements().empty() || !Input.OutputImageView ||
         !Input.SurfaceImageView || !Input.NormalImageView || !Input.TriangleBuffer || !Input.MaterialBuffer ||
         !Input.InstanceBuffer || !Input.SlabBuffer || !Input.VertexBuffer || !Input.IndexBuffer || !Input.TableSampler ||
-        !Input.EnergyLutView || !Input.SheenLutView || !Input.ShadowDescriptorLayout ||
+        !Input.LinearImageView || !Input.EnergyLutView || !Input.SheenLutView || !Input.ShadowDescriptorLayout ||
         !Input.ImageWidth || !Input.ImageHeight || Input.CardResolution < 2u || Input.CardResolution > 32u ||
         Input.CycleSlotCount < 1u || Input.CycleSlotCount > 3u ||
         (Input.TextureCapacity && (!Input.TextureCount || !Input.TextureViews || !Input.TextureSampler ||
@@ -63,7 +63,7 @@ bool DistanceFieldGIStage::Bring(const DistanceFieldStageInit& Input) noexcept
         if (!(Format.optimalTilingFeatures & VK_FORMAT_FEATURE_STORAGE_IMAGE_BIT) ||
             CardWidth > Properties.limits.maxImageDimension2D || CardHeight > Properties.limits.maxImageDimension2D ||
             Input.ImageWidth > Properties.limits.maxImageDimension2D || Input.ImageHeight > Properties.limits.maxImageDimension2D ||
-            Properties.limits.maxPerStageDescriptorStorageImages < 10u ||
+            Properties.limits.maxPerStageDescriptorStorageImages < 11u ||
             VkDeviceSize(VoxelCount) * sizeof(DistanceFieldVoxelRecord) > Properties.limits.maxStorageBufferRange ||
             Input.Geometry->QueryFacets().size() * sizeof(DistanceFieldFacet) > Properties.limits.maxStorageBufferRange ||
             Input.Geometry->QueryPlacements().size() * sizeof(DistanceFieldPlacementRecord) > Properties.limits.maxStorageBufferRange)
@@ -179,7 +179,7 @@ bool DistanceFieldGIStage::ConstructPipelines()
     std::vector<VkDescriptorSetLayoutBinding> Descriptors;
     auto                                      Append = [&](uint32_t Slot, VkDescriptorType Type, uint32_t Count = 1u)
     { Descriptors.push_back({Slot, Type, Count, VK_SHADER_STAGE_COMPUTE_BIT, nullptr}); };
-    for (uint32_t Slot : {0u, 1u, 2u, 4u, 8u, 9u, 10u, 11u, 21u, 22u})
+    for (uint32_t Slot : {0u, 1u, 2u, 4u, 8u, 9u, 10u, 11u, 21u, 22u, 23u})
         Append(Slot, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE);
     for (uint32_t Slot : {3u, 5u, 6u, 7u, 15u, 16u, 17u, 18u, 19u, 20u})
         Append(Slot, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER);
@@ -246,7 +246,7 @@ bool DistanceFieldGIStage::WriteDescriptors()
 {
     const uint32_t             Capacity = std::max(1u, Initialization.TextureCapacity);
     VkDescriptorPoolSize       Sizes[]  = {{VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 20u},
-                                           {VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 20u},
+                                           {VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 22u},
                                            {VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 2u * (Capacity + 2u)}};
     VkDescriptorPoolCreateInfo Information{VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO};
     Information.maxSets       = 2u;
@@ -299,7 +299,8 @@ bool DistanceFieldGIStage::WriteDescriptors()
             {VK_NULL_HANDLE, CardViews[5], VK_IMAGE_LAYOUT_GENERAL},
             {VK_NULL_HANDLE, CardViews[6], VK_IMAGE_LAYOUT_GENERAL},
             {Initialization.TableSampler, Initialization.EnergyLutView, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL},
-            {Initialization.TableSampler, Initialization.SheenLutView, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL}};
+            {Initialization.TableSampler, Initialization.SheenLutView, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL},
+            {VK_NULL_HANDLE, Initialization.LinearImageView, VK_IMAGE_LAYOUT_GENERAL}};
         std::vector<VkWriteDescriptorSet> Writes;
         for (uint32_t Index = 0u; Index < 10u; ++Index)
         {
@@ -312,14 +313,14 @@ bool DistanceFieldGIStage::WriteDescriptors()
             Write.pBufferInfo     = &BufferInformation[Index];
             Writes.push_back(Write);
         }
-        const uint32_t ImageSlots[] = {0u, 1u, 2u, 4u, 10u, 8u, 9u, 11u, 21u, 22u, 13u, 14u};
-        for (uint32_t Index = 0u; Index < 12u; ++Index)
+        const uint32_t ImageSlots[] = {0u, 1u, 2u, 4u, 10u, 8u, 9u, 11u, 21u, 22u, 13u, 14u, 23u};
+        for (uint32_t Index = 0u; Index < 13u; ++Index)
         {
             VkWriteDescriptorSet Write{VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET};
             Write.dstSet          = Sets[Cycle];
             Write.dstBinding      = ImageSlots[Index];
             Write.descriptorCount = 1u;
-            Write.descriptorType  = Index < 10u ? VK_DESCRIPTOR_TYPE_STORAGE_IMAGE : VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+            Write.descriptorType  = (Index < 10u || Index == 12u) ? VK_DESCRIPTOR_TYPE_STORAGE_IMAGE : VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
             Write.pImageInfo      = &Images[Index];
             Writes.push_back(Write);
         }

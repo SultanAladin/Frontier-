@@ -1,0 +1,204 @@
+{
+  "passed": true,
+  "date": "2026-10-13",
+  "videoCount": 5,
+  "initialPaused": true,
+  "individualPlayback": true,
+  "exclusivePlayback": true,
+  "pauseAll": true,
+  "pageErrors": [],
+  "initial": [
+    {
+      "paused": true,
+      "autoplay": false,
+      "controls": true,
+      "poster": "http://127.0.0.1:8102/pictures/combined-drift.png"
+    },
+    {
+      "paused": true,
+      "autoplay": false,
+      "controls": true,
+      "poster": "http://127.0.0.1:8102/pictures/turning-drift.png"
+    },
+    {
+      "paused": true,
+      "autoplay": false,
+      "controls": true,
+      "poster": "http://127.0.0.1:8102/pictures/scrolling-drift.png"
+    },
+    {
+      "paused": true,
+      "autoplay": false,
+      "controls": true,
+      "poster": "http://127.0.0.1:8102/pictures/diagnostic-ignition.png"
+    },
+    {
+      "paused": true,
+      "autoplay": false,
+      "controls": true,
+      "poster": "http://127.0.0.1:8102/pictures/holding.png"
+    }
+  ],
+  "playback": [
+    [
+      {
+        "paused": false,
+        "time": 0.613854,
+        "readyState": 4,
+        "error": null
+      },
+      {
+        "paused": true,
+        "time": 0,
+        "readyState": 0,
+        "error": null
+      },
+      {
+        "paused": true,
+        "time": 0,
+        "readyState": 0,
+        "error": null
+      },
+      {
+        "paused": true,
+        "time": 0,
+        "readyState": 0,
+        "error": null
+      },
+      {
+        "paused": true,
+        "time": 0,
+        "readyState": 0,
+        "error": null
+      }
+    ],
+    [
+      {
+        "paused": true,
+        "time": 0.615916,
+        "readyState": 4,
+        "error": null
+      },
+      {
+        "paused": false,
+        "time": 0.61373,
+        "readyState": 4,
+        "error": null
+      },
+      {
+        "paused": true,
+        "time": 0,
+        "readyState": 0,
+        "error": null
+      },
+      {
+        "paused": true,
+        "time": 0,
+        "readyState": 0,
+        "error": null
+      },
+      {
+        "paused": true,
+        "time": 0,
+        "readyState": 0,
+        "error": null
+      }
+    ],
+    [
+      {
+        "paused": true,
+        "time": 0.615916,
+        "readyState": 4,
+        "error": null
+      },
+      {
+        "paused": true,
+        "time": 0.615633,
+        "readyState": 4,
+        "error": null
+      },
+      {
+        "paused": false,
+        "time": 0.612027,
+        "readyState": 4,
+        "error": null
+      },
+      {
+        "paused": true,
+        "time": 0,
+        "readyState": 0,
+        "error": null
+      },
+      {
+        "paused": true,
+        "time": 0,
+        "readyState": 0,
+        "error": null
+      }
+    ],
+    [
+      {
+        "paused": true,
+        "time": 0.615916,
+        "readyState": 4,
+        "error": null
+      },
+      {
+        "paused": true,
+        "time": 0.615633,
+        "readyState": 4,
+        "error": null
+      },
+      {
+        "paused": true,
+        "time": 0.614269,
+        "readyState": 4,
+        "error": null
+      },
+      {
+        "paused": false,
+        "time": 0.629024,
+        "readyState": 4,
+        "error": null
+      },
+      {
+        "paused": true,
+        "time": 0,
+        "readyState": 0,
+        "error": null
+      }
+    ],
+    [
+      {
+        "paused": true,
+        "time": 0.615916,
+        "readyState": 4,
+        "error": null
+      },
+      {
+        "paused": true,
+        "time": 0.615633,
+        "readyState": 4,
+        "error": null
+      },
+      {
+        "paused": true,
+        "time": 0.614269,
+        "readyState": 4,
+        "error": null
+      },
+      {
+        "paused": true,
+        "time": 0.631808,
+        "readyState": 4,
+        "error": null
+      },
+      {
+        "paused": false,
+        "time": 0.61051,
+        "readyState": 4,
+        "error": null
+      }
+    ]
+  ]
+}

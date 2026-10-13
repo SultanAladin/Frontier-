@@ -162,8 +162,9 @@ public:
                               unsigned char* Rgba, double& MeanLum) noexcept;
 
     [[nodiscard]] const std::vector<uint32_t>& QueryVisibility() const noexcept { return TriId_; }
-    [[nodiscard]] const std::vector<float>& QueryBarycentrics() const noexcept { return Bary_; }
+    // 📦 Resolved linear RGB, before diagnostic gamma or the presentation transfer; never a history/irradiance view.
     [[nodiscard]] const std::vector<float>& QueryLinearRadiance() const noexcept { return Acc_; }
+    [[nodiscard]] const std::vector<float>& QueryBarycentrics() const noexcept { return Bary_; }
 
 private:
     struct LumiTri

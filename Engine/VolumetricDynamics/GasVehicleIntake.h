@@ -119,6 +119,7 @@ inline GasEmission ResolveWheelSmoke(
         std::max(1.0f, Specification.SourcePowerFull - Specification.SourcePowerOnset), 0.0, 4.0) : 0.0;
     const double Warm = std::clamp((Wheel.Thermal.SurfaceTemperature - Wheel.Thermal.ReferenceTemperature) / 100.0, 0.0, 1.0);
     Emission.SmokeRate = Specification.DensityRate * static_cast<float>(Strength * (0.5 + 0.5 * Warm)) + (Burning ? 12.0f : 0.0f);
+    Emission.IncandescenceRate = Burning ? 12.0f : 0.0f;
     Emission.TemperatureRate = Specification.SmokeHeatRate * static_cast<float>(Strength) +
         (Burning ? static_cast<float>(Wheel.Thermal.CombustionPower) * Specification.FireHeatPowerScale : 0.0f);
     Emission.Velocity[0] = Wheel.ContactVelocity.x * Specification.CarrierVelocityShare;

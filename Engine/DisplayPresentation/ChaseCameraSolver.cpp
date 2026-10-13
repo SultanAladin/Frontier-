@@ -1,12 +1,14 @@
 //============================================================================================================================================
-// 📦 Projects/Project-Drive/Source/ChaseCameraSolver.cpp — chase camera that trails the vehicle (implementation)
+//                                                           CHASECAMERASOLVER.CPP
 //============================================================================================================================================
+// 📦 Critically damped vehicle follow projection; project-neutral chassis position and forward inputs.
+
 #include "ChaseCameraSolver.h"
 #include <cmath>
 #include <algorithm>
 
 namespace Frontier {
-namespace Drive {
+namespace Vehicle {
 
 ChaseCameraSolver::ChaseCameraSolver() noexcept
     : CameraProjection(), ActiveConfiguration{} {}
@@ -70,5 +72,5 @@ void ChaseCameraSolver::AdvanceChase(const Vector3& TargetPosition, const Vector
 
 void ChaseCameraSolver::AdvanceProjection(float DeltaSeconds) noexcept { (void)DeltaSeconds; }
 
-} // namespace Drive
+} // namespace Vehicle
 } // namespace Frontier

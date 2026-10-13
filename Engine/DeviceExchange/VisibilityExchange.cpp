@@ -828,7 +828,7 @@ bool VisibilityExchange::Resize(uint32_t NewWidth, uint32_t NewHeight, void* Pre
     if (!CreateImage(D, P, Vulkan->Surface,    VK_FORMAT_R32G32B32A32_SFLOAT, Vulkan->TargetExtent, 1u, VK_IMAGE_USAGE_STORAGE_BIT, VK_IMAGE_ASPECT_COLOR_BIT, "surface")) return false;
     if (!CreateImage(D, P, Vulkan->Normal,     VK_FORMAT_R16G16B16A16_SFLOAT, Vulkan->TargetExtent, 1u, VK_IMAGE_USAGE_STORAGE_BIT, VK_IMAGE_ASPECT_COLOR_BIT, "normal")) return false;
     if (!CreateImage(D, P, Vulkan->MaterialAux,  VK_FORMAT_R16G16B16A16_SFLOAT, Vulkan->TargetExtent, 1u, VK_IMAGE_USAGE_STORAGE_BIT, VK_IMAGE_ASPECT_COLOR_BIT, "material auxiliary")) return false;
-    if (!CreateImage(D, P, Vulkan->Albedo,       VK_FORMAT_R8G8B8A8_UNORM,     Vulkan->TargetExtent, 1u, VK_IMAGE_USAGE_STORAGE_BIT, VK_IMAGE_ASPECT_COLOR_BIT, "albedo")) return false;
+    if (!CreateImage(D, P, Vulkan->Albedo,       VK_FORMAT_R8G8B8A8_UNORM,     Vulkan->TargetExtent, 1u, VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, VK_IMAGE_ASPECT_COLOR_BIT, "albedo")) return false;
     if (Vulkan->HiZ.Levels > Vulkan->HiZSets.size()) { std::cerr << "[VisibilityExchange] HiZ needs more than 16 levels.\n"; return false; }
 
     const VkImageView Attachments[3] = { Vulkan->Visibility.View, Vulkan->Motion.View, Vulkan->Depth.View };

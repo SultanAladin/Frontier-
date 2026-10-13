@@ -16,7 +16,7 @@ Parser.add_argument("--output-dir", type=Path, default=Root / "Projects/Project-
 Arguments = Parser.parse_args()
 sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 Manifest = json.loads((Root / "Projects/Project-Drive/Build/DriveContentSources.json").read_text())
-Scratch = Root.parent / "_AgentScratch/build/DriveContent"
+Scratch = Root / "_AgentScratch/build/DriveContent"
 Scratch.mkdir(parents=True, exist_ok=True)
 Arguments.output_dir.mkdir(parents=True, exist_ok=True)
 Windows = sys.platform == "win32"

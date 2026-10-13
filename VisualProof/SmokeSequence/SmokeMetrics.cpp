@@ -7,6 +7,7 @@
 #include "../../Engine/PhysicalDynamics/Vehicle/XPBDSoftTyre.h"
 #include "../../Engine/VolumetricDynamics/SmokeSequence.h"
 #include "../../Engine/VolumetricDynamics/GasVehicleIntake.h"
+#include "../../Engine/VolumetricDynamics/SmokeOnsetClassifier.h"
 #include "../../Engine/Host/SmokeSequence.h"
 
 #include <cassert>
@@ -19,6 +20,17 @@ using namespace Frontier::Vehicle;
 
 int main()
 {
+    SmokeSpecification OnsetTuning;
+    SmokeOnsetMetrics Onset;
+    for (uint32_t Tick = 0u; Tick < 11u; ++Tick)
+        assert(!AdvanceSmokeOnset(Onset, 1000.0, 3.0, true, 1.0f / 240.0f, OnsetTuning));
+    assert(AdvanceSmokeOnset(Onset, 1000.0, 3.0, true, 1.0f / 240.0f, OnsetTuning));
+    assert(AdvanceSmokeOnset(Onset, 160.0, 3.0, true, 1.0f / 240.0f, OnsetTuning));
+    assert(!AdvanceSmokeOnset(Onset, 1000.0, 3.0, false, 1.0f / 240.0f, OnsetTuning));
+    for (uint32_t Tick = 0u; Tick < 64u; ++Tick)
+        assert(!AdvanceSmokeOnset(Onset, 0.0, 0.0, true, 1.0f / 240.0f, OnsetTuning));
+    std::puts("PASS sustained sliding onset, lower release threshold, immediate airborne exclusion and no-slip quiet gating");
+
     ThermalSpecification Tuning;
     Tuning.Enabled = true;
     ThermalMetrics Heated, Cold;
@@ -68,6 +80,20 @@ int main()
     assert(Tyre.Nodes().data() == Particles && Tyre.RestVolume() == RestVolume);
     assert(Tyre.Reaction().GaugePressure > Parameters.InflationPressure);
     std::puts("PASS hot gas feeds actual XPBD pressure without rebuilding particles or rest geometry");
+
+    ThermalSpecification ProductionFire = Tuning;
+    ProductionFire.IgnitionEnabled = true;
+    ThermalMetrics ProductionBurning;
+    assert(ConstructThermal(ProductionBurning, ProductionFire, 0.08, 240000.0, 101325.0));
+    ThermalContact SustainedOverheat;
+    SustainedOverheat.Volume = 0.08;
+    SustainedOverheat.InContact = true;
+    SustainedOverheat.SlidingPower = 300000.0;
+    for (uint32_t Tick = 0u; Tick < 4800u; ++Tick)
+        assert(IntegrateThermal(ProductionBurning, ProductionFire, SustainedOverheat, 1.0 / 240.0));
+    assert(ProductionFire.IgnitionTemperature == 623.15 && ProductionFire.IgnitionExposureSeconds == 4.0);
+    assert(ProductionBurning.Ignited && ProductionBurning.RemainingRubber < ProductionFire.CombustibleMass);
+    std::puts("PASS untouched production ignition threshold/exposure under sustained sliding heat, with finite fuel consumption");
 
     ThermalSpecification Fire = Tuning;
     Fire.SurfaceHeatCapacity = 100.0;
@@ -165,13 +191,13 @@ int main()
     Wheel.SlipVelocity = {0.0f, 3.0f, 0.0f};
     Wheel.Thermal.SlidingPower = 6000.0;
     auto Drift = ResolveWheelSmoke(Telemetry, 0u, Smoke);
-    assert(Drift.SmokeRate > 0.0f);
+    assert(Drift.SmokeRate > 0.0f && Drift.IncandescenceRate == 0.0f);
     Wheel.InContact = false;
     Drift = ResolveWheelSmoke(Telemetry, 0u, Smoke);
     assert(Drift.SmokeRate == 0.0f);
     Wheel.Thermal.Ignited = true; Wheel.Thermal.CombustionPower = 10000.0;
     Drift = ResolveWheelSmoke(Telemetry, 0u, Smoke);
-    assert(Drift.SmokeRate > 0.0f && Drift.TemperatureRate > 0.0f);
+    assert(Drift.SmokeRate > 0.0f && Drift.TemperatureRate > 0.0f && Drift.IncandescenceRate > 0.0f);
     Wheel.InContact = true; Wheel.Thermal.Ignited = false; Wheel.Thermal.CombustionPower = 0.0;
     Wheel.SlipVelocity = {};
     assert(ResolveWheelSmoke(Telemetry, 0u, Smoke).SmokeRate == 0.0f);

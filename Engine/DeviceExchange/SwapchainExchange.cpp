@@ -623,6 +623,7 @@ void SwapchainExchange::Retire() noexcept
     if (Vulkan->ImGuiRenderPass)     vkDestroyRenderPass     (Vulkan->Device, Vulkan->ImGuiRenderPass,     nullptr);
     if (Vulkan->ImGuiDescriptorPool) vkDestroyDescriptorPool (Vulkan->Device, Vulkan->ImGuiDescriptorPool, nullptr);
 
+    TyreSmoke.Reclaim();
     DistanceFieldStage.Destroy();
     Vulkan->RayQueries.Retire();
     Visibility.Retire();
@@ -1048,6 +1049,7 @@ bool SwapchainExchange::BringLogicalDevice() noexcept
     DeviceFeatures.multiDrawIndirect = Supported2.features.multiDrawIndirect;
     DeviceFeatures.geometryShader    = Supported2.features.geometryShader;
     DeviceFeatures.shaderStorageImageWriteWithoutFormat = Supported2.features.shaderStorageImageWriteWithoutFormat;
+    DeviceFeatures.shaderStorageImageExtendedFormats = Supported2.features.shaderStorageImageExtendedFormats;
 
     VkPhysicalDeviceFeatures2 EnabledFeatures2{ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2 };
     EnabledFeatures2.features = DeviceFeatures;
@@ -3267,6 +3269,7 @@ bool SwapchainExchange::BringDistanceFieldGIStage() noexcept
     Init.ShadowDescriptorLayout = static_cast<VkDescriptorSetLayout>(Visibility.QueryShadowDescriptorLayout());
     Init.QueueFamily = Vulkan->GraphicsFamily;
     Init.CycleSlotCount = kCycleSlotCount;
+    Init.LinearImageView  = Vulkan->DenoiseImageViews[0];
     Init.OutputImageView  = Vulkan->StorageImageView;
     Init.SurfaceImageView = static_cast<VkImageView>(Visibility.QuerySurfaceView());
     Init.NormalImageView  = static_cast<VkImageView>(Visibility.QueryNormalView());
@@ -3332,6 +3335,22 @@ void SwapchainExchange::RefuseFrame(const char* Operation, int32_t Code) noexcep
               << ". Rendering stopped; no further submissions or semaphore/fence reuse.\n";
 }
 
+bool SwapchainExchange::CaptureSmoke(const FrontierProjectSmokeReading& Scalar, const FrontierSmokeTransportReading& Transport)
+{
+    if (!SmokeDeviceConstructed && Scalar.Extent)
+    {
+        SmokeDeviceSpecification Specification;
+        Specification.PhysicalDevice = Vulkan->PhysicalDevice;
+        Specification.Device = Vulkan->Device;
+        Specification.MemoryProperties = Vulkan->MemoryProperties;
+        Specification.FineExtent = 128u;
+        Specification.CycleSlotCount = kCycleSlotCount;
+        if (!TyreSmoke.Construct(Specification)) return false;
+        SmokeDeviceConstructed = true;
+    }
+    return TyreSmoke.Capture(Scalar, Transport);
+}
+
 void SwapchainExchange::RecordAndPresent(const DispatchConfiguration& Dispatch) noexcept
 {
     if (FrameFailed || !Vulkan || !Vulkan->Device) return; // terminal: never reuse a failed cycle
@@ -3383,6 +3402,7 @@ void SwapchainExchange::RecordAndPresent(const DispatchConfiguration& Dispatch) 
         if (ImageWait != VK_SUCCESS) { Failed("vkWaitForFences(image)", ImageWait); return; }
     }
 
+    TyreSmoke.ReadCompleted(ActiveSlot);
     Vulkan->ComputeDescriptorSet = Vulkan->ComputeDescriptorSets[ActiveSlot];
     void* PrevReservoirs = SwapReservoirParity();   // R6: prev = last frame's curr before recording the new frame
     Visibility.AssignReservoirView(PrevReservoirs);   // R6 row 3: resolve binding 13 follows the kernel's prev buffer (M/W/Age views)
@@ -3601,6 +3621,7 @@ bool SwapchainExchange::RecordComputeCommands(uint32_t ImageOrdinal, const Dispa
     VisibilityFrameConfiguration Frame = VisibilityFrame;
     Frame.RenderWidth  = RenderWidth;
     Frame.RenderHeight = RenderHeight;
+    if (!TyreSmoke.RecordTransport(Command, Vulkan->ActiveSlot)) return false;
     Visibility.RecordFrame(Command, Vulkan->ActiveSlot, Frame);
 
     // RT-off uses rasterized direct visibility. Only GI-on adds the persistent local-field transport.
@@ -3879,6 +3900,40 @@ bool SwapchainExchange::RecordComputeCommands(uint32_t ImageOrdinal, const Dispa
 
     if(Frame.DebugView != DebugViewCategory::Off || ShadowStageRecorded || NonRaytracedGIRecorded) Vulkan->HistoryContentsValid=false;
     Visibility.RecordKernelEnd(Command, Vulkan->ActiveSlot);
+
+    if (TyreSmoke.Resident() && Frame.DebugView == DebugViewCategory::Off)
+    {
+        SmokeProjection Projection;
+        Projection.Eye[0] = Dispatch.CameraOriginX;
+        Projection.Eye[1] = Dispatch.CameraOriginY;
+        Projection.Eye[2] = Dispatch.CameraOriginZ;
+        Projection.Eye[3] = Dispatch.FieldOfViewTanHalf;
+        Projection.Forward[0] = Dispatch.CameraForwardX;
+        Projection.Forward[1] = Dispatch.CameraForwardY;
+        Projection.Forward[2] = Dispatch.CameraForwardZ;
+        Projection.Forward[3] = Dispatch.Exposure;
+        Projection.Right[0] = Dispatch.CameraRightX;
+        Projection.Right[1] = Dispatch.CameraRightY;
+        Projection.Right[2] = Dispatch.CameraRightZ;
+        Projection.Right[3] = Dispatch.ColourSaturation;
+        Projection.Up[0] = Dispatch.CameraUpX;
+        Projection.Up[1] = Dispatch.CameraUpY;
+        Projection.Up[2] = Dispatch.CameraUpZ;
+        Projection.Width = RenderWidth;
+        Projection.Height = RenderHeight;
+        Projection.Lighting.DensityExtinction = 6.0f;
+        Projection.Lighting.SmokeAlbedo = 0.82f;
+        Projection.Lighting.TemperatureScale = 0.35f;
+        Projection.ColourTransfer = NonRaytracedGIRecorded ? 2u : 0u;
+        const bool Denoised = !NonRaytracedGIRecorded && ((Dispatch.FeatureFlags & DispatchFeatureDenoise) != 0u);
+        const uint32_t Levels = std::clamp(Dispatch.DenoiseLevelCount == 0u ? kDenoiseLevelCount : Dispatch.DenoiseLevelCount,
+                                          1u, kDenoiseLevelCount);
+        const uint32_t RadianceSlot = Denoised ? Levels % 2u : 0u;
+        Projection.Up[3] = Denoised ? 1.0f : 0.0f;
+        if (!TyreSmoke.RecordProjection(Command, Vulkan->ActiveSlot, Vulkan->DenoiseImageViews[RadianceSlot],
+                static_cast<VkImageView>(Visibility.QuerySurfaceView()), static_cast<VkImageView>(Visibility.QueryAlbedoView()),
+                Vulkan->StorageImageView, Projection)) return false;
+    }
 
     // ②a3 Editor selection outline — the picked instances' true silhouette, in green, straight onto the finished
     //      presentation image (SelectionOutline.spv reads the visibility id image per pixel). After the kernel and

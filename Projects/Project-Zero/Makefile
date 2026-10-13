@@ -38,3 +38,11 @@ run: $(TARGET)
 
 clean:
 	rm -rf $(OBJDIR) $(TARGET)
+
+# The real project DLL consumes the same roster as root CMake and the authoritative MSVC driver.
+.PHONY: code-image smoke-native
+code-image:
+	cd ../.. && python3 Tools/Build/ProjectCodeSequence.py --project Project-Zero --compiler $(CXX)
+
+smoke-native:
+	cd ../.. && python3 Tools/Tests/RunZeroSmokeExhibit.py --compiler $(CXX)

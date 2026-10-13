@@ -115,26 +115,36 @@ full voxel recordings, third-party installs and temporary build products in `_Ag
 - Native evidence and individually pausable captures show a straight drift, a turn, scrolling, fading and ignition.
 - MSVC and shared source-roster routes accompany any new compiled source; no g++-only build addition.
 
-## Implementation standing
+## Implementation standing — actual-car continuation (13 October 2026)
 
-- A: implemented for temperatures, gas quantity, wheel-local grip, exposure/fuel and reset/respawn telemetry.
-  Sliding material wear remains deferred.
-- B: native heat/pressure/grip coupling implemented and checked. Thermal balance is independent of the unresolved
-  whole-vehicle landing account. Compound calibration remains open.
-- C: native on-demand ownership, exact integer relocation, obstruction refresh, lingering/fading and release
-implemented.
-- D: actual Drive wheel emission, fixed-rate source-path samples and transactional C/host-owned publication implemented.
-  Fine-grid GPU residency and opaque-depth-aware shared viewport composition are not implemented.
-- E: sustained-overheat/fuel ignition and hot-source emission implemented; diagnostic overrides are labelled.
-  Runtime compound calibration and finished flame appearance remain open.
-- F: coarse/native resource acquisition implemented; visual quality ladders, GPU budgets and separate-stage timing
-remain open.
+- A/B: shared XPBD/Pacejka/thermal mechanics are active in the actual Project-Zero code image. Sliding heat,
+  independent tread/carcass/gas conditions, pressure and fuel/exposure gates remain physical. Default ignition is
+  623.15 K for four seconds and is exercised separately from shortened visual-test settings. Empirical compound
+  calibration and the previously reported hard-landing energy account are **not claimed resolved**.
+- C: one on-demand, world-axis-aligned coarse domain per car retains exact overlapping scalars/world velocity,
+  refreshes obstruction and continues quiet transport/fade until retirement.
+- D: completed physical contact paths cross the optional C transport extension into host-owned storage. Explicit
+  per-gas-tick source ranges avoid future-source repetition in a slower presentation batch. On-demand 64³/128³
+  Vulkan fine images use the solved coarse world velocity and divergence-free world curl. Exact separate integer
+  scrolling retains fine density/heat/combustion provenance and clears newly exposed texels. This is not a second
+  fine pressure solve. The shared surface integrates resolved linear radiance only before the actual opaque depth;
+  denoised irradiance is remodulated, the DF route supplies linear radiance, and opaque temporal history stays clean.
+- E: tyre ignition remains sustained-overheat plus fuel, never random. A separately advected provenance scalar
+  prevents unignited warm friction smoke from becoming an artificial flame. The appearance palette and plume heat
+  conversion are art-directed; no empirical spectrum/compound claim. Diagnostic ignition overrides stay labelled.
+- F: 40,000,000 B per-domain ceiling; measured 64³/one-slot storage 4,737,184 B and 128³/two-slot storage 34,640,160 B,
+  with zero no-demand/retired bytes. GPU occupied-cell bounds reduce empty viewport work. Completed device transport/
+  render timestamps and CPU physics/publication timings are recorded on software Vulkan, not sold as hardware budgets.
 
-First milestone delivered: native per-wheel conditions and on-demand content-preserving drift transport with proof.
-See `VisualProof/SmokeSequence/README.md` and `Exhibits/Gallery/ProjectDrive/tyre-smoke.html` for the execution
-boundary.
+Project-Zero now opens the actual shared authored ControlVehicle scene, exposes driving/simulate/reset/camera/live
+wheel geometry and does not own a window/renderer. Drive retains a course-surface adapter around the shared mechanics.
+Numeric authored arrays were preserved exactly. Root CMake/MSVC/source/shader routes and explicit native GCC/MSVC
+rosters accompany the promotion.
 
-Native checks: thermal/pressure/relocation/lifetime/refusal assertions; five vehicle fixtures; actual Drive C copying,
-pause, step, reset and retirement; existing dynamics checks; moving brake matrix 14/14 PASS. Visual diagnostics use
-recorded native density projections, not an integrated GPU appearance claim. Production additions are header-only
-or in existing authoritative-roster compilation units; the new proof runner provides MSVC `/MD` and GCC routes.
+Executed proof and its boundary: `VisualProof/SmokeSequence/ProjectZeroREADME.md` and the individually paused actual
+3D gallery at `Exhibits/Gallery/ProjectZero/index.html`. The earlier Project-Drive density projections are historical
+CPU diagnostics and **do not count as this visual acceptance**. Actual ProjectZero.dll + shared 3D raster + production
+Vulkan smoke shaders run offscreen; full windowed Frontier and physical-GPU execution are not claimed here.
+
+SDF tyre deformation remains explicitly deferred. No moving-car SDF rebake or projected/car-rectangle stand-in is
+introduced by this continuation.

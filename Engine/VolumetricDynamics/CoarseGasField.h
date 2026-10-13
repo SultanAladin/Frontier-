@@ -63,6 +63,7 @@ struct GasEmission
     float Radius           = 0.5f;                   // [m]     - gaussian falloff radius
     float SmokeRate        = 1.0f;                   // [1/s]   - density added per second at the centre
     float TemperatureRate  = 1.0f;                   // [K/s]   - heat added per second at the centre, above ambient
+    float IncandescenceRate = 0.0f;                  // [1/s] - visual combustion provenance; never tyre fuel or friction heat
     float Velocity[3]      = { 0.0f, 0.0f, 0.0f };   // [m/s]   - momentum the source imparts
 };
 

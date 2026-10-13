@@ -18,6 +18,9 @@ struct SmokeSpecification
     float             Span                 = 24.0f;      // [m]       - finite world-axis-aligned extent; not unlimited trail retention
     uint32_t          GuardCells           = 8u;         // [cells]   - protected interior for source movement
     float             SourcePowerOnset     = 200.0f;     // [W]       - sliding must dissipate enough energy to request visible smoke
+    float             SourceReleaseRatio   = 0.60f;      // [-] - active source releases below this fraction of entry power
+    float             SourceOnsetSeconds   = 0.05f;      // [s] - reject single-tick friction spikes
+    float             SourceReleaseSeconds = 0.08f;      // [s] - retain onset consent through brief power oscillations
     float             SourcePowerFull      = 18000.0f;   // [W]       - reference contact heating for source strength
     float             MinimumSlipSpeed     = 0.35f;      // [m/s]     - static support does not request friction smoke
     float             DensityRate          = 18.0f;      // [1/s]     - reference source density
@@ -26,7 +29,7 @@ struct SmokeSpecification
     float             FadeCeiling          = 12.0f;      // [s]       - maximum retained plume after sources stop
     float             InjectionRadiusCells = 0.8f;       // [cells]  - coarse source footprint; fine visual detail is a separate delivery
     float             SmokeHeatRate        = 0.04f;      // [K/s]     - small buoyancy contribution, no automatic flame appearance
-    float             FireHeatPowerScale   = 0.00005f;   // [K/J]   - authored plume heat conversion from tyre combustion
+    float             FireHeatPowerScale   = 0.001f;   // [K/J]   - authored plume heat conversion from tyre combustion
     CoarseGasSettings Transport           ;
 };
 
@@ -85,6 +88,7 @@ public:
             Specification.GuardCells >= CoarseExtent / 2u)
         { CurrentMetrics.Refused = true; return false; }
         const float Nonnegative[] = {Specification.SourcePowerOnset, Specification.SourcePowerFull,
+            Specification.SourceOnsetSeconds, Specification.SourceReleaseSeconds, Specification.SourceReleaseRatio,
             Specification.MinimumSlipSpeed, Specification.DensityRate, Specification.CarrierVelocityShare,
             Specification.FaintestVisible, Specification.SmokeHeatRate, Specification.FireHeatPowerScale,
             Specification.Transport.BuoyancyLift, Specification.Transport.SmokeWeight,
@@ -96,6 +100,7 @@ public:
         if (!std::isfinite(Specification.FadeCeiling) || Specification.FadeCeiling <= 0.0f ||
             !std::isfinite(Specification.InjectionRadiusCells) || Specification.InjectionRadiusCells <= 0.0f ||
             Specification.SourcePowerFull <= Specification.SourcePowerOnset ||
+            Specification.SourceReleaseRatio <= 0.0f || Specification.SourceReleaseRatio >= 1.0f ||
             Specification.Transport.SmokeLossPerSecond > 1.0f || Specification.Transport.CoolingPerSecond > 1.0f ||
             Specification.Transport.DampingPerSecond > 1.0f)
         { CurrentMetrics.Refused = true; return false; }

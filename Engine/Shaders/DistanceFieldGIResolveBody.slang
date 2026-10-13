@@ -17,6 +17,7 @@ layout(rgba16f, binding=2) uniform readonly image2D NormalImage;
 #include "DistanceFieldMaterial.slang"
 layout(rgba16f, binding=21) uniform readonly image2D GatherIrradiance;
 layout(rgba16f, binding=22) uniform readonly image2D GatherNormal;
+layout(rgba32f, binding=23) uniform writeonly image2D LinearRadiance;
 
 // The visibility id packing SurfaceResolve.slang writes into SurfaceImage.w — identical to ReSTIRViewport's.
 const uint kVisibilityInvalid = 0xFFFFFFFFu;
@@ -128,6 +129,7 @@ void main()
     {
         vec3 V = normalize(P - PC.CameraEye.xyz);
         vec3 sky = SkyAlongApprox(V, 0.0);
+        imageStore(LinearRadiance, pixel, vec4(sky, 1.0));
         imageStore(OutputImage, pixel, vec4(pow(sky/(sky+vec3(1.0)), vec3(1.0/2.2)), 1.0));
         return;
     }
@@ -150,13 +152,14 @@ void main()
     // An emitter is its own radiance, as in the raytraced kernel.
     if (dot(F.Emission, F.Emission) > 0.0)
     {
+        imageStore(LinearRadiance, pixel, vec4(F.Emission, 1.0));
         vec3 e = F.Emission * PC.SkyAmbient.w;
         imageStore(OutputImage, pixel, vec4(pow(e/(e+vec3(1.0)), vec3(1.0/2.2)), 1.0));
         return;
     }
 
     vec3 woLoc = ToLocal(F, V);
-    if (woLoc.z <= 0.0) { imageStore(OutputImage, pixel, vec4(0.0, 0.0, 0.0, 1.0)); return; }
+    if (woLoc.z <= 0.0) { imageStore(LinearRadiance, pixel, vec4(0.0)); imageStore(OutputImage, pixel, vec4(0.0, 0.0, 0.0, 1.0)); return; }
     ResolvedLayers layers = ResolveLayers(m, woLoc);
 
     // Direct-light visibility comes from the same raster maps as plain raster; no SDF shadow or hidden mesh rays.
@@ -193,6 +196,7 @@ void main()
         col+=m.TransmissionWeight*(1.0-FresnelWeight)*Transmission(P,N,V,m,F.ThinWalled);
     }
     // exposure + Reinhard + gamma
+    imageStore(LinearRadiance, pixel, vec4(col, 1.0));
     col *= PC.SkyAmbient.w;
     vec3 mapped = pow(col / (col + vec3(1.0)), vec3(1.0/2.2));
     imageStore(OutputImage, pixel, vec4(mapped, 1.0));
