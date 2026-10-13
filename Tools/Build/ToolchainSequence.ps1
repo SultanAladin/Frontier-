@@ -291,23 +291,67 @@ function Invoke-Translation([string[]] $Sources, [string] $Label, [string] $Obje
 
     $Produced = New-Object System.Collections.Generic.List[string]
     $Stale    = New-Object System.Collections.Generic.List[string]
+    $Solo     = New-Object System.Collections.Generic.List[string]
+
+    # Two sources with the same file name (Projects\Project-Drive\Source\VehicleInstanceSequence.cpp wrapping
+    #    Engine\PhysicalDynamics\Vehicle\VehicleInstanceSequence.cpp) would both land on <stem>.obj under /Fo<dir>\ and
+    #    the second silently overwrites the first — LNK2019 at the DLL. Such sources get a folder-qualified stem and
+    #    their own cl.exe line with an explicit /Fo<file>, outside the batch.
+    $NameCount = @{}
+    foreach ($Source in $Sources) { $Name = [System.IO.Path]::GetFileNameWithoutExtension($Source); $NameCount[$Name] = 1 + [int]$NameCount[$Name] }
+    function Get-ObjectStem([string] $Source)
+    {
+        $Name = [System.IO.Path]::GetFileNameWithoutExtension($Source)
+        if ($NameCount[$Name] -le 1) { return $Name }
+        $Parent = Split-Path (Split-Path $Source -Parent) -Leaf
+        return "$Parent.$Name"
+    }
 
     foreach ($Source in $Sources)
     {
-        $Stem           = [System.IO.Path]::GetFileNameWithoutExtension($Source)
+        $Stem           = Get-ObjectStem $Source
         $ObjectPath     = Join-Path $ObjectRoot "$Stem.obj"
         $DependencyPath = Join-Path $ObjectRoot "$Stem.deps.json"
         $Produced.Add($ObjectPath)
 
         if (-not (Test-ObjectFresh $ObjectPath $Source $DependencyPath))
         {
-            $Stale.Add($Source)
+            if ($NameCount[[System.IO.Path]::GetFileNameWithoutExtension($Source)] -gt 1) { $Solo.Add($Source) } else { $Stale.Add($Source) }
+        }
+    }
+
+    if ($Stale.Count -eq 0 -and $Solo.Count -eq 0)
+    {
+        Write-Skipped "$Label unchanged"
+        return $Produced.ToArray()
+    }
+
+    foreach ($Source in $Solo)
+    {
+        $Stem     = Get-ObjectStem $Source
+        $SoloArgs = New-Object System.Collections.Generic.List[string]
+        foreach ($F in $Flags)        { $SoloArgs.Add($F) }
+        foreach ($I in $IncludePaths) { $SoloArgs.Add($I) }
+        $SoloArgs.Add('/Fo' + (Join-Path $ObjectRoot "$Stem.obj"))
+        $SoloArgs.Add("/Fd$(Join-Path $ObjectRoot 'ProjectZero.pdb')")
+        $SoloArgs.Add('/sourceDependencies' + (Join-Path $ObjectRoot "$Stem.deps.json"))
+        $SoloArgs.Add($Source)
+        $SoloResponse = Join-Path $ObjectRoot "$Stem.rsp"
+        Write-ResponseFile $SoloResponse $SoloArgs.ToArray()
+        Write-Building "$Label - translating $Stem (same-named source, own object)"
+        $SoloDiagnostics = & cl.exe '/nologo' "@$SoloResponse"
+        $SoloRejected    = $LASTEXITCODE -ne 0
+        $SoloNotable = $SoloDiagnostics | Where-Object { $_ -match ': (warning|error) ' -or $_ -match 'fatal error' }
+        if ($SoloNotable) { $SoloNotable | ForEach-Object { Write-Host "    $_" } }
+        if ($SoloRejected)
+        {
+            Write-Rejected "$Label - cl.exe rejected $Source"
+            throw "$Label - cl.exe rejected $Source"
         }
     }
 
     if ($Stale.Count -eq 0)
     {
-        Write-Skipped "$Label unchanged"
         return $Produced.ToArray()
     }
 
