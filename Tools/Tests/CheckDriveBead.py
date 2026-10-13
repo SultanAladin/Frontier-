@@ -23,7 +23,7 @@ def ParseSequence(Contents, Name, Precision):
 def Measure(Folder):
     Asset = Root / "Projects/Project-Drive/Source/ControlVehicleWheelMesh.inl"
     Geometry = Root / "Engine/PhysicalDynamics/Vehicle/VehicleGeometry.h"
-    Physical = Root / "Engine/PhysicalDynamics/Vehicle/XPBDSoftTyre.h"
+    Physical = Root / "Engine/PhysicalDynamics/Vehicle/RigidWheel.h"
     Contents = Asset.read_text()
     Radius = float(re.search(r"TyreRimRadius\s*=\s*([\d.]+)f", Geometry.read_text()).group(1))
     Width = float(re.search(r"TyreWidth\s*=\s*([\d.]+)f", Geometry.read_text()).group(1))

@@ -141,5 +141,5 @@ const Digest = createHash("sha256").update(readFileSync(new URL("./ControlVehicl
 Require(Digest === Manifest.glbSHA256, "ControlVehicle.glb matches its extraction manifest");
 Require(Manifest.materials?.some(Material => Material.name === "MetalicCoat" && Math.abs(Material.baseColor[0] - 0.680005) < 1e-4 && Math.abs(Material.baseColor[1] - 0.800458) < 1e-4),
     "Preview paint is the Drive-authored MetalicCoat (0.680005, 0.800458, 0) from DriveSceneAuthor::AuthorMaterials");
-Require(Manifest.facets === 19948 && Manifest.nodes?.length === 5, "Preview carries the body and four XPBD tyres of the project car");
+Require(Manifest.facets === 19948 && Manifest.nodes?.length === 5, "Preview carries the body and four tyres of the project car");
 console.log(`PASS ${Assertions} source/layout/interaction assertions. These checks do not claim browser or GPU execution.`);

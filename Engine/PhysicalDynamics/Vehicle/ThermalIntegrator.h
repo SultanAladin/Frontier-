@@ -45,7 +45,7 @@ struct ThermalContact
 {
     double SlidingPower = 0.0;     // [W]   - final dissipated tangential work, never normal impact work
     double Airspeed     = 0.0;     // [m/s] - tyre travel relative to ambient air
-    double Volume       = 0.0;     // [m³]  - completed XPBD gas volume
+    double Volume       = 0.0;     // [m³]  - gas volume this step
     bool   InContact    = false;   // [-]   - ground cooling admitted only while touching road
 };
 
@@ -99,7 +99,7 @@ inline bool ResolveThermalSpecification(const ThermalSpecification& Specificatio
 
 /// 📦 Constructs independent cold inflation and thermal readings for one wheel.
 /// in    Specification       [-]  thermal tuning; capacities must be positive
-/// in    ReferenceVolume     [m³] actual cold XPBD envelope
+/// in    ReferenceVolume     [m³] cold tyre air volume (TyreSpecification::RestVolume)
 /// in    GaugePressure       [Pa] cold gauge pressure
 /// in    AtmosphericPressure [Pa] ambient absolute pressure
 /// out   Reading             [-] independent temperatures, air mass and cold pressure

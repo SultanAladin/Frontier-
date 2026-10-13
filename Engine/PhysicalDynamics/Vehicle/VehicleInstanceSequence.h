@@ -1,7 +1,7 @@
 //============================================================================================================================================
 //                                                         VEHICLEINSTANCESEQUENCE.H
 //============================================================================================================================================
-// 📦 Shared authored-car chassis, XPBD/Pacejka, independent tyre thermals and on-demand world-space transport.
+// 📦 Shared authored-car chassis, trace-contact/Pacejka tyres, independent tyre thermals and on-demand world-space transport.
 
 #pragma once
 
@@ -70,7 +70,7 @@ struct VehicleChassisBody
     void Integrate(float dt) noexcept;
     [[nodiscard]] float KineticEnergy() const noexcept;
     void ResolveContacts(const std::vector<Frontier::Vehicle::Vec3>& Locations,
-                         const Frontier::Vehicle::XPBDSoftTyre::GroundQuery& Ground,
+                         const Frontier::Vehicle::GroundQuery& Ground,
                          float Seconds) noexcept;
     [[nodiscard]] Frontier::Vehicle::ChassisState State() const noexcept;
 
@@ -91,7 +91,7 @@ public:
     //    supplies the real ControlVehicle socket layout; `config` is filled from it via ApplyGeometry.
     bool Construct(const Frontier::Vehicle::VehicleGeometry& Geometry,
                    const VehicleInstanceConfiguration& Configuration,
-                   Frontier::Vehicle::XPBDSoftTyre::GroundQuery Ground = {}) noexcept;
+                   Frontier::Vehicle::GroundQuery Ground = {}) noexcept;
 
     // The one call the frame loop makes. Consumes `input` (already mapped from the device by DriverInputExchange),
     //    advances the physics by whole sub-steps covering DeltaSeconds, and writes the body + wheel World rows into
@@ -125,7 +125,7 @@ public:
     [[nodiscard]] Frontier::Vehicle::VehicleSolverConfiguration& Configuration() noexcept { return ActiveConfiguration; }
     [[nodiscard]] const Frontier::Vehicle::VehicleSolverConfiguration& Configuration() const noexcept { return ActiveConfiguration; }
 
-    [[nodiscard]] const std::vector<Frontier::Vehicle::XPBDSoftTyre>& Tyres() const noexcept
+    [[nodiscard]] const std::vector<Frontier::Vehicle::RigidWheel>& Tyres() const noexcept
     { return ActiveVehicleSolver.Tyres(); }
 
     // Wall-clock budget for one AdvanceVehicle's fixed-step loop (see VehicleInstanceConfiguration); the caller
@@ -156,7 +156,7 @@ private:
     Frontier::Vehicle::Vec3                 SpawnPosition{0.0f,0.0f,0.42f};
 
     Frontier::Vehicle::Quat SpawnOrientation{};
-    Frontier::Vehicle::XPBDSoftTyre::GroundQuery GroundSurface;
+    Frontier::Vehicle::GroundQuery GroundSurface;
     std::vector<Frontier::Vehicle::Vec3> CollisionLocations; // [m] - authored body vertices rebased onto the CoM
     std::vector<float>                      WheelSpin;      // [rad] integrated spin angle per wheel (visual)
     float                                   Accumulator = 0.0f;

@@ -77,7 +77,7 @@ void ApplyGeometry(VehicleSolverConfiguration& c, const VehicleGeometry& Authore
     c.WheelInertia = 0.5f * RimMass * g.TyreRimRadius * g.TyreRimRadius;
     c.Wheels      = MakeWheelMounts(g);
     // Keep the soft tyre in sync with the geometry. All three come from the ControlVehicle.blend wheel meshes, so the
-    //    carcass the XPBD solver deforms is the size of the wheel the renderer draws — one number, not two.
+    //    tyre the contact fan samples is the size of the wheel the renderer draws — one number, not two.
     // Struts and bars, already rated for the corner masses by ResolveSuspension.
     c.FrontStrut   = g.Front;
     c.RearStrut    = g.Rear;

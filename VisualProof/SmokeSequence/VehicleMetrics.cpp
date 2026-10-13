@@ -64,7 +64,7 @@ struct DriftFixture
         Body.Position = {0.0f, 0.0f, Air ? 25.0f : 0.55f};
         Body.Mass = Tuning.ChassisMass;
         Body.InvInertiaDiag = Geometry.InvInertia();
-        const XPBDSoftTyre::GroundQuery Ground = [this](const Vec3& Position, Vec3& Surface, Vec3& Normal)
+        const GroundQuery Ground = [this](const Vec3& Position, Vec3& Surface, Vec3& Normal)
         { return !Airborne && ReadFlat(Position, Surface, Normal); };
         const VehicleSolver::Hooks Reception
         {

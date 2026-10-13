@@ -28,7 +28,7 @@ int main(int ArgumentCount, char** Arguments)
     {
         const auto& Row = Rows[Slot];
         std::printf("%*s%s: %u instances\n", Row.Depth * 2, "", Row.Label, Spans[Slot].InstanceCount);
-        if (std::strstr(Row.Label, "ControlVehicle") || std::strstr(Row.Label, "XPBD Tyre"))
+        if (std::strstr(Row.Label, "ControlVehicle") || std::strstr(Row.Label, "Tyre"))
         {
             assert(Row.Category == EditorInstanceCategory::Geometry);
             assert(Row.Depth == 1u);
@@ -67,7 +67,7 @@ int main(int ArgumentCount, char** Arguments)
     uint32_t Picks[3]{};
     uint32_t Found = 0u;
     for (uint32_t Slot = 0u; Slot < Count && Found < 2u; ++Slot)
-        if (std::strstr(Rows[Slot].Label, "XPBD Tyre")) Picks[Found++] = Slot;
+        if (std::strstr(Rows[Slot].Label, "Tyre")) Picks[Found++] = Slot;
     assert(Found == 2u);
     Picks[2] = Picks[0];
     auto Selection = Feed.CollectSelectionInstances(Rows.get(), Count, Spans.get(), Picks, 3u,

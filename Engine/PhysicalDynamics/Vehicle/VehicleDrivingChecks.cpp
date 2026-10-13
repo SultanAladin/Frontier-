@@ -14,7 +14,7 @@
 //
 //    Everything runs on the same mock rigid-box chassis + mock heightfield GroundQuery used by VehicleSceneValidation, so
 //    it needs no Jolt/Unreal. Build & run:
-//        g++ -std=c++17 -O2 -Wall -Wextra VehicleDrivingChecks.cpp VehicleSolver.cpp XPBDSoftTyre.cpp \
+//        g++ -std=c++17 -O2 -Wall -Wextra VehicleDrivingChecks.cpp VehicleSolver.cpp \
 //            PacejkaMagicFormula.cpp TyreSlipDynamics.cpp Drivetrain.cpp -o vdrive && ./vdrive
 //
 //============================================================================================================================================
@@ -111,7 +111,7 @@ struct Rig
 {
     MockChassis chassis;
     VehicleSolver controller;
-    void Build(const VehicleSolverConfiguration& cfg, XPBDSoftTyre::GroundQuery g, const Vec3& spawn)
+    void Build(const VehicleSolverConfiguration& cfg, GroundQuery g, const Vec3& spawn)
     {
         chassis = MockChassis{};
         chassis.Position = spawn;
@@ -132,9 +132,9 @@ struct Rig
     }
 };
 
-static XPBDSoftTyre::GroundQuery Flat() { return [](const Vec3& p, Vec3& s, Vec3& n){ s = {p.x,p.y,0}; n = {0,0,1}; return true; }; }
+static GroundQuery Flat() { return [](const Vec3& p, Vec3& s, Vec3& n){ s = {p.x,p.y,0}; n = {0,0,1}; return true; }; }
 // Slope rising with +x at the given grade (tan of the incline angle). +x is up-slope.
-static XPBDSoftTyre::GroundQuery Slope(float grade)
+static GroundQuery Slope(float grade)
 {
     return [grade](const Vec3& p, Vec3& s, Vec3& n){ s = {p.x, p.y, grade * p.x}; n = Vec3{-grade, 0.0f, 1.0f}.Normalized(); return true; };
 }

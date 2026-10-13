@@ -269,13 +269,13 @@ uint32_t TyreGeneratorSequence::FillRoster(EditorInstance* Rows, uint32_t First,
     std::snprintf(Decals.StandingNote, sizeof(Decals.StandingNote), "%s", "Phase 4");
     std::snprintf(Decals.Meta, sizeof(Decals.Meta), "%s", "0 placed");
 
-    // ⑤ the XPBD lattice
+    // ⑤ the tread lattice the GPU deformation bends
     if (!Room())
     {
         return Written;
     }
     EditorInstance& Lattice = Rows[First + Written++];
-    Seat(Lattice, "XPBD lattice", TyreInspectorKey(TyreSection::Lattice), Depth + 1u,
+    Seat(Lattice, "Tread lattice", TyreInspectorKey(TyreSection::Lattice), Depth + 1u,
          EditorInstanceCategory::Geometry, PeriwinkleTint, EditorGlyph::Lattice);
     std::snprintf(Lattice.Meta, sizeof(Lattice.Meta), "%ux%u",
                   unsigned(Document.Carcass.Rings), unsigned(Document.Carcass.Segments));

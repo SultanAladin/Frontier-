@@ -3,7 +3,7 @@
 //============================================================================================================================================
 //
 //    Project-Drive's headless CPU reference for the PHYSICS half (the Vulkan app runs the same VehicleSolver live). It
-//    drives the REAL ControlVehicle (socket-derived VehicleGeometry, XPBD soft tyres, Pacejka drivetrain, aero) over the
+//    drives the REAL ControlVehicle (socket-derived VehicleGeometry, trace-contact tyres, Pacejka drivetrain, aero) over the
 //    shared DriveCourse with NO body collision — only the wheels touch the ground — and writes, into Diagnostics/:
 //
 //        telemetry.csv   one row per recorded frame: chassis pose + speed + engine + per-wheel load/slip/steer/spin/brake
@@ -211,7 +211,7 @@ int main(int argc, char** argv)
     char summary[2048];
     std::snprintf(summary, sizeof(summary),
         "Project-Drive — headless physics reference\n"
-        "  Vehicle .......... real ControlVehicle (socket geometry, XPBD soft tyres, Pacejka drivetrain, aero ON)\n"
+        "  Vehicle .......... real ControlVehicle (socket geometry, trace-contact tyres, Pacejka drivetrain, aero ON)\n"
         "  Course ........... checker pad + ramp (%.1f m run, %.2f m crest) + %d speed bumps + %d cones\n"
         "  Sim .............. %.1f s @ %.0f Hz (%d steps), recorded at %.0f Hz\n"
         "  Peak speed ....... %.2f m/s (%.1f km/h)\n"

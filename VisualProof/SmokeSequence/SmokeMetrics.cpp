@@ -4,7 +4,7 @@
 // 📦 Executed thermal-balance, pressure, exact-world relocation and on-demand smoke lifetime measurements.
 
 #include "../../Engine/PhysicalDynamics/Vehicle/ThermalIntegrator.h"
-#include "../../Engine/PhysicalDynamics/Vehicle/XPBDSoftTyre.h"
+#include "../../Engine/PhysicalDynamics/Vehicle/RigidWheel.h"
 #include "../../Engine/VolumetricDynamics/SmokeSequence.h"
 #include "../../Engine/VolumetricDynamics/GasVehicleIntake.h"
 #include "../../Engine/VolumetricDynamics/SmokeOnsetClassifier.h"
@@ -68,18 +68,16 @@ int main()
     assert(std::abs(Heated.EnergyResidualJoules) < 0.0001);
     std::puts("PASS adiabatic gas work, pressure response, airborne friction exclusion and transactional input refusal");
 
-    SoftTyreParameters Parameters;
-    Parameters.RingCount = 3u; Parameters.SegmentCount = 24u;
-    XPBDSoftTyre Tyre;
+    TyreSpecification Parameters;
+    RigidWheel Tyre;
     Tyre.Build(Parameters, {}, {});
-    const auto* Particles = Tyre.Nodes().data();
-    const float RestVolume = Tyre.RestVolume();
-    assert(Tyre.ResolveGasTemperature(350.0f, 293.15f));
-    assert(!Tyre.ResolveGasTemperature(std::numeric_limits<float>::quiet_NaN(), 293.15f));
-    Tyre.Step(1.0f / 240.0f, 8u, Vec3{}, Quat{}, {}, {});
-    assert(Tyre.Nodes().data() == Particles && Tyre.RestVolume() == RestVolume);
-    assert(Tyre.Reaction().GaugePressure > Parameters.InflationPressure);
-    std::puts("PASS hot gas feeds actual XPBD pressure without rebuilding particles or rest geometry");
+    const double RestVolume = Tyre.RestVolume();
+    assert(RestVolume > 0.0 && std::abs(RestVolume - 3.14159265358979 * (0.34 * 0.34 - 0.20 * 0.20) * 0.245) < 1e-6);
+    HubMotion Hub; Hub.SpinRate = 10.0f;
+    Tyre.Pose(1.0f / 240.0f, Hub);
+    assert(Tyre.RestVolume() == RestVolume && Tyre.CarcassAngle() > 0.0f);
+    assert(Tyre.Reaction().GaugePressure == Parameters.InflationPressure);
+    std::puts("PASS rigid tyre keeps its rest air volume and reports its inflation to the gas path");
 
     ThermalSpecification ProductionFire = Tuning;
     ProductionFire.IgnitionEnabled = true;

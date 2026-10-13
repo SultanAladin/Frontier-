@@ -6,7 +6,6 @@
 #include "../../../Engine/ProjectInterchange/ProjectInterchange.h"
 #include "../../../Engine/ProjectInterchange/GeometryInterchange.h"
 #include "../../../Engine/ProjectInterchange/VehicleInterchange.h"
-#include "../../../Engine/GeometricRaster/TyreSequence.h"
 #include "../../../Engine/DisplayPresentation/ChaseCameraSolver.h"
 #include "../../../Engine/PhysicalDynamics/Vehicle/DriverInputIntegrator.h"
 
@@ -22,7 +21,7 @@ namespace
 
 constexpr const char* VehicleSubjects[] =
 {
-    "ControlVehicle — paint / glass / plastic", "XPBD Tyre FL", "XPBD Tyre FR", "XPBD Tyre RL", "XPBD Tyre RR",
+    "ControlVehicle — paint / glass / plastic", "Tyre FL", "Tyre FR", "Tyre RL", "Tyre RR",
 };
 
 struct VehiclePlacementSpecification
@@ -93,9 +92,7 @@ struct ZeroVehicleSequence
     Frontier::Vehicle::ChaseCameraSolver Camera;
     VehiclePlacementSpecification Placement;
     std::vector<Frontier::InstanceRecord> Poses{5u};
-    std::array<Frontier::Vehicle::TyreSequence, 4> TyreSurfaces;
     uint64_t CarrierIdentifier = 0u;
-    uint64_t GeometryRevision = 0u;
     uint32_t PreviousTransport = 0u;
     bool PreviousReset = false;
 
@@ -125,11 +122,6 @@ struct ZeroVehicleSequence
 
     void PublishGeometry()
     {
-        const auto& Tyres = Vehicle.Tyres();
-        const auto& Wheels = Vehicle.Telemetry().Wheels;
-        for (uint32_t Wheel = 0u; Wheel < 4u && Wheel < Tyres.size(); ++Wheel)
-            TyreSurfaces[Wheel].Capture(Tyres[Wheel], Wheels[Wheel].HubPosition, Tyres[Wheel].MaterialFrame());
-        ++GeometryRevision;
         if (!Reception.ReceiveSceneMutation) return;
         for (uint32_t Slot = 0u; Slot < 5u; ++Slot)
         {
@@ -273,33 +265,6 @@ extern "C" FRONTIER_CODE_IMAGE_EXPORT uint32_t FRONTIER_CODE_IMAGE_CALL Construc
     DeliveredInterchange->ConstructProject = &ConstructProject;
     DeliveredInterchange->AdvanceProject = &AdvanceProject;
     DeliveredInterchange->RetireProject = &RetireProject;
-    return 1u;
-}
-
-extern "C" FRONTIER_CODE_IMAGE_EXPORT uint32_t FRONTIER_CODE_IMAGE_CALL ProjectGeometryInterchange(
-    void* ProjectRecord, FrontierProjectGeometryReading* Reading)
-{
-    if (!Reading || Reading->StructureSize != sizeof(*Reading) || Reading->InterchangeNumber != 1u ||
-        !Reading->SubjectName) return 2u;
-    uint32_t Wheel = 0u;
-    while (Wheel < 4u && std::strcmp(Reading->SubjectName, VehicleSubjects[Wheel + 1u])) ++Wheel;
-    if (Wheel == 4u) return 0u;
-    const auto* Sequence = static_cast<const ZeroVehicleSequence*>(ProjectRecord);
-    Reading->Revision = Sequence && Sequence->PreviousTransport ? Sequence->GeometryRevision : 0u;
-    if (!Reading->VertexCount) return 1u;
-    if (!Sequence || !Reading->Revision) return 0u;
-    if (!Reading->RestPositions || !Reading->CurrentPositions) return 2u;
-    auto Origin = Sequence->Geometry.AxleMountLocal(Wheel);
-    Origin.z += Sequence->Geometry.CoMHeight + 0.02f;
-    const bool Rubber = !Reading->MaterialName || std::strncmp(Reading->MaterialName, "StandardRubber", 14u) == 0;
-    for (uint32_t Index = 0u; Index < Reading->VertexCount; ++Index)
-    {
-        const float* Rest = Reading->RestPositions + Index * 3u;
-        if (!std::isfinite(Rest[0]) || !std::isfinite(Rest[1]) || !std::isfinite(Rest[2])) return 2u;
-        const auto World = Sequence->TyreSurfaces[Wheel].Project({Rest[0] - Origin.x, Rest[1] - Origin.y, Rest[2] - Origin.z}, Rubber);
-        float* Current = Reading->CurrentPositions + Index * 3u;
-        Current[0] = World.x; Current[1] = World.y; Current[2] = World.z;
-    }
     return 1u;
 }
 

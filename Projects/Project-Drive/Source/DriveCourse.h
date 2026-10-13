@@ -14,7 +14,7 @@
 
 #include <cstdint>
 #include <cmath>
-#include "../../../Engine/PhysicalDynamics/Vehicle/XPBDSoftTyre.h"
+#include "../../../Engine/PhysicalDynamics/Vehicle/RigidWheel.h"
 #include <algorithm>
 
 namespace Frontier {

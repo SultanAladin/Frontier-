@@ -17,7 +17,7 @@ int main()
     ApplyGeometry(Configuration, Geometry);
     ChassisState Requested;
     Requested.Position = {4, 3, 8}; Requested.LinearVelocity = {1,2,3};
-    const auto CheckClearance = [&](const VehicleSpawnReading& Result, const XPBDSoftTyre::GroundQuery& Ground)
+    const auto CheckClearance = [&](const VehicleSpawnReading& Result, const GroundQuery& Ground)
     {
         assert(Result.Supported && Result.GroundContacts == 4u);
         assert(Result.Pose.LinearVelocity.LengthSq() == 0.0f);
@@ -38,7 +38,7 @@ int main()
     {
         Requested.Orientation = {0,0,std::sin(Yaw*.5f),std::cos(Yaw*.5f)};
         const Vec3 Up = Vec3{-Slope, -.13f, 1}.Normalized();
-        const XPBDSoftTyre::GroundQuery Ground = [=](const Vec3& Point, Vec3& Surface, Vec3& Normal)
+        const GroundQuery Ground = [=](const Vec3& Point, Vec3& Surface, Vec3& Normal)
         { Surface = {Point.x, Point.y, 2 + Slope*Point.x + .13f*Point.y}; Normal = Up; return true; };
         const auto Result = ResolveVehicleSpawn(Configuration, Requested, Ground);
         CheckClearance(Result, Ground);
@@ -46,7 +46,7 @@ int main()
         const Vec3 Forward = Requested.Orientation.Rotate({1,0,0});
         assert(Dot(Result.Pose.Orientation.Rotate({1,0,0}), (Forward - Up*Dot(Forward,Up)).Normalized()) > .99999f);
     }
-    const XPBDSoftTyre::GroundQuery Uneven = [](const Vec3& Point, Vec3& Surface, Vec3& Normal)
+    const GroundQuery Uneven = [](const Vec3& Point, Vec3& Surface, Vec3& Normal)
     {
         Surface = {Point.x, Point.y, .1f*std::sin(Point.x)*std::cos(Point.y)};
         Normal = Vec3{-.1f*std::cos(Point.x)*std::cos(Point.y), .1f*std::sin(Point.x)*std::sin(Point.y), 1}.Normalized();

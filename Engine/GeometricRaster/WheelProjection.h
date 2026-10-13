@@ -1,20 +1,21 @@
 //============================================================================================================================================
 //                                                             WHEELPROJECTION.H
 //============================================================================================================================================
-// 📦 One shared closed tyre topology projected from either rest or completed XPBD tread samples.
+// 📦 One shared closed tyre topology emitted from a rest tread lattice (the GPU deforms it at draw time).
 
 #pragma once
 
 #include <cmath>
-#include "../PhysicalDynamics/Vehicle/XPBDSoftTyre.h"
+#include "../PhysicalDynamics/Vehicle/RigidWheel.h"
 #include <cstdint>
+#include <vector>
 
 namespace Frontier {
 namespace Vehicle {
 
-// RENDER tessellation shared by the export wheel and the simulated wheel. Deliberately independent of
-//    SoftTyreParameters' RingCount/SegmentCount: the solver runs a coarse proxy (3×48 by default) and this dense
-//    surface is shaped from it by sampling (TyreSequence::Project), never gathered node-for-node.
+// RENDER tessellation shared by the export wheel and the simulated wheel. The physics wheel is rigid
+//    (RigidWheel.h); this dense surface is only ever the rest shape, and TyreDeformation.slang bends it per vertex
+//    from the solver's per-wheel contact record.
 inline constexpr uint32_t kDriveWheelRingCount    = 9u;
 inline constexpr uint32_t kDriveWheelSegmentCount = 128u;
 // 0 disables the rim entirely and closes the wheel with a plain hub face. The spoke emitter below is kept
@@ -23,8 +24,7 @@ inline constexpr uint32_t kDriveWheelSpokeCount   = 0u;
 
 //------------------------------------------------------------------------------------------------------------------------ the lattice
 // A ring x segment grid of tread points in hub-local space. Ring 0 is the +Y (left/outboard) shoulder, ring
-//    RingCount-1 the -Y shoulder; segment 0 is at local +X and winds toward +Z. XPBDSoftTyre's rings run -Y to +Y,
-//    so gathering a live carcass requires a ring-index reversal as well as the material-frame change.
+//    RingCount-1 the -Y shoulder; segment 0 is at local +X and winds toward +Z.
 struct WheelTreadLattice
 {
     uint32_t RingCount    = 5u;
@@ -42,7 +42,7 @@ struct WheelTreadLattice
 
 //------------------------------------------------------------------------------------------------------------------------ rest lattice
 // Fills Out (RingCount*SegmentCount*3 floats) with the undeformed cylinder, so a caller that has no tyre solver
-//    still emits the identical surface. This is the shape XPBDSoftTyre itself starts from.
+//    still emits the identical surface.
 inline void FillRestTreadLattice(float* Out, uint32_t RingCount, uint32_t SegmentCount,
                                  float Radius, float HalfWidth) noexcept
 {
@@ -59,6 +59,57 @@ inline void FillRestTreadLattice(float* Out, uint32_t RingCount, uint32_t Segmen
             P[1] = Y;
             P[2] = Radius * std::sin(Angle);
         }
+    }
+}
+
+//------------------------------------------------------------------------------------------------------------------------ rest envelope
+// The closed rest tyre as an indexed triangle soup in hub-local metres (tread rings +Y→−Y, then the two bead
+//    circles), for a distance-field bake or any other consumer that wants the shape rather than a draw stream.
+//    Winding faces outward. Vertices are {x,y,z} triples; Faces are index triples.
+template <typename Vertex, typename Face>
+inline void BuildRestTyreEnvelope(std::vector<Vertex>& Vertices, std::vector<Face>& Faces,
+                                  float Radius, float RimRadius, float Width,
+                                  uint32_t Rings = kDriveWheelRingCount, uint32_t Segments = kDriveWheelSegmentCount,
+                                  float BeadWidthRatio = Vehicle::TyreBeadWidthRatio)
+{
+    Vertices.clear(); Faces.clear();
+    constexpr float kTwoPi = 6.28318530718f;
+    const float HalfWidth = 0.5f * Width;
+    for (uint32_t Ring = 0u; Ring < Rings; ++Ring)
+    {
+        const float Across = (Rings > 1u) ? static_cast<float>(Ring) / static_cast<float>(Rings - 1u) : 0.5f;
+        const float Y = HalfWidth - 2.0f * HalfWidth * Across;
+        for (uint32_t Segment = 0u; Segment < Segments; ++Segment)
+        {
+            const float Angle = kTwoPi * static_cast<float>(Segment) / static_cast<float>(Segments);
+            Vertices.push_back({Radius * std::cos(Angle), Y, Radius * std::sin(Angle)});
+        }
+    }
+    for (uint32_t Side = 0u; Side < 2u; ++Side)
+        for (uint32_t Segment = 0u; Segment < Segments; ++Segment)
+        {
+            const float Angle = kTwoPi * static_cast<float>(Segment) / static_cast<float>(Segments);
+            Vertices.push_back({RimRadius * std::cos(Angle), (Side == 0u ? 1.0f : -1.0f) * HalfWidth * BeadWidthRatio,
+                                RimRadius * std::sin(Angle)});
+        }
+    const auto Quad = [&](uint32_t A, uint32_t B, uint32_t C, uint32_t D)
+    {
+        Faces.push_back({A, C, B}); Faces.push_back({A, D, C});
+    };
+    for (uint32_t Ring = 0u; Ring + 1u < Rings; ++Ring)
+        for (uint32_t Segment = 0u; Segment < Segments; ++Segment)
+        {
+            const uint32_t Next = (Segment + 1u) % Segments;
+            Quad(Ring * Segments + Segment, (Ring + 1u) * Segments + Segment,
+                 (Ring + 1u) * Segments + Next, Ring * Segments + Next);
+        }
+    const uint32_t Left = Rings * Segments, Right = Left + Segments;
+    for (uint32_t Segment = 0u; Segment < Segments; ++Segment)
+    {
+        const uint32_t Next = (Segment + 1u) % Segments, Shoulder = (Rings - 1u) * Segments;
+        Quad(Left + Segment, Segment, Next, Left + Next);
+        Quad(Shoulder + Segment, Right + Segment, Right + Next, Shoulder + Next);
+        Quad(Left + Segment, Left + Next, Right + Next, Right + Segment);
     }
 }
 

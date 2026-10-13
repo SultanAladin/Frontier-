@@ -26,14 +26,14 @@ struct DriveFixture
     Frontier::Drive::VehicleChassisBody Body;
     VehicleSolver Solver;
     VehicleSolverConfiguration Configuration;
-    XPBDSoftTyre::GroundQuery Ground;
+    GroundQuery Ground;
     std::vector<Vec3> CollisionLocations;
     bool CorrectContacts = true;
 
     void Construct(const Vec3& Position,
                    const Vec3& Velocity,
                    const Quat& Rotation,
-                   XPBDSoftTyre::GroundQuery Surface,
+                   GroundQuery Surface,
                    const Vec3& Angular = {})
     {
         Ground = std::move(Surface);
@@ -80,8 +80,7 @@ struct DriveFixture
         assert(std::isfinite(Body.KineticEnergy()));
         assert(std::isfinite(Body.Position.x) && std::isfinite(Body.Position.y) && std::isfinite(Body.Position.z));
         for (const auto& Tyre : Solver.Tyres())
-            for (const auto& Particle : Tyre.Nodes())
-                assert(std::isfinite(Particle.Position.x) && std::isfinite(Particle.Position.y) && std::isfinite(Particle.Position.z));
+            assert(std::isfinite(Tyre.HubPosition().x) && std::isfinite(Tyre.HubPosition().y) && std::isfinite(Tyre.HubPosition().z));
     }
 };
 

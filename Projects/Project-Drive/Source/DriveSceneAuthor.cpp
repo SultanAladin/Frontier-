@@ -129,9 +129,8 @@ void DriveSceneAuthor::AppendVehicleBody(float ComHeight, uint32_t Material) noe
 }
 
 //------------------------------------------------------------------------------------------------------------------------ wheel (axle along +Y) — rest pose of the shared DriveWheelMesh surface
-// Emits the SAME surface DriveSceneMirror draws per frame; the only difference is that this lattice is the
-//    undeformed cylinder while the mirror's is XPBDSoftTyre's live node set. Rings/segments/spokes/materials all
-//    come from DriveWheelMesh.h, so an exported wheel and a simulated wheel can never drift apart in topology.
+// Emits the rest wheel surface. Rings/segments/spokes/materials all come from DriveWheelMesh.h, so an exported
+//    wheel and a simulated wheel can never drift apart in topology; the GPU bends this rest shape at draw time.
 void DriveSceneAuthor::AppendWheel(const Vector3& C, float Radius, float HalfWidth, uint32_t Segments, uint32_t Material) noexcept
 {
     (void)Material;
@@ -162,8 +161,8 @@ void DriveSceneAuthor::AppendWheel(const Vector3& C, float Radius, float HalfWid
         });
 
     // ── the authored rim, mags and all ──────────────────────────────────────────────────────────────────────
-    // EmitWheelSurface above draws the TREAD (the XPBD lattice, which must stay procedural because it
-    // deforms) and used to draw the rim as concentric bands with kDriveWheelSpokeCount = 0 — that is, a flat
+    // EmitWheelSurface above draws the TREAD (procedural, so the GPU deformation has a regular lattice to
+    // bend) and used to draw the rim as concentric bands with kDriveWheelSpokeCount = 0 — that is, a flat
     // disc with no mags whatsoever.  The real RimFL mesh is right there in ControlVehicle.blend, so it is
     // emitted here instead: 1568 triangles carrying the authored black rim and the blue Material.024 mag
     // accent that is visible on the wheels in the viewport.
@@ -410,7 +409,7 @@ void DriveSceneAuthor::Construct(bool StaticPose) noexcept
     }
 
     // spans 1..4 — wheels (dynamic) -> instances 1..4 (FL, FR, RL, RR).  Every wheel emits MARubber + hub + brake.
-    const char* wheelNames[4] = { "XPBD Tyre FL", "XPBD Tyre FR", "XPBD Tyre RL", "XPBD Tyre RR" };
+    const char* wheelNames[4] = { "Tyre FL", "Tyre FR", "Tyre RL", "Tyre RR" };
     for (int w = 0; w < 4; ++w)
     { auto s = OpenSpan(wheelNames[w], /*Dynamic=*/true); (void)s;
       const Frontier::Vehicle::Vec3 Rest = geo.AxleMountLocal(static_cast<uint32_t>(w));

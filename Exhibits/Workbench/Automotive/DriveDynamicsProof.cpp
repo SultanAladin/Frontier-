@@ -47,11 +47,11 @@ struct DriveFixture
     VehicleChassisBody Body;
     VehicleSolver Solver;
     VehicleSolverConfiguration Configuration;
-    XPBDSoftTyre::GroundQuery Ground;
+    GroundQuery Ground;
     std::vector<Vec3> CollisionLocations;
 
     void Construct(const Vec3& Position, const Vec3& Velocity, const Quat& Rotation,
-                   XPBDSoftTyre::GroundQuery Surface)
+                   GroundQuery Surface)
     {
         Ground = std::move(Surface);
         ApplyGeometry(Configuration, Geometry);
@@ -90,8 +90,7 @@ struct DriveFixture
                std::isfinite(Body.Orientation.z) && std::isfinite(Body.Orientation.w));
         assert(Body.Contacts.KineticAfter <= Body.Contacts.KineticBefore + std::max(1.0f, Body.Contacts.KineticBefore * 0.0001f));
         for (const auto& Tyre : Solver.Tyres())
-            for (const auto& Node : Tyre.Nodes())
-                assert(std::isfinite(Node.Position.x) && std::isfinite(Node.Position.y) && std::isfinite(Node.Position.z));
+            assert(std::isfinite(Tyre.HubPosition().x) && std::isfinite(Tyre.HubPosition().y) && std::isfinite(Tyre.HubPosition().z));
     }
 };
 
@@ -148,8 +147,6 @@ void CheckWallTransfer()
         Configuration.ActiveScheme = Scheme;
         Configuration.SuspensionEnabled = false;
         Configuration.Aero.Enabled = false;
-        Configuration.Tyre.RingCount = 5u;
-        Configuration.Tyre.SegmentCount = 64u;
         Configuration.Wheels = {WheelMount{{}, {}, false, false, false}};
         const ChassisState Chassis{{0.0f, Course::KerbConstants::CentreY - 0.07f, 0.31f}, {}, {}, {}};
         Vec3 Delivered;
@@ -172,7 +169,7 @@ void CheckWallTransfer()
             LargestSide = std::max(LargestSide, std::abs(Reaction.RimForce.y));
         }
         assert(LargestSide > 100.0f);
-        std::printf("PASS %s transfers XPBD kerb normal to chassis (peak %.1f N)\n",
+        std::printf("PASS %s transfers kerb contact normal to chassis (peak %.1f N)\n",
                     Scheme == DrivingScheme::PacejkaDrivetrain ? "Pacejka" : "simple", LargestSide);
     }
 }
@@ -220,11 +217,6 @@ ScenarioReading RunScenario(const char* Name, const std::filesystem::path& Folde
             Side += Wheel.NormalReaction.y;
             Strut += Wheel.StrutForce;
             Reading.TyreContacts += Wheel.InContact ? 1u : 0u;
-        }
-        for (const auto& Tyre : Fixture.Solver.Tyres())
-        {
-            Rim = std::max(Rim, Tyre.Residual().RimMax);
-            GroundError = std::max(GroundError, Tyre.Residual().ContactMax);
         }
         Reading.PeakLoad = std::max(Reading.PeakLoad, Load);
         Reading.PeakSide = std::max(Reading.PeakSide, std::abs(Side));

@@ -11,7 +11,7 @@ namespace Frontier::Drive
 bool VehicleInstanceSequence::Construct(
     const Frontier::Vehicle::VehicleGeometry&          Geometry,
     const VehicleInstanceConfiguration&               Configuration,
-    Frontier::Vehicle::XPBDSoftTyre::GroundQuery       Ground) noexcept
+    Frontier::Vehicle::GroundQuery       Ground) noexcept
 {
     if (!Ground)
         Ground = [](const Vehicle::Vec3& Point, Vehicle::Vec3& Surface, Vehicle::Vec3& Normal)

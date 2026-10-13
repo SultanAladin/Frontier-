@@ -6,7 +6,7 @@
 //    This is GRIT's suspension model, carried over whole. GRIT drove the same vehicle through the same control
 //    integrator, so the tuning values below are its values, not new guesses: 2.0 Hz natural frequency, 0.6 damping
 //    ratio, a digressive spring with a 1.5 hardening factor, 2 cm of bump and 8 cm of droop, and an anti-roll bar at
-//    80 kN/m. What is deliberately NOT carried over is GRIT's line-trace contact search — the XPBD soft tyre already
+//    80 kN/m. GRIT's line-trace contact search is carried over too (TraceContactTyre.h) — the wheel contact already
 //    resolves the ground with its own particles, so the strut here ends at the hub and the tyre takes it from there.
 //
 //    📐 Derivation. A quarter car of sprung mass 𝑚 on a spring of rate 𝑘 has ω = √(𝑘/𝑚), so specifying the ride

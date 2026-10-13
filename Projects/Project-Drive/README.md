@@ -48,40 +48,20 @@ Add `--sanitize` for GCC/Clang ASan+UBSan. Run `python Tools/Tests/RunDriveExhib
 The SDF image is a transport reference, not a Vulkan card-capture or pixel-parity validation.
 
 
-## Reconstructed flight and incline checks
+## Rigid tumble checks
 
-Run the actual production simulation recordings from the repository root:
-
-```powershell
-python Tools/Tests/CheckDriveFlight.py --compiler cl.exe --jobs 4
-python Tools/Tests/CheckDriveTumble.py --compiler cl.exe --rigid-only
-```
-
-On Linux omit `--compiler cl.exe`. The complete matrix records four two-wheel
-ramps, 26 signed six-second midair spins, eight spinning landings and 30
-brake/friction/heading incline cases. Drive mounts are disconnected and body
-damping is disabled. `--selection core` records 14 core scenarios; a case-name
-substring selects focused runs. `--duration` is explicitly shortened diagnostics,
-not a full matrix certificate. Failures still write traces and source/output hashes.
-
-`CheckDriveFlightDeformation.py` differentiates recorded co-material particle
-positions. `CheckDriveTumbleEnergy.py --output <folder>` preserves the separate
-2500 J / 3% necessary bound. The stricter flight bound is 100 J / 0.1% and cannot
-be padded with initial spawn altitude. Neither is exact coupled conservation.
-`--sanitize` enables GCC/Clang ASan/UBSan; published short scopes are not the full
-matrix under sanitizers. Locked dependency headers are verified/restored from
-`ExternalPackages/Dependencies.lock.json` by `DependencyCodec.py`.
-
-Publish actual recorded nodes and motion using the shared CPU raster:
+Run the rigid-body tumble proof from the repository root:
 
 ```powershell
-python Tools/Tests/RunDriveFlightExhibit.py --compiler cl.exe --jobs 2
+python Tools/Tests/CheckDriveTumble.py --compiler cl.exe
 ```
 
-The publisher needs Pillow, NumPy, matplotlib and imageio-ffmpeg. `--compile-only`
-builds just the CPU motion renderer; `--publish-only` requires matching existing
-recorded renders. `RunDriveTumbleExhibit.py` calls the same consolidated publisher.
-Open `Exhibits/Gallery/ProjectDrive/flight-and-slopes.html` for GIFs, MP4s, energy
+On Linux omit `--compiler cl.exe`. The wheel is rigid on its hub (`RigidWheel.h`); its
+contact is the `TraceContactTyre.h` sample fan and its visual deformation is evaluated
+on the GPU from the per-wheel contact record (`Plans/Ongoing/TyreContactAndGPUDeformation.md`).
+The soft-body flight/slope recordings that used to live here were XPBD node studies
+and went with that solver; `Exhibits/Gallery/ProjectDrive/flight-and-slopes.html` is
+retained as historical evidence only.
 and deformation graphs, full compressed traces and preserved failed checks.
 `render-references.html` contains newly regenerated shared raster, SDF and ReSTIR
 CPU references, not GPU screenshots. The comparison baseline is explicitly only

@@ -21,7 +21,7 @@ struct VehicleSpawnReading
 /// 📦 GRIT's equilibrium construction, in metres: support plane, heading projection, rest-length and radius offset.
 /// err   insufficient/vertical support retains the requested pose and reports Supported=false
 inline VehicleSpawnReading ResolveVehicleSpawn(const VehicleSolverConfiguration& Configuration,
-    const ChassisState& Requested, const XPBDSoftTyre::GroundQuery& Ground, float Clearance = 0.02f)
+    const ChassisState& Requested, const GroundQuery& Ground, float Clearance = 0.02f)
 {
     VehicleSpawnReading Result;
     Result.Pose = Requested;

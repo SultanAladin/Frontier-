@@ -16,8 +16,6 @@ inline constexpr const char* kWindowTitle    = "Project-Tractrix  |  Vehicle Phy
 inline constexpr const char* kShowcaseLabel  = "Project-Tractrix  |  Vehicle Physics";
 
 // Phase-0 physics-thread defaults (see Engine/PhysicalDynamics/VehiclePhysicsThread.h). The Jolt world steps at
-//    kBaseStepHz; the XPBD tyre sub-steps kTyreSubsteps times inside each of those steps.
 inline constexpr double   kBaseStepHz    = 60.0;
-inline constexpr unsigned kTyreSubsteps  = 12u;    // ⇒ ~720 Hz effective tyre rate
 
 } // namespace Frontier::Tractrix

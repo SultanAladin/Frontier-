@@ -33,7 +33,7 @@
 #pragma once
 
 #include "SuspensionSpecification.h"
-#include "XPBDSoftTyre.h"   // Vec3
+#include "VehicleMath.h"   // Vec3
 
 #include <algorithm>
 #include <vector>
@@ -95,7 +95,7 @@ struct VehicleGeometry
     float StaticRideHeight   = 0.06f;    // [m]  underfloor-to-ground at rest (feeds ground-effect ride height)
 
     // ---- Unsprung mass: what hangs BELOW the spring and therefore does not ride on it ----
-    //   Carcass 12 kg (SoftTyreParameters::TotalMass) plus hub, upright, brake and half the strut.
+    //   Carcass 12 kg (TyreSpecification::TotalMass) plus hub, upright, brake and half the strut.
     float UnsprungMassPerWheel = 20.0f;  // [kg] excluded from the sprung mass each corner's spring is rated for
 
     // ---- Suspension, ported from GRIT (see SuspensionSpecification.h) ----

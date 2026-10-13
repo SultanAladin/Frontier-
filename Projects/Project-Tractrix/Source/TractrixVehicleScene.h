@@ -7,7 +7,7 @@
 //        RigidBodySolver (Jolt)  ──creates──▶  TractrixProvingGround heightfield + a box chassis body
 //              ▲                                     │
 //              │ StepOnce()                          │ hooks (read pose / apply force at point / ground sample)
-//        VehiclePhysicsThread (240 Hz)  ──drives──▶  VehicleSolver (chassis + 4 XPBD soft tyres)
+//        VehiclePhysicsThread (240 Hz)  ──drives──▶  VehicleSolver (chassis + 4 trace-contact tyres)
 //              ▲                                     │
 //              │ DataChannel<DriverInput>            │ DataChannel<VehicleTelemetry>
 //        game thread: AssignInput() / Telemetry()  ◀────┘

@@ -1,7 +1,7 @@
 //============================================================================================================================================
 //                                                           TRACECONTACTTYRE.H
 //============================================================================================================================================
-// 📦 The pre-XPBD wheel contact: a fan of ground samples around the rim, averaged into one patch, one normal and one load.
+// 📦 The wheel contact: a fan of ground samples around the rim, averaged into one patch, one normal and one load.
 //
 // 📐 This is GRIT's `ComputeSuspensionDisplacements` (VehicleSolver.cpp @984dfbb, the Chaos build) with the Unreal
 //    line traces replaced by the solver's own GroundQuery. The trajectory atlas is the same: `LateralCount` slices
@@ -12,16 +12,16 @@
 //    vertical stiffness (≈ 200–300 kN/m for a passenger tyre), which GRIT lumped into the strut and we keep
 //    separate because the strut here is a real two-mass unit (SuspensionSpecification.h).
 //
-// Cost: LateralCount × (2·FanHalfAngle/FanStep + 1) ground queries per wheel per step — 3 × 19 = 57 by default,
-//    against the XPBD carcass's 144 nodes × 16 substeps. A step for 240 tyres is ~14 k queries, well inside a
-//    millisecond; and the answer does not depend on a substep schedule, so it is a usable road-feedback source.
+// Cost: LateralCount × (2·FanHalfAngle/FanStep + 1) ground queries per wheel per step — 3 × 19 = 57 by default.
+//    A step for 240 tyres is ~14 k queries, well inside a millisecond, and the answer does not depend on any
+//    iteration schedule, so it is a usable road-feedback source.
 //
-// Frames (match XPBDSoftTyre.h): right-handed, +Z up; hub frame +X forward, +Y axle (left), +Z up; steer and camber
+// Frames (VehicleMath.h): right-handed, +Z up; hub frame +X forward, +Y axle (left), +Z up; steer and camber
 //    live in the hub rotation, spin does not.
 
 #pragma once
 
-#include "XPBDSoftTyre.h"
+#include "RigidWheel.h"
 #include <cmath>
 #include <cstdint>
 
@@ -52,7 +52,7 @@ struct TraceContactReading
 // hubRot carries steer (and camber), never spin. hubVel is the hub's own velocity including strut travel.
 inline TraceContactReading TraceWheelContact(const TraceContactParameters& P, float Radius, float Width,
                                              const Vec3& Hub, const Quat& HubRot, const Vec3& HubVel,
-                                             const XPBDSoftTyre::GroundQuery& Ground) noexcept
+                                             const GroundQuery& Ground) noexcept
 {
     TraceContactReading Out{};
     if (!Ground || Radius <= 0.0f) return Out;
@@ -65,6 +65,7 @@ inline TraceContactReading TraceWheelContact(const TraceContactParameters& P, fl
     const uint32_t Slices = P.LateralCount == 0u ? 1u : P.LateralCount;
 
     Vec3 SumPoint{}, SumNormal{};
+    float SumLateral = 0.0f;
     uint32_t Hits = 0u;
     for (uint32_t Slice = 0u; Slice < Slices; ++Slice)
     {
@@ -86,6 +87,7 @@ inline TraceContactReading TraceWheelContact(const TraceContactParameters& P, fl
             if (Dot(Surface - Sample, Normal) <= 0.0f) continue;
             SumPoint = SumPoint + Surface;
             SumNormal = SumNormal + Normal;
+            SumLateral += (Fraction - 0.5f) * 2.0f;
             ++Hits;
         }
     }
@@ -100,7 +102,11 @@ inline TraceContactReading TraceWheelContact(const TraceContactParameters& P, fl
     // GRIT: PhysicsWheelCenter = AvgLoc + AvgNorm·R; how far the real hub sits below that is the tyre deflection.
     const Vec3 ImpliedHub = Patch + N * Radius;
     float Deflection = Dot(ImpliedHub - Hub, N);
-    if (!(Deflection > 0.0f)) return Out;                 // touching but not compressed: no load, still a patch
+    if (!(Deflection > 0.0f))
+    {   // touching but not compressed: no load, still a patch
+        Out.Normal = N; Out.Reaction.PatchCentre = Patch; Out.Reaction.ContactNormal = N; Out.Reaction.ContactCount = Hits;
+        return Out;
+    }
     if (Deflection > P.MaxDeflection) Deflection = P.MaxDeflection;
     const float Rate = -Dot(HubVel, N);                     // hub moving into the ground compresses the tyre
     float Load = P.VerticalStiffness * Deflection + P.VerticalDamping * Rate;
@@ -115,6 +121,9 @@ inline TraceContactReading TraceWheelContact(const TraceContactParameters& P, fl
     Out.Reaction.Force           = Vec3{0.0f, 0.0f, Load};
     Out.Reaction.PatchCentre     = Patch;
     Out.Reaction.ContactCount    = Hits;
+    Out.Reaction.ContactNormal   = N;
+    Out.Reaction.Deflection      = Deflection;
+    Out.Reaction.PatchLateral    = SumLateral * Inverse;
     return Out;
 }
 

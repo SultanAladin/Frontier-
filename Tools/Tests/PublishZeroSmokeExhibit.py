@@ -111,7 +111,7 @@ footer{font-size:12px;color:#8094a8;margin-top:25px}@media(max-width:750px){.gri
 </style></head><body><main><div class="eyebrow">Frontier / Project-Zero / native evidence</div>
 <h1>The actual car.<br>Real mechanics. World-space smoke.</h1>
 <p class="intro">The authored <b>ControlVehicle</b> is decoded as a 3D scene and simulated by the actual <code>ProjectZero.dll</code>.
-XPBD carcass contact, Pacejka powered response, thermal pressure and tyre fuel drive the sources.
+Trace-fan tyre contact, Pacejka powered response, thermal pressure and tyre fuel drive the sources.
 The shared Vulkan facility advects a fine world volume and clips its linear-radiance resolve against the actual scene surface.</p>
 <div class="toolbar"><button id="pause">Pause all clips</button><span class="note">All clips start paused. Playing one pauses the others.</span>
 <a href="metrics/NativeProof.json">Execution certificate</a></div><section class="grid">''' + "\n".join(Cards) + '''</section>

@@ -6,7 +6,7 @@
 //    (SultanAladin/GRIT@e61b15c, 2026-09-29) — NOT the 8-month-stale `main`. It reproduces
 //    `AVehicleSolver::ComputeAerodynamicForces()` (VehicleFramework/VehicleSolver.cpp) and the
 //    component config in `Components/AerodynamicSpecifications.h`, line for line, in engine-agnostic
-//    C++ that reuses the self-contained `Vec3` from XPBDSoftTyre.h (no Unreal, no Jolt).
+//    C++ that reuses the self-contained `Vec3` from VehicleMath.h (no Unreal, no Jolt).
 //
 //    The package models a GT3-class adaptive aero kit:
 //        • Rear wing        — lifting-line (Prandtl) lift + induced drag, DRS-style adaptive angle, aero-brake deploy
@@ -31,7 +31,7 @@
 
 #pragma once
 
-#include "XPBDSoftTyre.h"   // Vec3, Dot
+#include "VehicleMath.h"   // Vec3, Dot
 
 #include <algorithm>
 #include <cmath>

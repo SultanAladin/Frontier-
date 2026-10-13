@@ -10,7 +10,7 @@
 #include "../../../Engine/GeometricRaster/VisibilityRaster.h"
 #include "../../../Engine/GeometricRaster/DistanceFieldStructure.h"
 #include "../../../Projects/Project-Drive/Source/DriveSceneAuthor.h"
-#include "../../../Engine/PhysicalDynamics/Vehicle/XPBDSoftTyre.h"
+#include "../../../Engine/PhysicalDynamics/Vehicle/RigidWheel.h"
 
 #include <algorithm>
 #include <cassert>

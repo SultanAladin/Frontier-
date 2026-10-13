@@ -6,8 +6,6 @@
 #include "../../../Engine/ProjectInterchange/ProjectInterchange.h"
 
 #include "VehicleInstanceSequence.h"
-#include "TyreSequence.h"
-#include "../../../Engine/ProjectInterchange/GeometryInterchange.h"
 #include "../../../Engine/ProjectInterchange/VehicleInterchange.h"
 #include "ChaseCameraSolver.h"
 #include "DriveCabinDisplays.h"
@@ -43,8 +41,6 @@ struct DriveSequence
     std::vector<Frontier::InstanceRecord> Poses{5u};
     uint32_t PreviousTransport = 0u;
     bool PreviousReset = false;
-    uint64_t GeometryRevision = 0u;
-    std::array<Frontier::Drive::TyreSequence, 4> Surfaces;
     Frontier::Drive::DriveCabinDisplays Displays;   // the cabin tablet + cluster sheets (SurfaceDisplay)
     double DisplaySeconds = 0.0;                    // [s] accumulated cycle time the display rates run on
 
@@ -71,7 +67,6 @@ struct DriveSequence
         JoinPhysics();
         if (!ResultsPending || !Vehicle) { ResultsPending = false; return; }
         ResultsPending = false;
-        CaptureSurfaces();
         DeliverPoses();
     }
     void LaunchPhysics()
@@ -88,21 +83,6 @@ struct DriveSequence
             Active->AssignStepWallBudget(Budget);
             Active->AdvanceVehicle(Command, Poses, Seconds);
         });
-    }
-
-    void CaptureSurfaces()
-    {
-        const auto& Tyres = Vehicle->Tyres();
-        const auto& Wheels = Vehicle->Telemetry().Wheels;
-        for (size_t Index = 0u; Index < Surfaces.size() && Index < Tyres.size(); ++Index)
-        {
-            const auto Up = Vehicle->Chassis().Orientation.Rotate({0.0f, 0.0f, 1.0f});
-            const auto Steering = Frontier::Vehicle::Quat::AxisAngle(Up, Wheels[Index].SteerAngleRad);
-            const auto HubRotation = Frontier::Vehicle::QuatNormalize(
-                Frontier::Vehicle::QuatMul(Steering, Vehicle->Chassis().Orientation));
-            Surfaces[Index].Capture(Tyres[Index], Wheels[Index].HubPosition, HubRotation);
-        }
-        ++GeometryRevision;
     }
 
     void RestoreDeployment()
@@ -148,7 +128,7 @@ struct DriveSequence
     void DeliverPoses()
     {
         if (Reception.ReceiveSceneMutation == nullptr) return;
-        static const char* Subjects[] = { "ControlVehicle — paint / glass / plastic", "XPBD Tyre FL", "XPBD Tyre FR", "XPBD Tyre RL", "XPBD Tyre RR" };
+        static const char* Subjects[] = { "ControlVehicle — paint / glass / plastic", "Tyre FL", "Tyre FR", "Tyre RL", "Tyre RR" };
         for (uint32_t Slot = 0u; Slot < Poses.size(); ++Slot)
         {
             FrontierProjectSceneMutation Mutation{};
@@ -213,7 +193,7 @@ uint32_t FRONTIER_CODE_IMAGE_CALL ConstructProject(
 
     // These declarations let the shared Frontier editor own the UI/render/input implementation while Project-Drive
     // owns the vehicle semantics.  They are deliberately granular: selecting ControlVehicle reveals the inspector,
-    // while each XPBD tyre is independently addressable in the project outliner instead of hiding all of the car in
+    // while each tyre is independently addressable in the project outliner instead of hiding all of the car in
     // a generic "Vehicle Dynamics" placeholder.
     if (HostInterchange->ReceivePanel != nullptr)
     {
@@ -221,7 +201,7 @@ uint32_t FRONTIER_CODE_IMAGE_CALL ConstructProject(
         {
             { sizeof(FrontierProjectPanel), "DriveOutliner",       "Project-Drive Outliner" },
             { sizeof(FrontierProjectPanel), "ControlVehicle",     "ControlVehicle Inspector" },
-            { sizeof(FrontierProjectPanel), "XPBDTyres",          "XPBD Tyres" },
+            { sizeof(FrontierProjectPanel), "Tyres",              "Tyres" },
             { sizeof(FrontierProjectPanel), "VehicleDynamics",    "Vehicle Dynamics" },
             { sizeof(FrontierProjectPanel), "DriveRenderModes",   "Raster / SDF GI / ReSTIR" },
         };
@@ -235,7 +215,7 @@ uint32_t FRONTIER_CODE_IMAGE_CALL ConstructProject(
         Diagnostic.StructureSize = sizeof(FrontierProjectDiagnostic);
         Diagnostic.SeverityNumber = 0u;
         Diagnostic.SubjectName = "ControlVehicle";
-        Diagnostic.Explanation = "Vehicle inspector declares chassis, Pacejka and XPBD tyre rows; project code stays C-ABI-only.";
+        Diagnostic.Explanation = "Vehicle inspector declares chassis, Pacejka and tyre rows; project code stays C-ABI-only.";
         HostInterchange->ReceiveDiagnostic(&Diagnostic, HostInterchange->ProjectReception);
     }
 
@@ -430,34 +410,6 @@ extern "C" FRONTIER_CODE_IMAGE_EXPORT uint32_t FRONTIER_CODE_IMAGE_CALL Construc
 extern "C" FRONTIER_CODE_IMAGE_EXPORT void FRONTIER_CODE_IMAGE_CALL ProjectFrameConcludedInterchange(void* ProjectRecord)
 {
     FrameConcluded(ProjectRecord);
-}
-
-extern "C" FRONTIER_CODE_IMAGE_EXPORT uint32_t FRONTIER_CODE_IMAGE_CALL ProjectGeometryInterchange(
-    void* ProjectRecord, FrontierProjectGeometryReading* Reading)
-{
-    if (!Reading || Reading->StructureSize != sizeof(*Reading) || Reading->InterchangeNumber != 1u ||
-        !Reading->SubjectName) return 2u;
-    static const char* Subjects[] = { "XPBD Tyre FL", "XPBD Tyre FR", "XPBD Tyre RL", "XPBD Tyre RR" };
-    size_t Slot = 0u;
-    while (Slot < 4u && std::strcmp(Subjects[Slot], Reading->SubjectName) != 0) ++Slot;
-    if (Slot == 4u) return 0u;
-    auto* Sequence = static_cast<DriveSequence*>(ProjectRecord);
-    Reading->Revision = Sequence && Sequence->Vehicle ? Sequence->GeometryRevision : 0u;
-    if (Reading->VertexCount == 0u) return 1u;
-    if (!Sequence || !Sequence->Vehicle || Reading->Revision == 0u) return 0u;
-    if (!Reading->RestPositions || !Reading->CurrentPositions) return 2u;
-    auto Origin = Sequence->Geometry.AxleMountLocal(static_cast<uint32_t>(Slot));
-    Origin.z += Sequence->Geometry.CoMHeight + 0.02f;
-    for (uint32_t Index = 0u; Index < Reading->VertexCount; ++Index)
-    {
-        const float* Rest = Reading->RestPositions + Index * 3u;
-        if (!std::isfinite(Rest[0]) || !std::isfinite(Rest[1]) || !std::isfinite(Rest[2])) return 2u;
-        const bool Rubber = Reading->MaterialName == nullptr || std::strncmp(Reading->MaterialName, "StandardRubber", 14u) == 0;
-        const auto World = Sequence->Surfaces[Slot].Project({Rest[0] - Origin.x, Rest[1] - Origin.y, Rest[2] - Origin.z}, Rubber);
-        float* Current = Reading->CurrentPositions + Index * 3u;
-        Current[0] = World.x; Current[1] = World.y; Current[2] = World.z;
-    }
-    return 1u;
 }
 
 extern "C" FRONTIER_CODE_IMAGE_EXPORT uint32_t FRONTIER_CODE_IMAGE_CALL ProjectDisplayInterchange(

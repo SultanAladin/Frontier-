@@ -5,10 +5,10 @@
   "glbBytes": 1687392,
   "nodes": [
     "ControlVehicle \u2014 paint / glass / plastic",
-    "XPBD Tyre FL",
-    "XPBD Tyre FR",
-    "XPBD Tyre RL",
-    "XPBD Tyre RR"
+    "Tyre FL",
+    "Tyre FR",
+    "Tyre RL",
+    "Tyre RR"
   ],
   "materials": [
     {

@@ -17,6 +17,6 @@ public:
     bool Construct(
         const Frontier::Vehicle::VehicleGeometry&          Geometry,
         const VehicleInstanceConfiguration&               Configuration,
-        Frontier::Vehicle::XPBDSoftTyre::GroundQuery       Ground = {}) noexcept;
+        Frontier::Vehicle::GroundQuery       Ground = {}) noexcept;
 };
 }

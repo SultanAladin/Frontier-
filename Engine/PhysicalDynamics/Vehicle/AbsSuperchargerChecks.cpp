@@ -1,6 +1,6 @@
 //============================================================================================================================================
 // 📦 Frontier/PhysicalDynamics/Vehicle/AbsSuperchargerChecks.cpp — end-to-end proof that ABS and the supercharger change how the CAR drives.
-//   Drives the full VehicleSolver (PacejkaDrivetrain + XPBD soft tyres + disk brakes) on the same mock rigid chassis
+//   Drives the full VehicleSolver (PacejkaDrivetrain + trace-contact tyres + disk brakes) on the same mock rigid chassis
 //   used by AeroIntegrationChecks / VehicleSceneValidation. No Jolt.
 //
 //   ABS:          hard braking with ABS on keeps the wheels from locking (slip stays near the grip peak) and the disks
@@ -8,7 +8,7 @@
 //   Supercharger: a blown car out-accelerates the naturally-aspirated version and reports boost + parasitic drag.
 //
 //   Build: g++ -std=c++17 -O2 AbsSuperchargerChecks.cpp VehicleSolver.cpp VehicleGeometry.cpp Aerodynamics.cpp \
-//                XPBDSoftTyre.cpp PacejkaMagicFormula.cpp TyreSlipDynamics.cpp Drivetrain.cpp -o /tmp/abs && /tmp/abs
+//                PacejkaMagicFormula.cpp TyreSlipDynamics.cpp Drivetrain.cpp -o /tmp/abs && /tmp/abs
 //============================================================================================================================================
 
 #include "VehicleSolver.h"
@@ -65,7 +65,7 @@ struct MockChassis
     [[nodiscard]] ChassisState State() const noexcept { return {Position, Orientation, LinearVelocity, AngularVelocity}; }
 };
 
-XPBDSoftTyre::GroundQuery Flat() { return [](const Vec3& p, Vec3& s, Vec3& n){ s = {p.x,p.y,0}; n = {0,0,1}; return true; }; }
+GroundQuery Flat() { return [](const Vec3& p, Vec3& s, Vec3& n){ s = {p.x,p.y,0}; n = {0,0,1}; return true; }; }
 VehicleGeometry Geo() { return VehicleGeometry{}; }
 
 struct Rig

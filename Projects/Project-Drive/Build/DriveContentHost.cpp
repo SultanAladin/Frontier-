@@ -4,7 +4,8 @@
 // 📦 Headless export and import verification of Project-Drive's existing authored opening scene.
 
 #include "../Source/DriveSceneAuthor.h"
-#include "../Source/TyreSequence.h"
+#include "../../../Engine/GeometricRaster/WheelProjection.h"
+#include "../../../Engine/GeometricRaster/DeformationSpace.h"
 #include "../../../Engine/PhysicalDynamics/Vehicle/VehicleGeometry.h"
 #include "../../../Engine/ContentInterchange/SceneCodec.h"
 
@@ -57,17 +58,9 @@ int main(int ArgumentCount, char** Arguments)
         // A project-owned rest bake, not a replacement renderer. Live host geometry reconstructs the production
         // hybrid world field; this local signed envelope is retained for field-only queries and diagnostics.
         const Frontier::Vehicle::VehicleGeometry Geometry;
-        Frontier::Vehicle::SoftTyreParameters Parameters;
-        Parameters.Radius = Geometry.TyreRadius;
-        Parameters.RimRadius = Geometry.TyreRimRadius;
-        Parameters.Width = Geometry.TyreWidth;
-        Frontier::Vehicle::XPBDSoftTyre Tyre;
-        Tyre.Build(Parameters, {}, {});
-        Frontier::Drive::TyreSequence Surface;
-        Surface.Capture(Tyre, {}, {});
         std::vector<Frontier::Vector3> Vertices;
         std::vector<Frontier::DeformationSpace::Face> Faces;
-        Surface.Envelope(Vertices, Faces, true);
+        Frontier::Vehicle::BuildRestTyreEnvelope(Vertices, Faces, Geometry.TyreRadius, Geometry.TyreRimRadius, Geometry.TyreWidth);
         Frontier::DeformationSpace Bake;
         if (!Bake.Update(Vertices, Faces, 64u, 0.06f, Refusal))
         {

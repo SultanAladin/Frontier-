@@ -1,7 +1,7 @@
 //============================================================================================================================================
 //                                                         VEHICLESTRUCTURE.H
 //============================================================================================================================================
-// 📦 Shared authored ControlVehicle, closed XPBD-compatible wheels and a neutral proving-ground surface.
+// 📦 Shared authored ControlVehicle, closed procedural wheels and a neutral proving-ground surface.
 
 #pragma once
 

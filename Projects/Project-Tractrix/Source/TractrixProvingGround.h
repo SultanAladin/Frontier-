@@ -9,7 +9,7 @@
 //        • `Create(solver)` builds the actual `HeightfieldDescription` and hands it to `RigidBodySolver::CreateHeightfieldBody`
 //          so every OTHER rigid body (props, the chassis if it tips over) collides with the terrain in Jolt;
 //        • `Sample(p, …)` is an analytic bilinear query over the SAME height grid, used as the soft tyre's `GroundQuery` so
-//          the XPBD tyre nodes contact the heightfield DIRECTLY (the user's Phase-3 requirement) — cheaply and exactly,
+//          the tyre contact fan samples the heightfield DIRECTLY — cheaply and exactly,
 //          without casting a ray per node per substep.
 //
 //    Height-grid → world mapping matches HeightfieldDescription: sample [row,col] lands at
@@ -19,7 +19,7 @@
 #pragma once
 
 #include "../../../Engine/PhysicalDynamics/RigidBodySolver.h"
-#include "../../../Engine/PhysicalDynamics/Vehicle/XPBDSoftTyre.h"   // Frontier::Vehicle::Vec3
+#include "../../../Engine/PhysicalDynamics/Vehicle/RigidWheel.h"   // Frontier::Vehicle::Vec3, GroundQuery
 
 #include <cmath>
 #include <cstdint>
@@ -73,8 +73,8 @@ public:
         return Body;
     }
 
-    // Analytic surface point + normal at a world point. Matches XPBDSoftTyre::GroundQuery's signature, which
-    //    is now a SURFACE query rather than a height (see XPBDSoftTyre.h for why). A heightfield is the
+    // Analytic surface point + normal at a world point. Matches GroundQuery's signature, which
+    //    is now a SURFACE query rather than a height (see RigidWheel.h). A heightfield is the
     //    trivial case of it: the nearest point is straight down the column, so only the return shape changed.
     [[nodiscard]] bool Sample(const Frontier::Vehicle::Vec3& p, Frontier::Vehicle::Vec3& outPoint,
                               Frontier::Vehicle::Vec3& outNormal) const noexcept

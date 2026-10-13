@@ -14,7 +14,7 @@
 //        5. rests stably on a sloped heightfield (handbrake on) without sinking or exploding.
 //
 //    Build & run (sandbox):
-//        g++ -std=c++17 -O2 -Wall -Wextra VehicleSceneValidation.cpp VehicleSolver.cpp XPBDSoftTyre.cpp -o vscene && ./vscene
+//        g++ -std=c++17 -O2 -Wall -Wextra VehicleSceneValidation.cpp VehicleSolver.cpp -o vscene && ./vscene
 //
 //============================================================================================================================================
 
@@ -113,7 +113,7 @@ static VehicleSolverConfiguration MakeConfig(DrivingScheme model)
     VehicleSolverConfiguration c;
     c.ActiveScheme = model;
     c.ChassisMass = 1200.0f;
-    c.Tyre = SoftTyreParameters{};                 // Phase-2 calibrated defaults (R=0.34, etc.)
+    c.Tyre = TyreSpecification{};                  // defaults (R=0.34, etc.)
     const float zoff = -0.55f;                      // hub sits below the CoM (box floats above the wheels)
     c.Wheels = {
         WheelMount{ Vec3{ 1.30f,  0.78f, zoff}, /*steer*/true,  /*drive*/false, /*brake*/true },
@@ -128,9 +128,9 @@ struct Rig
 {
     MockChassis chassis;
     VehicleSolver controller;
-    XPBDSoftTyre::GroundQuery ground;
+    GroundQuery ground;
 
-    void Build(const VehicleSolverConfiguration& cfg, XPBDSoftTyre::GroundQuery g)
+    void Build(const VehicleSolverConfiguration& cfg, GroundQuery g)
     {
         chassis = MockChassis{};
         chassis.Mass = cfg.ChassisMass;
@@ -174,7 +174,7 @@ static void RunSuite(DrivingScheme model, const char* label)
     std::printf("# DRIVING MODEL: %s\n", label);
     std::printf("############################################################\n");
     std::printf("Phase-3 VehicleSolver drive check  (mock chassis + mock heightfield, dt=1/%.0f Hz)\n", 1.0f / dt);
-    std::printf("chassis %.0f kg, 4 wheels, RWD, front-steer, soft XPBD tyres (R=%.2f m)\n\n",
+    std::printf("chassis %.0f kg, 4 wheels, RWD, front-steer, trace-contact tyres (R=%.2f m)\n\n",
                 cfg.ChassisMass, cfg.Tyre.Radius);
 
     //--------------------------------------------------------------------------------------------------------------

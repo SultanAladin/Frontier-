@@ -5,12 +5,12 @@
 //    Phase 0 of the vehicle port. GRIT ran its vehicle on Chaos's physics thread (an async SimCallback) so the sim stepped
 //    on a stable cadence independent of the render frame, and talked to the game thread through double-buffered channels
 //    guarded by atomic flags. Frontier's RigidBodySolver normally steps synchronously from the main loop; a car needs the
-//    same decoupled, high-cadence stepping (the suspension strut and the XPBD tyre want 240–1000 Hz, far above the render
+//    same decoupled, high-cadence stepping (the suspension strut wants 240–1000 Hz, far above the render
 //    rate), so this owns a std::thread that drives stepping itself.
 //
 //    The thread is engine-agnostic: it knows nothing about Jolt or tyres. Each fixed step it calls a StepCallback the
 //    vehicle layer installs — inside that callback the vehicle solver reads inputs, casts the wheels, computes suspension +
-//    tyre forces (sub-stepping the XPBD tyre as it likes), applies them, and calls RigidBodySolver::StepOnce() exactly once.
+//    tyre forces, applies them, and calls RigidBodySolver::StepOnce() exactly once.
 //    That keeps this file free of physics detail and unit-testable with a mock callback.
 //
 //    Threading contract:

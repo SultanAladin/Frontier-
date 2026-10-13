@@ -1,12 +1,12 @@
 //============================================================================================================================================
 // 📦 Frontier/PhysicalDynamics/Vehicle/AeroIntegrationChecks.cpp — end-to-end proof that the ported aerodynamics changes how the CAR drives.
-//   Drives the full VehicleSolver (PacejkaDrivetrain + XPBD soft tyres) on a mock rigid chassis, comparing an
+//   Drives the full VehicleSolver (PacejkaDrivetrain + trace-contact tyres) on a mock rigid chassis, comparing an
 //   aero-equipped GT3 against an identical car with aero disabled. Confirms the two headline effects:
 //       • DRAG      → lower terminal speed + faster coast-down
 //       • DOWNFORCE → more cornering grip (higher sustained lateral acceleration before the tyres let go)
 //   No engine, no Jolt — same mock-chassis harness as VehicleSceneValidation.
 //
-//   Build:  g++ -std=c++17 -O2 AeroIntegrationChecks.cpp VehicleSolver.cpp Aerodynamics.cpp XPBDSoftTyre.cpp \
+//   Build:  g++ -std=c++17 -O2 AeroIntegrationChecks.cpp VehicleSolver.cpp Aerodynamics.cpp \
 //                 PacejkaMagicFormula.cpp TyreSlipDynamics.cpp Drivetrain.cpp -o /tmp/aerodrive && /tmp/aerodrive
 //============================================================================================================================================
 
@@ -80,7 +80,7 @@ struct MockChassis
     [[nodiscard]] ChassisState State() const noexcept { return {Position, Orientation, LinearVelocity, AngularVelocity}; }
 };
 
-XPBDSoftTyre::GroundQuery Flat() { return [](const Vec3& p, Vec3& s, Vec3& n){ s = {p.x,p.y,0}; n = {0,0,1}; return true; }; }
+GroundQuery Flat() { return [](const Vec3& p, Vec3& s, Vec3& n){ s = {p.x,p.y,0}; n = {0,0,1}; return true; }; }
 
 VehicleGeometry Geo() { return VehicleGeometry{}; }   // documented GT3-class estimates
 

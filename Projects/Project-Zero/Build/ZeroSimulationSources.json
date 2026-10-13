@@ -5,7 +5,6 @@
     "Engine/DisplayPresentation/ChaseCameraSolver.cpp",
     "Engine/PhysicalDynamics/Vehicle/VehicleSolver.cpp",
     "Engine/PhysicalDynamics/Vehicle/VehicleGeometry.cpp",
-    "Engine/PhysicalDynamics/Vehicle/XPBDSoftTyre.cpp",
     "Engine/PhysicalDynamics/Vehicle/Drivetrain.cpp",
     "Engine/PhysicalDynamics/Vehicle/Aerodynamics.cpp",
     "Engine/PhysicalDynamics/Vehicle/PacejkaMagicFormula.cpp",

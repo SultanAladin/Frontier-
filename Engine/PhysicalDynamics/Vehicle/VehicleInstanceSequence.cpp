@@ -117,7 +117,7 @@ float VehicleChassisBody::KineticEnergy() const noexcept
 }
 
 void VehicleChassisBody::ResolveContacts(const std::vector<Vec3>& Locations,
-                                         const Frontier::Vehicle::XPBDSoftTyre::GroundQuery& Ground,
+                                         const Frontier::Vehicle::GroundQuery& Ground,
                                          float Seconds) noexcept
 {
     Contacts = {};
@@ -143,7 +143,7 @@ void VehicleChassisBody::ResolveContacts(const std::vector<Vec3>& Locations,
         const Vec3 AngularGradient = Frontier::Vehicle::Cross(Arm, Direction);
         return InverseMass + Frontier::Vehicle::Dot(AngularGradient, WorldAngularAccel(AngularGradient));
     };
-    // 📝 XPBD unilateral position projection; split correction is not converted into a fictitious rebound velocity.
+    // 📝 Unilateral position projection; split correction is not converted into a fictitious rebound velocity.
     for (uint32_t Sweep = 0u; Sweep < 6u; ++Sweep)
         for (size_t Index = 0u; Index < Locations.size(); ++Index)
         {
@@ -213,7 +213,7 @@ Frontier::Vehicle::ChassisState VehicleChassisBody::State() const noexcept
 //------------------------------------------------------------------------------------------------------------------------ construction
 bool VehicleInstanceSequence::Construct(const Frontier::Vehicle::VehicleGeometry& Geometry,
                                         const VehicleInstanceConfiguration& Configuration,
-                                        Frontier::Vehicle::XPBDSoftTyre::GroundQuery Ground) noexcept
+                                        Frontier::Vehicle::GroundQuery Ground) noexcept
 {
     Built = false;
     Instancing = Configuration;
@@ -267,7 +267,7 @@ bool VehicleInstanceSequence::Construct(const Frontier::Vehicle::VehicleGeometry
     h.ReadChassis       = [this]{ return Body.State(); };
     h.ApplyForceAtPoint = [this](const Vec3& f, const Vec3& p){ Body.ApplyForceAtPoint(f, p); };
     h.ApplyTorque       = [this](const Vec3& t){ Body.ApplyTorque(t); };
-    GroundSurface = Ground ? std::move(Ground) : Frontier::Vehicle::XPBDSoftTyre::GroundQuery([](const Vec3& p, Vec3& s, Vec3& n)
+    GroundSurface = Ground ? std::move(Ground) : Frontier::Vehicle::GroundQuery([](const Vec3& p, Vec3& s, Vec3& n)
     {
         s = Vec3{p.x, p.y, 0.0f};
         n = Vec3{0.0f, 0.0f, 1.0f};

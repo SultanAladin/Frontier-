@@ -20,7 +20,7 @@
 //    does not include the gas. This file includes both and is the only thing that does, which is what lets a
 //    build with no vehicle in it still have gas, and a vehicle-only build still link.
 //
-// 📐 Both layers put +Z up — XPBDSoftTyre.h says so in as many words, and axis 2 is up throughout
+// 📐 Both layers put +Z up — VehicleMath.h says so in as many words, and axis 2 is up throughout
 //    VolumetricDynamics — so the contact point crosses without a change of hand or of axis order. If either
 //    ever moves, it moves here.
 //

@@ -7,7 +7,7 @@ import json
 import os
 import subprocess
 import sys
-from DependencyCodec import RestoreVulkanHeaders
+from DependencyCodec import RestoreVulkanHeaders, RestoreProofDependency
 
 Root = Path(__file__).resolve().parents[2]
 
@@ -40,7 +40,7 @@ def Main():
         "Engine/ProjectInterchange/SmokeInterchange.h", "Engine/ProjectInterchange/SmokeTransportInterchange.h",
         "Engine/ProjectInterchange/VehicleInterchange.h", "Tools/Tests/CheckDriveSmoke.py"])
     Initial = Fingerprint(Files)
-    Includes = [Root / "Engine", RestoreVulkanHeaders()]
+    Includes = [Root / "Engine", RestoreVulkanHeaders(), RestoreProofDependency("stb")]
     Flags = ["/nologo", "/std:c++20", "/EHsc", "/utf-8", "/O2", "/MD", "/UNDEBUG", "/DNOMINMAX"] if Windows else [
         "-std=c++20", "-O2", "-UNDEBUG", "-ffunction-sections", "-fdata-sections"]
     if Arguments.sanitize:
@@ -49,7 +49,7 @@ def Main():
     Commands = []
     Environment = dict(os.environ, ASAN_OPTIONS="detect_leaks=1:halt_on_error=1", UBSAN_OPTIONS="halt_on_error=1")
     for Name, Sources, RunArguments in [
-        ("SmokeMetrics", [NativeSources[0], "Engine/PhysicalDynamics/Vehicle/XPBDSoftTyre.cpp"], []),
+        ("SmokeMetrics", [NativeSources[0]], []),
         ("VehicleMetrics", Roster + [NativeSources[1]], [str(Folder)])
     ]:
         Executable = Build / (Name + (".exe" if Windows else ""))

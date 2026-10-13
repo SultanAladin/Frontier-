@@ -45,8 +45,7 @@ for Folder in [Scratch, Raw, Gallery]:
 Shared = ["Engine/DisplayPresentation/ShadingTableCodec.cpp", "Engine/ContentInterchange/MaterialIndex.cpp",
           "Engine/GeometricRaster/SceneStructure.cpp", "Engine/GeometricRaster/GeometryStructure.cpp",
           "Engine/DeviceExchange/OrientationClassifier.cpp", "Projects/Project-Drive/Source/DriveSceneAuthor.cpp",
-          "Engine/SurfaceDisplay/DisplaySurfaceStructure.cpp",
-          "Engine/PhysicalDynamics/Vehicle/XPBDSoftTyre.cpp"]
+          "Engine/SurfaceDisplay/DisplaySurfaceStructure.cpp"]
 ReSTIR = ["Engine/GeometricRaster/ReservoirIntegrator.cpp", "Engine/Host/RayTracingSolver.cpp",
           "Exhibits/Workbench/Automotive/DriveReservoirProof.cpp"]
 Raster = ["Exhibits/Workbench/Automotive/DriveRenderProof.cpp", "Engine/GeometricRaster/VisibilityRaster.cpp",
@@ -168,7 +167,7 @@ if all((Traces / (Name + ".csv")).exists() for Name in ScenarioNames):
 
 Sources = set(Shared + ReSTIR + Raster + ["Engine/GeometricRaster/ReservoirIntegrator.h", "Engine/Host/RayTracingSolver.h","Exhibits/Workbench/Automotive/DriveDynamicsProof.cpp",
               "Engine/PhysicalDynamics/Vehicle/VehicleSolver.cpp", "Engine/PhysicalDynamics/Vehicle/VehicleSolver.h",
-              "Engine/PhysicalDynamics/Vehicle/XPBDSoftTyre.h", "Projects/Project-Drive/Source/DriveCourse.h",
+              "Engine/PhysicalDynamics/Vehicle/RigidWheel.h", "Projects/Project-Drive/Source/DriveCourse.h",
               "Projects/Project-Drive/Source/VehicleInstanceSequence.cpp", "Projects/Project-Drive/Source/VehicleInstanceSequence.h",
               "Engine/Host/CameraPossessionSequence.h", "Engine/Shaders/DistanceFieldTransport.slang",
               "Engine/Shaders/ViewportIntegrator.slang", "Engine/Shaders/SlangCpuShim.h",

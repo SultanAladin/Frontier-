@@ -4,19 +4,17 @@
 // 📦 Production vehicle/tyre mechanics with explicit solved-pose and mechanical-energy diagnostics.
 
 //
-//    Phase 3 assembles the pieces built in Phases 0–2 into one drivable vehicle:
+//    One drivable vehicle:
 //
 //        • the chassis is a single rigid box in Jolt (RigidBodySolver);
-//        • each corner carries an `XPBDSoftTyre` (Phase 2) whose nodes contact the Jolt heightfield DIRECTLY through the
-//          same GroundQuery the rest of the sim uses — no raycast, exactly the user's Phase-3 requirement;
-//        • the soft tyre carries the vertical wheel load (it IS the suspension spring — the one deformable element), and
-//          its friction coefficient sets the available grip;
-//        • a thin driving layer turns throttle / brake / steer into in-plane tractive & cornering forces, bounded by the
-//          per-wheel friction circle (μ · Fz from the tyre), applied at the contact patch.
+//        • each corner carries a `RigidWheel` on a strut; its contact is the TraceContactTyre sample fan, read through
+//          the same GroundQuery the rest of the sim uses — load, patch centre and normal per step;
+//        • the strut carries the vertical wheel load; Pacejka's Magic Formula turns slip into in-plane tractive and
+//          cornering forces, bounded by the friction ellipse (μ · Fz), applied at the contact patch.
 //
 //    Like the rest of the vehicle layer this class is ENGINE-AGNOSTIC and header-only-math (it reuses the self-contained
-//    Vec3/Quat from XPBDSoftTyre.h). It never mentions Jolt: it reaches the rigid chassis through a small set of `Hooks`
-//    (read chassis pose, apply force at a world point, apply torque) and reaches the ground through the tyre's GroundQuery.
+//    Vec3/Quat from VehicleMath.h). It never mentions Jolt: it reaches the rigid chassis through a small set of `Hooks`
+//    (read chassis pose, apply force at a world point, apply torque) and reaches the ground through GroundQuery.
 //    In the engine `TractrixVehicleScene` binds those hooks to `RigidBodySolver`; the headless `VehicleSceneValidation`
 //    binds them to a mock box integrator, so the whole solver compiles and is validated in the sandbox without Jolt.
 //
@@ -25,13 +23,13 @@
 //        solver.Step(Δτ);          // reads chassis, steps tyres, applies wheel forces to the chassis
 //        solver.StepOnce();            // integrates the chassis with those forces
 //
-//    Frame conventions (match RigidBodySolver + XPBDSoftTyre): right-handed, +Z up, chassis-local +X forward, +Y left,
+//    Frame conventions (match RigidBodySolver + VehicleMath.h): right-handed, +Z up, chassis-local +X forward, +Y left,
 //    tyre spin axis +Y.
 
 #pragma once
 
 #include "SuspensionSpecification.h"
-#include "XPBDSoftTyre.h"
+#include "RigidWheel.h"
 #include "TraceContactTyre.h"
 #include "PacejkaMagicFormula.h"
 #include "TyreSlipDynamics.h"
@@ -48,13 +46,6 @@
 
 namespace Frontier::Vehicle {
 
-// Where the wheel's vertical load, patch and contact normal come from.
-enum class TyreContactModel
-{
-    RayTrace,      // GRIT's fan of ground samples around a rigid rim + residual radial spring (TraceContactTyre.h)
-    XPBDCarcass,   // the particle carcass (XPBDSoftTyre) — deformation study and calibration rigs
-};
-
 // Which in-plane tyre-force model the solver runs.
 enum class DrivingScheme
 {
@@ -65,8 +56,7 @@ enum class DrivingScheme
 //------------------------------------------------------------------------------------------------------------------------
 //                                          quaternion helpers (compose / normalise)
 //------------------------------------------------------------------------------------------------------------------------
-// XPBDSoftTyre.h's Quat only ships AxisAngle + Rotate; the solver also needs Hamilton product and renormalisation to
-//    build a steered hub rotation (yaw ∘ chassis) and to keep the mock chassis quaternion unit.
+// Kept for the solver's older call sites; identical to Quat::operator*.
 [[nodiscard]] inline Quat QuatMul(const Quat& a, const Quat& b) noexcept
 {
     return {
@@ -117,11 +107,9 @@ struct VehicleSolverConfiguration
 {
     float ChassisMass = 1200.0f;                 // [kg] informational; the solver owns the real mass
     Vec3 InvChassisInertia{}; // [1/(kg·m²)] - sprung-body principal inverse inertia
-    SoftTyreParameters Tyre;                     // shared soft-tyre parameters (Phase-2 calibration by default)
+    TyreSpecification Tyre;                      // shared tyre geometry / inflation
     std::vector<WheelMount> Wheels;              // typically 4
-    // Wheel contact. RayTrace is the production path (the pre-XPBD GRIT contact, ~57 ground samples per wheel per
-    //    step, schedule-independent load); XPBDCarcass keeps the particle tyre for the deformation study.
-    TyreContactModel        ContactModel = TyreContactModel::RayTrace;
+    // Wheel contact: the GRIT sample fan (~57 ground samples per wheel per step, schedule-independent load).
     TraceContactParameters  TraceContact{};
 
     float    MaxSteerAngleRad   = 0.52f;         // [rad] ~30° lock
@@ -143,7 +131,6 @@ struct VehicleSolverConfiguration
     bool     SuspensionEnabled  = true;           // [-]   false welds the hubs to the chassis (the old behaviour)
     float    CorneringStiffness = 30000.0f;      // [N per (m/s) of lateral slip, scaled by load fraction]
     float    GripCoefficient    = 1.15f;         // [-]   friction-circle μ for the driving layer (grip = μ·Fz)
-    uint32_t TyreSubsteps       = 16u;           // [-]   XPBD substeps per fixed step (16 × 1 sweep; see SoftTyreParameters::SolverIterations)
     Vec3     Gravity            = {0.0f, 0.0f, -9.81f};
 
     //-- Production driving layer (DrivingScheme::PacejkaDrivetrain) --------------------------------------------------------
@@ -204,13 +191,17 @@ struct WheelTelemetry
 {
     Vec3     HubPosition;            // [m] world (rest hub, follows chassis)
     Quat     HubRotation;           // [-] world (includes steer yaw)
+    float    SpinAngle = 0.0f;      // [rad] accumulated wheel rotation about hub +Y (material frame = HubRotation ∘ spin)
+    Vec3     ContactNormal{0.0f, 0.0f, 1.0f}; // [-] averaged contact normal (world)
+    float    TyreDeflection = 0.0f; // [m]  radial compression along that normal
+    float    PatchLateral = 0.0f;   // [-]  lateral position of the hits across the tread, −1 … +1
     Vec3     ContactPoint;          // [m] world contact-patch centre
     Vec3     ContactVelocity{};     // [m/s] - actual world travel, including lateral drift and strut motion
     Vec3     SlipVelocity{};        // [m/s] - tangential surface velocity relative to road
     float    SpinSlipSpeed = 0.0f;   // [m/s] - equivalent torsional contact slip used by powered response
     float    SlidingPower_W = 0.0f; // [W] - actual slip dissipation, excluding static support/capture work
     ThermalMetrics Thermal;        // [-] - independent tyre heat, pressure and combustion measurements
-    Vec3     NormalReaction{};      // [N] - XPBD non-penetration reaction, including kerb side faces
+    Vec3     NormalReaction{};      // [N] - ground non-penetration reaction from the contact fan
     Vec3     TransmittedReaction{}; // [N] - suspension/linkage normal reaction actually applied to the chassis
     Vec3     RimForce{};                 // [N] - internal tyre force on rim
     Vec3     RimTorque{};                // [N·m] - internal tyre moment on rim
@@ -221,11 +212,11 @@ struct WheelTelemetry
     float    AppliedBrakeTorque = 0.0f;   // [N·m] - signed disc action on the rotor, excluding rolling resistance
     float    BrakePower_W = 0.0f;         // [W] - dissipative relative-shaft disc work
     float    RimPower_W = 0.0f;           // [W] - tyre/rim work diagnostic
-    float    VerticalLoad = 0.0f;   // [N] Fz from the soft tyre
+    float    VerticalLoad = 0.0f;   // [N] Fz carried at the patch
     float    LongitudinalForce = 0.0f; // [N] applied traction/brake (post-clamp)
     float    LateralForce = 0.0f;   // [N] applied cornering (post-clamp)
     float    SteerAngleRad = 0.0f;  // [rad]
-    uint32_t ContactCount = 0u;     // [-] tyre nodes touching ground
+    uint32_t ContactCount = 0u;     // [-] contact samples touching ground
     bool     InContact = false;
     // Production layer (PacejkaDrivetrain) — per-wheel spin & slip state:
     float    WheelOmega   = 0.0f;   // [rad/s] wheel spin (+ = rolling forward)
@@ -285,7 +276,7 @@ public:
         std::function<ChassisState()>                                 ReadChassis;        // world chassis pose + velocities
         std::function<void(const Vec3& forceN, const Vec3& worldPt)>  ApplyForceAtPoint;  // accumulate for next step
         std::function<void(const Vec3& torqueNm)>                     ApplyTorque;        // optional (may be null)
-        XPBDSoftTyre::GroundQuery                                     Ground;             // heightfield sample (no raycast)
+        GroundQuery                                                   Ground;             // heightfield sample (no raycast)
     };
 
     // Builds one soft tyre per wheel mount at its current world hub. `initial` seeds the hub placement.
@@ -301,7 +292,7 @@ public:
                             const Quat& AfterRotation) noexcept;
 
     [[nodiscard]] const VehicleTelemetry& Telemetry() const noexcept { return CurrentTelemetry; }
-    [[nodiscard]] const std::vector<XPBDSoftTyre>& Tyres() const noexcept { return SoftTyres; }
+    [[nodiscard]] const std::vector<RigidWheel>& Tyres() const noexcept { return Wheels; }
     [[nodiscard]] bool Constructed() const noexcept { return ConstructionComplete; }
 
 private:
@@ -315,7 +306,7 @@ private:
 
     VehicleSolverConfiguration    ActiveConfiguration;
     Hooks                      ChassisHooks;
-    std::vector<XPBDSoftTyre>  SoftTyres;
+    std::vector<RigidWheel>    Wheels;
     std::vector<ThermalMetrics> WheelThermals; // [-] - one independent reading per tyre
     DriverInput                DriverCommand;
     VehicleTelemetry           CurrentTelemetry;

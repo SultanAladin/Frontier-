@@ -107,14 +107,12 @@ Projects\Project-Zero\Source\SkyFogIntegrator.cpp|RendererHost's dependency; Cpu
 Projects\Project-Zero\Source\ProjectZeroInterchange.cpp|IS the ProjectZero.dll code image, linked separately from the exe
 Projects\Project-Zero\Source\RayTracingSolver.cpp|linked into Project-Zero-CpuReference, not the exe
 Engine\PhysicalDynamics\VehiclePhysicsThread.cpp|Project-Drive vehicle stack: no image links it yet (see Docs/WindowsBuild.md)
-Engine\PhysicalDynamics\XPBDTyreSolver.cpp|Project-Drive vehicle stack: no image links it yet
 Engine\PhysicalDynamics\Vehicle\Aerodynamics.cpp|Project-Drive vehicle stack: no image links it yet
 Engine\PhysicalDynamics\Vehicle\Drivetrain.cpp|Project-Drive vehicle stack: no image links it yet
 Engine\PhysicalDynamics\Vehicle\PacejkaMagicFormula.cpp|Project-Drive vehicle stack: no image links it yet
 Engine\PhysicalDynamics\Vehicle\TyreSlipDynamics.cpp|Project-Drive vehicle stack: no image links it yet
 Engine\PhysicalDynamics\Vehicle\VehicleGeometry.cpp|Project-Drive vehicle stack: no image links it yet
 Engine\PhysicalDynamics\Vehicle\VehicleSolver.cpp|Project-Drive vehicle stack: no image links it yet
-Engine\PhysicalDynamics\Vehicle\XPBDSoftTyre.cpp|Project-Drive vehicle stack: no image links it yet
 Engine\DisplayPresentation\ChaseCameraSolver.cpp|shared mechanism linked by explicit Drive/Zero DLL simulation rosters
 Engine\PhysicalDynamics\Vehicle\VehicleInstanceSequence.cpp|shared mechanics linked by explicit Drive/Zero DLL simulation rosters
 Engine\DisplayPresentation\DistanceFieldIntegrator.cpp|CPU offline reference integrator for distance field GI

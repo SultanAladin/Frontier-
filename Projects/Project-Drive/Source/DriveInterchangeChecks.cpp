@@ -33,7 +33,7 @@ void ReceivePlacement(const FrontierProjectSceneMutation* Mutation, void* Addres
     for (float Cell : Mutation->Transform) assert(std::isfinite(Cell));
     if (std::strncmp(Mutation->SubjectName, "ControlVehicle", 14u) == 0)
         std::memcpy(Reception.Body, Mutation->Transform, sizeof(Reception.Body));
-    const char* Names[] = { "XPBD Tyre FL", "XPBD Tyre FR", "XPBD Tyre RL", "XPBD Tyre RR" };
+    const char* Names[] = { "Tyre FL", "Tyre FR", "Tyre RL", "Tyre RR" };
     for (uint32_t Slot = 0u; Slot < 4u; ++Slot)
         if (std::strcmp(Mutation->SubjectName, Names[Slot]) == 0)
             std::memcpy(Reception.Wheels[Slot], Mutation->Transform, sizeof(Reception.Wheels[Slot]));

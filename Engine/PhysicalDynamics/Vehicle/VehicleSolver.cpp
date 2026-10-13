@@ -7,31 +7,9 @@
 
 #include <algorithm>
 #include <cmath>
-#include <thread>
 #include <vector>
 
 
-namespace {
-// The four carcasses are independent inside one fixed step: each reads its own hub motion and the static
-//    ground query, and the chassis only reads the reactions afterwards. Stepping them on four threads is
-//    where the step's time goes (XPBDSoftTyre::Step was ~70% of a Drive frame single-threaded).
-void StepTyresConcurrently(std::vector<Frontier::Vehicle::XPBDSoftTyre>& Tyres, const std::vector<Frontier::Vehicle::HubMotion>& Motions,
-                           float Δτ, uint32_t Substeps, const Frontier::Vehicle::XPBDSoftTyre::GroundQuery& Ground)
-{
-    const size_t Count = std::min(Tyres.size(), Motions.size());
-    if (Count <= 1u || std::thread::hardware_concurrency() <= 1u)
-    {
-        for (size_t i = 0u; i < Count; ++i) Tyres[i].Step(Δτ, Substeps, Motions[i], Frontier::Vehicle::Vec3{0.0f, 0.0f, 0.0f}, Ground);
-        return;
-    }
-    std::vector<std::thread> Workers;
-    Workers.reserve(Count - 1u);
-    for (size_t i = 1u; i < Count; ++i)
-        Workers.emplace_back([&, i] { Tyres[i].Step(Δτ, Substeps, Motions[i], Frontier::Vehicle::Vec3{0.0f, 0.0f, 0.0f}, Ground); });
-    Tyres[0].Step(Δτ, Substeps, Motions[0], Frontier::Vehicle::Vec3{0.0f, 0.0f, 0.0f}, Ground);
-    for (std::thread& Worker : Workers) Worker.join();
-}
-} // namespace
 
 namespace Frontier::Vehicle {
 
@@ -46,28 +24,20 @@ namespace {
 } // namespace
 
 //------------------------------------------------------------------------------------------------------------------------
-// The wheel contact for this step. RayTrace poses every carcass rigidly on its hub (so the renderer and the gas
-//    thermal path still see a wheel) and reads load/patch/normal from the sample fan; XPBDCarcass steps the particle
-//    tyres as before. Either way `Reactions[i]` is what the force loop consumes.
+// The wheel contact for this step: every wheel is posed on its end-of-step hub and the sample fan answers its load,
+//    patch and normal. `Reactions[i]` is what the force loop consumes; the wheel keeps a copy for telemetry.
 void VehicleSolver::AdvanceTyreContact(const std::vector<HubMotion>& Motions, float Δτ, std::vector<TyreReaction>& Reactions) noexcept
 {
-    Reactions.assign(SoftTyres.size(), TyreReaction{});
-    if (ActiveConfiguration.ContactModel != TyreContactModel::RayTrace)
-    {
-        StepTyresConcurrently(SoftTyres, Motions, Δτ, ActiveConfiguration.TyreSubsteps, ChassisHooks.Ground);
-        for (size_t i = 0u; i < SoftTyres.size(); ++i) Reactions[i] = SoftTyres[i].Reaction();
-        return;
-    }
-    for (size_t i = 0u; i < SoftTyres.size(); ++i)
+    Reactions.assign(Wheels.size(), TyreReaction{});
+    for (size_t i = 0u; i < Wheels.size(); ++i)
     {
         const HubMotion& motion = Motions[i];
-        SoftTyres[i].PoseRigid(Δτ, motion);
+        Wheels[i].Pose(Δτ, motion);
         const TraceContactReading Contact = TraceWheelContact(ActiveConfiguration.TraceContact, ActiveConfiguration.Tyre.Radius,
                                                               ActiveConfiguration.Tyre.Width, motion.Position, motion.Orientation,
                                                               motion.LinearVelocity, ChassisHooks.Ground);
-        Reactions[i] = Contact.Reaction;
-        Reactions[i].EnclosedVolume = SoftTyres[i].RestVolume();
-        Reactions[i].GaugePressure  = ActiveConfiguration.Tyre.InflationPressure;
+        Wheels[i].AssignReaction(Contact.Reaction);
+        Reactions[i] = Wheels[i].Reaction();
     }
 }
 
@@ -113,20 +83,17 @@ void VehicleSolver::Build(const VehicleSolverConfiguration& config, const Hooks&
         StrutTravel[i] = StrutFor(i).StaticCompression;
     SlipDeflections.assign(ActiveConfiguration.Wheels.size(), SlipState{});
 
-    SoftTyres.clear();
-    SoftTyres.resize(ActiveConfiguration.Wheels.size());
+    Wheels.clear();
+    Wheels.resize(ActiveConfiguration.Wheels.size());
     WheelThermals.assign(ActiveConfiguration.Wheels.size(), ThermalMetrics{});
     for (size_t i = 0; i < ActiveConfiguration.Wheels.size(); ++i)
     {
         Vec3 MountWorld, AxisUp;
         const Vec3 hub = ResolveHub(i, initial, MountWorld, AxisUp);
-        SoftTyreParameters Parameters = ActiveConfiguration.Tyre;
-        // 📝 Planar traction has one owner; do not also apply it through XPBD tread bristles.
-        Parameters.FrictionCoefficient = 0.0f;
-        SoftTyres[i].Build(Parameters, hub, initial.Orientation);
-        ConstructThermal(WheelThermals[i], ActiveConfiguration.TyreThermal, SoftTyres[i].RestVolume(),
+        const TyreSpecification& Parameters = ActiveConfiguration.Tyre;
+        Wheels[i].Build(Parameters, hub, initial.Orientation);
+        ConstructThermal(WheelThermals[i], ActiveConfiguration.TyreThermal, Wheels[i].RestVolume(),
                          Parameters.InflationPressure, Parameters.AtmosphericPressure);
-        SoftTyres[i].AssignRigidVelocity(initial.LinearVelocity, initial.AngularVelocity, initial.Position);
         if (i < CurrentTelemetry.Wheels.size())
         {
             CurrentTelemetry.Wheels[i].Thermal = WheelThermals[i];
@@ -134,14 +101,14 @@ void VehicleSolver::Build(const VehicleSolverConfiguration& config, const Hooks&
             CurrentTelemetry.Wheels[i].HubRotation = initial.Orientation;
         }
     }
-    CurrentTelemetry.WheelCount = static_cast<uint32_t>(SoftTyres.size());
+    CurrentTelemetry.WheelCount = static_cast<uint32_t>(Wheels.size());
 
     CurrentTelemetry.Chassis = initial;
     CurrentTelemetry.EngineRPM = ActiveConfiguration.Engine.IdleRPM;
     CurrentTelemetry.GearIndex = GearIndex;
     CurrentTelemetry.PacejkaActive = ActiveConfiguration.ActiveScheme == DrivingScheme::PacejkaDrivetrain;
 
-    ConstructionComplete = !SoftTyres.empty() && static_cast<bool>(ChassisHooks.ReadChassis) &&
+    ConstructionComplete = !Wheels.empty() && static_cast<bool>(ChassisHooks.ReadChassis) &&
              static_cast<bool>(ChassisHooks.ApplyForceAtPoint) && static_cast<bool>(ChassisHooks.Ground);
 }
 
@@ -295,9 +262,9 @@ void VehicleSolver::StepSimple(float Δτ) noexcept
 
     const float mu = ActiveConfiguration.GripCoefficient;
 
-    // Pre-pass: hub motions for every wheel, then all carcasses step at once (see StepTyresConcurrently).
-    std::vector<HubMotion> Motions(SoftTyres.size());
-    for (size_t i = 0; i < SoftTyres.size(); ++i)
+    // Pre-pass: hub motions for every wheel, then the contact fan for all of them.
+    std::vector<HubMotion> Motions(Wheels.size());
+    for (size_t i = 0; i < Wheels.size(); ++i)
     {
         const WheelMount& wheel = ActiveConfiguration.Wheels[i];
         const Vec3 hub = cs.Position + cs.Orientation.Rotate(wheel.LocalOffset);
@@ -312,17 +279,14 @@ void VehicleSolver::StepSimple(float Δτ) noexcept
         motion.AngularVelocity = cs.AngularVelocity;
         motion.LinearVelocity = hubVel;
         motion.SpinRate       = WheelSpin[i];
-        if (ActiveConfiguration.TyreThermal.Enabled && i < WheelThermals.size() && WheelThermals[i].Valid)
-            SoftTyres[i].ResolveGasTemperature(static_cast<float>(WheelThermals[i].GasTemperature),
-                                               static_cast<float>(WheelThermals[i].ReferenceTemperature));
     }
     std::vector<TyreReaction> TraceReactions;
     AdvanceTyreContact(Motions, Δτ, TraceReactions);
 
-    for (size_t i = 0; i < SoftTyres.size(); ++i)
+    for (size_t i = 0; i < Wheels.size(); ++i)
     {
         const WheelMount& wheel = ActiveConfiguration.Wheels[i];
-        XPBDSoftTyre&     tyre  = SoftTyres[i];
+        RigidWheel&       tyre  = Wheels[i];
 
         // Rest hub world transform (the tyre models the compliance; the hub follows the chassis rigidly).
         const Vec3 armLocal = wheel.LocalOffset;
@@ -338,8 +302,7 @@ void VehicleSolver::StepSimple(float Δτ) noexcept
         //    not a belt moving at hub speed. The belt was a stand-in for a tyre that could not rotate, and it
         //    made every contacting node scrub at road speed. The in-plane forces the carcass now generates are
         //    its own; this scheme still takes only Fz from it and drives through the friction-circle layer below.
-        const HubMotion& motion = Motions[i]; (void)motion;
-        const TyreReaction& reaction = ActiveConfiguration.ContactModel == TyreContactModel::RayTrace ? TraceReactions[i] : tyre.Reaction();
+        const TyreReaction& reaction = TraceReactions[i];
 
         const float Fz    = reaction.SupportReaction.Length();
         const bool  onGnd = reaction.ContactCount > 0u && Fz > 1.0f;
@@ -361,14 +324,14 @@ void VehicleSolver::StepSimple(float Δτ) noexcept
         if (wheel.Braked)                        brakeMag += DriverCommand.Brake * ActiveConfiguration.BrakeForcePerWheel;
         if (DriverCommand.Handbrake && !wheel.Steered)  brakeMag += ActiveConfiguration.HandbrakeForce;
         brakeMag += ActiveConfiguration.RollingResistance * Fz;
-        const float wheelCount = static_cast<float>(std::max<size_t>(1, SoftTyres.size()));
+        const float wheelCount = static_cast<float>(std::max<size_t>(1, Wheels.size()));
         const float maxStopForce = std::fabs(vLong) * ActiveConfiguration.ChassisMass / (Δτ * wheelCount);
         const float brakeApplied = std::min(brakeMag, maxStopForce);
         float longDemand = engine - brakeApplied * Sign(vLong);
 
         // Lateral demand: a load-scaled linear cornering force opposing side-slip velocity (damped, so it settles).
         const float loadFraction = (ActiveConfiguration.ChassisMass > 1.0f)
-                                 ? Fz / (ActiveConfiguration.ChassisMass * 9.81f / std::max<size_t>(1, SoftTyres.size()))
+                                 ? Fz / (ActiveConfiguration.ChassisMass * 9.81f / std::max<size_t>(1, Wheels.size()))
                                  : 1.0f;
         float latDemand = -ActiveConfiguration.CorneringStiffness * loadFraction * vLat;
 
@@ -399,6 +362,10 @@ void VehicleSolver::StepSimple(float Δτ) noexcept
         wt.RimForce = reaction.RimForce; wt.RimTorque = reaction.RimTorque;
         wt.HubPosition       = tyre.HubPosition();
         wt.HubRotation       = tyre.HubRotation();
+        wt.SpinAngle         = tyre.CarcassAngle();
+        wt.ContactNormal     = reaction.ContactNormal;
+        wt.TyreDeflection    = reaction.Deflection;
+        wt.PatchLateral      = reaction.PatchLateral;
         wt.ContactPoint      = patch;
         wt.ContactVelocity   = hubVel;
         wt.SlipVelocity      = wl * vLat;
@@ -596,9 +563,9 @@ void VehicleSolver::StepPacejka(float Δτ) noexcept
     const float rearDownforcePerWheel  = (nRearWheels  > 0) ? std::max(0.0f, aero.RearDownforce_N)  / static_cast<float>(nRearWheels)  : 0.0f;
     CurrentTelemetry.Aero = aero;
 
-    // Pre-pass: hub motions for every wheel, then all carcasses step at once (see StepTyresConcurrently).
-    std::vector<HubMotion> Motions(SoftTyres.size());
-    for (size_t i = 0; i < SoftTyres.size(); ++i)
+    // Pre-pass: hub motions for every wheel, then the contact fan for all of them.
+    std::vector<HubMotion> Motions(Wheels.size());
+    for (size_t i = 0; i < Wheels.size(); ++i)
     {
         const WheelMount& wheel = ActiveConfiguration.Wheels[i];
         Vec3 mountWorld{}, axisUp{};
@@ -615,17 +582,14 @@ void VehicleSolver::StepPacejka(float Δτ) noexcept
         motion.AngularVelocity = cs.AngularVelocity;
         motion.LinearVelocity = hubVel;
         motion.SpinRate       = WheelSpin[i];
-        if (ActiveConfiguration.TyreThermal.Enabled && i < WheelThermals.size() && WheelThermals[i].Valid)
-            SoftTyres[i].ResolveGasTemperature(static_cast<float>(WheelThermals[i].GasTemperature),
-                                               static_cast<float>(WheelThermals[i].ReferenceTemperature));
     }
     std::vector<TyreReaction> TraceReactions;
     AdvanceTyreContact(Motions, Δτ, TraceReactions);
 
-    for (size_t i = 0; i < SoftTyres.size(); ++i)
+    for (size_t i = 0; i < Wheels.size(); ++i)
     {
         const WheelMount& wheel = ActiveConfiguration.Wheels[i];
-        XPBDSoftTyre&     tyre  = SoftTyres[i];
+        RigidWheel&       tyre  = Wheels[i];
 
         Vec3 mountWorld{}, axisUp{};
         const Vec3 hub    = ResolveHub(i, cs, mountWorld, axisUp);
@@ -643,8 +607,7 @@ void VehicleSolver::StepPacejka(float Δτ) noexcept
         //    static. WheelSpin is this wheel's own rotation, integrated at the foot of this routine from the
         //    drivetrain and brake torques, so the carcass turns at the rate the rest of the model believes it
         //    does. Traction and cornering still come from the Pacejka layer below; only Fz is read back here.
-        const HubMotion& motion = Motions[i]; (void)motion;
-        const TyreReaction& reaction = ActiveConfiguration.ContactModel == TyreContactModel::RayTrace ? TraceReactions[i] : tyre.Reaction();
+        const TyreReaction& reaction = TraceReactions[i];
 
         const float Fz    = reaction.SupportReaction.Length();
         const bool  onGnd = reaction.ContactCount > 0u && Fz > 1.0f;
@@ -799,16 +762,8 @@ void VehicleSolver::StepPacejka(float Δτ) noexcept
             Ieff += ActiveConfiguration.Engine.EngineInertia * g * g / static_cast<float>(nDriven);
         }
 
-        // 📝 Carcass particles already carry their kinetic energy; this is the impulse sensitivity of coupling.
-        double TreadInertia = 0.0;
-        for (const auto& Particle : tyre.Nodes())
-        {
-            if (!(Particle.InverseMass > 0.0f)) continue;
-            const Vec3 Relative = Particle.Position - tyre.HubPosition();
-            const Vec3 Radial = Relative - SpinAxis * Dot(Relative, SpinAxis);
-            TreadInertia += Dot(Radial, Radial) / Particle.InverseMass;
-        }
-        Ieff += static_cast<float>(TreadInertia);
+        // The tyre's own mass as a thin ring at the tread radius.
+        Ieff += std::max(0.0f, ActiveConfiguration.Tyre.TotalMass) * ActiveConfiguration.Tyre.Radius * ActiveConfiguration.Tyre.Radius;
         const float omega0 = WheelSpin[i];
         const float GroundTorque = Fx * RollingLever;
         float omega1 = omega0 + (driveTq + GroundTorque + Dot(reaction.RimTorque, SpinAxis)) * Δτ / Ieff;
@@ -829,6 +784,10 @@ void VehicleSolver::StepPacejka(float Δτ) noexcept
         wt.RimForce = reaction.RimForce; wt.RimTorque = reaction.RimTorque;
         wt.HubPosition       = tyre.HubPosition();
         wt.HubRotation       = tyre.HubRotation();
+        wt.SpinAngle         = tyre.CarcassAngle();
+        wt.ContactNormal     = reaction.ContactNormal;
+        wt.TyreDeflection    = reaction.Deflection;
+        wt.PatchLateral      = reaction.PatchLateral;
         wt.ContactPoint      = patch;
         wt.ContactVelocity   = ContactVelocity;
         wt.SlipVelocity      = wf * SlipX + wl * VlatHub;
@@ -1073,14 +1032,14 @@ void VehicleSolver::StepPacejka(float Δτ) noexcept
 
 void VehicleSolver::IntegrateConditions(float Seconds) noexcept
 {
-    for (size_t Corner = 0u; Corner < SoftTyres.size() && Corner < WheelThermals.size() &&
+    for (size_t Corner = 0u; Corner < Wheels.size() && Corner < WheelThermals.size() &&
          Corner < CurrentTelemetry.Wheels.size(); ++Corner)
     {
         auto& Reading = CurrentTelemetry.Wheels[Corner];
         ThermalContact Contact;
         Contact.SlidingPower = Reading.SlidingPower_W;
         Contact.Airspeed = Reading.ContactVelocity.Length();
-        Contact.Volume = SoftTyres[Corner].EnclosedVolume();
+        Contact.Volume = Wheels[Corner].EnclosedVolume();
         Contact.InContact = Reading.InContact;
         if (!IntegrateThermal(WheelThermals[Corner], ActiveConfiguration.TyreThermal, Contact, Seconds))
             WheelThermals[Corner].Valid = false;
@@ -1094,9 +1053,9 @@ void VehicleSolver::CorrectAttachments(const Vec3& BeforePosition,
                                       const Vec3& AfterPosition,
                                       const Quat& AfterRotation) noexcept
 {
-    for (size_t Corner = 0u; Corner < SoftTyres.size(); ++Corner)
+    for (size_t Corner = 0u; Corner < Wheels.size(); ++Corner)
     {
-        auto& Tyre = SoftTyres[Corner];
+        auto& Tyre = Wheels[Corner];
         Tyre.CorrectAttachment(BeforePosition, BeforeRotation, AfterPosition, AfterRotation);
         if (Corner < CurrentTelemetry.Wheels.size())
         {

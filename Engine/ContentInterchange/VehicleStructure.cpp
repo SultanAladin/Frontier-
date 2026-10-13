@@ -109,7 +109,7 @@ void VehicleStructure::Construct()
         AppendFacet(BodyPoint(Authored::kTriangles[Facet * 3u]), BodyPoint(Authored::kTriangles[Facet * 3u + 1u]),
                     BodyPoint(Authored::kTriangles[Facet * 3u + 2u]), Authored::kTriangleFamily[Facet]);
     FinishSpan();
-    const char* WheelNames[] = {"XPBD Tyre FL", "XPBD Tyre FR", "XPBD Tyre RL", "XPBD Tyre RR"};
+    const char* WheelNames[] = {"Tyre FL", "Tyre FR", "Tyre RL", "Tyre RR"};
     for (uint32_t Wheel = 0u; Wheel < 4u; ++Wheel)
     {
         BeginSpan(WheelNames[Wheel], true);

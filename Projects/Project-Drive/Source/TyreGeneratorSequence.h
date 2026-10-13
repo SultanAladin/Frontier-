@@ -6,7 +6,7 @@
 //
 //    The vehicle already owns five scene spans: the body and four wheels. This adds the authoring side of the
 //    tyre — the thing that DECIDES what the rubber looks like — as one node per wheel station that expands into
-//    its carcass, its tread layer sequence, its sidewall decals and its XPBD lattice.
+//    its carcass, its tread layer sequence, its sidewall decals and its tread lattice.
 //
 //    Split of surfaces, settled by the HTML prototype in References/TyreEditor.html:
 //        • the always-present Inspector gets the quick values — one scalar with a fixed home
@@ -39,7 +39,7 @@ enum class TyreSection : uint32_t
     Pattern,        // the tread layer sequence — opens Tyre Generator
     Layer,          // one groove layer; the layer ordinal rides in the low byte
     Decals,         // sidewall lettering, phase 4
-    Lattice,        // the XPBD solver lattice
+    Lattice,        // the tread lattice (ring × segment tessellation the GPU deformation bends)
     Count
 };
 
@@ -67,7 +67,7 @@ enum class TyreSection : uint32_t
 //                                                     THE AUTHORED TYRE
 //------------------------------------------------------------------------------------------------------------------------
 
-/// 📦 What the XPBD carcass is authored by. Inflation pressure is the authored value and the compliances are
+/// 📦 What the tyre carcass is authored by. Inflation pressure is the authored value and the compliances are
 ///    derived from it, so the slider means something physical instead of being a raw solver number.
 /// note  📐 Hoop compliance falls as pressure rises: a harder tyre resists hoop strain. The constant is chosen so
 ///       240 kPa reproduces the compliance Part 4 shipped, which keeps every existing Drive result unchanged.
