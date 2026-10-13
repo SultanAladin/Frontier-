@@ -112,8 +112,12 @@ struct SoftTyreParameters
     float    RimRadius    = 0.20f;   // [m] bead/rim radius (spoke inner anchor)
     float    BeadWidthRatio = TyreBeadWidthRatio; // [-] - rigid bead seat, shared with native wheel geometry
     float    Width        = 0.245f;  // [m] section width
-    uint32_t RingCount    = 9u;      // [-] rings across the width (≥ 2)
-    uint32_t SegmentCount = 128u;    // [-] particles per ring around the circumference (≥ 8)
+    // The solver lattice is a PROXY: the rendered tyre is a separate, denser authored mesh shaped from these nodes.
+    //    Measured 2026-10 on the tyre study (40 mm hub drop, 16 substeps): 3×48, 5×64 and 9×128 agree on Fz within
+    //    10 % and on patch length within 30 mm, so the cheapest lattice that still resolves the patch is the one to run.
+    //    Driving checks (VehicleDrivingChecks) keep the same pass set at 3×48 as at 9×128.
+    uint32_t RingCount    = 3u;      // [-] rings across the width (≥ 2)
+    uint32_t SegmentCount = 48u;     // [-] particles per ring around the circumference (≥ 8)
     float    TotalMass    = 12.0f;   // [kg] carcass mass over all particles
     // Gauss-Seidel sweeps inside each substep. See the comment on the sweep loop in Step: one sweep leaves
     // the ground reaction — the only number the vehicle consumes — short of the lattice's own elastic state,

@@ -12,8 +12,9 @@
 namespace Frontier {
 namespace Vehicle {
 
-// Tessellation shared by the export wheel and the simulated wheel. The ring and segment counts deliberately equal
-//    SoftTyreParameters' defaults. Gather XPBDSoftTyre::Nodes() in reversed ring order; no resampling is needed.
+// RENDER tessellation shared by the export wheel and the simulated wheel. Deliberately independent of
+//    SoftTyreParameters' RingCount/SegmentCount: the solver runs a coarse proxy (3×48 by default) and this dense
+//    surface is shaped from it by sampling (TyreSequence::Project), never gathered node-for-node.
 inline constexpr uint32_t kDriveWheelRingCount    = 9u;
 inline constexpr uint32_t kDriveWheelSegmentCount = 128u;
 // 0 disables the rim entirely and closes the wheel with a plain hub face. The spoke emitter below is kept
