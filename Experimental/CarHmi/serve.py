@@ -19,5 +19,5 @@ if __name__ == "__main__":
     ap.add_argument("--bind", default="0.0.0.0")
     args = ap.parse_args()
     srv = ThreadingHTTPServer((args.bind, args.port), NoStore)
-    print(f"CarHmi on http://{args.bind}:{args.port}/  (index.html = tablet, cluster.html = cluster)")
+    print(f"CarHmi on http://{args.bind}:{args.port}/  (index.html = 3D tablet)")
     srv.serve_forever()

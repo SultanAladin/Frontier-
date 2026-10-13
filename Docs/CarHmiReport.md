@@ -369,22 +369,29 @@ Per the standing rule, nothing above is ported until it has been looked at.
 (same versioned-module + MIME discipline as SpatialHud — never plain
 `http.server`):
 
+**v2 (2026-10-13, current)** — rebuilt after the owner rejected the v1
+page-based tablet. v2 leads with the object: a 3D tablet with glass, an
+orbitable camera with 2D/3D presets, and 5 switchable interactive app-grid
+designs, 14 multicolour SVG icons each opening a working mini-app:
+
 ```
 Experimental/CarHmi/
-├── index.html            — tablet shell: status bar, app grid, dock, shade, keyboard
-├── cluster.html          — dual-gauge cluster + telltales (30 fps rAF throttle demo)
-├── boot.html             — boot timeline with streaks + stardust (shared layer)
-├── css/                  — theme tokens (the cyan/amber/near-black contract)
+├── index.html            — 3D stage + tablet + control panel
+├── css/tablet.css        — tablet body, glass, 5 grids, app windows
 ├── js/
-│   ├── theme.js          — palette, type scale, radii, motion curve (→ C++ theme)
-│   ├── touch.js          — gesture recogniser over Pointer Events (→ HmiTouchProjection)
-│   ├── pages-vehicle.js  — Steering/Suspension/Aero/Powertrain/Tyres/Data pages + bindings table
-│   ├── pages-online.js   — Messages/Contacts/Paddock/Account pages (mock data, real layout)
-│   ├── preview.js        — canvas/WebGL turntable car + studio light (→ 3D viewport)
-│   ├── particles.js      — boot streaks + stardust (parameters from ParticleEditor presets)
-│   └── snapshot.js       — fake vehicle snapshot @ rates (→ C++ snapshot struct)
-└── Checks.mjs            — layout/token/gesture pins (the CheckHud habit, DOM edition)
+│   ├── icons.js          — 14 multicolour SVG icons + names/blurbs (→ C++ icon atlas)
+│   ├── grids.js          — 5-design registry, folders, dock (→ HMI layout descriptors)
+│   ├── apps.js           — app screen strings + wiring (→ per-app HMI pages)
+│   ├── scene.js          — camera rig, 2D/3D VIEWS, glass response (→ HMI glass material)
+│   └── app.js            — shell: panel, grid renderers, app open/close
+├── Checks.mjs            — icon/grid/view/screen pins (node --test)
+└── serve.py              — no-store static server for the prototype
 ```
+
+**v1 (superseded)** — page-based DOM tablet + cluster + boot + preview; removed
+same day. Its durable outputs survive: the cyan/amber/near-black theme contract
+(now restated in `tablet.css`), the vehicle BINDINGS table (condensed into the
+Tune app), the phone-gesture thresholds, and the 30/18 Hz refresh policies.
 
 Deliberately **DOM + Canvas**, not WebGPU/SDF: the tablet is a phone UI, and
 the prototype must iterate on *layout, copy, touch feel, and information

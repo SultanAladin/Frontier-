@@ -1,43 +1,36 @@
-# CarHmi prototype — tablet + cluster
+# CarHmi prototype v2 — 3D glass tablet + 5 app grids
 
-HTML-first HMI for the PROTO-X interior, per `Docs/CarHmiReport.md` §10.
-Landscape tablet (`index.html`) + instrument cluster (`cluster.html`).
-Deliberately DOM + Canvas: this prototype pins layout, copy, touch feel and
-the control bindings — the WebGPU fidelity questions (glass, off-axis, bloom)
-were already answered by SpatialHud and are not re-proven here.
+Rebuilt 2026-10-13 after the owner rejected v1 (page-based DOM tablet). This
+version leads with the object: a 3D tablet with glass, an orbitable camera,
+and 5 switchable interactive app-grid designs — per `Docs/CarHmiReport.md`.
 
 ```sh
 cd Experimental/CarHmi
 python3 serve.py --port 8099   # no-store headers; never plain http.server
-```
-
-Then open `/index.html` (tablet) and `/cluster.html` (cluster).
-
-```sh
-node --test Checks.mjs          # theme / bindings / gesture / snapshot pins
+node --test Checks.mjs          # icons / grids / views / app-screen pins
 ```
 
 ## What is in it
 
-- Tablet shell: status bar, icon rail, app grid, 12 pages, quick shade,
-  on-screen keyboard, boot overlay (stardust → streak sweep → logo → systems).
-- Vehicle pages bound to the real `arena/215a6f39-frontier` tunables
-  (`BINDINGS` in `js/pages-vehicle.js` cites the owning C++ header per row).
-- Online pages with mock data shaped like the EOS lobby/match split; the tab
-  keeps the decided name **Session**.
-- Car preview: own canvas world, own turntable camera, own studio rig,
-  18 Hz, pauses when hidden.
-- Cluster: tach + speed dual gauge, gear, shift lights, telltales, 30 Hz
-  redraw with needle-sweep self-test.
+- **3D tablet**: aluminium body, bezel, camera dot, speaker slot, studio floor
+  shadow. Drag the backdrop to orbit; sliders for tilt/turn/zoom; presets for
+  **2D front** (flat tablet) vs **3D angle/side/top**; auto-spin toggle.
+- **Glass**: pointer-transparent overlay; the sheen slides with yaw, glare
+  grows and the screen dims toward grazing angles (the SpatialHud Fresnel
+  finding, DOM edition).
+- **5 grids**, all interactive: Pages (swipe + dock), Folders, Tiles (live
+  widgets act without opening), Drawer (search + A–Z), Cards (snap carousel).
+- **14 apps**, each a multicolour SVG icon opening a working mini-app (dial
+  pad, chat, climate, dashcam, tune sliders, telemetry, lobby, analog clock…).
+- Home bar always returns; toasts confirm actions.
 
-## C++ landing spots (report §8)
+## Files
 
-| Prototype | C++ |
+| File | Owns |
 |---|---|
-| `js/theme.js` | `HmiWorldStructure` theme block |
-| `js/snapshot.js` | vehicle snapshot struct per HMI tick |
-| `js/touch.js` | `HmiTouchProjection` (same state machine, ray→UV source) |
-| `js/pages-vehicle.js` BINDINGS | `HmiWorldStructure` control bindings |
-| `js/preview.js` | HMI 3D viewport (existing raster, new view setup) |
-| `js/particles.js` BootFX | `HmiBootSequence` particle layer |
-| `css/carhmi.css` | ControlKit-on-offscreen-target styling |
+| `js/icons.js` | 14 multicolour SVG icons + names/blurbs (DOM-free) |
+| `js/grids.js` | 5-design registry, folders, dock (DOM-free) |
+| `js/apps.js` | app screen strings + wiring (strings DOM-free) |
+| `js/scene.js` | camera rig, VIEWS presets, glass response |
+| `js/app.js` | shell: panel, grid renderers, app open/close |
+| `Checks.mjs` | theme/grid/view/screen pins |
