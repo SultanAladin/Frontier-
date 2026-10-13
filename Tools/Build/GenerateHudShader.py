@@ -6,7 +6,7 @@
 
 🔴 THE BROWSER REFERENCE IS GENERATED, NOT TRANSCRIBED.
 
-   Experimental/SpatialHud draws the same shapes the native spatial interface draws. Writing them a
+   Experimental/InterfaceProjection keeps a browser copy of the shapes the native spatial interface draws. Writing them a
    second time in WGSL would have produced two files that agree on the day they were written and drift
    forever after — which is exactly the failure the gas card's parity script exists to catch after the
    fact. This converts instead, so there is no second authority: an arc in the browser IS the engine's
@@ -27,7 +27,7 @@ from pathlib import Path
 
 Root = Path(__file__).resolve().parents[2]
 Source = Root / 'Engine/Shaders/InterfaceSignedDistance.slang'
-Target = Root / 'Experimental/SpatialHud/js/sdf.generated.js'
+Target = Root / 'Experimental/InterfaceProjection/SignedDistance.generated.js'
 
 Scalars = {'float': 'f32', 'uint': 'u32', 'int': 'i32', 'bool': 'bool'}
 Vectors = {'vec2': 'vec2f', 'vec3': 'vec3f', 'vec4': 'vec4f'}

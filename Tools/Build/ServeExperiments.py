@@ -158,7 +158,7 @@ if __name__ == '__main__':
     Parser = argparse.ArgumentParser()
     Parser.add_argument('--port', type=int, default=8099)
     Parser.add_argument('--bind', default='0.0.0.0')
-    Parser.add_argument('--landing', default='/Experimental/SpatialHud/index.html',
+    Parser.add_argument('--landing', default='/Experimental/TabletPanel/index.html',
                         help='where "/" redirects; pass an empty string for a directory listing')
     Arguments = Parser.parse_args()
     Landing = Arguments.landing

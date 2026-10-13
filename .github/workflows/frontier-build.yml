@@ -78,17 +78,11 @@ jobs:
       - name: Force field panel — the one list drawn into a real DOM
         run: python3 Tools/Build/RunAnnounced.py "force panel" -- node Experimental/ParticleEditor/CheckForcePanel.mjs
 
-      - name: Spatial HUD shader — the WGSL port against the .slang it is generated from
-        run: python3 Tools/Build/RunAnnounced.py "hud shader" -- python3 Tools/Build/GenerateHudShader.py --check
+      - name: Interface shader — the WGSL port against the .slang it is generated from
+        run: python3 Tools/Build/RunAnnounced.py "interface shader" -- python3 Tools/Build/GenerateHudShader.py --check
 
-      - name: Spatial HUD — the tablet's graph, layout, values and submission order
-        run: python3 Tools/Build/RunAnnounced.py "spatial hud" -- node Experimental/SpatialHud/CheckHud.mjs
-
-      - name: Spatial HUD still — the panel rasterised on the CPU, so a blank screen fails the build
-        run: python3 Tools/Build/RunAnnounced.py "hud still" -- node Experimental/SpatialHud/RenderStill.mjs --check
-
-      - name: Spatial HUD host — app.js run headless, so a page that cannot boot fails the build
-        run: python3 Tools/Build/RunAnnounced.py "hud host" -- node Experimental/SpatialHud/CheckHost.mjs
+      - name: Tablet HMI — launcher designs, icons, hit regions and interaction without a GPU
+        run: python3 Tools/Build/RunAnnounced.py "tablet hmi" -- node Experimental/TabletPanel/TabletMetrics.mjs
 
       - name: Force field parity — the native taxonomy against the browser it was ported from
         run: python3 Tools/Build/RunAnnounced.py "force field parity" -- python3 Tools/Build/ForceFieldParity.py
