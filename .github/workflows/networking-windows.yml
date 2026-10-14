@@ -16,9 +16,9 @@ jobs:
     runs-on: windows-2022
     timeout-minutes: 25
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Fetch latest Slate branch for its real project ABI
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           repository: unassignedinbox/Slate
           ref: arena/01a0fd48-slate
@@ -28,21 +28,21 @@ jobs:
           sparse-checkout-cone-mode: true
           persist-credentials: false
       - name: Fetch pinned GLFW
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           repository: glfw/glfw
           ref: 7b6aead9fb88b3623e3b3725ebb42670cbe4c579
           path: _AgentScratch/Gui/glfw
           persist-credentials: false
       - name: Fetch pinned Dear ImGui
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           repository: ocornut/imgui
           ref: f5befd2d29e66809cd1110a152e375a7f1981f06
           path: _AgentScratch/Gui/imgui
           persist-credentials: false
       - name: Fetch pinned Photon Realtime headers (compile now, link later)
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           repository: defold/extension-photon-realtime
           ref: 8dad867470f2eb75aeae0c437e10ee723d8d1ccf
@@ -52,7 +52,7 @@ jobs:
             realtime/license.txt
           sparse-checkout-cone-mode: false
           persist-credentials: false
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         with:
           python-version: '3.12'
       - name: Fetch and verify EOS SDK (never included in Git or uploaded as an SDK artifact)
@@ -224,7 +224,7 @@ jobs:
           if (-not $Window.WaitForExit(60000)) { $Window.Kill(); throw 'Extracted GUI timed out' }
           if ($Window.ExitCode -ne 0) { throw 'Extracted package failed GUI/EOS startup' }
       - name: Upload Windows test package
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: Project-Networking-Windows-x64
           path: _AgentScratch/Project-Networking-Windows-x64.zip
