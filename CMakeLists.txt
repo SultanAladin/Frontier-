@@ -275,6 +275,8 @@ set(PROJECT_ZERO_SOURCES
     Projects/Project-Zero/Source/PhysicsInstanceSequence.cpp
     Projects/Project-Zero/Source/InterfaceAudioSequence.cpp
     Projects/Project-Dyno/Source/CrankClickIntegrator.cpp
+    Projects/Project-Dyno/Source/AcousticIntegrator.cpp
+    Projects/Project-Dyno/Source/EngineVoice.cpp
     Projects/Project-Dyno/Source/DynoSequence.cpp
     Engine/PlatformInterchange/AudioExchange.cpp
     Engine/PlatformInterchange/MiniaudioTranslation.cpp
@@ -404,6 +406,8 @@ set(PROJECT_DYNO_SOURCES
     Engine/PlatformInterchange/AudioExchange.cpp
     Projects/Project-Dyno/Source/DynoSequence.cpp
     Projects/Project-Dyno/Source/CrankClickIntegrator.cpp
+    Projects/Project-Dyno/Source/AcousticIntegrator.cpp
+    Projects/Project-Dyno/Source/EngineVoice.cpp
     Projects/Project-Dyno/Source/GameExecution.cpp
 )
 add_executable(Project-Dyno ${PROJECT_DYNO_SOURCES})

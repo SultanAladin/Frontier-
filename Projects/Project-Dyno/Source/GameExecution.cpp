@@ -13,13 +13,20 @@
 //        Project-Dyno --seconds 8                      run / render length in seconds (0 = until Enter live, = pull length for --render)
 //        Project-Dyno --float                          write IEEE float32 instead of PCM16 (bit-identity proofs)
 //
-//    Row A1 scope: transport + click train. Row A2 swaps CrankClickIntegrator for AcousticIntegrator + the car TOML.
+//    Row A2: AcousticIntegrator (Engine Audio Sim v3, --car <id>, default laferrari) is the powertrain;
+//    CrankClickIntegrator remains as the transport self-test behind --engine clicks.
+//
+//        Project-Dyno --car amg-gt3                    live: patch-1's unique cross-plane thunder, v3-raw
+//        Project-Dyno --render la.wav --car laferrari --pull pull   offline hero-car render
+//        Project-Dyno --list-cars                      print the 18-car garage and exit
 
 #include "../../../Engine/DeviceExchange/DiagnosticMetrics.h"
 #include "../../../Engine/PlatformInterchange/AudioExchange.h"
 #include "../../../Engine/PlatformInterchange/WaveCodec.h"
+#include "AcousticIntegrator.h"
 #include "CrankClickIntegrator.h"
 #include "DynoSequence.h"
+#include "EngineVoice.h"
 
 #include <atomic>
 #include <chrono>
@@ -80,12 +87,26 @@ int main(int argc, char** argv)
 {
     const char* RenderPath = Argument(argc, argv, "--render");
     const char* PullName   = Argument(argc, argv, "--pull", "sweep");
+    const char* CarId      = Argument(argc, argv, "--car", "laferrari");
+    const char* EngineKind = Argument(argc, argv, "--engine", "acoustic");
     const uint32_t Cylinders = static_cast<uint32_t>(std::atoi(Argument(argc, argv, "--cylinders", "8")));
     const float    Seconds   = static_cast<float>(std::atof(Argument(argc, argv, "--seconds", "0")));
-    const float    Redline   = static_cast<float>(std::atof(Argument(argc, argv, "--redline", "9000")));
+    const float    RedlineArg = static_cast<float>(std::atof(Argument(argc, argv, "--redline", "0")));
     const bool     UseNull   = Switch(argc, argv, "--null");
     const bool     UseSweep  = Switch(argc, argv, "--sweep");
     const bool     UseFloat  = Switch(argc, argv, "--float");
+    const bool     ListCars  = Switch(argc, argv, "--list-cars");
+
+    if (ListCars)
+    {
+        uint32_t Count = 0u;
+        const Frontier::EngineVoice* Garage = Frontier::VoiceGarage(&Count);
+        std::printf("Frontier Engine Audio Sim v3 - %u cars\n", Count);
+        for (uint32_t I = 0u; I < Count; ++I)
+            std::printf("  %-12s %-32s %2u cyl  idle %4.0f  redline %5.0f  %s\n", Garage[I].Id, Garage[I].Name,
+                        Garage[I].Cylinders, Garage[I].IdleRpm, Garage[I].RedlineRpm, Garage[I].Tag);
+        return 0;
+    }
 
     //──────────────────────────────────────────────────────────────────────────
     // Telemetry sink (same shape as Project-Zero's)
@@ -104,18 +125,38 @@ int main(int argc, char** argv)
     Logger.RecordMessage(Frontier::DiagnosticSeverity::Information, "Bootstrap", "Project-Dyno dyno cell starting.");
 
     //──────────────────────────────────────────────────────────────────────────
-    // Powertrain stand-in + pull
+    // Powertrain + pull (v3 acoustic by default; clicks = transport self-test)
     //──────────────────────────────────────────────────────────────────────────
-    Frontier::CrankClickIntegrator Powertrain(Cylinders == 0u ? 8u : Cylinders);
-    Powertrain.AssignSweep(UseSweep);
+    const bool UseClicks = std::strcmp(EngineKind, "clicks") == 0;
+    const Frontier::EngineVoice* Voice = Frontier::FindVoice(CarId);
+    if (!Voice)
+    {
+        Logger.RecordMessage(Frontier::DiagnosticSeverity::Warning, "Dyno", (std::string("Unknown car '") + CarId + "' - using laferrari (see --list-cars)").c_str());
+        Voice = &Frontier::HeroVoice();
+    }
+    const float Redline = RedlineArg > 0.0f ? RedlineArg : Voice->RedlineRpm;
+
+    Frontier::AcousticIntegrator Acoustic;
+    Acoustic.AssignVoice(Voice);
+    Frontier::CrankClickIntegrator Clicks(Cylinders == 0u ? 8u : Cylinders);
+    Clicks.AssignSweep(UseSweep);
+    Frontier::SignalIntegrator* Powertrain = UseClicks ? static_cast<Frontier::SignalIntegrator*>(&Clicks)
+                                                       : static_cast<Frontier::SignalIntegrator*>(&Acoustic);
+    auto AssignDemand = [&](const Frontier::PowertrainRecord& Record)
+    {
+        if (UseClicks) Clicks.AssignDemand(Record); else Acoustic.AssignDemand(Record);
+    };
+    auto QueryEvents = [&]() -> uint64_t { return UseClicks ? Clicks.QueryEventCount() : Acoustic.QueryEventCount(); };
 
     Frontier::DynoSequence Pull;
     if (!Pull.Select(PullName, Redline))
         Logger.RecordMessage(Frontier::DiagnosticSeverity::Warning, "Dyno", (std::string("Unknown pull '") + PullName + "' — using sweep").c_str());
     {
-        char Line[256];
-        std::snprintf(Line, sizeof(Line), "pull '%s' (%.1f s), %u cylinders, redline %.0f rpm%s", std::string(Pull.QueryName()).c_str(),
-                      Pull.QueryDuration(), Cylinders == 0u ? 8u : Cylinders, Redline, UseSweep ? ", sine sweep on" : "");
+        char Line[384];
+        std::snprintf(Line, sizeof(Line), "pull '%s' (%.1f s), car '%s' (%s, %u cylinders, redline %.0f rpm), engine %s%s",
+                      std::string(Pull.QueryName()).c_str(), Pull.QueryDuration(), Voice->Id, Voice->Name,
+                      UseClicks ? (Cylinders == 0u ? 8u : Cylinders) : Voice->Cylinders, Redline,
+                      UseClicks ? "clicks (transport self-test)" : "acoustic v3", UseSweep ? ", sine sweep on" : "");
         Logger.RecordMessage(Frontier::DiagnosticSeverity::Information, "Dyno", Line);
     }
 
@@ -135,18 +176,23 @@ int main(int argc, char** argv)
         //    frame rate — but deterministically, so two renders of the same arguments are byte-identical.
         struct PulledIntegrator final : Frontier::SignalIntegrator
         {
-            Frontier::CrankClickIntegrator& Inner;
-            Frontier::DynoSequence&        Pull;
-            uint32_t                       Rate = 48000u;
-            PulledIntegrator(Frontier::CrankClickIntegrator& G, Frontier::DynoSequence& P) : Inner(G), Pull(P) { }
+            Frontier::SignalIntegrator& Inner;
+            Frontier::DynoSequence&     Pull;
+            bool                        ClicksMode;
+            Frontier::AcousticIntegrator* AcousticPtr;
+            Frontier::CrankClickIntegrator* ClicksPtr;
+            uint32_t                    Rate = 48000u;
+            PulledIntegrator(Frontier::SignalIntegrator& G, Frontier::DynoSequence& P, bool C,
+                             Frontier::AcousticIntegrator* A, Frontier::CrankClickIntegrator* K)
+                : Inner(G), Pull(P), ClicksMode(C), AcousticPtr(A), ClicksPtr(K) { }
             void Prepare(uint32_t SampleRate, uint32_t ChannelCount) noexcept override { Rate = SampleRate; Inner.Prepare(SampleRate, ChannelCount); Pull.Restart(); }
             void Render(float* Output, uint32_t FrameCount) noexcept override
             {
                 Pull.Advance(static_cast<float>(FrameCount) / static_cast<float>(Rate));
-                Inner.AssignDemand(Pull.QueryRecord());
+                if (ClicksMode) ClicksPtr->AssignDemand(Pull.QueryRecord()); else AcousticPtr->AssignDemand(Pull.QueryRecord());
                 Inner.Render(Output, FrameCount);
             }
-        } Pulled(Powertrain, Pull);
+        } Pulled(*Powertrain, Pull, UseClicks, &Acoustic, &Clicks);
 
         Frontier::WaveClip Clip;
         Clip.SampleRate   = AudioConfig.SampleRate;
@@ -158,7 +204,7 @@ int main(int argc, char** argv)
         const bool Written = Frontier::WaveCodec::Encode(RenderPath, Clip, UseFloat ? Frontier::WaveEncodingCategory::Float32 : Frontier::WaveEncodingCategory::Pcm16, &Error);
         char Line[512];
         if (Written) std::snprintf(Line, sizeof(Line), "rendered %.2f s (%llu frames, %llu firing events) to %s", Length,
-                                   static_cast<unsigned long long>(Clip.FrameCount()), static_cast<unsigned long long>(Powertrain.QueryEventCount()), RenderPath);
+                                   static_cast<unsigned long long>(Clip.FrameCount()), static_cast<unsigned long long>(QueryEvents()), RenderPath);
         else         std::snprintf(Line, sizeof(Line), "render failed: %s", Error.c_str());
         Logger.RecordMessage(Written ? Frontier::DiagnosticSeverity::Information : Frontier::DiagnosticSeverity::Fatal, "Render", Line);
         Logger.TerminateSink();
@@ -180,7 +226,7 @@ int main(int argc, char** argv)
             return 1;
         }
     }
-    Audio.Attach(&Powertrain);
+    Audio.Attach(Powertrain);
     ReportMetrics(Logger, Audio.QueryMetrics());
     if (Seconds <= 0.0f)
     {
@@ -204,7 +250,7 @@ int main(int argc, char** argv)
         // ① Script → demand → transport housekeeping. This is the exact call sequence the game loop will carry.
         Pull.Advance(Δτ);
         if (Pull.Finished()) Pull.Restart();
-        Powertrain.AssignDemand(Pull.QueryRecord());
+        AssignDemand(Pull.QueryRecord());
         Audio.Advance(Δτ);
 
         // ② Periodic health line (every 2 s) — what the F3 popup / AudioEditor device panel will show later
@@ -227,7 +273,7 @@ int main(int argc, char** argv)
     {
         char Line[256];
         std::snprintf(Line, sizeof(Line), "%.1f s live, %llu firing events, %u overloads, %u clips — %s", Elapsed,
-                      static_cast<unsigned long long>(Powertrain.QueryEventCount()), Final.OverloadCount, Final.ClipCount,
+                      static_cast<unsigned long long>(QueryEvents()), Final.OverloadCount, Final.ClipCount,
                       (Final.OverloadCount == 0u && Final.ClipCount == 0u) ? "PASS" : "CHECK");
         Logger.RecordMessage(Frontier::DiagnosticSeverity::Information, "Shutdown", Line);
     }

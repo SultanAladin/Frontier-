@@ -64,6 +64,8 @@ Sources=(
     "Engine/PlatformInterchange/AudioExchange.cpp"
     "Projects/Project-Dyno/Source/DynoSequence.cpp"
     "Projects/Project-Dyno/Source/CrankClickIntegrator.cpp"
+    "Projects/Project-Dyno/Source/AcousticIntegrator.cpp"
+    "Projects/Project-Dyno/Source/EngineVoice.cpp"
     "Projects/Project-Dyno/Source/GameExecution.cpp"
 )
 

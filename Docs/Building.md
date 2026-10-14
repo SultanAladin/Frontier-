@@ -74,6 +74,17 @@ bash Projects/Project-Dyno/Build/ToolchainSequence.sh
 
 No Vulkan, ImGui, ThorVG or GLFW installation is needed for this project. Linux output: `Projects/Project-Dyno/Build/Output/Linux/Release/Binary/Project-Dyno`. The Linux build was executed successfully when these instructions were added; Windows execution remains untested here.
 
+Project-Dyno now carries **Frontier Engine Audio Sim v3** (`AcousticIntegrator` + the 18-car `EngineVoice` garage) with a drivable web twin in `Projects/Project-Dyno/Web`. Quick proofs:
+
+```sh
+Projects/Project-Dyno/Build/Output/Linux/Release/Binary/Project-Dyno --list-cars
+Projects/Project-Dyno/Build/Output/Linux/Release/Binary/Project-Dyno --render la.wav --car laferrari --pull pull
+python3 Projects/Project-Dyno/Test/TestAcousticRenders.py     # deterministic render + character assertions
+(cd Projects/Project-Dyno/Web && npm install && npm run dev)  # playable browser version, port 5174
+```
+
+See `Projects/Project-Dyno/README.md` for the synthesis design and the LaFerrari profile rationale.
+
 ### Project-Fluid and SolidArc
 
 ```sh

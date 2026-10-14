@@ -50,7 +50,7 @@ For setup without compiling, run `python Tools/Setup.py`. To install all applica
 | `Engine/` | Native engine, renderer, shaders, inspectors, billboards and authoring support |
 | `Editor/AuthoringTools/Modelling/SolidArc/` | Native CAD/modelling tool and its verification suite |
 | `Projects/Project-Zero/` | Main application, native project integration and CPU reference hosts |
-| `Projects/Project-Dyno/` | Dyno/audio project |
+| `Projects/Project-Dyno/` | Dyno/audio project — Engine Audio Sim v3 (18-car hybrid synthesiser, native + web twin) |
 | `Projects/Project-Fluid/` | Flux particle fluid, Ripple pond and CPU tests; [integration/review](Docs/WaterIntegration.md) |
 | `EngineContent/` | Runtime icons, font licences, fonts, celestial textures and star data |
 | `Experimental/FrontierEditor/` | Browser editor prototype, icon gallery and collection studies |
