@@ -222,7 +222,10 @@ jobs:
           FRONTIER_GI_DEBUG=21 Capture diag-loop-inputs 12 --render-preset 2 --transport 2 --camera -7.0 -6.0 2.0 0.0 0.0 0.7
           FRONTIER_GI_DEBUG=22 Capture diag-loop-geometry 12 --render-preset 2 --transport 2 --camera -7.0 -6.0 2.0 0.0 0.0 0.7
           FRONTIER_GI_DEBUG=23 Capture diag-bsdf 12 --render-preset 2 --transport 2 --camera -7.0 -6.0 2.0 0.0 0.0 0.7
-          FRONTIER_GI_DEBUG=24 Capture diag-loop-end 12 --render-preset 2 --transport 2 --camera -7.0 -6.0 2.0 0.0 0.0 0.7
+          FRONTIER_GI_DEBUG=22 Capture diag-after-gate 12 --render-preset 2 --transport 2 --camera -7.0 -6.0 2.0 0.0 0.0 0.7
+          FRONTIER_GI_DEBUG=23 Capture diag-after-shadow 12 --render-preset 2 --transport 2 --camera -7.0 -6.0 2.0 0.0 0.0 0.7
+          FRONTIER_GI_DEBUG=24 Capture diag-after-geometry 12 --render-preset 2 --transport 2 --camera -7.0 -6.0 2.0 0.0 0.0 0.7
+          FRONTIER_GI_DEBUG=25 Capture diag-after-bsdf 12 --render-preset 2 --transport 2 --camera -7.0 -6.0 2.0 0.0 0.0 0.7
           Capture sdf-gi-exterior    90 --render-preset 2 --transport 2 --camera -7.0 -6.0 2.0 0.0 0.0 0.7
           Capture sdf-gi-cockpit     90 --render-preset 2 --transport 2 --camera -0.2 0.42 1.12 2.8 0.42 0.47
           Capture sdf-gi-play        90 --render-preset 2 --transport 1

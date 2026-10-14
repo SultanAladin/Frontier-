@@ -220,14 +220,15 @@ void main()
         float Facing=Directional ? 1.0 : max(-dot(ShadowTapNormal[Tap].xyz,Direction),0.0);
         if (DebugStage==21u) { imageStore(LinearRadiance,pixel,vec4(0,1,1,1)); imageStore(OutputImage,pixel,vec4(0,1,1,1)); return; }
         if (Incoming.z<=0.0 || Facing<=0.0) continue;
-        float Visibility=(DebugStage==19u || DebugStage==22u || DebugStage==23u || DebugStage==24u) ? 1.0 : ShadowLitFraction(P,F.Geometric,Incoming.z,Tap);
+        if (DebugStage==22u) { imageStore(LinearRadiance,pixel,vec4(1,0,1,1)); imageStore(OutputImage,pixel,vec4(1,0,1,1)); return; }
+        float Visibility=(DebugStage==19u || DebugStage==23u || DebugStage==24u || DebugStage==25u) ? 1.0 : ShadowLitFraction(P,F.Geometric,Incoming.z,Tap);
+        if (DebugStage==23u) { imageStore(LinearRadiance,pixel,vec4(1,0.5,0,1)); imageStore(OutputImage,pixel,vec4(1,0.5,0,1)); return; }
         float Geometry=Directional ? Incoming.z*Visibility :
                        Incoming.z*Facing*ShadowTapRadiance[Tap].w*Visibility/(Distance*Distance);
-        if (DebugStage==22u) { imageStore(LinearRadiance,pixel,vec4(1,0,1,1)); imageStore(OutputImage,pixel,vec4(1,0,1,1)); return; }
+        if (DebugStage==24u) { imageStore(LinearRadiance,pixel,vec4(0,1,0,1)); imageStore(OutputImage,pixel,vec4(0,1,0,1)); return; }
         vec3 Bsdf=EvaluateBsdf(m,layers,woLoc,Incoming);
-        if (DebugStage==23u) { imageStore(LinearRadiance,pixel,vec4(0,1,0,1)); imageStore(OutputImage,pixel,vec4(0,1,0,1)); return; }
+        if (DebugStage==25u) { imageStore(LinearRadiance,pixel,vec4(0,0,1,1)); imageStore(OutputImage,pixel,vec4(0,0,1,1)); return; }
         col+=Bsdf*ShadowTapRadiance[Tap].xyz*Geometry;
-        if (DebugStage==24u) { imageStore(LinearRadiance,pixel,vec4(0,0,1,1)); imageStore(OutputImage,pixel,vec4(0,0,1,1)); return; }
         if (Directional) sunVisibility = Visibility;
     }
     directOnly = col;
