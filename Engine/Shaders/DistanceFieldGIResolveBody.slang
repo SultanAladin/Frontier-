@@ -90,6 +90,7 @@ vec3 Fresnel(vec3 f0, float cosTheta){ float m = clamp(1.0 - cosTheta, 0.0, 1.0)
 //    lobes above the threshold see the dome alone — their reflection is the irradiance the gather already
 //    integrates, and a 20 m march per sample bought nothing visible there. This is the software (field) tier of
 //    reflections; mesh-exact reflections stay on the raytraced route.
+#if 0
 vec3 ReflectedRadiance(vec3 Position, vec3 GeometricNormal, vec3 Direction, float Roughness)
 {
     if (Roughness > 0.55 || (uint(PC.Tuning.w + 0.5) & 0x100u) != 0u) return SkyAlongApprox(Direction, Roughness);
@@ -117,6 +118,7 @@ vec3 ReflectedRadiance(vec3 Position, vec3 GeometricNormal, vec3 Direction, floa
     return max(HitSurface.Emission, vec3(0.0)) + Diffuse * (Direct + Indirect);
 }
 
+#endif
 vec3 Reflection(vec3 Position, SurfaceFrame Surface, vec3 View, ShadingRecord Material, ResolvedLayers Layers, uint Mode)
 {
     if (Mode==kReflectOff || Material.SpecularWeight<=0.0) return vec3(0.0);
@@ -136,7 +138,7 @@ vec3 Reflection(vec3 Position, SurfaceFrame Surface, vec3 View, ShadingRecord Ma
             GgxVndfPdf(OutgoingAnisotropic,HalfDirection,Layers.HazeAlpha),Material.HazinessWeight) /
             (4.0*max(dot(OutgoingAnisotropic,HalfDirection),1e-6));
         vec3 Direction=Surface.Tangent*Incoming.x+Surface.Bitangent*Incoming.y+Surface.Normal*Incoming.z;
-        vec3 Incident=ReflectedRadiance(Position,Surface.Geometric,Direction,Material.SpecularRoughness);
+        vec3 Incident=SkyAlongApprox(Direction,Material.SpecularRoughness);   // BISECT: field reflections disconnected
         Result+=Incident*EvaluateBaseSpecular(Material,Layers,Outgoing,Incoming)*Incoming.z/max(Density,1e-8);
     }
     return Result/float(Samples);
