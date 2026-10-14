@@ -18,7 +18,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write   # the Linux job commits the Project-Drive live captures back to the branch it ran on
 
 concurrency:
   group: frontier-build-${{ github.ref }}
@@ -206,7 +206,30 @@ jobs:
           Capture sdf-gi-simulate    40 --render-preset 2 --transport 2
           Capture raster-simulate    40 --render-preset 3 --transport 2
           Capture restir-simulate     6 --render-preset 0 --transport 2
+          # Proper deflate (the host's writer stores raw scanlines) and a short log tail, so the branch commit stays small.
+          python3 -m pip install --quiet pillow
+          python3 - <<'PY'
+          from pathlib import Path
+          from PIL import Image
+          for Png in Path('Exhibits/Gallery/ProjectDrive/live').glob('*.png'):
+              Image.open(Png).convert('RGB').save(Png, optimize=True)
+          for Log in Path('Exhibits/Gallery/ProjectDrive/live').glob('*.log'):
+              Lines = Log.read_text(errors='replace').splitlines()
+              Log.write_text('\n'.join(Lines[-250:]) + '\n')
+          PY
           ls -la Exhibits/Gallery/ProjectDrive/live
+
+      # The artifact store is not reachable from everywhere the captures are reviewed; the branch is. GITHUB_TOKEN
+      #    pushes never start another workflow run, so this cannot loop.
+      - name: Commit the live captures to the branch
+        if: github.event_name == 'push'
+        run: |
+          git config user.name  "frontier-ci"
+          git config user.email "frontier-ci@users.noreply.github.com"
+          git add -f Exhibits/Gallery/ProjectDrive/live/*.png Exhibits/Gallery/ProjectDrive/live/*.log || true
+          git commit -q -m "CI: Project-Drive live captures for ${GITHUB_SHA::9} (lavapipe) [skip ci]" || { echo "nothing to commit"; exit 0; }
+          git pull -q --rebase origin "${GITHUB_REF_NAME}" || true
+          git push origin "HEAD:${GITHUB_REF_NAME}" || echo "push refused (branch moved); the artifact still carries the captures"
 
       - name: Publish the live captures
         if: always()
