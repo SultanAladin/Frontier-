@@ -39,7 +39,7 @@ vec3 SkyAlongApprox(vec3 Direction, float Roughness)
     const vec3  up      = vec3(0.0, 0.0, 1.0);                       // world is RH Z-up, metres
     const float height  = clamp(dot(Direction, up) * 0.5 + 0.5, 0.0, 1.0);
     const vec3  zenith  = PC.SkyAmbient.xyz;
-    const vec3  horizon = PC.SkyAmbient.xyz * vec3(1.35, 1.22, 1.05);  // Rayleigh reddens toward the horizon
+    const vec3  horizon = PC.SkyAmbient.xyz * vec3(1.9, 1.55, 1.15);   // brighter and whiter toward the horizon (longer air path)
     vec3 dome = mix(horizon, zenith, height * height);
     const float sunCos  = clamp(dot(Direction, normalize(PC.SunDirectionRadiance.xyz)), 0.0, 1.0);
     const float sharp   = mix(2048.0, 8.0, clamp(Roughness, 0.0, 1.0));

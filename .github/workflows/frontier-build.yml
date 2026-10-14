@@ -208,10 +208,15 @@ jobs:
             grep -E "PASS capture|FAIL capture|RenderPath|Shadow path|Capture|refused|Refusal|Fatal" "Exhibits/Gallery/ProjectDrive/live/$Name.log" | tail -20
             echo "::endgroup::"
           }
+          # Project-Drive runs the Distance Field GI path (preset 2). Same scene, same settings; the camera is pinned
+          #    for the exterior and cockpit views (the car spawns at the origin facing +X; eye from DriveCabinLayout.h),
+          #    the play capture leaves the camera to the project.
+          Capture sdf-gi-exterior    40 --render-preset 2 --transport 2 --camera -7.0 -6.0 2.0 0.0 0.0 0.7
+          Capture sdf-gi-cockpit     40 --render-preset 2 --transport 2 --camera -0.2 0.42 1.12 2.8 0.42 0.47
+          Capture sdf-gi-play        40 --render-preset 2 --transport 1
           Capture sdf-gi-edit        30 --render-preset 2 --transport 0
-          Capture sdf-gi-simulate    40 --render-preset 2 --transport 2
-          Capture raster-simulate    40 --render-preset 3 --transport 2
-          Capture restir-simulate     6 --render-preset 0 --transport 2
+          Capture restir-exterior     8 --render-preset 0 --transport 2 --camera -7.0 -6.0 2.0 0.0 0.0 0.7
+          rm -f Exhibits/Gallery/ProjectDrive/live/{sdf-gi-simulate,raster-simulate,restir-simulate}.*
           # Proper deflate (the host's writer stores raw scanlines) and a short log tail, so the branch commit stays small.
           python3 -m pip install --quiet pillow
           python3 - <<'PY'

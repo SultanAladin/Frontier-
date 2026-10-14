@@ -184,6 +184,10 @@ int Frontier::RunFrontierRuntime(
     std::string CapturePath;                 // empty: no capture
     uint32_t    CaptureFrame     = 90u;      // [frames] presented before the readback
     int         CaptureTransport = -1;       // -1 leave the editor's default; 0 edit, 1 play, 2 simulate
+    // --camera x y z ax ay az: pin the viewing camera at (x,y,z) looking at (ax,ay,az) every frame, over the
+    //    editor's and the project's cameras. For captures of a known view; Z-up metres.
+    bool        CameraPinned = false;
+    float       CameraPin[6] = { 0.0f, -3.3f, 1.55f, 0.0f, 0.0f, 0.55f };
     for (int I = 1; I < argc; ++I)
     {
         if (std::strcmp(argv[I], "--verify-opening-scene") == 0)
@@ -201,6 +205,11 @@ int Frontier::RunFrontierRuntime(
         if (std::strcmp(argv[I], "--capture") == 0)       CapturePath      = argv[++I];
         if (std::strcmp(argv[I], "--capture-frame") == 0) CaptureFrame     = static_cast<uint32_t>(std::max(1, std::atoi(argv[++I])));
         if (std::strcmp(argv[I], "--transport") == 0)     CaptureTransport = std::clamp(std::atoi(argv[++I]), 0, 2);
+        if (std::strcmp(argv[I], "--camera") == 0 && I + 6 < argc)
+        {
+            for (float& Component : CameraPin) Component = static_cast<float>(std::atof(argv[++I]));
+            CameraPinned = true;
+        }
     }
     bool DropScene = false;
 
@@ -2161,6 +2170,14 @@ int Frontier::RunFrontierRuntime(
             Integrator.Exposure().Advance(Δτ);
         }
 
+        if (CameraPinned)
+        {
+            const float Dx = CameraPin[3] - CameraPin[0], Dy = CameraPin[4] - CameraPin[1], Dz = CameraPin[5] - CameraPin[2];
+            const float Flat = std::sqrt(Dx * Dx + Dy * Dy);
+            Camera.AssignSpatialLocation(Frontier::Vector3{ CameraPin[0], CameraPin[1], CameraPin[2] });
+            // Yaw 0 looks along +Y and turns toward +X; pitch is positive upward (CameraProjection).
+            Camera.AssignOrientationEuler(std::atan2(Dz, std::max(Flat, 1e-4f)), std::atan2(Dx, Dy), 0.0f);
+        }
         Integrator.ObserveCamera(Camera, RenderWidth, RenderHeight);
         if (Telemetry.QueryRows().ShowScene)
         {

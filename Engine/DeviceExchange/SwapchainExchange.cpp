@@ -151,6 +151,7 @@ struct SwapchainExchange::VulkanRecord
     // no descriptor rewrites or slot parity while commands can be in flight.
     bool HistoryContentsValid=false;
     uint32_t HistoryWidth=0, HistoryHeight=0;
+    uint32_t PresentedWidth=0, PresentedHeight=0;   // the render rectangle of the last recorded frame (--capture crops to it)
     VkImage PreviousHistory[3]{};
     VkDeviceMemory PreviousHistoryMemory[3]{};
     VkImageView PreviousHistoryViews[3]{};
@@ -3467,8 +3468,9 @@ bool SwapchainExchange::ReadbackPresentation(std::vector<uint8_t>& Pixels, uint3
 {
     if (!Vulkan || !Vulkan->Device || !Vulkan->StorageImage || !Vulkan->StorageInitialised) return false;
     if (vkDeviceWaitIdle(Vulkan->Device) != VK_SUCCESS) return false;
-    Width  = Configuration.Width;
-    Height = Configuration.Height;
+    // The renderer draws a sub-rectangle at render scale and the blit stretches it; the capture is that rectangle.
+    Width  = Vulkan->PresentedWidth  ? std::min(Vulkan->PresentedWidth,  Configuration.Width)  : Configuration.Width;
+    Height = Vulkan->PresentedHeight ? std::min(Vulkan->PresentedHeight, Configuration.Height) : Configuration.Height;
     const VkDeviceSize Bytes = static_cast<VkDeviceSize>(Width) * Height * 4u;
     VkBuffer Staging = VK_NULL_HANDLE; VkDeviceMemory StagingMemory = VK_NULL_HANDLE;
     if (AllocateBuffer(Vulkan->Device, Vulkan->MemoryProperties, Bytes, VK_BUFFER_USAGE_TRANSFER_DST_BIT,
@@ -3811,6 +3813,7 @@ bool SwapchainExchange::RecordComputeCommands(uint32_t ImageOrdinal, const Dispa
     //    the full-size targets); the blit below stretches that region over the whole swapchain image.
     const uint32_t RenderWidth  = std::clamp(Dispatch.ViewportWidth,  1u, Configuration.Width);
     const uint32_t RenderHeight = std::clamp(Dispatch.ViewportHeight, 1u, Configuration.Height);
+    Vulkan->PresentedWidth = RenderWidth; Vulkan->PresentedHeight = RenderHeight;
 
     // ①c R2 front end: cull → visibility raster → HiZ → cull → raster → surface resolve (writes bindings 4/5 for the
     //    kernel; in a debug view it writes the presentation image directly and the kernel is skipped).
@@ -3848,11 +3851,15 @@ bool SwapchainExchange::RecordComputeCommands(uint32_t ImageOrdinal, const Dispa
         const SkyTransportPrefix* Sky = reinterpret_cast<const SkyTransportPrefix*>(Vulkan->SkyPending.data());
         if (Sky)
         {
+            // The SDF path has no atmosphere integral: its sky is a dome about this ambient (SkyAlongApprox). A grey
+            //    4 % of the sun read as a beige-white overcast against the raytraced path's blue; a clear sky's
+            //    zenith is bluish and a few percent of the sun's radiance, which is what this tint approximates.
+            constexpr float kSkyTint[3] = { 0.024f, 0.040f, 0.070f };
             for (uint32_t Channel = 0u; Channel < 3u; ++Channel)
             {
                 DfParams.SunDirection[Channel] = Sky->SunDirection[Channel];
                 DfParams.SunColour[Channel]    = Sky->SunRadiance[Channel];
-                DfParams.SkyAmbient[Channel]   = Sky->SunRadiance[Channel] * 0.04f;
+                DfParams.SkyAmbient[Channel]   = Sky->SunRadiance[Channel] * kSkyTint[Channel];
             }
             DfParams.SunRadiance = Sky->SunRadiance[3] > 0.0f ? 1.0f : 0.0f;
         }
