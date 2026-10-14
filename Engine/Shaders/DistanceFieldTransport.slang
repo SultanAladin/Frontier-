@@ -153,13 +153,7 @@ float SurfaceCoverage(uint Facet, vec3 Position)
 }
 
 struct DistanceRayHit { float Travel; uint Facet; };
-// ReceiverSlot: the placement the ray leaves (0xFFFFFFFF = none). The field is UNSIGNED and voxel-coarse, so a
-//    ray grazing away from a thin shell (a car's own body panels) re-enters its own tolerance band within a few
-//    centimetres and reads the panel it just left as an occluder — the dark streaks that follow the bodywork's
-//    curvature. Two guards: a hit on the receiver's own placement inside kSelfTravel is stepped over, and a hit
-//    whose card faces away from the ray (the back of a shell) is not a surface the ray could have reached.
-const float kSelfTravel = 0.12;   // [m]
-DistanceRayHit TraceDistanceField(vec3 Origin, vec3 Direction, float Maximum, uint ReceiverSlot)
+DistanceRayHit TraceDistanceField(vec3 Origin, vec3 Direction, float Maximum)
 {
     DistanceRayHit Hit;
     Hit.Travel = Maximum;
@@ -175,16 +169,9 @@ DistanceRayHit TraceDistanceField(vec3 Origin, vec3 Direction, float Maximum, ui
         if (Distance > 1e19) break;
         if (Facet != 0xFFFFFFFFu && Distance < Tolerance && SurfaceCoverage(Facet, Position) > 0.0)
         {
-            bool Self     = Travel < kSelfTravel && floatBitsToUint(Facets[Facet].Alpha.w) == ReceiverSlot;
-            bool BackFace = dot(CardNormal(Facet, Facets[Facet].Normal.xyz), Direction) > 0.0;
-            if (!Self && !BackFace)
-            {
-                Hit.Travel = Travel;
-                Hit.Facet = Facet;
-                return Hit;
-            }
-            Travel += Tolerance * 1.5;   // step through the band and keep marching
-            continue;
+            Hit.Travel = Travel;
+            Hit.Facet = Facet;
+            return Hit;
         }
         Travel += max(Distance * 0.75, Tolerance * 1.5);
     }
@@ -223,7 +210,6 @@ vec3 GatherDistanceRadiance(vec3 Position, vec3 Normal, bool Current)
     float Tolerance;
     uint Receiver;
     SampleSceneDistance(Position, Tolerance, Receiver);
-    uint ReceiverSlot = Receiver == 0xFFFFFFFFu ? 0xFFFFFFFFu : floatBitsToUint(Facets[Receiver].Alpha.w);
     vec3 Origin = Position + Normal * max(Tolerance * 3.0, 0.003);
     // Per pixel AND per frame: a seed fixed per pixel reproduces the same four directions every frame, so the
     //    temporal mean in the resolve would converge to the same speckle. Rotating it is what lets the history
@@ -240,7 +226,7 @@ vec3 GatherDistanceRadiance(vec3 Position, vec3 Normal, bool Current)
     for (uint Sample = 0u; Sample < SampleCount; ++Sample)
     {
         vec3 Direction = HemisphereDirection(Normal, Sample, SampleCount, Shift);
-        DistanceRayHit Hit = TraceDistanceField(Origin, Direction, 20.0, ReceiverSlot);
+        DistanceRayHit Hit = TraceDistanceField(Origin, Direction, 20.0);
         vec3 Radiance = Hit.Facet == 0xFFFFFFFFu ? PC.SkyAmbient.xyz :
                         SampleCachedRadiance(Hit.Facet, Origin + Direction * Hit.Travel, Current);
         Result += min(Radiance, Ceiling);
