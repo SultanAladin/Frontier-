@@ -1,8 +1,8 @@
 {
   "source": "Projects/Project-Zero/Content/Scenes/Vehicle.gltf",
   "sourceSHA256": "4324b29b73e2af226965c5623f81267ddda4581845b120bc203936130ab96051",
-  "glbSHA256": "c08466f8d04e305bfecd0d16fd58b78a7ee33f54945ea87351ea85eb8886cbf5",
-  "glbBytes": 1687392,
+  "glbSHA256": "cd3c759111479262f82a80d5831e3d3e15554c4b2abe45c3bacc0fd7999a580e",
+  "glbBytes": 1687352,
   "nodes": [
     "ControlVehicle \u2014 paint / glass / plastic",
     "Tyre FL",
