@@ -187,7 +187,7 @@ jobs:
       #    path — not a CPU stand-in of it. Slow (software), so few frames and a half-size render.
       - name: Project-Drive live captures (software Vulkan)
         run: |
-          sudo apt-get install -y --no-install-recommends mesa-vulkan-drivers vulkan-tools xvfb gdb
+          sudo apt-get install -y --no-install-recommends mesa-vulkan-drivers vulkan-tools vulkan-validationlayers xvfb gdb
           python3 Tools/Build/BuildDriveContent.py
           mkdir -p Exhibits/Gallery/ProjectDrive/live
           echo "ICDs on the runner:"; ls -la /usr/share/vulkan/icd.d/ /etc/vulkan/icd.d/ 2>/dev/null || true
@@ -218,8 +218,11 @@ jobs:
           #    for the exterior and cockpit views (the car spawns at the origin facing +X; eye from DriveCabinLayout.h),
           #    the play capture leaves the camera to the project.
           # Bisect of the simulate-transport fault (each a single change off the production configuration).
-          STACK_KB=1048576 Capture bisect-bigstack 10 --render-preset 2 --transport 2 --camera -7.0 -6.0 2.0 0.0 0.0 0.7
-          FRONTIER_GI_REFLECT=0 Capture bisect-noreflect 10 --render-preset 2 --transport 2 --camera -7.0 -6.0 2.0 0.0 0.0 0.7
+          # Validation + GPU-assisted validation on the simulate transport: an out-of-range descriptor or buffer read
+          #    in a lowered kernel is reported with the shader and instruction instead of a bare SIGSEGV.
+          VK_INSTANCE_LAYERS=VK_LAYER_KHRONOS_validation VK_LAYER_ENABLES=VK_VALIDATION_FEATURE_ENABLE_GPU_ASSISTED_EXT:VK_VALIDATION_FEATURE_ENABLE_GPU_ASSISTED_RESERVE_BINDING_SLOT_EXT \
+            Capture bisect-validation 10 --render-preset 2 --transport 2 --camera -7.0 -6.0 2.0 0.0 0.0 0.7
+          grep -n "Validation Error\|VUID\|UNASSIGNED" Exhibits/Gallery/ProjectDrive/live/bisect-validation.log | cut -c1-400 | sort | uniq -c | sort -rn | head -60 > Exhibits/Gallery/ProjectDrive/live/bisect-validation-summary.log || true
           Capture sdf-gi-exterior    90 --render-preset 2 --transport 2 --camera -7.0 -6.0 2.0 0.0 0.0 0.7
           Capture sdf-gi-cockpit     90 --render-preset 2 --transport 2 --camera -0.2 0.42 1.12 2.8 0.42 0.47
           Capture sdf-gi-play        90 --render-preset 2 --transport 1
@@ -241,7 +244,7 @@ jobs:
               Image.open(Png).convert('RGB').save(Png, optimize=True)
           for Log in Path('Exhibits/Gallery/ProjectDrive/live').glob('*.log'):
               Lines = Log.read_text(errors='replace').splitlines()
-              Log.write_text('\n'.join(Lines[-250:]) + '\n')
+              Log.write_text('\n'.join(Lines[:40] + ['…'] + Lines[-400:]) + '\n')
           PY
           ls -la Exhibits/Gallery/ProjectDrive/live
 
