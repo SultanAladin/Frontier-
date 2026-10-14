@@ -33,7 +33,10 @@ struct TraceContactParameters
     float    FanHalfAngleRad   = 0.7854f;   // [rad]   ±45° about straight down, in the wheel plane
     float    FanStepRad        = 0.0873f;   // [rad]   5° between fan directions
     uint32_t LateralCount      = 3u;        // [-]     slices across the tread (1 = centre line only)
-    float    VerticalStiffness = 250000.0f; // [N/m]   residual radial stiffness of the carcass
+    float    VerticalStiffness = 250000.0f; // [N/m]   radial stiffness of the carcass AT ReferencePressure
+    float    ReferencePressure = 110000.0f; // [Pa]    gauge pressure VerticalStiffness was tuned for
+    float    PressureShare     = 0.75f;     // [-]     fraction of the stiffness carried by the air: k = k0·(1 − s + s·p/p_ref).
+                                            //         A flat tyre keeps the carcass quarter; double pressure is 1.75× stiffer.
     float    VerticalDamping   = 1500.0f;   // [N·s/m] radial damping of the carcass
     float    MaxDeflection     = 0.08f;     // [m]     deflection beyond which the spring is clamped (rim contact guard)
 };
@@ -50,6 +53,15 @@ struct TraceContactReading
 };
 
 // hubRot carries steer (and camber), never spin. hubVel is the hub's own velocity including strut travel.
+// Radial stiffness at the live gauge pressure (thermal state when it runs, the cold inflation otherwise).
+[[nodiscard]] inline float PressureStiffness(const TraceContactParameters& P, float GaugePressure) noexcept
+{
+    const float Reference = P.ReferencePressure > 1.0f ? P.ReferencePressure : 1.0f;
+    const float Ratio = std::isfinite(GaugePressure) && GaugePressure >= 0.0f ? GaugePressure / Reference : 1.0f;
+    const float Share = P.PressureShare < 0.0f ? 0.0f : (P.PressureShare > 1.0f ? 1.0f : P.PressureShare);
+    return P.VerticalStiffness * ((1.0f - Share) + Share * (Ratio < 4.0f ? Ratio : 4.0f));
+}
+
 inline TraceContactReading TraceWheelContact(const TraceContactParameters& P, float Radius, float Width,
                                              const Vec3& Hub, const Quat& HubRot, const Vec3& HubVel,
                                              const GroundQuery& Ground) noexcept

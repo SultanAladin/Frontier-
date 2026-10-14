@@ -1837,6 +1837,7 @@ int Frontier::RunFrontierRuntime(
         ProjectInput.SimulationStep = Panel.TakeSimulationStep() ? 1u : 0u;
         ProjectInput.HandbrakePressed = Input.IsKeyPressed(Frontier::VirtualKeyCategory::KeySpace) ? 1u : 0u;
         ProjectInput.ResetPressed = Input.IsKeyPressed(Frontier::VirtualKeyCategory::KeyR) ? 1u : 0u;
+        ProjectInput.ViewTogglePressed = Input.IsKeyPressed(Frontier::VirtualKeyCategory::KeyC) ? 1u : 0u;
         const bool KeyboardCaptured = TypingText || ControlCentre.CoversPointer() || Diagnostics.QueryPointerCaptured();
         const bool PreviouslyEjected = CameraPossession.IsEjected();
         const bool CameraEjected = CameraPossession.Advance(Transport,

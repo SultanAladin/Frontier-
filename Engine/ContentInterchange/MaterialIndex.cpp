@@ -313,7 +313,7 @@ void MaterialIndex::Finalise(uint32_t SlabLimit, std::vector<std::string>* Repor
         R.Metalness = Bottom.BaseMetalness;
         float Emission[3] = { 0.0f, 0.0f, 0.0f };
         for (const MaterialSlabDescriptor& S : Slabs)
-            for (int C = 0; C < 3; ++C) Emission[C] += S.EmissionLuminance * S.EmissionColor[C];
+            for (int C = 0; C < 3; ++C) Emission[C] += S.EmissionLuminance * S.EmissionColor[C] * D.EmissionTextureMean[C];
         R.EmissiveR = Emission[0]; R.EmissiveG = Emission[1]; R.EmissiveB = Emission[2];
         R.Flags      = D.Flags & ~MaterialFlagEmissive;
         if (Emission[0] + Emission[1] + Emission[2] > 0.0f) R.Flags |= MaterialFlagEmissive;

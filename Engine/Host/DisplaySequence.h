@@ -16,6 +16,7 @@
 #include "../GeometricRaster/SceneStructure.h"
 #include "../ProjectInterchange/CodeInterchange.h"
 
+#include <cmath>
 #include <cstring>
 #include <string>
 #include <vector>
@@ -119,6 +120,21 @@ private:
         if (Luminance > 0.0f) S.EmissionLuminance = Luminance;
         S.EmissionColor[0] = S.EmissionColor[1] = S.EmissionColor[2] = 1.0f;
         if (S.EmissionLuminance > 0.0f) M->Flags |= MaterialFlagEmissive;
+        // The header radiance (light sampling, luminaire power) is the sheet's MEAN emission, measured from the texels
+        //    actually bound: a launcher that is 90 % dark glass must not light the cabin as a white panel. Re-measured
+        //    whenever the material is rebound (first sheet, resize); between those the per-hit texture carries the detail.
+        const size_t Count = static_cast<size_t>(D.Width) * D.Height;
+        if (Count > 0u && Scratch.size() >= Count * 4u)
+        {
+            double Sum[3] = { 0.0, 0.0, 0.0 };
+            for (size_t Texel = 0u; Texel < Count; ++Texel)
+                for (int C = 0; C < 3; ++C)
+                {
+                    const float Encoded = Scratch[Texel * 4u + C] / 255.0f;
+                    Sum[C] += Encoded <= 0.04045f ? Encoded / 12.92f : std::pow((Encoded + 0.055f) / 1.055f, 2.4f);
+                }
+            for (int C = 0; C < 3; ++C) M->EmissionTextureMean[C] = static_cast<float>(Sum[C] / static_cast<double>(Count));
+        }
     }
 
     std::vector<Display> Displays;

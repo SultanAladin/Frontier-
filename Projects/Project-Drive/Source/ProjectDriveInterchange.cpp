@@ -10,6 +10,7 @@
 #include "../../../Engine/ProjectInterchange/TyreDeformationInterchange.h"
 #include "../../../Engine/PhysicalDynamics/Vehicle/TyreDeformationPublisher.h"
 #include "ChaseCameraSolver.h"
+#include "DriveCabinLayout.h"
 #include "DriveCabinDisplays.h"
 #include "../../../Engine/ProjectInterchange/DisplayInterchange.h"
 #include "../../../Engine/ProjectInterchange/DeploymentCodec.h"
@@ -166,6 +167,9 @@ struct DriveSequence
         }
     }
 
+    bool Cockpit = false;              // C cycles chase ↔ cockpit; the cockpit is where the screens are touchable
+    bool PreviousViewToggle = false;
+
     void DeliverCamera(float Seconds, bool Snap)
     {
         const auto& Chassis = Vehicle->Chassis();
@@ -177,6 +181,18 @@ struct DriveSequence
         if (Reception.ReceiveCameraRequest == nullptr) return;
         FrontierProjectCameraRequest Request{};
         Request.StructureSize = sizeof(Request);
+        if (Cockpit)
+        {   // rigidly on the chassis at the driver's eye (DriveCabinLayout.h), model frame rebased to the CoM origin
+            const Frontier::Drive::CabinDriverEye Seat = Frontier::Drive::CabinDriverEyeFixture();
+            const Frontier::Vehicle::VehicleGeometry Geometry;
+            const auto Eye = Chassis.Position + Chassis.Orientation.Rotate({Seat.Position[0], Seat.Position[1], Seat.Position[2] - Geometry.CoMModelZ()});
+            const auto Sight = Chassis.Orientation.Rotate({std::cos(Seat.PitchDown), 0.0f, -std::sin(Seat.PitchDown)});
+            Request.Eye[0] = Eye.x; Request.Eye[1] = Eye.y; Request.Eye[2] = Eye.z;
+            Request.Forward[0] = Sight.x; Request.Forward[1] = Sight.y; Request.Forward[2] = Sight.z;
+            Request.VerticalFieldOfView = Seat.VerticalFieldOfView;
+            Reception.ReceiveCameraRequest(&Request, Reception.ProjectReception);
+            return;
+        }
         const auto& Eye = Camera.QuerySpatialLocation();
         const auto& Sight = Camera.QueryForwardVector();
         Request.Eye[0] = Eye.x; Request.Eye[1] = Eye.y; Request.Eye[2] = Eye.z;
@@ -321,6 +337,12 @@ uint32_t FRONTIER_CODE_IMAGE_CALL AdvanceProject(
     }
     Sequence.PreviousTransport = Transport;
     Sequence.PreviousReset = Reading->ResetPressed != 0u;
+    {   // C: chase ↔ cockpit (a rising edge, never while a text field owns the keyboard; a new Play starts in the chase view)
+        const bool Toggle = Reading->StructureSize >= sizeof(FrontierProjectInputReading) && Reading->ViewTogglePressed != 0u;
+        if (Toggle && !Sequence.PreviousViewToggle && Reading->KeyboardCaptured == 0u && Transport != 0u) Sequence.Cockpit = !Sequence.Cockpit;
+        if (Started) Sequence.Cockpit = false;
+        Sequence.PreviousViewToggle = Toggle;
+    }
 
     // Cabin displays run on the host cycle clock whether or not the car is in Play: the tablet is usable in the
     //    editor, and the gauges fall to rest when the vehicle is absent.

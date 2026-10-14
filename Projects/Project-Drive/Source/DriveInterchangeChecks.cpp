@@ -11,6 +11,7 @@
 #include <cassert>
 #include <cmath>
 #include <cstdio>
+#include <cstdlib>
 #include <cstring>
 #include <fstream>
 #include <filesystem>
@@ -228,8 +229,73 @@ int main()
         assert(Display.ContactHit == 1u);
         assert(Display.ContactAcross > 0.0f && Display.ContactAcross < static_cast<float>(Sizes[0][0]));
         assert(Display.ContactDown > 0.0f && Display.ContactDown < static_cast<float>(Sizes[0][1]));
-        Project.RetireProject(Record);
         std::puts("PASS tablet touch: a world ray from the driver's seat resolves to a sheet pixel through the posed glass");
+
+        // A tap, end to end: press on the glass, a cycle later release on the same spot. Somewhere on the launcher that
+        //    opens an application and the sheet re-rasters into something substantially different; a tap on dead
+        //    glass must not. The host clock has to tick between press and release (the project's touch state machine
+        //    reads it), exactly as the real host does.
+        {
+            const auto Capture = [&](std::vector<uint8_t>& Into)
+            {
+                Display.Capacity = 0u; Display.Texels = nullptr;
+                assert(ProjectDisplayInterchange(Record, &Display) == 1u);
+                Into.resize(static_cast<size_t>(Display.Width) * Display.Height * 4u);
+                Display.Capacity = static_cast<uint32_t>(Into.size()); Display.Texels = Into.data();
+                assert(ProjectDisplayInterchange(Record, &Display) == 1u);
+                return Display.Revision;
+            };
+            const auto AimAt = [&](float Across, float Down)   // sheet fraction → world ray from the driver's eye
+            {
+                const Frontier::Drive::CabinDriverEye Seat = Frontier::Drive::CabinDriverEyeFixture();
+                const float Head[3] = { Reception.Body[12] + Seat.Position[0], Reception.Body[13] + Seat.Position[1], Reception.Body[14] + Rest + Seat.Position[2] - Rebase };
+                float Right[3], Up[3], Toward[3];
+                Frontier::Drive::CabinScreenBasis(Tablet.Tilt, Right, Up, Toward);
+                float Target[3];
+                for (uint32_t Axis = 0u; Axis < 3u; ++Axis)
+                    Target[Axis] = Glass[Axis] + Right[Axis] * (Across - 0.5f) * Tablet.Screen.Width + Up[Axis] * (0.5f - Down) * Tablet.Screen.Height;
+                float Ray[3] = { Target[0] - Head[0], Target[1] - Head[1], Target[2] - Head[2] };
+                const float Norm = std::sqrt(Ray[0] * Ray[0] + Ray[1] * Ray[1] + Ray[2] * Ray[2]);
+                for (float& Cell : Ray) Cell /= Norm;
+                std::memcpy(Display.RayOrigin, Head, sizeof(Head)); std::memcpy(Display.RayDirection, Ray, sizeof(Ray));
+            };
+            std::vector<uint8_t> Launcher, After;
+            Display.Pressed = 0u; Display.RayDirection[0] = Display.RayDirection[1] = Display.RayDirection[2] = 0.0f;
+            Advance(4u);
+            const uint64_t LauncherRevision = Capture(Launcher);
+            uint32_t Opened = 0u, Taps = 0u;
+            for (uint32_t Row = 1u; Row < 6u && Opened == 0u; ++Row)
+                for (uint32_t Column = 1u; Column < 8u && Opened == 0u; ++Column)
+                {
+                    const float Across = Column / 8.0f, Down = Row / 6.0f;
+                    AimAt(Across, Down); Display.Pressed = 0u; Display.Capacity = 0u; Display.Texels = nullptr;
+                    assert(ProjectDisplayInterchange(Record, &Display) == 1u);
+                    if (Display.ContactHit == 0u) continue;
+                    Display.Pressed = 1u; assert(ProjectDisplayInterchange(Record, &Display) == 1u);   // finger down
+                    Advance(2u);                                                                        // the host clock ticks
+                    Display.Pressed = 0u; assert(ProjectDisplayInterchange(Record, &Display) == 1u);   // finger up, same spot
+                    Advance(6u);                                                                        // ≥ one 15 Hz tablet raster
+                    ++Taps;
+                    const uint64_t Now = Capture(After);
+                    if (std::getenv("FRONTIER_TAP_TRACE")) std::printf("tap %.2f,%.2f contact %.0f,%.0f revision %llu -> %llu\n", Across, Down, Display.ContactAcross, Display.ContactDown, (unsigned long long)LauncherRevision, (unsigned long long)Now);
+                    if (Now == LauncherRevision) continue;
+                    size_t Different = 0u;
+                    for (size_t Texel = 0u; Texel + 3u < After.size() && Texel + 3u < Launcher.size(); Texel += 4u)
+                        Different += std::abs(int(After[Texel]) - int(Launcher[Texel])) + std::abs(int(After[Texel + 1u]) - int(Launcher[Texel + 1u])) +
+                                     std::abs(int(After[Texel + 2u]) - int(Launcher[Texel + 2u])) > 48;
+                    if (std::getenv("FRONTIER_TAP_TRACE")) std::printf("   %zu of %zu texels differ\n", Different, After.size() / 4u);
+                    if (Different * 12u > After.size() / 4u)                                            // > 8 % of the sheet changed: an app replaced the launcher
+                    {
+                        Opened = 1u;
+                        std::printf("Tap at %.2f, %.2f of the tablet opened an application: %zu of %zu texels changed, revision %llu -> %llu\n",
+                                    Across, Down, Different, After.size() / 4u, static_cast<unsigned long long>(LauncherRevision),
+                                    static_cast<unsigned long long>(Display.Revision));
+                    }
+                }
+            assert(Taps > 0u && Opened == 1u);
+            std::puts("PASS tablet tap: press + release through the C interchange opens a launcher application from the driver's eye");
+        }
+        Project.RetireProject(Record);
     }
 
 }

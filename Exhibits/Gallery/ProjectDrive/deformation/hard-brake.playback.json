@@ -1,6 +1,6 @@
 {
-  "gifSHA256": "743cfb7f3fefa186cb4c955e7673bd952731921f060b5cb0aee96fcb8e392e9c",
-  "videoSHA256": "26d29e75bd6ac30d0b7c9c650a7c062b0d960ed0bba41ae8068467a7865aeba9",
+  "gifSHA256": "3ac171ab91d99d988fe0fccfd40bc9374664102651b5f423bf48030908d53b9d",
+  "videoSHA256": "7e642ec9aa8632803228f1ff2120db64c047757210f986d50f10846370b3a1a3",
   "durationS": 4.0,
   "frameInterpolation": false,
   "method": "Same recorded GIF images, repeated only to preserve their measured presentation duration.",

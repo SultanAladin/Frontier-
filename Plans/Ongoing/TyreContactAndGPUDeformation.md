@@ -127,7 +127,8 @@ Cost: ~2 days — record + interchange (½), shader + Jacobian normals (1), CPU 
 | Device | `VisibilityExchange` SSBO of 64 × [current, previous] records; raster set binding 4, resolve binding 16; `vkCmdUpdateBuffer` on revision change | ✅ |
 | Consumers | `VisibilityRaster.vert` (current + previous → motion vectors), `ShadowRaster.vert`, `SurfaceResolve` (A/B/C rebuilt) | ✅ |
 | Not bent | ray-query/BLAS placements, rest SDF, cluster bounds (≤ 2 cm, conservative) | ⏳ listed, cheap to add if GI contact shadows show it |
-| Proof | `Exhibits/Workbench/Automotive/DriveTyreDeformationProof.cpp`, `Tools/Tests/RunDriveTyreDeformationExhibit.py` → `Exhibits/Gallery/ProjectDrive/tyre-deformation.html` | ✅ 240 frames, all per-frame assertions pass |
+| Proof | `Exhibits/Workbench/Automotive/DriveTyreDeformationProof.cpp`, `Tools/Tests/RunDriveTyreDeformationExhibit.py` → `Exhibits/Gallery/ProjectDrive/tyre-deformation.html` | ✅ 350 frames / 5 clips (static, brake, corner, **speed humps**, **55/110/220 kPa**), all per-frame assertions pass |
+| Pressure → physics | `TraceContactTyre.h` `PressureStiffness()`: k = k₀·(0.25 + 0.75·p/p₀) from the live gauge pressure | ✅ settled FL δ 19.3 / 12.1 / 6.9 mm at 55 / 110 / 220 kPa (3.0 kN) |
 
 Measured (front-left, flat ground): static 3.0–4.0 kN → 12–16 mm δ; brake from 25 m/s 4.5 kN, Fx −4.7 kN → 18 mm δ and rearward tread lead; corner 18 m/s 4.2 kN, Fy 4.8 kN → 17 mm δ and 30 mm carcass walk. The bent tread's lowest point stays within +0.1 mm of the road on every frame; the rigid shell sinks by exactly δ.
 

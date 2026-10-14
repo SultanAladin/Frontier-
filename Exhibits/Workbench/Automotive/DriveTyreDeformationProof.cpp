@@ -52,6 +52,22 @@ bool ReadFlat(const V& Point, V& Surface, V& Normal)
     return true;
 }
 
+// Four 35 mm sine² speed humps 1.2 m long from x = 4 m — the kind of bump a tyre swallows while the body barely moves.
+float BumpHeight(float X)
+{
+    if (X < 4.0f || X > 8.8f) return 0.0f;
+    const float Phase = std::sin(π * (X - 4.0f) / 1.2f);
+    return 0.035f * Phase * Phase;
+}
+bool ReadBumps(const V& Point, V& Surface, V& Normal)
+{
+    const float Step = 0.005f;
+    const float Slope = (BumpHeight(Point.x + Step) - BumpHeight(Point.x - Step)) / (2.0f * Step);
+    Surface = {Point.x, Point.y, BumpHeight(Point.x)};
+    Normal  = V{-Slope, 0.0f, 1.0f}.Normalized();
+    return true;
+}
+
 struct Soup
 {
     std::vector<Frontier::VertexRecord> Vertices;   // object-local, one span × one material
@@ -134,9 +150,11 @@ std::vector<Frontier::MaterialDescriptor> DiagnosticPalette(const Frontier::Driv
     return Palette;
 }
 
+using GroundFunction = bool (*)(const V&, V&, V&);
+
 void ConstructFrame(Frontier::SceneStructure& Scene, const std::vector<Frontier::MaterialDescriptor>& Palette,
                     const std::vector<SpanSoups>& Spans, const float Worlds[5][16],
-                    const Frontier::TyreDeformationRecord* Records, float LowestTread[WheelCount])
+                    const Frontier::TyreDeformationRecord* Records, float LowestTread[WheelCount], GroundFunction Ground3D)
 {
     for (const auto& Material : Palette) Scene.RegisterMaterial(Material);
     Frontier::Matrix4x4 Identity{};
@@ -155,7 +173,11 @@ void ConstructFrame(Frontier::SceneStructure& Scene, const std::vector<Frontier:
                     const float In[3] = {World.x, World.y, World.z};
                     Frontier::DeformTyreWorldPoint(Records[Span - 1u], In, Out);
                 }
-                if (Span >= 1u) LowestTread[Span - 1u] = std::min(LowestTread[Span - 1u], Out[2]);
+                if (Span >= 1u)
+                {   // clearance above the traced road under this very vertex, so bumps are measured honestly
+                    V Surface, Normal; Ground3D({Out[0], Out[1], Out[2]}, Surface, Normal);
+                    LowestTread[Span - 1u] = std::min(LowestTread[Span - 1u], Frontier::Vehicle::Dot(V{Out[0], Out[1], Out[2]} - Surface, Normal));
+                }
                 Vertex.SpatialLocation = {Out[0], Out[1], Out[2]};
             }
             Frontier::GeometryStructure Geometry;
@@ -163,22 +185,32 @@ void ConstructFrame(Frontier::SceneStructure& Scene, const std::vector<Frontier:
             Geometry.AppendIndices(Part.Indices.data(), Part.Indices.size());
             Scene.RegisterInstance(Geometry, Identity, Part.Material, Frontier::InstanceFlagDoubleSided);
         }
-    // a plain slab for the ground, so the patch has something to stand on in the picture
+    // the ground the solver traced, meshed from the same height function so the picture and the physics agree
     {
         Frontier::GeometryStructure Ground;
-        const float Extent = 40.0f;
-        Frontier::VertexRecord Corners[4]{};
-        const float Xs[4] = {-Extent, Extent, Extent, -Extent}, Ys[4] = {-Extent, -Extent, Extent, Extent};
-        for (uint32_t Corner = 0u; Corner < 4u; ++Corner)
-        {
-            Corners[Corner].SpatialLocation    = {Xs[Corner], Ys[Corner], 0.0f};
-            Corners[Corner].NormalDirection    = {0.0f, 0.0f, 1.0f};
-            Corners[Corner].TextureCoordinateU = Xs[Corner]; Corners[Corner].TextureCoordinateV = Ys[Corner];
-            Corners[Corner].TangentDirection   = {1.0f, 0.0f, 0.0f, 1.0f};
-        }
-        const uint32_t Quad[6] = {0u, 1u, 2u, 0u, 2u, 3u};
-        Ground.AppendVertices(Corners, 4u);
-        Ground.AppendIndices(Quad, 6u);
+        const float X0 = -8.0f, X1 = 24.0f, Y0 = -8.0f, Y1 = 8.0f, Cell = 0.1f;
+        const uint32_t Columns = static_cast<uint32_t>((X1 - X0) / Cell) + 1u, Rows = static_cast<uint32_t>((Y1 - Y0) / Cell) + 1u;
+        std::vector<Frontier::VertexRecord> Vertices(Columns * Rows);
+        for (uint32_t Row = 0u; Row < Rows; ++Row)
+            for (uint32_t Column = 0u; Column < Columns; ++Column)
+            {
+                V Surface, Normal;
+                Ground3D({X0 + Column * Cell, Y0 + Row * Cell, 0.0f}, Surface, Normal);
+                auto& Vertex = Vertices[Row * Columns + Column];
+                Vertex.SpatialLocation    = {Surface.x, Surface.y, Surface.z};
+                Vertex.NormalDirection    = {Normal.x, Normal.y, Normal.z};
+                Vertex.TextureCoordinateU = Surface.x; Vertex.TextureCoordinateV = Surface.y;
+                Vertex.TangentDirection   = {1.0f, 0.0f, 0.0f, 1.0f};
+            }
+        std::vector<uint32_t> Indices;
+        for (uint32_t Row = 0u; Row + 1u < Rows; ++Row)
+            for (uint32_t Column = 0u; Column + 1u < Columns; ++Column)
+            {
+                const uint32_t A = Row * Columns + Column, B = A + 1u, C = A + Columns, D = C + 1u;
+                Indices.insert(Indices.end(), {A, B, D, A, D, C});
+            }
+        Ground.AppendVertices(Vertices.data(), Vertices.size());
+        Ground.AppendIndices(Indices.data(), Indices.size());
         Scene.RegisterInstance(Ground, Identity, 0u, Frontier::InstanceFlagDoubleSided);   // material 0 = course asphalt
     }
     Scene.Finalise();
@@ -195,6 +227,7 @@ void RenderHalf(Frontier::SceneStructure& Scene, const Camera& View, float FovDe
     const float E[3] = {View.Eye.x, View.Eye.y, View.Eye.z}, F[3] = {Forward.x, Forward.y, Forward.z};
     const float R[3] = {Right.x, Right.y, Right.z}, U[3] = {Up.x, Up.y, Up.z};
     Frontier::VisibilityRaster Raster;
+    Raster.AssignFlatColouring(true);   // the quick flat diagnostic view: albedo × facing, no sky, no shadows — shape only
     Frontier::VisibilityRaster::CelestialSettings Sky;
     Sky.Enabled = true;
     Sky.Light.Direction[0] = Sun.x; Sky.Light.Direction[1] = Sun.y; Sky.Light.Direction[2] = Sun.z;
@@ -208,6 +241,8 @@ void RenderHalf(Frontier::SceneStructure& Scene, const Camera& View, float FovDe
         std::memcpy(Frame + (Row * HalfWidth * 3u + Column) * 4u, Pixels.data() + Row * HalfWidth * 4u, HalfWidth * 4u);
 }
 
+enum class ClipMode { Compare, PressureSweep };   // rigid | deformed | difference, or three cars at three pressures
+
 struct Clip
 {
     const char* Name;
@@ -216,7 +251,11 @@ struct Clip
     V           StartVelocity;
     DriverInput (*Drive)(float Time);
     Camera      (*Frame)(const V& Hub, const V& Forward, const V& Left);
+    GroundFunction Ground = ReadFlat;
+    ClipMode    Mode = ClipMode::Compare;
 };
+// ⑤ pressure sweep: identical cars at half, nominal and double cold inflation — the air carries the radial stiffness
+constexpr float PressureRatios[3] = {0.5f, 1.0f, 2.0f};
 
 // ① Static load: the car is dropped from 2 cm, settles, and sits — four flat patches, bulged sidewalls, nothing else.
 DriverInput HoldInput(float) { return {}; }
@@ -224,6 +263,8 @@ DriverInput HoldInput(float) { return {}; }
 DriverInput BrakeInput(float Time) { DriverInput In; In.Brake = Time > 0.4f ? 1.0f : 0.0f; return In; }
 // ③ Constant left turn at 18 m/s: outside tyres load up and the carcass walks sideways under Fy.
 DriverInput CornerInput(float Time) { DriverInput In; In.Throttle = 0.25f; In.Steer = std::min(1.0f, Time * 1.2f) * 0.55f; return In; }
+// ④ Speed humps at 8 m/s: the patch tilts with the road normal and the deflection pulses through each hump.
+DriverInput CruiseInput(float) { DriverInput In; In.Throttle = 0.12f; return In; }
 
 Camera LowFront(const V& Hub, const V& Forward, const V& Left)
 {   // low three-quarter view of the front-left wheel, patch in frame
@@ -243,6 +284,8 @@ const Clip Clips[] =
     {"static-load",  "Static load: four flat patches",            4.0f, {0.0f, 0.0f, 0.0f},  HoldInput,   LowFront},
     {"hard-brake",   "Hard brake from 25 m/s: forward load shift", 4.0f, {25.0f, 0.0f, 0.0f}, BrakeInput,  LowSide},
     {"left-corner",  "Left corner at 18 m/s: carcass lean",       4.0f, {18.0f, 0.0f, 0.0f}, CornerInput, LowRear},
+    {"road-bumps",   "Speed humps at 8 m/s: patch follows the road", 2.5f, {8.0f, 0.0f, 0.0f}, CruiseInput, LowSide, ReadBumps},
+    {"pressure",     "Half, nominal and double inflation",        3.0f, {0.0f, 0.0f, 0.0f},  HoldInput,   LowSide, ReadFlat, ClipMode::PressureSweep},
 };
 
 } // namespace
@@ -266,17 +309,32 @@ int main(int Count, char** Arguments)
     uint32_t TotalFrames = 0u;
     for (const Clip& Scenario : Clips)
     {
-        DriveFixture Fixture;
-        // rest hub height: wheel radius; settle from a hair above so the first frame already carries load
-        Fixture.Construct({0.0f, 0.0f, Fixture.Geometry.CoMHeight + 0.02f}, Scenario.StartVelocity, {}, ReadFlat);
-        const auto& Specification = Fixture.Configuration.Tyre;
+        const bool Sweep = Scenario.Mode == ClipMode::PressureSweep;
+        const uint32_t Cars = Sweep ? 3u : 1u;
+        DriveFixture Fixtures[3];
+        for (uint32_t Car = 0u; Car < Cars; ++Car)
+        {   // rest hub height: wheel radius; settle from a hair above so the first frame already carries load
+            DriveFixture& Fixture = Fixtures[Car];
+            Fixture.Construct({0.0f, 0.0f, Fixture.Geometry.CoMHeight + 0.02f}, Scenario.StartVelocity, {}, Scenario.Ground);
+            if (Sweep)
+            {
+                Fixture.Configuration.Tyre.InflationPressure *= PressureRatios[Car];
+                Fixture.Rebuild();
+            }
+        }
+        const auto& Specification = Fixtures[0].Configuration.Tyre;
         std::FILE* Csv = std::fopen((Folder / (std::string(Scenario.Name) + ".csv")).string().c_str(), "w");
         assert(Csv);
         std::fprintf(Csv, "time_s,speed_mps,changed_pixels");
         const char* Names[WheelCount] = {"fl", "fr", "rl", "rr"};
-        for (const char* Name : Names)
-            std::fprintf(Csv, ",%s_load_n,%s_deflection_m,%s_patch_half_m,%s_fx_n,%s_fy_n,%s_rigid_low_m,%s_deformed_low_m",
-                         Name, Name, Name, Name, Name, Name, Name);
+        if (Sweep)
+            for (float Ratio : PressureRatios)
+                std::fprintf(Csv, ",p%03.0f_fl_load_n,p%03.0f_fl_deflection_m,p%03.0f_fl_deformed_low_m,p%03.0f_fl_gauge_kpa",
+                             Ratio * 100.0f, Ratio * 100.0f, Ratio * 100.0f, Ratio * 100.0f);
+        else
+            for (const char* Name : Names)
+                std::fprintf(Csv, ",%s_load_n,%s_deflection_m,%s_patch_half_m,%s_fx_n,%s_fy_n,%s_rigid_low_m,%s_deformed_low_m",
+                             Name, Name, Name, Name, Name, Name, Name);
         std::fprintf(Csv, "\n");
 
         const uint32_t Steps = static_cast<uint32_t>(std::lround(Scenario.Seconds / StepSeconds));
@@ -285,69 +343,93 @@ int main(int Count, char** Arguments)
         for (uint32_t Step = 1u; Step <= Steps; ++Step)
         {
             const float Time = Step * StepSeconds;
-            Fixture.Advance(Scenario.Drive(Time));
+            for (uint32_t Car = 0u; Car < Cars; ++Car) Fixtures[Car].Advance(Scenario.Drive(Time));
             if (Step % StepsPerFrame != 0u) continue;
 
-            // the exact records the project DLL hands the host
-            const auto& Tyres = Fixture.Solver.Tyres();
-            const auto& Wheels = Fixture.Solver.Telemetry().Wheels;
-            assert(Tyres.size() == WheelCount && Wheels.size() >= WheelCount);   // telemetry is a fixed 8-slot array
-            Frontier::TyreDeformationRecord Records[WheelCount];
-            float Worlds[5][16];
-            ComposeTRS(Fixture.Body.Position, Fixture.Body.Orientation, Worlds[0]);
-            for (uint32_t Wheel = 0u; Wheel < WheelCount; ++Wheel)
-            {
-                Records[Wheel] = Frontier::Vehicle::ComposeTyreDeformation(Tyres[Wheel], Wheels[Wheel], Specification);
-                ComposeTRS(Tyres[Wheel].HubPosition(), Tyres[Wheel].MaterialFrame(), Worlds[Wheel + 1u]);
-            }
-
-            float RigidLow[WheelCount], DeformedLow[WheelCount];
-            Frontier::SceneStructure Rigid, Deformed;
-            ConstructFrame(Rigid,    Palette, Spans, Worlds, nullptr, RigidLow);
-            ConstructFrame(Deformed, Palette, Spans, Worlds, Records, DeformedLow);
-
-            const V Forward = Fixture.Body.Orientation.Rotate({1.0f, 0.0f, 0.0f});
-            const V Left    = Fixture.Body.Orientation.Rotate({0.0f, 1.0f, 0.0f});
-            const Camera View = Scenario.Frame(Tyres[0].HubPosition(), Forward, Left);
-            RenderHalf(Rigid,    View, 42.0f, Frame.data(), 0u);
-            RenderHalf(Deformed, View, 42.0f, Frame.data(), HalfWidth);
             uint64_t Changed = 0u;
-            for (uint32_t Row = 0u; Row < FrameRows; ++Row)
-                for (uint32_t Column = 0u; Column < HalfWidth; ++Column)
-                {   // third panel: amplified absolute difference, so the patch, bulge and lead regions light up
-                    const unsigned char* A = Frame.data() + (Row * HalfWidth * 3u + Column) * 4u;
-                    const unsigned char* B = A + HalfWidth * 4u;
-                    unsigned char* D = Frame.data() + (Row * HalfWidth * 3u + 2u * HalfWidth + Column) * 4u;
-                    const int Difference = std::abs(int(A[0]) - int(B[0])) + std::abs(int(A[1]) - int(B[1])) + std::abs(int(A[2]) - int(B[2]));
-                    const int Amplified = std::min(255, Difference * 3);
-                    D[0] = static_cast<unsigned char>(Amplified); D[1] = static_cast<unsigned char>(Amplified * 0.55f);
-                    D[2] = static_cast<unsigned char>(Amplified * 0.15f); D[3] = 255u;
-                    if (Difference > 24) ++Changed;
+            std::string Row;
+            char Cell[256];
+            std::snprintf(Cell, sizeof(Cell), "%.3f,%.3f", Time, Fixtures[0].Body.LinearVelocity.Length());
+            Row += Cell;
+            for (uint32_t Car = 0u; Car < Cars; ++Car)
+            {
+                DriveFixture& Fixture = Fixtures[Car];
+                // the exact records the project DLL hands the host
+                const auto& Tyres = Fixture.Solver.Tyres();
+                const auto& Wheels = Fixture.Solver.Telemetry().Wheels;
+                assert(Tyres.size() == WheelCount && Wheels.size() >= WheelCount);   // telemetry is a fixed 8-slot array
+                Frontier::TyreDeformationRecord Records[WheelCount];
+                float Worlds[5][16];
+                ComposeTRS(Fixture.Body.Position, Fixture.Body.Orientation, Worlds[0]);
+                for (uint32_t Wheel = 0u; Wheel < WheelCount; ++Wheel)
+                {
+                    Records[Wheel] = Frontier::Vehicle::ComposeTyreDeformation(Tyres[Wheel], Wheels[Wheel], Fixture.Configuration.Tyre);
+                    ComposeTRS(Tyres[Wheel].HubPosition(), Tyres[Wheel].MaterialFrame(), Worlds[Wheel + 1u]);
                 }
+                const V Forward = Fixture.Body.Orientation.Rotate({1.0f, 0.0f, 0.0f});
+                const V Left    = Fixture.Body.Orientation.Rotate({0.0f, 1.0f, 0.0f});
+                const Camera View = Scenario.Frame(Tyres[0].HubPosition(), Forward, Left);
+
+                float RigidLow[WheelCount], DeformedLow[WheelCount];
+                Frontier::SceneStructure Deformed;
+                ConstructFrame(Deformed, Palette, Spans, Worlds, Records, DeformedLow, Scenario.Ground);
+                if (Sweep)
+                {
+                    RenderHalf(Deformed, View, 42.0f, Frame.data(), Car * HalfWidth);
+                    const auto& Reading = Wheels[0];
+                    std::snprintf(Cell, sizeof(Cell), ",%.1f,%.4f,%.4f,%.1f", Reading.VerticalLoad, Records[0].Ground[3], DeformedLow[0],
+                                  Reading.Thermal.Valid ? Reading.Thermal.GaugePressure * 0.001 : Fixture.Configuration.Tyre.InflationPressure * 0.001);
+                    Row += Cell;
+                    for (uint32_t Wheel = 0u; Wheel < WheelCount; ++Wheel) assert(DeformedLow[Wheel] > -0.004f);
+                    continue;
+                }
+                Frontier::SceneStructure Rigid;
+                ConstructFrame(Rigid, Palette, Spans, Worlds, nullptr, RigidLow, Scenario.Ground);
+                RenderHalf(Rigid,    View, 42.0f, Frame.data(), 0u);
+                RenderHalf(Deformed, View, 42.0f, Frame.data(), HalfWidth);
+                for (uint32_t PixelRow = 0u; PixelRow < FrameRows; ++PixelRow)
+                    for (uint32_t Column = 0u; Column < HalfWidth; ++Column)
+                    {   // third panel: amplified absolute difference, so the patch, bulge and lead regions light up
+                        const unsigned char* A = Frame.data() + (PixelRow * HalfWidth * 3u + Column) * 4u;
+                        const unsigned char* B = A + HalfWidth * 4u;
+                        unsigned char* D = Frame.data() + (PixelRow * HalfWidth * 3u + 2u * HalfWidth + Column) * 4u;
+                        const int Difference = std::abs(int(A[0]) - int(B[0])) + std::abs(int(A[1]) - int(B[1])) + std::abs(int(A[2]) - int(B[2]));
+                        const int Amplified = std::min(255, Difference * 3);
+                        D[0] = static_cast<unsigned char>(Amplified); D[1] = static_cast<unsigned char>(Amplified * 0.55f);
+                        D[2] = static_cast<unsigned char>(Amplified * 0.15f); D[3] = 255u;
+                        if (Difference > 24) ++Changed;
+                    }
+                for (uint32_t Wheel = 0u; Wheel < WheelCount; ++Wheel)
+                {
+                    const auto& Reading = Wheels[Wheel];
+                    const float Delta = Records[Wheel].Ground[3];
+                    const float PatchHalf = Delta > 0.0f ? std::sqrt(std::max(0.0f, 2.0f * Specification.Radius * Delta)) : 0.0f;
+                    std::snprintf(Cell, sizeof(Cell), ",%.1f,%.4f,%.4f,%.1f,%.1f,%.4f,%.4f", Reading.VerticalLoad, Delta, PatchHalf,
+                                  Reading.LongitudinalForce, Reading.LateralForce, RigidLow[Wheel], DeformedLow[Wheel]);
+                    Row += Cell;
+                    // the bent tread never dips below the road, and a loaded tyre's rigid shell always did
+                    assert(DeformedLow[Wheel] > -0.004f);
+                    if (Delta > 0.004f) assert(RigidLow[Wheel] < DeformedLow[Wheel] - 0.5f * Delta);
+                }
+            }
+            if (Sweep)
+            {   // softer tyre, deeper squash — the pressure-dependent stiffness must order the three cars
+                const float Soft = Fixtures[0].Solver.Telemetry().Wheels[0].TyreDeflection;
+                const float Nominal = Fixtures[1].Solver.Telemetry().Wheels[0].TyreDeflection;
+                const float Hard = Fixtures[2].Solver.Telemetry().Wheels[0].TyreDeflection;
+                if (Time > 1.5f) assert(Soft > Nominal * 1.3f && Nominal > Hard * 1.3f);
+            }
+            // the changed-pixel count sits after time and speed
+            Row.insert(Row.find(',', Row.find(',') + 1u), "," + std::to_string(Changed));
+            std::fprintf(Csv, "%s\n", Row.c_str());
             char Name[64];
             std::snprintf(Name, sizeof(Name), "%s-%03u.png", Scenario.Name, FrameIndex);
             const bool Written = PngWriteCounterpart::WritePng((Folder / Name).string().c_str(), HalfWidth * 3u, FrameRows, 4, Frame.data(), HalfWidth * 12u);
             assert(Written); (void)Written;
-
-            const float Speed = Fixture.Body.LinearVelocity.Length();
-            std::fprintf(Csv, "%.3f,%.3f,%llu", Time, Speed, static_cast<unsigned long long>(Changed));
-            for (uint32_t Wheel = 0u; Wheel < WheelCount; ++Wheel)
-            {
-                const auto& Reading = Wheels[Wheel];
-                const float Delta = Records[Wheel].Ground[3];
-                const float PatchHalf = Delta > 0.0f ? std::sqrt(std::max(0.0f, 2.0f * Specification.Radius * Delta)) : 0.0f;
-                std::fprintf(Csv, ",%.1f,%.4f,%.4f,%.1f,%.1f,%.4f,%.4f", Reading.VerticalLoad, Delta, PatchHalf,
-                             Reading.LongitudinalForce, Reading.LateralForce, RigidLow[Wheel], DeformedLow[Wheel]);
-                // the bent tread never dips below the road, and a loaded tyre's rigid shell always did
-                assert(DeformedLow[Wheel] > -0.004f);
-                if (Delta > 0.004f) assert(RigidLow[Wheel] < DeformedLow[Wheel] - 0.5f * Delta);
-            }
-            std::fprintf(Csv, "\n");
             ++FrameIndex;
         }
         std::fclose(Csv);
-        std::printf("PASS %s: %u frames, %s. Bent tread stays on the road; rigid shell sank by the solver's deflection.\n",
-                    Scenario.Name, FrameIndex, Scenario.Title);
+        std::printf("PASS %s: %u frames, %s.\n", Scenario.Name, FrameIndex, Scenario.Title);
         TotalFrames += FrameIndex;
     }
     std::printf("PASS %u frames written to %s. CPU port of Shaders/TyreDeformation.slang on the actual ControlVehicle wheels.\n",

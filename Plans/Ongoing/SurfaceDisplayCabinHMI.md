@@ -86,6 +86,18 @@ invariants, revision monotonicity, interchange refusals), writing PNGs + `Surfac
    folder-qualified object of their own. The workflow also emits every `error C…/LNK…` line as an annotation, so a
    failure is readable without the raw log.
 8. **Open — needs a GPU:** the in-engine frame of the lit screens in GI; measuring the single-slot texture refresh.
+9. ✅ First in-game look (14 Oct 2026) fixed two things:
+   - **No touch.** The only Drive camera was the chase camera 7 m behind the car, so the 300 mm tablet covered a
+     few dozen screen pixels: one pixel of mouse jitter was several sheet pixels, every tap exceeded the 12 px slop
+     and became a drag. Drive now has a **cockpit view on `C`** (`CabinDriverEyeFixture`, chassis-rigid, 70° FOV,
+     reset to chase on Play) and the slop scales with the sheet (2.5 % of its width, `DriveCabinDisplays.cpp`).
+     `DriveInterchangeChecks` now performs a full press/release through the C interchange from the driver's eye and
+     asserts the launcher opens an application (14 % of the sheet re-rastered).
+   - **Too bright / black that glows.** Light sampling and the luminaire power table read the material *header*
+     radiance, which was the authored constant — a uniform 24/28-nit white panel — so the cabin was lit as if both
+     screens were white. `MaterialDescriptor::EmissionTextureMean` (measured from the bound sheet in
+     `DisplaySequence::Bind`) now scales the header, so a launcher that is 90 % dark lights the room as a dark
+     screen; per-hit shading still samples the texture. The sheets themselves are dark (mean 46/255 sRGB).
 
 ## Harness note
 

@@ -33,7 +33,12 @@ void VehicleSolver::AdvanceTyreContact(const std::vector<HubMotion>& Motions, fl
     {
         const HubMotion& motion = Motions[i];
         Wheels[i].Pose(Δτ, motion);
-        const TraceContactReading Contact = TraceWheelContact(ActiveConfiguration.TraceContact, ActiveConfiguration.Tyre.Radius,
+        // the air carries most of the radial stiffness: a soft or hot tyre squashes differently (TraceContactTyre.h)
+        TraceContactParameters Parameters = ActiveConfiguration.TraceContact;
+        const bool LiveThermal = ActiveConfiguration.TyreThermal.Enabled && i < WheelThermals.size() && WheelThermals[i].Valid;
+        Parameters.VerticalStiffness = PressureStiffness(ActiveConfiguration.TraceContact,
+            LiveThermal ? static_cast<float>(WheelThermals[i].GaugePressure) : ActiveConfiguration.Tyre.InflationPressure);
+        const TraceContactReading Contact = TraceWheelContact(Parameters, ActiveConfiguration.Tyre.Radius,
                                                               ActiveConfiguration.Tyre.Width, motion.Position, motion.Orientation,
                                                               motion.LinearVelocity, ChassisHooks.Ground);
         Wheels[i].AssignReaction(Contact.Reaction);

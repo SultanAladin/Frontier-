@@ -67,6 +67,13 @@ inline CabinFixture CabinClusterFixture(DisplayOutlineCategory Outline = Display
     return F;
 }
 
+// The driver's eye, model frame: left-hand seat (the cluster sits at +0.42), a hand behind the cluster, eye height
+//    between the 0.89 m scuttle and the 1.35 m roof of the authored shell. The cockpit camera sits here, looking
+//    forward and PitchDown so the cluster (≈ 11° below the eye) and the tablet (≈ 23° below, to the right) both
+//    fall inside a 70° vertical view; the pointer ray from that eye is the finger on the glass.
+struct CabinDriverEye { float Position[3]; float PitchDown; float VerticalFieldOfView; };
+inline CabinDriverEye CabinDriverEyeFixture() noexcept { return { { -0.20f, +0.42f, +1.12f }, 0.21f, 1.22f }; }
+
 // The headliner lamp: a small downward disc behind the windscreen header. Luminance is the emitter's own nits.
 struct CabinLamp { float Centre[3]; float Radius; float Luminance; };
 inline CabinLamp CabinLampFixture() noexcept { return { { +0.15f, 0.0f, +1.30f }, 0.045f, 40.0f }; }

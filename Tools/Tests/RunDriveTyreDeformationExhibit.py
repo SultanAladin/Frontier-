@@ -35,7 +35,10 @@ Headers = ["Engine/Shaders/TyreDeformation.slang", "Engine/GeometricRaster/TyreD
            "Engine/Shaders/SurfaceResolve.slang", "Exhibits/Workbench/Automotive/DriveDynamicsFixture.h"]
 Titles = {"static-load": ("Static load: four flat patches", "Dropped from 2 cm onto flat ground and left to settle. ~3.0 kN per front tyre, 12 mm deflection, ~11 cm patch half-length: a flat spot and a slight sidewall belly, nothing moving."),
           "hard-brake": ("Hard brake from 25 m/s", "Full brake at 0.4 s. Load shifts forward (fronts to ~4.1 kN, 16 mm), the tread leads rearwards under −4.7 kN of Fx, and everything relaxes back as the car stops at ~2.5 s."),
-          "left-corner": ("Left corner at 18 m/s", "Steer ramps to 55 % left. The outside front carries ~4.4 kN with 18 mm deflection and 4.8 kN of Fy; the carcass walks ~30 mm sideways while the patch stays on the road.")}
+          "left-corner": ("Left corner at 18 m/s", "Steer ramps to 55 % left. The outside front carries ~4.4 kN with 18 mm deflection and 4.8 kN of Fy; the carcass walks ~30 mm sideways while the patch stays on the road."),
+          "road-bumps": ("Speed humps at 8 m/s", "Four 35 mm sine² humps from x = 4 m. The trace fan tilts the contact normal with the road, so the flat spot leans into each hump face and the deflection pulses as the tyre swallows it; the ground mesh is the same height function the solver traced."),
+          "pressure": ("Half, nominal and double inflation", "Three identical cars, cold gauge 55 / 110 / 220 kPa. Radial stiffness now follows the air (k = k0·(0.25 + 0.75·p/p₀), TraceContactTyre.h), so the soft tyre squashes ~1.7× deeper and bellies more, the hard one sits taller with a shorter patch. No rigid panel: every panel is deformed.")}
+Panels = {"pressure": ["55 kPa (half)", "110 kPa (nominal)", "220 kPa (double)"]}
 
 
 def Hash(File):
@@ -81,7 +84,7 @@ def Main():
         with (Raw / "DriveTyreDeformationProof.log").open("w") as Log:
             subprocess.run(Command, cwd=Root, stdout=Log, stderr=subprocess.STDOUT, check=True)
     Log = (Raw / "DriveTyreDeformationProof.log").read_text()
-    assert Log.count("PASS") == 4, Log
+    assert Log.count("PASS") == len(Titles) + 1, Log
 
     Cards, Media, Summary = [], {}, {}
     for Name, (Title, Caption) in Titles.items():
@@ -94,12 +97,18 @@ def Main():
             Picture = Image.open(Frame).convert("RGB")
             Draw = ImageDraw.Draw(Picture)
             Third = Picture.width // 3
-            for Column, Label in enumerate(["RIGID (before)", "DEFORMED (option B, vertex stage)", "|DIFFERENCE| x3"]):
+            for Column, Label in enumerate(Panels.get(Name, ["RIGID (before)", "DEFORMED (option B, vertex stage)", "|DIFFERENCE| x3"])):
                 Draw.rectangle([Column * Third + 8, 8, Column * Third + 8 + 7 * len(Label) + 10, 28], fill=(10, 16, 22))
                 Draw.text((Column * Third + 13, 11), Label, fill=(230, 238, 245))
-            Status = "t = %5.2f s   v = %4.1f m/s   FL: Fz %4.0f N  defl %4.1f mm  Fx %5.0f N  Fy %5.0f N" % (
-                float(Row["time_s"]), float(Row["speed_mps"]), float(Row["fl_load_n"]), float(Row["fl_deflection_m"]) * 1000.0,
-                float(Row["fl_fx_n"]), float(Row["fl_fy_n"]))
+            if Name == "pressure":
+                Status = "t = %5.2f s   FL deflection: %4.1f mm @ %3.0f kPa | %4.1f mm @ %3.0f kPa | %4.1f mm @ %3.0f kPa" % (
+                    float(Row["time_s"]), float(Row["p050_fl_deflection_m"]) * 1000.0, float(Row["p050_fl_gauge_kpa"]),
+                    float(Row["p100_fl_deflection_m"]) * 1000.0, float(Row["p100_fl_gauge_kpa"]),
+                    float(Row["p200_fl_deflection_m"]) * 1000.0, float(Row["p200_fl_gauge_kpa"]))
+            else:
+                Status = "t = %5.2f s   v = %4.1f m/s   FL: Fz %4.0f N  defl %4.1f mm  Fx %5.0f N  Fy %5.0f N" % (
+                    float(Row["time_s"]), float(Row["speed_mps"]), float(Row["fl_load_n"]), float(Row["fl_deflection_m"]) * 1000.0,
+                    float(Row["fl_fx_n"]), float(Row["fl_fy_n"]))
             Draw.rectangle([8, Picture.height - 30, 8 + 7 * len(Status) + 10, Picture.height - 8], fill=(10, 16, 22))
             Draw.text((13, Picture.height - 26), Status, fill=(230, 238, 245))
             Pictures.append(Picture)
@@ -109,12 +118,13 @@ def Main():
         Pictures[0].save(Recording, save_all=True, append_images=Pictures[1:], duration=50 * Arguments.stride, loop=0, optimize=False)
         Encoded = EncodeClip(Recording, Destination / (Name + ".mp4"))
         (Destination / (Name + ".csv")).write_bytes((Raw / (Name + ".csv")).read_bytes())
-        Peak = max(Rows, key=lambda R: float(R["fl_deflection_m"]))
-        Summary[Name] = {"frames": len(Rows), "peakFrontLeftDeflectionMm": round(float(Peak["fl_deflection_m"]) * 1000.0, 2),
-                         "peakFrontLeftLoadN": round(max(float(R["fl_load_n"]) for R in Rows), 1),
+        Load = "fl_load_n" if Name != "pressure" else "p100_fl_load_n"
+        Deflection = "fl_deflection_m" if Name != "pressure" else "p100_fl_deflection_m"
+        Summary[Name] = {"frames": len(Rows), "peakFrontLeftDeflectionMm": round(max(float(R[Deflection]) for R in Rows) * 1000.0, 2),
+                         "peakFrontLeftLoadN": round(max(float(R[Load]) for R in Rows), 1),
                          "maxDeformedLowestPointMm": round(max(float(R[K]) for R in Rows for K in R if K.endswith("_deformed_low_m")) * 1000.0, 2),
                          "minDeformedLowestPointMm": round(min(float(R[K]) for R in Rows for K in R if K.endswith("_deformed_low_m")) * 1000.0, 2),
-                         "minRigidLowestPointMm": round(min(float(R[K]) for R in Rows for K in R if K.endswith("_rigid_low_m")) * 1000.0, 2),
+                         "minRigidLowestPointMm": round(min([float(R[K]) for R in Rows for K in R if K.endswith("_rigid_low_m")] or [0.0]) * 1000.0, 2),
                          "meanChangedPixels": round(sum(int(R["changed_pixels"]) for R in Rows) / len(Rows), 1)}
         Media[Name] = {"playback": Encoded, "posterSHA256": Hash(Poster), "traceSHA256": Hash(Destination / (Name + ".csv"))}
         Cards.append(f'<article><h3>{html.escape(Title)}</h3><video controls loop muted playsinline preload="none" poster="deformation/{Name}.png" src="deformation/{Name}.mp4"></video><p>{html.escape(Caption)} <a href="deformation/{Name}.csv">Per-wheel trace</a>.</p></article>')
@@ -137,9 +147,9 @@ def Main():
 <div class="notice"><strong>What this is:</strong> the actual ControlVehicle and the actual DriveSceneAuthor wheels, posed by the actual VehicleSolver, bent by the CPU port of the very shader text the GPU runs (<code>Engine/Shaders/TyreDeformation.slang</code>). Flat diagnostic palette, no GI. <strong>What it is not:</strong> a Vulkan screenshot — no GPU is available here; the three shaders that include it compile to SPIR-V (34/34 green).</div>
 <div class="stats"><div><strong>128 B</strong>per wheel, per frame</div><div><strong>~40 ALU</strong>per tyre vertex</div><div><strong>0 mm</strong>bent tread below the road</div><div><strong>12–18 mm</strong>solver deflection shown 1:1</div></div>
 <h2>Measured on every frame</h2><table><thead><tr><th>Clip</th><th>Frames</th><th>Peak FL load</th><th>Peak FL deflection</th><th>Rigid shell lowest point</th><th>Deformed tread lowest point</th></tr></thead><tbody>''' + Rows + '''</tbody></table>
-<p>The rigid shell sinks into the road by exactly the solver's deflection (the physics wheel is a rigid disc of nominal radius); the bent tread never crosses the ground plane, and every frame asserts both. Deflections are honest: 12 mm on a 330 mm tyre is what a road car does, so look at the flat spot, the belly beside it and the difference panel rather than expecting a cartoon.</p>
+<p>For the pressure sweep the "rigid" column is the nominal car's figures (there is no rigid panel in that clip; the three panels are the three cars, all deformed; the settled front-left deflections are in its CSV as <code>p050 / p100 / p200</code>). The rigid shell sinks into the road by exactly the solver's deflection (the physics wheel is a rigid disc of nominal radius); the bent tread never crosses the ground plane, and every frame asserts both. Deflections are honest: 12 mm on a 330 mm tyre is what a road car does, so look at the flat spot, the belly beside it and the difference panel rather than expecting a cartoon.</p>
 <h2>Inspect the actual frames</h2><p>All clips start paused. Play one to pause the others. Left: what the raster drew before. Middle: what the vertex stage draws now. Right: absolute pixel difference ×3 — black means the two agree, so it isolates the patch, the sidewall belly and the fore/aft or sideways lead.</p><button type="button" onclick="PauseClips()">Pause all clips</button><div class="cards">''' + "".join(Cards) + '''</div>
-<h2>How it is wired</h2><ul><li><code>ProjectTyreDeformationInterchange</code> (versioned C export, Project-Drive and Project-Zero) → <code>TyreDeformationSequence</code> in <code>FrontierRuntime</code> resolves wheel placements to instance rows once and stamps <code>InstanceFlagTyreDeform | slot &lt;&lt; 16</code>.</li><li><code>VisibilityExchange</code> keeps 64 [current, previous] record pairs in one SSBO (raster set binding 4, resolve binding 16) refreshed with <code>vkCmdUpdateBuffer</code> only when the revision changes.</li><li><code>VisibilityRaster.vert</code> bends this frame's and last frame's positions (motion vectors stay right), <code>ShadowRaster.vert</code> bends the shadow caster, <code>SurfaceResolve</code> rebuilds the same bent triangle so normals and wire agree.</li><li>Rim, hub and brake are untouched: the weight is 0 inside <code>RimRadius</code> and smooth-steps to 1 at the tread, so any authored wheel works as long as its rim is rigid.</li><li>Not bent (yet): ray-query / BLAS geometry and the rest SDF — a ≤ 2 cm discrepancy in reflections and GI contact shadows, listed in the plan.</li></ul>
+<h2>How it is wired</h2><ul><li><code>ProjectTyreDeformationInterchange</code> (versioned C export, Project-Drive and Project-Zero) → <code>TyreDeformationSequence</code> in <code>FrontierRuntime</code> resolves wheel placements to instance rows once and stamps <code>InstanceFlagTyreDeform | slot &lt;&lt; 16</code>.</li><li><code>VisibilityExchange</code> keeps 64 [current, previous] record pairs in one SSBO (raster set binding 4, resolve binding 16) refreshed with <code>vkCmdUpdateBuffer</code> only when the revision changes.</li><li><code>VisibilityRaster.vert</code> bends this frame's and last frame's positions (motion vectors stay right), <code>ShadowRaster.vert</code> bends the shadow caster, <code>SurfaceResolve</code> rebuilds the same bent triangle so normals and wire agree.</li><li>Rim, hub and brake are untouched: the weight is 0 inside <code>RimRadius</code> and smooth-steps to 1 at the tread, so any authored wheel works as long as its rim is rigid.</li><li>Pressure now reaches the physics as well as the picture: <code>PressureStiffness()</code> scales the trace-contact radial stiffness with the live gauge pressure (thermal state when it runs), so a hot or over-inflated tyre rides taller and a soft one squashes deeper before the shader ever sees the record.</li><li>Not bent (yet): ray-query / BLAS geometry and the rest SDF — a ≤ 2 cm discrepancy in reflections and GI contact shadows, listed in the plan.</li></ul>
 <h2>Reproducible evidence</h2><p><a href="deformation/DeformationProof.json">Source hashes, commands, per-clip summary</a> · <code>python3 Tools/Tests/RunDriveTyreDeformationExhibit.py</code></p>
 <footer>Native CPU raster: GCC/C++20, assertions enabled. No GPU benchmark or MSVC execution is claimed. Frames and build products stay in _AgentScratch.</footer></main>''' + PlaybackScript + '</body></html>\n')
     print("Published", Page)

@@ -54,7 +54,15 @@ bool DriveCabinDisplays::Construct(const std::string& FontDirectory, float ComRe
     }
     Screens[0].Fixture = CabinTabletFixture();
     Screens[1].Fixture = CabinClusterFixture();
-    for (Screen& S : Screens) S.Surface.Construct(S.Fixture.Screen);
+    for (Screen& S : Screens)
+    {
+        S.Surface.Construct(S.Fixture.Screen);
+        // Touch slop in sheet pixels: a 1200 px sheet seen from the driver's seat spans a few hundred screen pixels,
+        //    so one pixel of mouse jitter is several sheet pixels — 2.5 % of the width keeps a tap a tap.
+        DisplayTouchConfiguration Touch;
+        Touch.SlopPixels = std::max(12.0f, 0.025f * static_cast<float>(S.Surface.QuerySheetWidth()));
+        S.Touch.Configure(Touch);
+    }
 
     Tablet.AssignTypefaces(&Light, &Regular, &Medium);
     (void)Tablet.PresentAspect(Screens[0].Fixture.Screen.Width / Screens[0].Fixture.Screen.Height, 1.0f);

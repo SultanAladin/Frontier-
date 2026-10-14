@@ -80,6 +80,7 @@ struct FrontierProjectInputReading
     uint32_t HandbrakePressed;              // [-] - vehicle parking/drift input
     uint32_t ResetPressed;                  // [-] - reset to the project spawn
     uint32_t KeyboardCaptured;              // [-] - editing text or a modal control owns keyboard input
+    uint32_t ViewTogglePressed;             // [-] - cycle the project's own camera (chase ↔ cockpit); C on the keyboard
 };
 
 typedef struct FrontierProjectSceneMutation
