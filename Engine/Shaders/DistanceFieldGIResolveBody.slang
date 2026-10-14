@@ -197,6 +197,11 @@ void main()
         return;
     }
 
+    // TEMPORARY fault probes (one binary, FRONTIER_GI_DEBUG selects): 100 early grey, 101 no shadow taps,
+    //    102 no irradiance reconstruction, 103 no specular reflection pass. 105 = unmodified control.
+    if (PC.Tuning.w > 99.5 && PC.Tuning.w < 100.5)
+    { imageStore(LinearRadiance, pixel, vec4(0.5)); imageStore(OutputImage, pixel, vec4(0.5)); return; }
+
     // ── the receiving material, decoded ─────────────────────────────────────────────────────────────────────
     // Same unpack, same instance row, same ResolveMaterial call as ReSTIRViewport.slang's primary hit. The
     //    shading frame comes back from the decode, so the normal map and the tangent basis are the raytraced
@@ -228,7 +233,8 @@ void main()
     vec3 col = vec3(0.0);
     vec3 directOnly = vec3(0.0);
     float sunVisibility = 1.0;
-    for (uint Tap=0u; Tap<min(ShadowControl.z,kShadowMaximumTaps); ++Tap)
+    uint TapTotal = (PC.Tuning.w > 100.5 && PC.Tuning.w < 101.5) ? 0u : min(ShadowControl.z,kShadowMaximumTaps);   // TEMPORARY probe 101
+    for (uint Tap=0u; Tap<TapTotal; ++Tap)
     {
         bool Directional=(ShadowControl.w&(1u<<Tap))!=0u;
         vec3 Delta=ShadowTapOrigin[Tap].xyz-P;
@@ -246,7 +252,8 @@ void main()
     directOnly = col;
     // --- indirect diffuse: an irradiance through this material's hemispherical response ---
     vec3 response = AmbientResponse(m, layers, woLoc);
-    vec3 irradiance = (flags & kFeatureGlobalIllumination) != 0u
+    vec3 irradiance = (PC.Tuning.w > 101.5 && PC.Tuning.w < 102.5) ? PC.SkyAmbient.xyz :   // TEMPORARY probe 102
+                      (flags & kFeatureGlobalIllumination) != 0u
         ? ReconstructIrradiance(pixel,P,F.Normal,visibility) * PC.Tuning.y      // distance-field diffuse transport
         : PC.SkyAmbient.xyz;                                                    // plain raster: sky ambient fill (never black)
     col += response * irradiance;
@@ -265,7 +272,7 @@ void main()
     }
 
     // Use the authored specular lobe and its GGX PDF, not an unconditional 4% perfect mirror.
-    col += Reflection(P,F,V,m,layers,reflMode);
+    if (!(PC.Tuning.w > 102.5 && PC.Tuning.w < 103.5)) col += Reflection(P,F,V,m,layers,reflMode);   // TEMPORARY probe 103 skips
 
     if (m.TransmissionWeight>0.0)
     {

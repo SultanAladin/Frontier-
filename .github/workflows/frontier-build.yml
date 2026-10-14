@@ -213,6 +213,11 @@ jobs:
             grep -E "PASS capture|FAIL capture|RenderPath|Shadow path|Capture|refused|Refusal|Fatal" "Exhibits/Gallery/ProjectDrive/live/$Name.log" | tail -20
             echo "::endgroup::"
           }
+          # TEMPORARY same-binary resolve probes (remove after attribution).
+          FRONTIER_GI_DEBUG=100 Capture probe-res100 30 --render-preset 2 --transport 0 --camera -7.0 -6.0 2.0 0.0 0.0 0.7
+          FRONTIER_GI_DEBUG=101 Capture probe-res101 30 --render-preset 2 --transport 0 --camera -7.0 -6.0 2.0 0.0 0.0 0.7
+          FRONTIER_GI_DEBUG=102 Capture probe-res102 30 --render-preset 2 --transport 0 --camera -7.0 -6.0 2.0 0.0 0.0 0.7
+          FRONTIER_GI_DEBUG=105 Capture probe-res105 30 --render-preset 2 --transport 0 --camera -7.0 -6.0 2.0 0.0 0.0 0.7
           # Project-Drive runs the Distance Field GI path (preset 2). Same scene, same settings; the camera is pinned
           #    for the exterior and cockpit views (the car spawns at the origin facing +X; eye from DriveCabinLayout.h),
           #    the play capture leaves the camera to the project.
