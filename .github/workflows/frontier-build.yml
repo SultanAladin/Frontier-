@@ -217,6 +217,11 @@ jobs:
           #    for the exterior and cockpit views (the car spawns at the origin facing +X; eye from DriveCabinLayout.h),
           #    the play capture leaves the camera to the project.
           # (The simulate-transport bisect that used to run here is concluded and its hooks are removed.)
+          # TEMPORARY fault probes: edit-at-90 (frame count alone), exterior-at-8/30 (pinned view alone). Remove
+          #    once the pre-first-present lavapipe fault is attributed.
+          Capture probe-edit90       90 --render-preset 2 --transport 0
+          Capture probe-exterior8     8 --render-preset 2 --transport 0 --camera -7.0 -6.0 2.0 0.0 0.0 0.7
+          Capture probe-exterior30   30 --render-preset 2 --transport 0 --camera -7.0 -6.0 2.0 0.0 0.0 0.7
           # The GI views are captured at transport 0 with the camera pinned: the scene is the same parked car on
           #    the same course through the same SDF pipeline, while the simulate transports (1/2) currently fault
           #    on lavapipe before the first present — a pre-existing host fault, witnessed by sdf-gi-play below,
