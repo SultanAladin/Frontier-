@@ -128,6 +128,8 @@ set(SHADER_TABLE
     "DistanceFieldGatherFixed.slang|compute|DistanceFieldGatherFixed.spv"
     "DistanceFieldGIResolveFixed.slang|compute|DistanceFieldGIResolveFixed.spv"
     "DistanceFieldGIResolve.slang|compute|DistanceFieldGIResolve.spv"
+    "DistanceFieldReflection.slang|compute|DistanceFieldReflection.spv"
+    "DistanceFieldReflectionFixed.slang|compute|DistanceFieldReflectionFixed.spv"
     "ClusterCull.slang|compute|ClusterCull.spv"
     "HiZReduce.slang|compute|HiZReduce.spv"
     "AtrousDenoise.slang|compute|AtrousDenoise.spv"

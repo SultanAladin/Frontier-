@@ -202,9 +202,6 @@ jobs:
           Capture() {   # <name> <frames> <args…>
             local Name="$1" Frames="$2"; shift 2
             echo "::group::capture $Name"
-            # Thread stacks default to the soft stack limit (glibc): lavapipe runs the lowered shaders on threads, and
-            #    a kernel's frame can exceed 8 MB there. STACK_KB overrides per capture (bisect of the simulate fault).
-            ulimit -s "${STACK_KB:-8192}"
             # Under gdb so a crash leaves its backtrace in the log (lavapipe runs the shaders on the CPU: a shader
             #    fault is a host fault here).
             xvfb-run -a -s "-screen 0 1600x900x24" timeout 1500 gdb -q -batch -ex run -ex "bt 25" -ex "info threads" \
@@ -217,12 +214,6 @@ jobs:
           # Project-Drive runs the Distance Field GI path (preset 2). Same scene, same settings; the camera is pinned
           #    for the exterior and cockpit views (the car spawns at the origin facing +X; eye from DriveCabinLayout.h),
           #    the play capture leaves the camera to the project.
-          # Bisect of the simulate-transport fault (each a single change off the production configuration).
-          # Validation + GPU-assisted validation on the simulate transport: an out-of-range descriptor or buffer read
-          #    in a lowered kernel is reported with the shader and instruction instead of a bare SIGSEGV.
-          VK_INSTANCE_LAYERS=VK_LAYER_KHRONOS_validation VK_LAYER_ENABLES=VK_VALIDATION_FEATURE_ENABLE_GPU_ASSISTED_EXT:VK_VALIDATION_FEATURE_ENABLE_GPU_ASSISTED_RESERVE_BINDING_SLOT_EXT \
-            Capture bisect-validation 10 --render-preset 2 --transport 2 --camera -7.0 -6.0 2.0 0.0 0.0 0.7
-          grep -n "Validation Error\|VUID\|UNASSIGNED" Exhibits/Gallery/ProjectDrive/live/bisect-validation.log | cut -c1-400 | sort | uniq -c | sort -rn | head -60 > Exhibits/Gallery/ProjectDrive/live/bisect-validation-summary.log || true
           Capture sdf-gi-exterior    90 --render-preset 2 --transport 2 --camera -7.0 -6.0 2.0 0.0 0.0 0.7
           Capture sdf-gi-cockpit     90 --render-preset 2 --transport 2 --camera -0.2 0.42 1.12 2.8 0.42 0.47
           Capture sdf-gi-play        90 --render-preset 2 --transport 1

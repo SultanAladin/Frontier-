@@ -150,15 +150,17 @@ class DistanceFieldGIStage
     VkDescriptorSetLayout  DescriptorLayout = VK_NULL_HANDLE;
     VkPipelineLayout       PipelineLayout   = VK_NULL_HANDLE;
     VkDescriptorSet        Sets[2]{};
-    VkPipeline             Pipelines[4]{};
+    static constexpr uint32_t kPipelineCount  = 5u;   // capture, radiance, gather, resolve, reflection
+    static constexpr uint32_t kCardImageCount = 8u;   // 0..4 card atlases, 5..6 half-res gather pair, 7 full-res specular
+    VkPipeline             Pipelines[kPipelineCount]{};
     VkQueryPool            Timestamps = VK_NULL_HANDLE;
     uint32_t               TimestampBits = 0u;
     float                  TimestampPeriod = 0.0f;
     bool                   RecordedSlots[3]{};
     float                  GpuDurations[4]{};
-    VkImage                CardImages[7]{};
-    VkImageView            CardViews[7]{};
-    VkDeviceMemory         CardStorage[7]{};
+    VkImage                CardImages[kCardImageCount]{};
+    VkImageView            CardViews[kCardImageCount]{};
+    VkDeviceMemory         CardStorage[kCardImageCount]{};
     uint32_t               CardWidth = 0u, CardHeight = 0u;
     bool                   CardImagesInitialized = false;
     bool                   ScreenImagesInitialized = false;

@@ -438,6 +438,8 @@ $ShaderTable = @(
     @{ Source = 'DistanceFieldGatherFixed.slang'; Stage = 'compute'; Output = 'DistanceFieldGatherFixed.spv' }
     @{ Source = 'DistanceFieldGIResolveFixed.slang'; Stage = 'compute'; Output = 'DistanceFieldGIResolveFixed.spv' }
     @{ Source = 'DistanceFieldGIResolve.slang'; Stage = 'compute'; Output = 'DistanceFieldGIResolve.spv' }
+    @{ Source = 'DistanceFieldReflection.slang'; Stage = 'compute'; Output = 'DistanceFieldReflection.spv' }
+    @{ Source = 'DistanceFieldReflectionFixed.slang'; Stage = 'compute'; Output = 'DistanceFieldReflectionFixed.spv' }
     @{ Source = 'ClusterCull.slang';           Stage = 'compute';  Output = 'ClusterCull.spv' }
     @{ Source = 'HiZReduce.slang';             Stage = 'compute';  Output = 'HiZReduce.spv' }
     @{ Source = 'AtrousDenoise.slang';         Stage = 'compute';  Output = 'AtrousDenoise.spv' }
@@ -462,7 +464,7 @@ $ShaderTable = @(
     @{ Source = 'GizmoRaster.vert.slang';      Stage = 'vertex';   Output = 'GizmoRaster.vert.spv' }
     @{ Source = 'GizmoRaster.frag.slang';      Stage = 'fragment'; Output = 'GizmoRaster.frag.spv' }
 )
-$ShaderIncludeNames = @('SmokeIntegrator.slang', 'ViewportIntegrator.slang', 'RayQueryTraversal.slang', 'DistanceFieldGatherBody.slang', 'DistanceFieldCaptureBody.slang', 'DistanceFieldMaterial.slang', 'DistanceFieldTransport.slang', 'DistanceFieldGIResolveBody.slang', 'SceneMaterialResolve.slang', 'DistanceFieldRecords.slang', 'GlobalDistanceField.slang', 'SurfaceCacheRecords.slang', 'PatchSelection.slang', 'PatchPolicy.shared.h', 'PresentationDither.slang', 'SceneRecords.slang', 'RayGeneration.slang', 'TraversalCWBVH.slang', 'InterfaceRecords.slang', 'InterfaceSignedDistance.slang', 'SkyRecords.slang', 'MoonRecords.slang', 'PostRecords.slang', 'CloudShadow.slang', 'WeatherMedia.slang', 'MaterialEvaluation.slang', 'ShadowRecords.slang', 'ShadowSample.slang', 'OutlineRecords.slang', 'GizmoRecords.slang')
+$ShaderIncludeNames = @('SmokeIntegrator.slang', 'ViewportIntegrator.slang', 'RayQueryTraversal.slang', 'DistanceFieldGatherBody.slang', 'DistanceFieldCaptureBody.slang', 'DistanceFieldMaterial.slang', 'DistanceFieldTransport.slang', 'DistanceFieldGIResolveBody.slang', 'DistanceFieldReflectionBody.slang', 'DistanceFieldShared.slang', 'SceneMaterialResolve.slang', 'DistanceFieldRecords.slang', 'GlobalDistanceField.slang', 'SurfaceCacheRecords.slang', 'PatchSelection.slang', 'PatchPolicy.shared.h', 'PresentationDither.slang', 'SceneRecords.slang', 'RayGeneration.slang', 'TraversalCWBVH.slang', 'InterfaceRecords.slang', 'InterfaceSignedDistance.slang', 'SkyRecords.slang', 'MoonRecords.slang', 'PostRecords.slang', 'CloudShadow.slang', 'WeatherMedia.slang', 'MaterialEvaluation.slang', 'ShadowRecords.slang', 'ShadowSample.slang', 'OutlineRecords.slang', 'GizmoRecords.slang')
 
 function Invoke-ShaderLowering([string] $VulkanRoot)
 {

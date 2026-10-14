@@ -354,7 +354,10 @@ int Frontier::RunFrontierRuntime(
             Settings.Render.Raytracing = Preset < 2;
             Settings.Render.GlobalIllumination = Preset != 3;
             Settings.Render.GiBounces = Preset == 3 ? 0u : 2u;
-            Settings.Render.ReflectionMode = Preset < 2 ? Frontier::ReflectionModeCategory::Raytraced : Frontier::ReflectionModeCategory::Off;
+            // Preset 2 is the field route as the control centre runs it: its Raytraced default degrades to Sky (the
+            //    field-traced specular pass) when raytracing is off, so the captures carry that, not Off.
+            Settings.Render.ReflectionMode = Preset < 2 ? Frontier::ReflectionModeCategory::Raytraced :
+                                             Preset == 2 ? Frontier::ReflectionModeCategory::Sky : Frontier::ReflectionModeCategory::Off;
         }
     }
 
