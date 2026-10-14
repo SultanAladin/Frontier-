@@ -1784,9 +1784,12 @@ bool VisibilityExchange::RecordShadowFrame(void* CommandHandle, uint32_t Slot, c
         ArrayView.subresourceRange = { VK_IMAGE_ASPECT_DEPTH_BIT, 0u, 1u, 0u, ShadowFrameConfiguration::MaximumTaps };
         if (vkCreateImageView(D, &ArrayView, nullptr, &Maps.View) != VK_SUCCESS) return false;
 
+        // Every layer starts in the layout the sampling descriptor declares (DEPTH_STENCIL_READ_ONLY_OPTIMAL, the
+        //    render pass's final layout): a tap that is never rendered — layer 2 with a single sun tap — is still
+        //    bound through the array view, and the layer validated against the descriptor's layout.
         VkImageMemoryBarrier Initialise{ VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER };
         Initialise.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-        Initialise.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+        Initialise.newLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL;
         Initialise.srcQueueFamilyIndex = Initialise.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
         Initialise.image = Maps.Image;
         Initialise.subresourceRange = { VK_IMAGE_ASPECT_DEPTH_BIT, 0u, 1u, 0u, ShadowFrameConfiguration::MaximumTaps };
