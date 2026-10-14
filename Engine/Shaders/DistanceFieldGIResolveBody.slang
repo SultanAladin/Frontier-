@@ -197,6 +197,9 @@ void main()
     vec3 woLoc = ToLocal(F, V);
     if (woLoc.z <= 0.0) { imageStore(LinearRadiance, pixel, vec4(0.0)); imageStore(OutputImage, pixel, vec4(0.0, 0.0, 0.0, 1.0)); return; }
     ResolvedLayers layers = ResolveLayers(m, woLoc);
+    // Temporary crash isolation: debug views 16/17 return right after material resolve / after the direct loop.
+    if ((uint(PC.Tuning.w + 0.5) & 0xFFu) == 16u)
+    { imageStore(LinearRadiance, pixel, vec4(1.0, 0.0, 0.0, 1.0)); imageStore(OutputImage, pixel, vec4(1.0, 0.0, 0.0, 1.0)); return; }
 
     // Direct-light visibility comes from the same raster maps as plain raster; no SDF shadow or hidden mesh rays.
     vec3 col = vec3(0.0);
@@ -218,6 +221,8 @@ void main()
         if (Directional) sunVisibility = Visibility;
     }
     directOnly = col;
+    if ((uint(PC.Tuning.w + 0.5) & 0xFFu) == 17u)
+    { imageStore(LinearRadiance, pixel, vec4(0.0, 1.0, 0.0, 1.0)); imageStore(OutputImage, pixel, vec4(0.0, 1.0, 0.0, 1.0)); return; }
 
     // --- indirect diffuse: an irradiance through this material's hemispherical response ---
     vec3 response = AmbientResponse(m, layers, woLoc);
