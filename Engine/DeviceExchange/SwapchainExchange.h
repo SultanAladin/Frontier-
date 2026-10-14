@@ -400,6 +400,11 @@ public:
     //    or two frames stale, which is invisible against adaptation time constants measured in seconds.
     [[nodiscard]] float QueryAverageLogLuminance() const noexcept;
 
+    // The presented frame, read back as tightly packed RGBA8 rows (top row first). What the viewport shows — the
+    //    renderer's own tone-mapped output, before the editor chrome. Waits for the device to go idle, so it is a
+    //    proof/capture facility (--capture), never a per-frame one. False when there is no frame yet.
+    [[nodiscard]] bool ReadbackPresentation(std::vector<uint8_t>& Pixels, uint32_t& Width, uint32_t& Height) noexcept;
+
     [[nodiscard]] uint32_t QueryTargetGeneration() const noexcept { return TargetGeneration; }
 
     // In the development editor the resolved scene is sampled by the docked viewport panel, not blitted as a

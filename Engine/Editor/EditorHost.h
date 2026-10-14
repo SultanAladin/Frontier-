@@ -100,6 +100,7 @@ public:
 
     // The shared widget vocabulary, so a tool window drawn beside the panels uses the same sliders they do.
     [[nodiscard]] uint32_t QueryTransport() const noexcept { return Viewport_.QueryTransport(); }
+    void AssignTransport(uint32_t Mode) noexcept { Viewport_.SetTransport(Mode); }
     [[nodiscard]] bool QueryPaused() const noexcept { return Viewport_.QueryPaused(); }
     bool TakeSimulationStep() noexcept { return Viewport_.TakeSimulationStep(); }
     [[nodiscard]] ControlPanel& QueryControls() noexcept { return Controls_; }

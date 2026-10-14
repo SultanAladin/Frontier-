@@ -436,6 +436,11 @@ bool DistanceFieldGIStage::RecordFrame(VkCommandBuffer Command, const DistanceFi
     std::memcpy(Push.SunColour, Frame.SunColour, 12u);
     std::memcpy(Push.SkyExposure, Frame.SkyAmbient, 12u); Push.SkyExposure[3] = Frame.Exposure;
     Push.Eye[0] = Frame.CameraEye[0]; Push.Eye[1] = Frame.CameraEye[1]; Push.Eye[2] = Frame.CameraEye[2];
+    // ⚠️ Eye.w is the resident texture count: SceneMaterialResolve.slang's SampleChannel (FRONTIER_SDF_MATERIALS)
+    //    falls back to the constant channel for any slot >= CameraEye.w. It was never written — zero — so EVERY
+    //    texture read on the SDF path fell back: card capture and final resolve shaded flat material constants,
+    //    and a cabin display was its emissive colour, a blank white panel, instead of the UI drawn into its sheet.
+    Push.Eye[3] = static_cast<float>(Initialization.TextureCapacity ? Initialization.TextureCount : 0u);
     Push.Tuning[0] = Frame.ShadowSoftness; Push.Tuning[1] = Frame.GiBoost;
     Push.Counts[0] = static_cast<uint32_t>(Geometry.QueryFacets().size());
     Push.Counts[1] = FrameNumber; Push.Counts[2] = Frame.FeatureFlags; Push.Counts[3] = std::min(Frame.ReflectionMode, 1u);

@@ -40,7 +40,7 @@ float ShadowTexelDepth(vec2 Texel, uint Tap)
     float Side = ShadowGeometry.x;
     if (Texel.x < 0.0 || Texel.y < 0.0 || Texel.x >= Side || Texel.y >= Side) return 1e30;
     float Stored = texelFetch(ShadowMaps, ivec3(ivec2(Texel), int(Tap)), 0).r;
-    return ShadowLinearDepth(Stored, ShadowGeometry.y, ShadowGeometry.z);
+    return ShadowLinearDepth(Stored, ShadowTapRange[Tap].x, ShadowTapRange[Tap].y);
 }
 
 // PCSS step one: the mean depth of the texels nearer than the receiver. Returns false when the window finds no
@@ -99,7 +99,7 @@ float ShadowLitFraction(vec3 World, vec3 Normal, float NdotL, uint Tap)
 
     float Side     = ShadowGeometry.x;
     vec2  Texel    = Uv * Side - 0.5;
-    float Receiver = ShadowLinearDepth(Ndc.z, ShadowGeometry.y, ShadowGeometry.z);
+    float Receiver = ShadowLinearDepth(Ndc.z, ShadowTapRange[Tap].x, ShadowTapRange[Tap].y);
     float Bias     = ShadowGeometry.w * (1.0 + (1.0 - NdotL));   // slope-scaled, as on the CPU path
 
     uint Kind = ShadowControl.x;

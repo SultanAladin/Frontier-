@@ -3463,6 +3463,62 @@ bool SwapchainExchange::SubmitUpload(VkCommandBuffer Command) noexcept
     return true;
 }
 
+bool SwapchainExchange::ReadbackPresentation(std::vector<uint8_t>& Pixels, uint32_t& Width, uint32_t& Height) noexcept
+{
+    if (!Vulkan || !Vulkan->Device || !Vulkan->StorageImage || !Vulkan->StorageInitialised) return false;
+    if (vkDeviceWaitIdle(Vulkan->Device) != VK_SUCCESS) return false;
+    Width  = Configuration.Width;
+    Height = Configuration.Height;
+    const VkDeviceSize Bytes = static_cast<VkDeviceSize>(Width) * Height * 4u;
+    VkBuffer Staging = VK_NULL_HANDLE; VkDeviceMemory StagingMemory = VK_NULL_HANDLE;
+    if (AllocateBuffer(Vulkan->Device, Vulkan->MemoryProperties, Bytes, VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+                       VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, Staging, StagingMemory) != VK_SUCCESS)
+        return false;
+    VkCommandBufferAllocateInfo CommandInfo{ VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO };
+    CommandInfo.commandPool = Vulkan->ComputeCommandPool; CommandInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY; CommandInfo.commandBufferCount = 1u;
+    VkCommandBuffer Command = VK_NULL_HANDLE;
+    bool Copied = false;
+    if (vkAllocateCommandBuffers(Vulkan->Device, &CommandInfo, &Command) == VK_SUCCESS)
+    {
+        VkCommandBufferBeginInfo Begin{ VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO };
+        Begin.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+        if (vkBeginCommandBuffer(Command, &Begin) == VK_SUCCESS)
+        {
+            // The presentation image rests in GENERAL between frames (every frame's first barrier assumes so).
+            VkImageMemoryBarrier ToSource{ VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER };
+            ToSource.oldLayout = VK_IMAGE_LAYOUT_GENERAL; ToSource.newLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
+            ToSource.srcQueueFamilyIndex = ToSource.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+            ToSource.image = Vulkan->StorageImage;
+            ToSource.subresourceRange = { VK_IMAGE_ASPECT_COLOR_BIT, 0u, 1u, 0u, 1u };
+            ToSource.srcAccessMask = VK_ACCESS_MEMORY_WRITE_BIT | VK_ACCESS_MEMORY_READ_BIT; ToSource.dstAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
+            vkCmdPipelineBarrier(Command, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT, 0u, 0u, nullptr, 0u, nullptr, 1u, &ToSource);
+            VkBufferImageCopy Region{};
+            Region.imageSubresource = { VK_IMAGE_ASPECT_COLOR_BIT, 0u, 0u, 1u };
+            Region.imageExtent      = { Width, Height, 1u };
+            vkCmdCopyImageToBuffer(Command, Vulkan->StorageImage, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, Staging, 1u, &Region);
+            VkImageMemoryBarrier Back = ToSource;
+            Back.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL; Back.newLayout = VK_IMAGE_LAYOUT_GENERAL;
+            Back.srcAccessMask = VK_ACCESS_TRANSFER_READ_BIT; Back.dstAccessMask = VK_ACCESS_MEMORY_READ_BIT | VK_ACCESS_MEMORY_WRITE_BIT;
+            vkCmdPipelineBarrier(Command, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, 0u, 0u, nullptr, 0u, nullptr, 1u, &Back);
+            Copied = SubmitUpload(Command);   // ends, submits, waits and frees the command buffer
+        }
+    }
+    if (Copied)
+    {
+        void* Mapped = nullptr;
+        if (vkMapMemory(Vulkan->Device, StagingMemory, 0u, VK_WHOLE_SIZE, 0u, &Mapped) == VK_SUCCESS && Mapped)
+        {
+            Pixels.resize(static_cast<size_t>(Bytes));
+            std::memcpy(Pixels.data(), Mapped, static_cast<size_t>(Bytes));
+            vkUnmapMemory(Vulkan->Device, StagingMemory);
+        }
+        else Copied = false;
+    }
+    vkDestroyBuffer(Vulkan->Device, Staging, nullptr);
+    vkFreeMemory(Vulkan->Device, StagingMemory, nullptr);
+    return Copied;
+}
+
 void SwapchainExchange::RefuseFrame(const char* Operation, int32_t Code) noexcept
 {
     if (FrameFailed) return;
@@ -3771,6 +3827,13 @@ bool SwapchainExchange::RecordComputeCommands(uint32_t ImageOrdinal, const Dispa
     if (Frame.DebugView == DebugViewCategory::Off && !TraceRequested)
     {
         ShadowFrameConfiguration Shadow = ShadowFrame;
+        // The sun map is framed where the camera looks (see ShadowFrameConfiguration::Focus): a point ahead of the
+        //    eye, a radius that keeps every texel inside the region the viewer can tell apart.
+        constexpr float kShadowFocusRadius = 35.0f;   // [m] 70 m across the map: 14 cm/texel at 512, 3.4 cm at 2048
+        Shadow.FocusRadius = kShadowFocusRadius;
+        Shadow.Focus[0] = Dispatch.CameraOriginX + Dispatch.CameraForwardX * kShadowFocusRadius * 0.5f;
+        Shadow.Focus[1] = Dispatch.CameraOriginY + Dispatch.CameraForwardY * kShadowFocusRadius * 0.5f;
+        Shadow.Focus[2] = Dispatch.CameraOriginZ + Dispatch.CameraForwardZ * kShadowFocusRadius * 0.5f;
         (void)Visibility.PlaceShadowTaps(Shadow);
         ShadowStageRecorded = Visibility.RecordShadowFrame(Command, Vulkan->ActiveSlot, Shadow, false);
     }

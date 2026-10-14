@@ -129,6 +129,15 @@ public:
         return 1u;
 #endif
     }
+    // Drives the editor's transport from outside the toolbar (--transport for a headless capture).
+    void AssignTransport(uint32_t Mode) noexcept
+    {
+#ifdef FRONTIER_DEVELOPMENT
+        Editor_.AssignTransport(Mode);
+#else
+        (void)Mode;
+#endif
+    }
     bool QueryPaused() const noexcept
     {
 #ifdef FRONTIER_DEVELOPMENT

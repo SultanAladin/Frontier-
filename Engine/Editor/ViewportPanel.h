@@ -146,6 +146,7 @@ public:
     [[nodiscard]] bool QueryViewBox(float* U0, float* V0, float* U1, float* V1, bool* Extend, bool* Subtract) noexcept;
 
     [[nodiscard]] uint32_t QueryTransport() const noexcept { return Transport_; }
+    void SetTransport(uint32_t Mode) noexcept;   // the toolbar's own action, also driven by --transport for a capture
     [[nodiscard]] bool QueryPaused() const noexcept { return Paused_; }
     bool TakeSimulationStep() noexcept { const bool Pending = SimulationStep_; SimulationStep_ = false; return Pending; }
     void Record(EditorInstance* Instances, uint32_t InstanceCount) noexcept;
@@ -158,7 +159,6 @@ private:
     void RecordCommand(EditorInstance* Instances, uint32_t InstanceCount) noexcept;
     void RecordFooter(EditorInstance* Instances, uint32_t InstanceCount) noexcept;
 
-    void SetTransport(uint32_t Mode) noexcept;
     void SetPaused(bool Paused) noexcept;
     void SetRealtime(bool Realtime) noexcept;
     void StepOnce() noexcept;

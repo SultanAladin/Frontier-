@@ -297,6 +297,8 @@ private:
         float Radiance[3]{};              // [nit]
     };
     std::vector<EmissiveTriangle> Emitters;
+    float                SceneMinimum[3]{ 0.0f, 0.0f, 0.0f };  // [m] resident scene bounds — clamp the shadow focus
+    float                SceneMaximum[3]{ 0.0f, 0.0f, 0.0f };
     float                SceneCentre[3]{ 0.0f, 0.0f, 0.0f };   // [m] every tap frustum aims here
     float                SceneDiagonal = 1.0f;                 // [m] sets the light far plane
 

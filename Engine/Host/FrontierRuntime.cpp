@@ -14,6 +14,7 @@
 
 #include "CameraPossessionSequence.h"
 #include "../DeviceExchange/SwapchainExchange.h"
+#include "../ContentInterchange/PngWriteCounterpart.h"   // --capture: the presented frame to PNG, no stb dependency
 #include "../DisplayPresentation/ReSTIRIntegrator.h"
 #include "../DisplayPresentation/ShadingTableCodec.h"
 #include "../DisplayPresentation/RenderScheduler.h"
@@ -174,7 +175,15 @@ int Frontier::RunFrontierRuntime(
     bool        WaterSnapshot = false; // opt-in load-time Ripple mesh, not live GPU simulation
     bool        AnimateInstances = false;   // D3: --animate drives instance transforms from a scripted path
     bool        VerifyOpeningScene = false; // [-] - Headless package check; stops after the real scene import.
-    bool        SilentAudio      = false;   // --silent: open the null audio driver (no sound card, or CI)
+    // Audio is OFF unless asked for: the engine-note panel tone is a demo of the transport, not part of Project-Drive,
+    //    and it was playing over every drive. --audio opens the real device; --silent remains accepted and is now a no-op.
+    bool        SilentAudio      = true;    // null audio driver by default; --audio opens the sound card
+    // --capture <png> [--capture-frame N] [--transport 0|1|2]: run the REAL frame loop — window, Vulkan device,
+    //    project image, the selected render path — and after N presented frames write the renderer's own output
+    //    to <png>, then exit. The CI proof of what Project-Drive actually draws (software Vulkan), not a CPU stand-in.
+    std::string CapturePath;                 // empty: no capture
+    uint32_t    CaptureFrame     = 90u;      // [frames] presented before the readback
+    int         CaptureTransport = -1;       // -1 leave the editor's default; 0 edit, 1 play, 2 simulate
     for (int I = 1; I < argc; ++I)
     {
         if (std::strcmp(argv[I], "--verify-opening-scene") == 0)
@@ -184,10 +193,14 @@ int Frontier::RunFrontierRuntime(
         }
         if (std::strcmp(argv[I], "--water-body-snapshot") == 0) { WaterSnapshot=true; continue; }
         if (std::strcmp(argv[I], "--animate") == 0) { AnimateInstances = true; continue; }
-        if (std::strcmp(argv[I], "--silent")  == 0) { SilentAudio      = true; continue; }   // null audio driver
+        if (std::strcmp(argv[I], "--silent")  == 0) { SilentAudio      = true;  continue; }   // null audio driver (default)
+        if (std::strcmp(argv[I], "--audio")   == 0) { SilentAudio      = false; continue; }   // open the real sound device
         if (I + 1 >= argc) break;
         if (std::strcmp(argv[I], "--scene") == 0) ScenePath  = argv[++I];
         if (std::strcmp(argv[I], "--scale") == 0) SceneScale = static_cast<float>(std::atof(argv[++I]));
+        if (std::strcmp(argv[I], "--capture") == 0)       CapturePath      = argv[++I];
+        if (std::strcmp(argv[I], "--capture-frame") == 0) CaptureFrame     = static_cast<uint32_t>(std::max(1, std::atoi(argv[++I])));
+        if (std::strcmp(argv[I], "--transport") == 0)     CaptureTransport = std::clamp(std::atoi(argv[++I]), 0, 2);
     }
     bool DropScene = false;
 
@@ -1425,7 +1438,8 @@ int Frontier::RunFrontierRuntime(
                                                  : Frontier::DiagnosticSeverity::Warning,
                              "Audio",
                              InterfaceAudioReady
-                                 ? "Panel bound to audio: drag the progress bar to change the engine note."
+                                 ? (SilentAudio ? std::string("Audio disabled (null driver). Pass --audio to open the sound device.")
+                                                : std::string("Panel bound to audio: drag the progress bar to change the engine note."))
                                  : "Audio unavailable, the panel renders silently - " + AudioError);
         InterfaceReady = true;
         Logger.RecordMessage(Frontier::DiagnosticSeverity::Information, "Interface",
@@ -3073,6 +3087,21 @@ int Frontier::RunFrontierRuntime(
         }
         if(++StartupFrames==1)Startup.Mark("FirstPresentReturned");
         if(StartupFrames==120)Startup.Mark("After120Frames");
+        // --transport takes effect once the first frame is up (the project has opened and can see the mode).
+        if (CaptureTransport >= 0 && StartupFrames == 1) Panel.AssignTransport(static_cast<uint32_t>(CaptureTransport));
+        if (!CapturePath.empty() && StartupFrames >= CaptureFrame)
+        {
+            std::vector<uint8_t> Pixels; uint32_t Width = 0u, Height = 0u;
+            const bool Read = Surface.ReadbackPresentation(Pixels, Width, Height);
+            const bool Written = Read && PngWriteCounterpart::WritePng(CapturePath.c_str(), static_cast<int>(Width), static_cast<int>(Height), 4,
+                                                        Pixels.data(), static_cast<int>(Width * 4u)) != 0;
+            std::cout << (Written ? "PASS" : "FAIL") << " capture: " << CapturePath << " (" << Width << "x" << Height
+                      << ", frame " << StartupFrames << ")\n";
+            Logger.RecordMessage(Written ? Frontier::DiagnosticSeverity::Information : Frontier::DiagnosticSeverity::Refusal,
+                                 "Capture", std::string(Written ? "Frame written to " : "Frame readback refused: ") + CapturePath);
+            Logger.FlushSink();
+            break;
+        }
         // Sample after presentation, not on a background thread: this measures the render-loop
         // process without pretending that a sample is attributable to one asynchronous job.
         if (Frontier::HostRuntime::StartupLog::Elapsed(LastMemorySample) >= 10000.0)

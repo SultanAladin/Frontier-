@@ -916,6 +916,8 @@ void VisibilityExchange::UploadScene(const SceneStructure& Scene) noexcept
             Emitters.push_back(E);
         }
         const Vector3 Lo = Scene.QueryBoundsMinimum(), Hi = Scene.QueryBoundsMaximum();
+        SceneMinimum[0] = Lo.x; SceneMinimum[1] = Lo.y; SceneMinimum[2] = Lo.z;
+        SceneMaximum[0] = Hi.x; SceneMaximum[1] = Hi.y; SceneMaximum[2] = Hi.z;
         SceneCentre[0] = (Lo.x + Hi.x) * 0.5f;
         SceneCentre[1] = (Lo.y + Hi.y) * 0.5f;
         SceneCentre[2] = (Lo.z + Hi.z) * 0.5f;
@@ -1584,10 +1586,25 @@ bool VisibilityExchange::PlaceShadowTaps(ShadowFrameConfiguration& Shadow) const
     //    tests rather than an either/or, and the mesh emitters take whatever slots are left.
     const auto PlaceDirectional = [&](const float Direction[3], const float Radiance[3], float AngularRadius)
     {
-        const float Radius = std::max(SceneDiagonal * 0.5f, 1.0f);
-        const float Back   = Radius * 2.0f;
+        // Framed on the camera's focus when the host gave one (see ShadowFrameConfiguration::Focus), otherwise on
+        //    the scene. Four radii back with a half-angle that just clears the focus sphere: near-orthographic,
+        //    and every texel of the map lands inside the region the camera is actually looking at.
+        const bool  Focused = Shadow.FocusRadius > 0.0f;
+        const float Radius  = Focused ? Shadow.FocusRadius : std::max(SceneDiagonal * 0.5f, 1.0f);
+        const float Back    = Focused ? Radius * 4.0f : Radius * 2.0f;
+        float Aim[3];
+        for (int I = 0; I < 3; ++I)
+            Aim[I] = Focused ? std::clamp(Shadow.Focus[I], SceneMinimum[I] - Radius, SceneMaximum[I] + Radius) : SceneCentre[I];
         ShadowLightTap& Tap = Shadow.Taps[Placed];
-        for (int I = 0; I < 3; ++I) Tap.Origin[I] = SceneCentre[I] + Direction[I] * Back;
+        for (int I = 0; I < 3; ++I) Tap.Origin[I] = Aim[I] + Direction[I] * Back;
+        if (Focused)
+        {
+            constexpr float kPi = 3.14159265358979323846f;
+            for (int I = 0; I < 3; ++I) Tap.Aim[I] = Aim[I];
+            Tap.HalfAngle = std::atan(Radius / Back) * 180.0f / kPi * 1.05f;   // ≈ 14.7°: the sphere plus a margin
+            Tap.Near      = std::max(Back - Radius * 1.5f, Shadow.NearPlane);  // depth spent on the sphere, not the gap
+            Tap.Far       = Back + Radius * 1.5f;
+        }
         // The emitter normal is what the resolve's LdotL tests: the body faces the scene, so it is −direction.
         for (int I = 0; I < 3; ++I) Tap.Normal[I]   = -Direction[I];
         for (int I = 0; I < 3; ++I) Tap.Radiance[I] = Radiance[I];
@@ -1702,10 +1719,11 @@ struct ShadowConstantRecord
     float    TapOrigin[ShadowFrameConfiguration::MaximumTaps][4];
     float    TapRadiance[ShadowFrameConfiguration::MaximumTaps][4];
     float    TapNormal[ShadowFrameConfiguration::MaximumTaps][4];
+    float    TapRange[ShadowFrameConfiguration::MaximumTaps][4];   // x = near, y = far — this tap's own depth range
     float    Geometry[4];
     uint32_t Control[4];
 };
-static_assert(sizeof(ShadowConstantRecord) == 4u * 64u + 3u * 4u * 16u + 32u, "ShadowConstants must match the std140 block");
+static_assert(sizeof(ShadowConstantRecord) == 4u * 64u + 4u * 4u * 16u + 32u, "ShadowConstants must match the std140 block");
 static_assert(sizeof(ShadowConstantRecord) % 16u == 0u, "std140 blocks are 16-B aligned");
 
 } // namespace
@@ -1831,11 +1849,21 @@ bool VisibilityExchange::RecordShadowFrame(void* CommandHandle, uint32_t Slot, c
     }
 
     ShadowConstantRecord Record{};
-    const float TangentHalf = std::tan(Shadow.HalfAngle * 3.14159265358979323846f / 180.0f);
     for (uint32_t T = 0u; T < Taps; ++T)
     {
-        const Matrix4x4 Clip = BuildLightClip(Shadow.Taps[T].Origin, Shadow.Centre, Shadow.HalfAngle, Shadow.NearPlane, Shadow.FarPlane);
+        // A tap with its own frustum (the camera-framed sun) overrides the frame's; zero fields fall back.
+        const ShadowLightTap& Source = Shadow.Taps[T];
+        const bool  OwnAim    = Source.Aim[0] != 0.0f || Source.Aim[1] != 0.0f || Source.Aim[2] != 0.0f || Source.HalfAngle > 0.0f;
+        const float HalfAngle = Source.HalfAngle > 0.0f ? Source.HalfAngle : Shadow.HalfAngle;
+        const float Near      = Source.Near      > 0.0f ? Source.Near      : Shadow.NearPlane;
+        const float Far       = Source.Far       > 0.0f ? Source.Far       : Shadow.FarPlane;
+        const float TangentHalf = std::tan(HalfAngle * 3.14159265358979323846f / 180.0f);
+        const Matrix4x4 Clip = BuildLightClip(Source.Origin, OwnAim ? Source.Aim : Shadow.Centre, HalfAngle, Near, Far);
         std::memcpy(Record.LightClip[T], Clip.Columns, sizeof(float) * 16u);
+        Record.TapRange[T][0] = Near;
+        Record.TapRange[T][1] = Far;
+        Record.TapRange[T][2] = 0.0f;
+        Record.TapRange[T][3] = 0.0f;
         for (int I = 0; I < 3; ++I) Record.TapOrigin[T][I]   = Shadow.Taps[T].Origin[I];
         Record.TapOrigin[T][3]   = Shadow.Taps[T].LightSize;
         for (int I = 0; I < 3; ++I) Record.TapRadiance[T][I] = Shadow.Taps[T].Radiance[I];

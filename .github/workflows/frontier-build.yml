@@ -180,6 +180,43 @@ jobs:
       - name: Build the host and the project code images
         run: python3 Tools/Build/RunAnnounced.py "build host and projects" -- cmake --build .cache/cmake --target Frontier ProjectZero ProjectDrive Project-Dyno --parallel
 
+      # ── Project-Drive, LIVE ──────────────────────────────────────────────────────────────────────
+      #    The real host, the real project image, the real shaders, on Mesa's software Vulkan device (lavapipe)
+      #    under a virtual X display. `--capture` runs the ordinary frame loop and writes the renderer's own
+      #    presentation image after N frames, so these PNGs are what Project-Drive actually draws on each render
+      #    path — not a CPU stand-in of it. Slow (software), so few frames and a half-size render.
+      - name: Project-Drive live captures (software Vulkan)
+        run: |
+          sudo apt-get install -y --no-install-recommends mesa-vulkan-drivers vulkan-tools xvfb
+          python3 Tools/Build/BuildDriveContent.py
+          mkdir -p Exhibits/Gallery/ProjectDrive/live
+          export VK_ICD_FILENAMES=/usr/share/vulkan/icd.d/lvp_icd.x86_64.json
+          export VK_DRIVER_FILES=/usr/share/vulkan/icd.d/lvp_icd.x86_64.json
+          xvfb-run -a -s "-screen 0 1600x900x24" vulkaninfo --summary 2>/dev/null | sed -n '1,40p' || true
+          Capture() {   # <name> <frames> <args…>
+            local Name="$1" Frames="$2"; shift 2
+            echo "::group::capture $Name"
+            xvfb-run -a -s "-screen 0 1600x900x24" timeout 1200 .cache/cmake/Frontier Projects/Project-Drive/ProjectDrive.frontier \
+              --render-scale 0.5 --capture-frame "$Frames" --capture "Exhibits/Gallery/ProjectDrive/live/$Name.png" "$@" \
+              > "Exhibits/Gallery/ProjectDrive/live/$Name.log" 2>&1 || echo "capture $Name: exit $?"
+            grep -E "PASS capture|FAIL capture|RenderPath|Shadow path|Capture|refused|Refusal|Fatal" "Exhibits/Gallery/ProjectDrive/live/$Name.log" | tail -20
+            echo "::endgroup::"
+          }
+          Capture sdf-gi-edit        30 --render-preset 2 --transport 0
+          Capture sdf-gi-simulate    40 --render-preset 2 --transport 2
+          Capture raster-simulate    40 --render-preset 3 --transport 2
+          Capture restir-simulate     6 --render-preset 0 --transport 2
+          ls -la Exhibits/Gallery/ProjectDrive/live
+
+      - name: Publish the live captures
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: frontier-drive-live-captures
+          path: Exhibits/Gallery/ProjectDrive/live/
+          if-no-files-found: warn
+          retention-days: 14
+
       - name: SolidArc component-selection and gizmo regression
         run: |
           cmake -S Editor/AuthoringTools/Modelling/SolidArc -B .cache/solidarc-mode -G Ninja -DCMAKE_BUILD_TYPE=Release -DSOLIDARC_BUILD_MODE_TESTS=ON

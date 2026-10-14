@@ -897,6 +897,7 @@ const float kReprojectDepthTol  = kTemporalDepthTol;    // 10 % relative
 //    α ≈ 1/32, so lighting changes land within about a second at 30 fps instead of at 1/n for an unbounded n.
 //    A still pixel is exempt (prevPx == pixel keeps the raw count), so a held frame still converges without limit.
 const float kMovingHistoryBound = 32.0;
+const float kChangeHistoryBound = 8.0;    // history kept when the lighting itself changed under a still pixel
 
 // ⚠️ D10: normal + depth agree for TWO DIFFERENT OBJECTS more often than it is comfortable to admit — two objects
 //    exchanging places, a tumble that brings a different face to the same pixel at the same distance, an object leaving
@@ -922,7 +923,21 @@ const float kMovingHistoryBound = 32.0;
 #define MomentImage MomentPair[0]
 #define PreviousMomentImage MomentPair[1]
 
+// `emitter`: the pixel shows a light's own radiance (a cabin display, a lamp face). That value is EXACT — slab
+//    emission × texture, no estimator behind it — so it must never be averaged with anything: it used to go through
+//    the surface-less path (depth −1 ⇒ no reprojection ⇒ the pixel's OWN previous mean), so a moving screen inherited
+//    whatever that pixel showed last frame at 1/n. The UI slid and shimmered against the quad it was drawn on and the
+//    clock ghosted. An emitter writes count 1 and variance 0: no history, and the à-trous filter leaves it alone.
+void ResolveSurfaceCore(uvec2 pixel, vec3 radiance, vec3 normal, float depth, uint identity, vec3 albedo, bool emitter);
 void ResolveSurface(uvec2 pixel, vec3 radiance, vec3 normal, float depth, uint identity, vec3 albedo)
+{
+    ResolveSurfaceCore(pixel, radiance, normal, depth, identity, albedo, false);
+}
+void ResolveEmitter(uvec2 pixel, vec3 radiance, vec3 normal, float depth, uint identity)
+{
+    ResolveSurfaceCore(pixel, radiance, normal, depth, identity, vec3(1.0), true);
+}
+void ResolveSurfaceCore(uvec2 pixel, vec3 radiance, vec3 normal, float depth, uint identity, vec3 albedo, bool emitter)
 {
 #ifdef FRONTIER_RASTER_ONLY
     vec2 lensExtent = vec2(float(ViewportWidth), float(ViewportHeight));
@@ -936,7 +951,7 @@ void ResolveSurface(uvec2 pixel, vec3 radiance, vec3 normal, float depth, uint i
     float count     = 0.0;
     bool  resolved  = false;   // did we already establish where this pixel's history comes from?
 
-    const bool reproject = depth > 0.0 && (FeatureFlags & kFeatureTemporalReprojection) != 0u;
+    const bool reproject = depth > 0.0 && (FeatureFlags & kFeatureTemporalReprojection) != 0u && !emitter;
 
     vec2 moments = vec2(0.0);   // R7: x = E[luma], y = E[luma²], carried alongside the mean
 
@@ -984,11 +999,11 @@ void ResolveSurface(uvec2 pixel, vec3 radiance, vec3 normal, float depth, uint i
         else resolved = true;   // back-projected off screen — also a disocclusion
     }
 
-    if (FrameIndex > 0u && !resolved)
+    if (FrameIndex > 0u && !resolved && !emitter)
     {
-        // Either reprojection is disabled, or this pixel has no surface to reproject through (background, direct
-        //    emitters). Both read the pixel's own history, which is exactly the pre-R7a behaviour — so with the
-        //    feature bit clear this function is byte-identical to the accumulator it replaced.
+        // Either reprojection is disabled, or this pixel has no surface to reproject through (the background).
+        //    Both read the pixel's own history, which is exactly the pre-R7a behaviour — so with the feature bit
+        //    clear this function is byte-identical to the accumulator it replaced. An emitter never comes here.
         history = imageLoad(PreviousHistoryImage, ivec2(pixel));
         count   = history.a;
         moments = imageLoad(PreviousMomentImage, ivec2(pixel)).xy;
@@ -1002,6 +1017,17 @@ void ResolveSurface(uvec2 pixel, vec3 radiance, vec3 normal, float depth, uint i
     vec2 lensExtent=vec2(float(ViewportWidth),float(ViewportHeight));
     vec3 lensRadiance=FlareAlong((vec2(pixel)+.5)/lensExtent,lensExtent.x/max(lensExtent.y,1.0));
     radiance+=lensRadiance;
+
+    // A still receiver under CHANGING light — the ground a car's shadow sweeps across — reprojects to itself, keeps
+    //    its unbounded count and absorbs the change at 1/n: the shadow visibly lags the car. When the new sample
+    //    sits outside the history's own spread (4σ from the moments, and at least a quarter of the mean so sampling
+    //    noise on a single-sample estimator cannot trigger it), the count is cut to kChangeHistoryBound so the mean
+    //    re-tracks within a few frames. A converged, unchanged pixel never trips it.
+    if (count > kChangeHistoryBound)
+    {
+        float historySigma = sqrt(max(moments.y - moments.x * moments.x, 0.0));
+        if (abs(Luminance(radiance) - moments.x) > max(4.0 * historySigma, 0.25 * moments.x + 1e-3)) count = kChangeHistoryBound;
+    }
 
     count      = count + 1.0;
     vec3 mean  = history.rgb + (radiance - history.rgb) / count;
@@ -1028,6 +1054,7 @@ void ResolveSurface(uvec2 pixel, vec3 radiance, vec3 normal, float depth, uint i
     // A single sample carries no information about its own spread. Reporting its luminance squared keeps the
     //    filter permissive on brand-new pixels (disocclusions), which is exactly where smoothing is needed most.
     if (count < 2.0) variance = luma * luma;
+    if (emitter) variance = 0.0;   // exact value: nothing for the filter to smooth
 
     imageStore(HistoryImage,     ivec2(pixel), vec4(mean, count));
     imageStore(HistorySurfaceImage, ivec2(pixel), vec4(normal, depth));
@@ -1363,7 +1390,7 @@ void main()
     // EmissiveOnly selections always land here: their derivation guarantees luminance > 0 with nothing reflective.
     if (dot(frame.Emission, frame.Emission) > 0.0)
     {
-        Resolve(pixel, frame.Emission);
+        ResolveEmitter(pixel, frame.Emission, frame.Normal, primaryT, visibility);
         return;
     }
 
