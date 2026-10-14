@@ -195,7 +195,8 @@ struct SwapchainExchange::VulkanRecord
     VkPipelineLayout         LuminanceLayout     = VK_NULL_HANDLE;
     VkDescriptorSetLayout    LuminanceSetLayout  = VK_NULL_HANDLE;
     VkDescriptorPool         LuminancePool       = VK_NULL_HANDLE;
-    VkDescriptorSet          LuminanceSets[kCycleSlotCount] = {};
+    VkDescriptorSet          LuminanceSets[kCycleSlotCount] = {};         // reads HistoryImage (raytraced kernel's linear mean)
+    VkDescriptorSet          LuminanceLinearSets[kCycleSlotCount] = {};   // reads DenoiseImages[0] (Distance Field GI resolve's linear radiance)
 
     bool                     DescriptorIndexing    = false;   // runtimeDescriptorArray + partially bound granted by the driver
     // Binding 8/9 are the active CWBVH node/leaf blobs. With TlasInstanceCount == 0 they hold the world-space
@@ -1804,22 +1805,30 @@ void SwapchainExchange::WriteLuminanceDescriptors() noexcept
     if (!Vulkan || !Vulkan->HistoryImageView) return;
     for (uint32_t Slot = 0u; Slot < kCycleSlotCount; ++Slot)
     {
-        if (!Vulkan->LuminanceSets[Slot]) continue;
-        // ⚠️ The HISTORY image, not the presentation image: the reduction must see LINEAR radiance. Measuring
-        //    the tone-mapped output would feed the curve its own result and the exposure would chase itself.
-        VkDescriptorImageInfo  ImageInfo{ VK_NULL_HANDLE, Vulkan->HistoryImageView, VK_IMAGE_LAYOUT_GENERAL };
-        VkDescriptorBufferInfo BufferInfo{ Vulkan->LuminanceBuffers[Slot], 0u, VK_WHOLE_SIZE };
+        // ⚠️ LINEAR radiance, never the presentation image: measuring the tone-mapped output would feed the curve
+        //    its own result and the exposure would chase itself. The raytraced kernel's linear frame is HistoryImage;
+        //    the Distance Field GI resolve writes its linear frame to DenoiseImages[0] (it never touches history), so
+        //    that path gets its own set — without it the SDF path never measured anything, the exposure stayed at
+        //    its seed, and sunlit ground and the 24-nit cabin screens both saturated to white.
+        const VkImageView Sources[2] = { Vulkan->HistoryImageView, Vulkan->DenoiseImageViews[0] };
+        VkDescriptorSet   Sets[2]    = { Vulkan->LuminanceSets[Slot], Vulkan->LuminanceLinearSets[Slot] };
+        for (uint32_t Source = 0u; Source < 2u; ++Source)
+        {
+            if (!Sets[Source] || !Sources[Source]) continue;
+            VkDescriptorImageInfo  ImageInfo{ VK_NULL_HANDLE, Sources[Source], VK_IMAGE_LAYOUT_GENERAL };
+            VkDescriptorBufferInfo BufferInfo{ Vulkan->LuminanceBuffers[Slot], 0u, VK_WHOLE_SIZE };
 
-        std::array<VkWriteDescriptorSet, 2u> Writes{};
-        Writes[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-        Writes[0].dstSet = Vulkan->LuminanceSets[Slot]; Writes[0].dstBinding = 0u;
-        Writes[0].descriptorCount = 1u; Writes[0].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
-        Writes[0].pImageInfo = &ImageInfo;
-        Writes[1].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-        Writes[1].dstSet = Vulkan->LuminanceSets[Slot]; Writes[1].dstBinding = 1u;
-        Writes[1].descriptorCount = 1u; Writes[1].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-        Writes[1].pBufferInfo = &BufferInfo;
-        vkUpdateDescriptorSets(Vulkan->Device, 2u, Writes.data(), 0u, nullptr);
+            std::array<VkWriteDescriptorSet, 2u> Writes{};
+            Writes[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+            Writes[0].dstSet = Sets[Source]; Writes[0].dstBinding = 0u;
+            Writes[0].descriptorCount = 1u; Writes[0].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
+            Writes[0].pImageInfo = &ImageInfo;
+            Writes[1].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+            Writes[1].dstSet = Sets[Source]; Writes[1].dstBinding = 1u;
+            Writes[1].descriptorCount = 1u; Writes[1].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+            Writes[1].pBufferInfo = &BufferInfo;
+            vkUpdateDescriptorSets(Vulkan->Device, 2u, Writes.data(), 0u, nullptr);
+        }
     }
 }
 
@@ -1874,10 +1883,10 @@ bool SwapchainExchange::BringLuminanceReduction() noexcept
     }
 
     VkDescriptorPoolSize PoolSizes[2]{};
-    PoolSizes[0] = { VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,  kCycleSlotCount };
-    PoolSizes[1] = { VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, kCycleSlotCount };
+    PoolSizes[0] = { VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,  2u * kCycleSlotCount };
+    PoolSizes[1] = { VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 2u * kCycleSlotCount };
     VkDescriptorPoolCreateInfo PoolInfo{ VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO };
-    PoolInfo.maxSets       = kCycleSlotCount;
+    PoolInfo.maxSets       = 2u * kCycleSlotCount;
     PoolInfo.poolSizeCount = 2u;
     PoolInfo.pPoolSizes    = PoolSizes;
     if (vkCreateDescriptorPool(Vulkan->Device, &PoolInfo, nullptr, &Vulkan->LuminancePool) != VK_SUCCESS) return false;
@@ -1889,6 +1898,7 @@ bool SwapchainExchange::BringLuminanceReduction() noexcept
     AllocateInfo.descriptorSetCount = kCycleSlotCount;
     AllocateInfo.pSetLayouts        = SetLayouts.data();
     if (vkAllocateDescriptorSets(Vulkan->Device, &AllocateInfo, Vulkan->LuminanceSets) != VK_SUCCESS) return false;
+    if (vkAllocateDescriptorSets(Vulkan->Device, &AllocateInfo, Vulkan->LuminanceLinearSets) != VK_SUCCESS) return false;
 
     WriteLuminanceDescriptors();
 
@@ -3975,57 +3985,60 @@ bool SwapchainExchange::RecordComputeCommands(uint32_t ImageOrdinal, const Dispa
                 Visibility.RecordDenoiseBoundary(Command,Vulkan->ActiveSlot,Level,true);
             }
         }
+    }
 
-        // ②a2 A6b — measure the frame's average log luminance for adaptive exposure. Recorded INSIDE the
-        //      DebugView::Off branch: a debug view writes false colours into the presentation image, and
-        //      exposing for a normal-map visualisation would be meaningless.
-        if (Vulkan->LuminancePipeline)
-        {
-            // The kernel wrote HistoryImage this frame; the reduction reads it. Without this the reduction
-            //    races the kernel and measures a half-written frame, which would make the exposure jitter.
-            VkImageMemoryBarrier HistoryBarrier{ VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER };
-            HistoryBarrier.oldLayout                   = VK_IMAGE_LAYOUT_GENERAL;
-            HistoryBarrier.newLayout                   = VK_IMAGE_LAYOUT_GENERAL;
-            HistoryBarrier.srcQueueFamilyIndex         = VK_QUEUE_FAMILY_IGNORED;
-            HistoryBarrier.dstQueueFamilyIndex         = VK_QUEUE_FAMILY_IGNORED;
-            HistoryBarrier.image                       = Vulkan->HistoryImage;
-            HistoryBarrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-            HistoryBarrier.subresourceRange.levelCount = 1u;
-            HistoryBarrier.subresourceRange.layerCount = 1u;
-            HistoryBarrier.srcAccessMask               = VK_ACCESS_SHADER_WRITE_BIT;
-            HistoryBarrier.dstAccessMask               = VK_ACCESS_SHADER_READ_BIT;
-            vkCmdPipelineBarrier(Command, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-                                 0u, 0u, nullptr, 0u, nullptr, 1u, &HistoryBarrier);
+    // ②a2 A6b — measure the frame's average log luminance for adaptive exposure. Not for a debug view: that
+    //      writes false colours into the presentation image, and exposing for a normal-map visualisation would
+    //      be meaningless. Runs for BOTH lighting paths — the raytraced kernel's linear frame is HistoryImage,
+    //      the Distance Field GI resolve's is DenoiseImages[0] (LuminanceLinearSets).
+    if (Vulkan->LuminancePipeline && Frame.DebugView == DebugViewCategory::Off)
+    {
+        const VkImage         MeasuredImage = NonRaytracedGIRecorded ? Vulkan->DenoiseImages[0] : Vulkan->HistoryImage;
+        const VkDescriptorSet MeasuredSet   = NonRaytracedGIRecorded ? Vulkan->LuminanceLinearSets[Vulkan->ActiveSlot] : Vulkan->LuminanceSets[Vulkan->ActiveSlot];
+        // The kernel wrote the linear frame this pass; the reduction reads it. Without this the reduction
+        //    races the kernel and measures a half-written frame, which would make the exposure jitter.
+        VkImageMemoryBarrier HistoryBarrier{ VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER };
+        HistoryBarrier.oldLayout                   = VK_IMAGE_LAYOUT_GENERAL;
+        HistoryBarrier.newLayout                   = VK_IMAGE_LAYOUT_GENERAL;
+        HistoryBarrier.srcQueueFamilyIndex         = VK_QUEUE_FAMILY_IGNORED;
+        HistoryBarrier.dstQueueFamilyIndex         = VK_QUEUE_FAMILY_IGNORED;
+        HistoryBarrier.image                       = MeasuredImage;
+        HistoryBarrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+        HistoryBarrier.subresourceRange.levelCount = 1u;
+        HistoryBarrier.subresourceRange.layerCount = 1u;
+        HistoryBarrier.srcAccessMask               = VK_ACCESS_SHADER_WRITE_BIT;
+        HistoryBarrier.dstAccessMask               = VK_ACCESS_SHADER_READ_BIT;
+        vkCmdPipelineBarrier(Command, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+                             0u, 0u, nullptr, 0u, nullptr, 1u, &HistoryBarrier);
 
-            // The accumulator is cleared on the GPU rather than the CPU: clearing the mapped pointer here would
-            //    race the previous frame's dispatch, which may still be adding to it.
-            vkCmdFillBuffer(Command, Vulkan->LuminanceBuffers[Vulkan->ActiveSlot], 0u, kLuminanceHistogramBytes, 0u);
-            VkBufferMemoryBarrier ClearBarrier{ VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER };
-            ClearBarrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-            ClearBarrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-            ClearBarrier.buffer              = Vulkan->LuminanceBuffers[Vulkan->ActiveSlot];
-            ClearBarrier.size                = VK_WHOLE_SIZE;
-            ClearBarrier.srcAccessMask       = VK_ACCESS_TRANSFER_WRITE_BIT;
-            ClearBarrier.dstAccessMask       = VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT;
-            vkCmdPipelineBarrier(Command, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-                                 0u, 0u, nullptr, 1u, &ClearBarrier, 0u, nullptr);
+        // The accumulator is cleared on the GPU rather than the CPU: clearing the mapped pointer here would
+        //    race the previous frame's dispatch, which may still be adding to it.
+        vkCmdFillBuffer(Command, Vulkan->LuminanceBuffers[Vulkan->ActiveSlot], 0u, kLuminanceHistogramBytes, 0u);
+        VkBufferMemoryBarrier ClearBarrier{ VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER };
+        ClearBarrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+        ClearBarrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+        ClearBarrier.buffer              = Vulkan->LuminanceBuffers[Vulkan->ActiveSlot];
+        ClearBarrier.size                = VK_WHOLE_SIZE;
+        ClearBarrier.srcAccessMask       = VK_ACCESS_TRANSFER_WRITE_BIT;
+        ClearBarrier.dstAccessMask       = VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT;
+        vkCmdPipelineBarrier(Command, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+                             0u, 0u, nullptr, 1u, &ClearBarrier, 0u, nullptr);
 
-            LuminancePushRecord Push{};
-            Push.Width  = RenderWidth;
-            Push.Height = RenderHeight;
-            // Exposure is a whole-frame property, so a subsample is plenty: at 1080p this is ~2 000 taps
-            //    rather than two million, and the pass does not appear in a frame time.
-            Push.Stride = kLuminanceSampleStride;
+        LuminancePushRecord Push{};
+        Push.Width  = RenderWidth;
+        Push.Height = RenderHeight;
+        // Exposure is a whole-frame property, so a subsample is plenty: at 1080p this is ~2 000 taps
+        //    rather than two million, and the pass does not appear in a frame time.
+        Push.Stride = kLuminanceSampleStride;
 
-            const uint32_t TapsX = (RenderWidth  + Push.Stride - 1u) / Push.Stride;
-            const uint32_t TapsY = (RenderHeight + Push.Stride - 1u) / Push.Stride;
+        const uint32_t TapsX = (RenderWidth  + Push.Stride - 1u) / Push.Stride;
+        const uint32_t TapsY = (RenderHeight + Push.Stride - 1u) / Push.Stride;
 
-            vkCmdBindPipeline(Command, VK_PIPELINE_BIND_POINT_COMPUTE, Vulkan->LuminancePipeline);
-            vkCmdPushConstants(Command, Vulkan->LuminanceLayout, VK_SHADER_STAGE_COMPUTE_BIT, 0u, sizeof(Push), &Push);
-            vkCmdBindDescriptorSets(Command, VK_PIPELINE_BIND_POINT_COMPUTE, Vulkan->LuminanceLayout,
-                                    0u, 1u, &Vulkan->LuminanceSets[Vulkan->ActiveSlot], 0u, nullptr);
-            vkCmdDispatch(Command, (TapsX + 7u) / 8u, (TapsY + 7u) / 8u, 1u);
-        }
+        vkCmdBindPipeline(Command, VK_PIPELINE_BIND_POINT_COMPUTE, Vulkan->LuminancePipeline);
+        vkCmdPushConstants(Command, Vulkan->LuminanceLayout, VK_SHADER_STAGE_COMPUTE_BIT, 0u, sizeof(Push), &Push);
+        vkCmdBindDescriptorSets(Command, VK_PIPELINE_BIND_POINT_COMPUTE, Vulkan->LuminanceLayout,
+                                0u, 1u, &MeasuredSet, 0u, nullptr);
+        vkCmdDispatch(Command, (TapsX + 7u) / 8u, (TapsY + 7u) / 8u, 1u);
     }
 
     if(Frame.DebugView != DebugViewCategory::Off || ShadowStageRecorded || NonRaytracedGIRecorded) Vulkan->HistoryContentsValid=false;
@@ -4054,7 +4067,7 @@ bool SwapchainExchange::RecordComputeCommands(uint32_t ImageOrdinal, const Dispa
         Projection.Lighting.DensityExtinction = 6.0f;
         Projection.Lighting.SmokeAlbedo = 0.82f;
         Projection.Lighting.TemperatureScale = 0.35f;
-        Projection.ColourTransfer = NonRaytracedGIRecorded ? 2u : 0u;
+        Projection.ColourTransfer = 0u;   // both lighting paths now present through the ACES transfer
         const bool Denoised = !NonRaytracedGIRecorded && ((Dispatch.FeatureFlags & DispatchFeatureDenoise) != 0u);
         const uint32_t Levels = std::clamp(Dispatch.DenoiseLevelCount == 0u ? kDenoiseLevelCount : Dispatch.DenoiseLevelCount,
                                           1u, kDenoiseLevelCount);

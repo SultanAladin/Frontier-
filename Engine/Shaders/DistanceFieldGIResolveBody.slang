@@ -54,7 +54,10 @@ vec3 ReconstructIrradiance(ivec2 Pixel, vec3 Position, vec3 Normal, uint Visibil
     ivec2 Center=Pixel/2, Extent=min(imageSize(GatherIrradiance),(ivec2(PC.RenderExtent.xy)+1)/2);
     vec3 Sum=vec3(0.0);
     float Total=0.0;
-    for (int Row=-1;Row<=1;++Row) for (int Column=-1;Column<=1;++Column)
+    // 5×5 half-resolution footprint (a 10-pixel radius at full resolution): the 4-sample gather is far too sparse
+    //    for a 3×3 to average, which is what showed as speckle on every dark surface. The geometry guards below
+    //    keep the wider window from bleeding across silhouettes, placements or receiver planes.
+    for (int Row=-2;Row<=2;++Row) for (int Column=-2;Column<=2;++Column)
     {
         ivec2 Neighbor=Center+ivec2(Column,Row);
         if (any(lessThan(Neighbor,ivec2(0))) || any(greaterThanEqual(Neighbor,Extent))) continue;
@@ -67,7 +70,7 @@ vec3 ReconstructIrradiance(ivec2 Pixel, vec3 Position, vec3 Normal, uint Visibil
         if (Guide.w==0.0 || Alignment<0.9) continue;
         vec3 Delta=Surface.xyz-Position;
         if (abs(dot(Delta,Normal))>max(0.001,length(Delta)*0.1)) continue;
-        float Weight=exp(-float(Column*Column+Row*Row)*0.5)*pow(max(Alignment,0.0),16.0);
+        float Weight=exp(-float(Column*Column+Row*Row)*0.25)*pow(max(Alignment,0.0),16.0);
         Sum+=imageLoad(GatherIrradiance,Neighbor).xyz*Weight;
         Total+=Weight;
     }
@@ -115,6 +118,16 @@ vec3 Transmission(vec3 Position, vec3 Normal, vec3 View, ShadingRecord Material,
     return Attenuation*SkyAlongApprox(Direction,Material.SpecularRoughness);
 }
 
+// The same display transfer as the raytraced kernel (ViewportIntegrator.slang ToneMap): exposure, ACES filmic, gamma 2.2.
+//    The SDF path used to Reinhard its own output, so the two lighting modes never matched in contrast or in
+//    highlight roll-off; the exposure itself is PC.SkyAmbient.w, the host's adaptive value.
+vec3 DisplayTransfer(vec3 radiance)
+{
+    vec3 hdr = max(radiance, vec3(0.0)) * PC.SkyAmbient.w;
+    vec3 mapped = clamp((hdr * (2.51 * hdr + 0.03)) / (hdr * (2.43 * hdr + 0.59) + 0.14), vec3(0.0), vec3(1.0));
+    return pow(mapped, vec3(1.0 / 2.2));
+}
+
 void main()
 {
     ivec2 pixel = ivec2(gl_GlobalInvocationID.xy);
@@ -130,7 +143,7 @@ void main()
         vec3 V = normalize(P - PC.CameraEye.xyz);
         vec3 sky = SkyAlongApprox(V, 0.0);
         imageStore(LinearRadiance, pixel, vec4(sky, 1.0));
-        imageStore(OutputImage, pixel, vec4(pow(sky/(sky+vec3(1.0)), vec3(1.0/2.2)), 1.0));
+        imageStore(OutputImage, pixel, vec4(DisplayTransfer(sky), 1.0));
         return;
     }
 
@@ -153,8 +166,7 @@ void main()
     if (dot(F.Emission, F.Emission) > 0.0)
     {
         imageStore(LinearRadiance, pixel, vec4(F.Emission, 1.0));
-        vec3 e = F.Emission * PC.SkyAmbient.w;
-        imageStore(OutputImage, pixel, vec4(pow(e/(e+vec3(1.0)), vec3(1.0/2.2)), 1.0));
+        imageStore(OutputImage, pixel, vec4(DisplayTransfer(F.Emission), 1.0));
         return;
     }
 
@@ -195,9 +207,6 @@ void main()
         FresnelWeight+= (1.0-FresnelWeight)*pow(1.0-max(dot(N,V),0.0),5.0);
         col+=m.TransmissionWeight*(1.0-FresnelWeight)*Transmission(P,N,V,m,F.ThinWalled);
     }
-    // exposure + Reinhard + gamma
     imageStore(LinearRadiance, pixel, vec4(col, 1.0));
-    col *= PC.SkyAmbient.w;
-    vec3 mapped = pow(col / (col + vec3(1.0)), vec3(1.0/2.2));
-    imageStore(OutputImage, pixel, vec4(mapped, 1.0));
+    imageStore(OutputImage, pixel, vec4(DisplayTransfer(col), 1.0));
 }

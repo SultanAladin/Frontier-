@@ -215,12 +215,17 @@ vec3 GatherDistanceRadiance(vec3 Position, vec3 Normal, bool Current)
     vec2 Shift = vec2(ScrambleSample(Seed), ScrambleSample(Seed + 1u)) / 4294967296.0;
     uint SampleCount = Current ? 4u : 2u;
     vec3 Result = vec3(0.0);
+    // Firefly ceiling. A diffuse card can return at most albedo/π of the sun's irradiance (≈0.32 × SunColour) plus
+    //    sky; a single sample above that is a card-footprint/mip mismatch, not light, and with 4 samples one such
+    //    tap paints a white speck on a dark bonnet. Clamped per sample, before the mean.
+    vec3 Ceiling = max(PC.SunColour.xyz * 0.4, PC.SkyAmbient.xyz * 6.0);
     for (uint Sample = 0u; Sample < SampleCount; ++Sample)
     {
         vec3 Direction = HemisphereDirection(Normal, Sample, SampleCount, Shift);
         DistanceRayHit Hit = TraceDistanceField(Origin, Direction, 20.0);
-        Result += Hit.Facet == 0xFFFFFFFFu ? PC.SkyAmbient.xyz :
-                  SampleCachedRadiance(Hit.Facet, Origin + Direction * Hit.Travel, Current);
+        vec3 Radiance = Hit.Facet == 0xFFFFFFFFu ? PC.SkyAmbient.xyz :
+                        SampleCachedRadiance(Hit.Facet, Origin + Direction * Hit.Travel, Current);
+        Result += min(Radiance, Ceiling);
     }
     return Result / float(SampleCount);
 }
