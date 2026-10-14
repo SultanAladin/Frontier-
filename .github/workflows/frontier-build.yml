@@ -227,6 +227,11 @@ jobs:
           FRONTIER_GI_DEBUG=91 Capture probe-exterior-nomarch 30 --render-preset 2 --transport 0 --camera -7.0 -6.0 2.0 0.0 0.0 0.7
           FRONTIER_GI_DEBUG=92 Capture probe-exterior-nogathermat 30 --render-preset 2 --transport 0 --camera -7.0 -6.0 2.0 0.0 0.0 0.7
           FRONTIER_GI_DEBUG=93 Capture probe-exterior-noreconstruct 30 --render-preset 2 --transport 0 --camera -7.0 -6.0 2.0 0.0 0.0 0.7
+          FRONTIER_GI_SKIP=15 Capture probe-exterior-skipall 30 --render-preset 2 --transport 0 --camera -7.0 -6.0 2.0 0.0 0.0 0.7
+          FRONTIER_GI_SKIP=1 Capture probe-exterior-skipcards 30 --render-preset 2 --transport 0 --camera -7.0 -6.0 2.0 0.0 0.0 0.7
+          FRONTIER_GI_SKIP=2 Capture probe-exterior-skipradiance 30 --render-preset 2 --transport 0 --camera -7.0 -6.0 2.0 0.0 0.0 0.7
+          FRONTIER_GI_SKIP=4 Capture probe-exterior-skipgather 30 --render-preset 2 --transport 0 --camera -7.0 -6.0 2.0 0.0 0.0 0.7
+          FRONTIER_GI_SKIP=8 Capture probe-exterior-skipresolve 30 --render-preset 2 --transport 0 --camera -7.0 -6.0 2.0 0.0 0.0 0.7
           # The GI views are captured at transport 0 with the camera pinned: the scene is the same parked car on
           #    the same course through the same SDF pipeline, while the simulate transports (1/2) currently fault
           #    on lavapipe before the first present — a pre-existing host fault, witnessed by sdf-gi-play below,
