@@ -305,8 +305,8 @@ void DriveSceneAuthor::AuthorMaterials() noexcept
 
     // 16 / 17 — the cabin screens. Dark glass with a white emitter whose radiance the live sheet modulates
     //    (the host binds the sheet to the emission channel at load; until then the authored constant is a
-    //    uniform panel of the fixture's luminance — the tablet ≈ 24, the cluster ≈ 28, both below the 48.7
-    //    headlamp so the cabin reads as lit by a screen, not floodlit).
+    //    uniform panel of the fixture's luminance — the tablet 3, the cluster 3.5, a fraction of sunlit white
+    //    so the sheets read as screens, not as light boxes).
     const CabinFixture TabletFixture = CabinTabletFixture();
     const CabinFixture ClusterFixture = CabinClusterFixture();
     MaterialSlabDescriptor screen = Dielectric(0.01f, 0.01f, 0.012f, 0.08f);

@@ -59,7 +59,7 @@ Project-Drive:
 |---|---|
 | `Projects/Project-Drive/Source/DriveCabinLayout.h` | The estimated placement (tablet, cluster, headliner lamp) in ControlVehicle model space and the shared `CabinScreenBasis` so the author and the DLL agree on the screen frame. |
 | `Projects/Project-Drive/Source/DriveCabinDisplays.{h,cpp}` | Feeds vehicle telemetry at the two update rates (cluster 60 Hz, tablet 30 Hz), resolves touch rays against the posed glass, and serves `FrontierProjectDisplayReading`. |
-| `DriveSceneAuthor.{h,cpp}` | `AppendCabinFixtures`: screen glass (materials 16/17 `Display:CabinTablet` / `Display:DriverCluster`, emissive 24/28 nit so the GI luminaire pass picks them up), bezels (19) and the headliner lamp disc (18, 40 nit) are part of the body span, so they ride with the chassis (scene revision 7). |
+| `DriveSceneAuthor.{h,cpp}` | `AppendCabinFixtures`: screen glass (materials 16/17 `Display:CabinTablet` / `Display:DriverCluster`, emissive 3 / 3.5 (scene radiance units; sunlit white ≈ 5 — 24/28 clipped the sheets to white on the live capture) so the GI luminaire pass picks them up), bezels (19) and the headliner lamp disc (18, 40 nit) are part of the body span, so they ride with the chassis (scene revision 7). |
 | `ProjectDriveInterchange.cpp` | Exports `ProjectDisplayInterchange`; constructs/advances `DriveCabinDisplays`. |
 | `Engine/SurfaceDisplay/DisplayMeshProjection.{h,cpp}` | Flat CPU mesh projection used by the tablet's Garage car preview and the cabin diagnostic sheets. |
 

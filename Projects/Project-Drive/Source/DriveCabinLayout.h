@@ -47,7 +47,11 @@ inline CabinFixture CabinTabletFixture() noexcept
     CabinFixture F{ "Display:CabinTablet", { +0.98f, 0.0f, +0.62f }, 0.42f, {} };
     F.Screen.Outline = DisplayOutlineCategory::Rectangle;
     F.Screen.Width = 0.30f; F.Screen.Height = 0.19f; F.Screen.CornerRadius = 0.012f; F.Screen.BezelMargin = 0.012f;
-    F.Screen.EmissionLuminance = 24.0f;
+    // Screen white, in the scene's radiance units where sunlit white ground is ≈ 5: a bright automotive panel
+    //    (≈ 800 nits against ≈ 25 000 for sunlit white) is a fraction of that. 24 clipped the whole sheet to white
+    //    on the live capture (Exhibits/Gallery/ProjectDrive/live/sdf-gi-cockpit.png); 3 keeps the UI's blacks
+    //    black and the whites below the display transfer's shoulder in the shaded cabin.
+    F.Screen.EmissionLuminance = 3.0f;
     return F;
 }
 
@@ -63,7 +67,7 @@ inline CabinFixture CabinClusterFixture(DisplayOutlineCategory Outline = Display
     default:                                F.Screen.Width = 0.34f; F.Screen.Height = 0.19f; break;
     }
     F.Screen.CornerRadius = 0.02f; F.Screen.BezelMargin = 0.010f;
-    F.Screen.EmissionLuminance = 28.0f;
+    F.Screen.EmissionLuminance = 3.5f;   // cluster: a touch brighter than the tablet (see CabinTabletFixture)
     return F;
 }
 
