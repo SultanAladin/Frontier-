@@ -189,6 +189,7 @@ DistanceRayHit TraceDistanceField(vec3 Origin, vec3 Direction, float Maximum)
     DistanceRayHit Hit;
     Hit.Travel = Maximum;
     Hit.Facet = 0xFFFFFFFFu;
+    if (PC.Tuning.w > 90.5 && PC.Tuning.w < 91.5) return Hit;   // TEMPORARY fault probe 91
     float Travel = 0.002;
     float PreviousTravel = Travel;   // [m] where the previous field sample was taken
     float PreviousSigned = 1e20;     // [m] signed distance there; the sentinel keeps step zero from "crossing"
@@ -291,6 +292,8 @@ vec3 HitRadiance(uint Facet, vec3 Position, bool Current)
 
 vec3 GatherDistanceRadiance(vec3 Position, vec3 Normal, bool Current)
 {
+    // TEMPORARY fault probes (FRONTIER_GI_DEBUG): 90 = no gather at all, 91 = march always misses.
+    if (PC.Tuning.w > 89.5 && PC.Tuning.w < 90.5) return SkyAlongApprox(Normal, 1.0);
     float Tolerance;
     uint Receiver;
     SampleSceneDistance(Position, Tolerance, Receiver);

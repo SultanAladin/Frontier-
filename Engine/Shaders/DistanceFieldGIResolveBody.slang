@@ -248,7 +248,8 @@ void main()
 
     // --- indirect diffuse: an irradiance through this material's hemispherical response ---
     vec3 response = AmbientResponse(m, layers, woLoc);
-    vec3 irradiance = (flags & kFeatureGlobalIllumination) != 0u
+    vec3 irradiance = (PC.Tuning.w > 92.5 && PC.Tuning.w < 93.5) ? PC.SkyAmbient.xyz :   // TEMPORARY fault probe 93
+                      (flags & kFeatureGlobalIllumination) != 0u
         ? ReconstructIrradiance(pixel,P,F.Normal,visibility) * PC.Tuning.y      // distance-field diffuse transport
         : PC.SkyAmbient.xyz;                                                    // plain raster: sky ambient fill (never black)
     col += response * irradiance;
