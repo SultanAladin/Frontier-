@@ -160,7 +160,7 @@ DistanceRayHit TraceDistanceField(vec3 Origin, vec3 Direction, float Maximum)
     Hit.Facet = 0xFFFFFFFFu;
     float Travel = 0.002;
     // Deliberately bounded diffuse-GI approximation. No exact-triangle fallback, world BVH or clipmap construction.
-    for (uint Step = 0u; Step < 32u && Travel < Maximum; ++Step)
+    for (uint Step = 0u; Step < 48u && Travel < Maximum; ++Step)
     {
         float Tolerance;
         uint Facet;
@@ -173,7 +173,10 @@ DistanceRayHit TraceDistanceField(vec3 Origin, vec3 Direction, float Maximum)
             Hit.Facet = Facet;
             return Hit;
         }
-        Travel += max(Distance * 0.75, Tolerance * 1.5);
+        // The floor stays BELOW the tolerance: a floor above it (was 1.5x) stepped clean over a thin shell whenever
+        //    the landing fell between the two, and a car body is nothing but thin shells — rays from the ground
+        //    under the car reached the sky through the floor pan.
+        Travel += max(Distance * 0.75, Tolerance * 0.5);
     }
     return Hit;
 }
@@ -205,6 +208,25 @@ uint ScrambleSample(uint Sequence)
     return Sequence ^ (Sequence >> 16u);
 }
 
+// The radiance leaving a field hit toward the ray. The card holds the hit's albedo, emission, normal and its
+//    gathered INDIRECT irradiance; the sun is evaluated here, at the hit point, through the shadow maps. The card
+//    used to hold direct light too, integrated at its own 4x4 texel centres — on a 480 m ground slab those are
+//    120 m apart and all sunlit, so a hit on the ground under a car returned sunlit ground, and the shadowed
+//    ground beneath was lit by its own reflection. Direct light is a function of position; it is not cached.
+vec3 HitRadiance(uint Facet, vec3 Position, bool Current)
+{
+    ivec2 Pixel = CardOrigin(Facet) + ivec2(clamp(CardCoordinate(Facet, Position) * float(GeometryCounts.w),
+                                                vec2(0.0), vec2(GeometryCounts.w - 1u)));
+    vec3 Diffuse = imageLoad(SurfaceDiffuse, Pixel).xyz;
+    vec3 Emission = imageLoad(SurfaceEmission, Pixel).xyz;
+    vec3 Normal = CardNormal(Facet, imageLoad(SurfaceNormal, Pixel).xyz);
+    vec3 SunDirection = normalize(PC.SunDirectionRadiance.xyz);
+    float Cosine = max(0.0, dot(Normal, SunDirection));
+    float Visibility = PC.SunDirectionRadiance.w > 0.0 && Cosine > 0.0 ? DistanceShadow(Position, CardNormal(Facet, Facets[Facet].Normal.xyz)) : 1.0;
+    vec3 Direct = PC.SunColour.xyz * PC.SunDirectionRadiance.w * Cosine * Visibility / 3.14159265359;
+    return Emission + Diffuse * (Direct + SampleCachedRadiance(Facet, Position, Current));
+}
+
 vec3 GatherDistanceRadiance(vec3 Position, vec3 Normal, bool Current)
 {
     float Tolerance;
@@ -224,7 +246,7 @@ vec3 GatherDistanceRadiance(vec3 Position, vec3 Normal, bool Current)
         vec3 Direction = HemisphereDirection(Normal, Sample, SampleCount, Shift);
         DistanceRayHit Hit = TraceDistanceField(Origin, Direction, 20.0);
         vec3 Radiance = Hit.Facet == 0xFFFFFFFFu ? PC.SkyAmbient.xyz :
-                        SampleCachedRadiance(Hit.Facet, Origin + Direction * Hit.Travel, Current);
+                        HitRadiance(Hit.Facet, Origin + Direction * Hit.Travel, Current);
         Result += min(Radiance, Ceiling);
     }
     return Result / float(SampleCount);

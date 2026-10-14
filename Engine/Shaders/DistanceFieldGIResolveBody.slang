@@ -139,8 +139,8 @@ vec3 ReflectedRadiance(vec3 Position, vec3 GeometricNormal, vec3 Direction, floa
     float Cosine = max(dot(Normal, SunDirection), 0.0);
     float Visibility = PC.SunDirectionRadiance.w > 0.0 && Cosine > 0.0 ? DistanceShadow(HitPosition, Normal) : 1.0;
     vec3 Direct = PC.SunColour.xyz * PC.SunDirectionRadiance.w * Cosine * Visibility / 3.14159265359;
-    // Hemisphere fill at the hit: the dome about its normal, attenuated for the half the receiver itself hides.
-    vec3 Indirect = SkyAlongApprox(Normal, 1.0) * (0.5 + 0.5 * max(Normal.z, 0.0));
+    // Indirect at the hit: the card's gathered irradiance (the same cache the diffuse transport reads).
+    vec3 Indirect = SampleCachedRadiance(Hit.Facet, HitPosition, true);
     return max(Emission, vec3(0.0)) + Albedo * (Direct + Indirect);
 }
 

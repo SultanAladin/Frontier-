@@ -1,7 +1,7 @@
 //============================================================================================================================================
 //                                                     DISTANCEFIELDRADIANCE.SLANG
 //============================================================================================================================================
-// 📦 Jacobi surface-radiance propagation: separate previous/next card images, direct light, sky and emissive multi-bounce transport.
+// 📦 Jacobi surface-irradiance propagation: separate previous/next card images of gathered indirect light; the sun and the surface are applied at the hit.
 
 #version 460
 #extension GL_GOOGLE_include_directive : require
@@ -20,13 +20,11 @@ void main()
     { imageStore(NextRadiance,Pixel,vec4(0)); return; }
     vec3 Position=CardPosition(Facet,(vec2(Pixel%int(Resolution))+0.5)/float(Resolution));
     vec3 Normal=CardNormal(Facet,imageLoad(SurfaceNormal,Pixel).xyz);
-    vec3 Diffuse=imageLoad(SurfaceDiffuse,Pixel).xyz;
-    vec4 Emission=imageLoad(SurfaceEmission,Pixel);
-    float Cosine=max(0.0,dot(Normal,normalize(PC.SunDirectionRadiance.xyz)));
-    float Visibility=PC.SunDirectionRadiance.w>0.0 && Cosine>0.0 ? DistanceShadow(Position,CardNormal(Facet,Facets[Facet].Normal.xyz)) : 1.0;
-    vec3 Direct=PC.SunColour.xyz*PC.SunDirectionRadiance.w*Cosine*Visibility/3.14159265359;
-    vec3 Indirect=GatherDistanceRadiance(Position,Normal,false)*Emission.w;
-    vec3 Radiance=Emission.xyz+Diffuse*(Direct+Indirect);
+    // The card caches the texel's INDIRECT irradiance only (gathered through the fields, occlusion-weighted).
+    //    Albedo, emission and the sun are applied at the hit point by HitRadiance, so a 4x4 card over a 480 m slab
+    //    no longer decides where the sun falls. Jacobi: reads the previous image, writes the next.
+    float Occlusion=imageLoad(SurfaceEmission,Pixel).w;
+    vec3 Indirect=GatherDistanceRadiance(Position,Normal,false)*Occlusion;
     float Weight=PC.Tuning.z>0.5 ? 1.0 : 0.25;
-    imageStore(NextRadiance,Pixel,vec4(mix(imageLoad(PreviousRadiance,Pixel).xyz,min(Radiance,vec3(65504.0)),Weight),1.0));
+    imageStore(NextRadiance,Pixel,vec4(mix(imageLoad(PreviousRadiance,Pixel).xyz,min(Indirect,vec3(65504.0)),Weight),1.0));
 }
