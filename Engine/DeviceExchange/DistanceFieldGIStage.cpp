@@ -458,28 +458,34 @@ bool DistanceFieldGIStage::RecordFrame(VkCommandBuffer Command, const DistanceFi
         vkCmdDispatch(Command, X, Y, 1u);
         Settle(Compute, Compute, VK_ACCESS_SHADER_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT);
     };
+    // Temporary crash isolation: FRONTIER_SDF_STAGE_MASK bits 1/2/4/8 skip capture/radiance/gather/resolve.
+    static const uint32_t StageMask = [] { const char* Text = std::getenv("FRONTIER_SDF_STAGE_MASK");
+                                            return Text ? static_cast<uint32_t>(std::strtoul(Text, nullptr, 10)) : 0u; }();
     Stamp(0u);
-    if (Capture) Dispatch(0u, (CardWidth + 7u) / 8u, (CardHeight + 7u) / 8u);
+    if (Capture && !(StageMask & 1u)) Dispatch(0u, (CardWidth + 7u) / 8u, (CardHeight + 7u) / 8u);
     Stamp(1u);
-    // Carry untouched lighting forward before refreshing a fixed-size card window. This is lighting, not a bake.
-    Settle(Compute | Transfer, Transfer, VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT | VK_ACCESS_TRANSFER_WRITE_BIT,
-           VK_ACCESS_TRANSFER_READ_BIT | VK_ACCESS_TRANSFER_WRITE_BIT);
-    VkImageCopy Copy{};
-    Copy.srcSubresource = Copy.dstSubresource = { VK_IMAGE_ASPECT_COLOR_BIT, 0u, 0u, 1u };
-    Copy.extent = { CardWidth, CardHeight, 1u };
-    vkCmdCopyImage(Command, CardImages[FrameNumber & 1u], VK_IMAGE_LAYOUT_GENERAL,
-                   CardImages[1u - (FrameNumber & 1u)], VK_IMAGE_LAYOUT_GENERAL, 1u, &Copy);
-    Settle(Transfer, Compute, VK_ACCESS_TRANSFER_READ_BIT | VK_ACCESS_TRANSFER_WRITE_BIT,
-           VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT);
+    if (!(StageMask & 2u))
+    {
+        // Carry untouched lighting forward before refreshing a fixed-size card window. This is lighting, not a bake.
+        Settle(Compute | Transfer, Transfer, VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT | VK_ACCESS_TRANSFER_WRITE_BIT,
+               VK_ACCESS_TRANSFER_READ_BIT | VK_ACCESS_TRANSFER_WRITE_BIT);
+        VkImageCopy Copy{};
+        Copy.srcSubresource = Copy.dstSubresource = { VK_IMAGE_ASPECT_COLOR_BIT, 0u, 0u, 1u };
+        Copy.extent = { CardWidth, CardHeight, 1u };
+        vkCmdCopyImage(Command, CardImages[FrameNumber & 1u], VK_IMAGE_LAYOUT_GENERAL,
+                       CardImages[1u - (FrameNumber & 1u)], VK_IMAGE_LAYOUT_GENERAL, 1u, &Copy);
+        Settle(Transfer, Compute, VK_ACCESS_TRANSFER_READ_BIT | VK_ACCESS_TRANSFER_WRITE_BIT,
+               VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT);
+    }
     Stamp(2u);
     const uint32_t CardTexels = CardWidth * CardHeight;
-    Dispatch(1u, (std::min(kRadianceBudget, CardTexels) + 63u) / 64u, 1u);
+    if (!(StageMask & 2u)) Dispatch(1u, (std::min(kRadianceBudget, CardTexels) + 63u) / 64u, 1u);
     Stamp(3u);
     Stamp(4u);
-    Dispatch(2u, ((Frame.RenderWidth + 1u) / 2u + 7u) / 8u, ((Frame.RenderHeight + 1u) / 2u + 7u) / 8u);
+    if (!(StageMask & 4u)) Dispatch(2u, ((Frame.RenderWidth + 1u) / 2u + 7u) / 8u, ((Frame.RenderHeight + 1u) / 2u + 7u) / 8u);
     Stamp(5u);
     Stamp(6u);
-    Dispatch(3u, (Frame.RenderWidth + 15u) / 16u, (Frame.RenderHeight + 15u) / 16u);
+    if (!(StageMask & 8u)) Dispatch(3u, (Frame.RenderWidth + 15u) / 16u, (Frame.RenderHeight + 15u) / 16u);
     Stamp(7u);
     if (FrameNumber % 120u == 0u)
     {

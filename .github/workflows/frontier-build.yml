@@ -219,6 +219,10 @@ jobs:
           Capture diag-raster-sim    40 --render-preset 3 --transport 2 --camera -7.0 -6.0 2.0 0.0 0.0 0.7
           Capture diag-sdf-sim-5      5 --render-preset 2 --transport 2 --camera -7.0 -6.0 2.0 0.0 0.0 0.7
           Capture diag-sdf-sim-40    40 --render-preset 2 --transport 2 --camera -7.0 -6.0 2.0 0.0 0.0 0.7
+          FRONTIER_SDF_STAGE_MASK=1  Capture diag-nocapture 12 --render-preset 2 --transport 2 --camera -7.0 -6.0 2.0 0.0 0.0 0.7
+          FRONTIER_SDF_STAGE_MASK=2  Capture diag-noradiance 12 --render-preset 2 --transport 2 --camera -7.0 -6.0 2.0 0.0 0.0 0.7
+          FRONTIER_SDF_STAGE_MASK=4  Capture diag-nogather 12 --render-preset 2 --transport 2 --camera -7.0 -6.0 2.0 0.0 0.0 0.7
+          FRONTIER_SDF_STAGE_MASK=8  Capture diag-noresolve 12 --render-preset 2 --transport 2 --camera -7.0 -6.0 2.0 0.0 0.0 0.7
           Capture sdf-gi-exterior    90 --render-preset 2 --transport 2 --camera -7.0 -6.0 2.0 0.0 0.0 0.7
           Capture sdf-gi-cockpit     90 --render-preset 2 --transport 2 --camera -0.2 0.42 1.12 2.8 0.42 0.47
           Capture sdf-gi-play        90 --render-preset 2 --transport 1
