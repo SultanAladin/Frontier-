@@ -211,11 +211,7 @@ vec3 GatherDistanceRadiance(vec3 Position, vec3 Normal, bool Current)
     uint Receiver;
     SampleSceneDistance(Position, Tolerance, Receiver);
     vec3 Origin = Position + Normal * max(Tolerance * 3.0, 0.003);
-    // Per pixel AND per frame: a seed fixed per pixel reproduces the same four directions every frame, so the
-    //    temporal mean in the resolve would converge to the same speckle. Rotating it is what lets the history
-    //    average 32+ frames of different directions into a smooth irradiance.
-    uint Seed = ScrambleSample(gl_GlobalInvocationID.x) ^ ScrambleSample(gl_GlobalInvocationID.y + 0x9e3779b9u)
-              ^ ScrambleSample(PC.Counts.y * 0x632be5abu + 0x1b873593u);
+    uint Seed = ScrambleSample(gl_GlobalInvocationID.x) ^ ScrambleSample(gl_GlobalInvocationID.y + 0x9e3779b9u);
     vec2 Shift = vec2(ScrambleSample(Seed), ScrambleSample(Seed + 1u)) / 4294967296.0;
     uint SampleCount = Current ? 4u : 2u;
     vec3 Result = vec3(0.0);

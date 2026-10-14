@@ -195,7 +195,8 @@ struct SwapchainExchange::VulkanRecord
     VkPipelineLayout         LuminanceLayout     = VK_NULL_HANDLE;
     VkDescriptorSetLayout    LuminanceSetLayout  = VK_NULL_HANDLE;
     VkDescriptorPool         LuminancePool       = VK_NULL_HANDLE;
-    VkDescriptorSet          LuminanceSets[kCycleSlotCount] = {};         // reads HistoryImage (the linear running mean, either lighting path)
+    VkDescriptorSet          LuminanceSets[kCycleSlotCount] = {};         // reads HistoryImage (raytraced kernel's linear mean)
+    VkDescriptorSet          LuminanceLinearSets[kCycleSlotCount] = {};   // reads DenoiseImages[0] (Distance Field GI resolve's linear radiance)
 
     bool                     DescriptorIndexing    = false;   // runtimeDescriptorArray + partially bound granted by the driver
     // Binding 8/9 are the active CWBVH node/leaf blobs. With TlasInstanceCount == 0 they hold the world-space
@@ -1804,24 +1805,30 @@ void SwapchainExchange::WriteLuminanceDescriptors() noexcept
     if (!Vulkan || !Vulkan->HistoryImageView) return;
     for (uint32_t Slot = 0u; Slot < kCycleSlotCount; ++Slot)
     {
-        if (!Vulkan->LuminanceSets[Slot]) continue;
-        // ⚠️ The HISTORY image, not the presentation image: the reduction must see LINEAR radiance. Measuring
-        //    the tone-mapped output would feed the curve its own result and the exposure would chase itself.
-        //    Both lighting paths write this image (the raytraced kernel and the Distance Field GI resolve), so
-        //    one set serves both — the SDF path used to measure nothing and sat at the seed exposure.
-        VkDescriptorImageInfo  ImageInfo{ VK_NULL_HANDLE, Vulkan->HistoryImageView, VK_IMAGE_LAYOUT_GENERAL };
-        VkDescriptorBufferInfo BufferInfo{ Vulkan->LuminanceBuffers[Slot], 0u, VK_WHOLE_SIZE };
+        // ⚠️ LINEAR radiance, never the presentation image: measuring the tone-mapped output would feed the curve
+        //    its own result and the exposure would chase itself. The raytraced kernel's linear frame is HistoryImage;
+        //    the Distance Field GI resolve writes its linear frame to DenoiseImages[0] (it never touches history), so
+        //    that path gets its own set — without it the SDF path never measured anything, the exposure stayed at
+        //    its seed, and sunlit ground and the 24-nit cabin screens both saturated to white.
+        const VkImageView Sources[2] = { Vulkan->HistoryImageView, Vulkan->DenoiseImageViews[0] };
+        VkDescriptorSet   Sets[2]    = { Vulkan->LuminanceSets[Slot], Vulkan->LuminanceLinearSets[Slot] };
+        for (uint32_t Source = 0u; Source < 2u; ++Source)
+        {
+            if (!Sets[Source] || !Sources[Source]) continue;
+            VkDescriptorImageInfo  ImageInfo{ VK_NULL_HANDLE, Sources[Source], VK_IMAGE_LAYOUT_GENERAL };
+            VkDescriptorBufferInfo BufferInfo{ Vulkan->LuminanceBuffers[Slot], 0u, VK_WHOLE_SIZE };
 
-        std::array<VkWriteDescriptorSet, 2u> Writes{};
-        Writes[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-        Writes[0].dstSet = Vulkan->LuminanceSets[Slot]; Writes[0].dstBinding = 0u;
-        Writes[0].descriptorCount = 1u; Writes[0].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
-        Writes[0].pImageInfo = &ImageInfo;
-        Writes[1].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-        Writes[1].dstSet = Vulkan->LuminanceSets[Slot]; Writes[1].dstBinding = 1u;
-        Writes[1].descriptorCount = 1u; Writes[1].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-        Writes[1].pBufferInfo = &BufferInfo;
-        vkUpdateDescriptorSets(Vulkan->Device, 2u, Writes.data(), 0u, nullptr);
+            std::array<VkWriteDescriptorSet, 2u> Writes{};
+            Writes[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+            Writes[0].dstSet = Sets[Source]; Writes[0].dstBinding = 0u;
+            Writes[0].descriptorCount = 1u; Writes[0].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
+            Writes[0].pImageInfo = &ImageInfo;
+            Writes[1].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+            Writes[1].dstSet = Sets[Source]; Writes[1].dstBinding = 1u;
+            Writes[1].descriptorCount = 1u; Writes[1].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+            Writes[1].pBufferInfo = &BufferInfo;
+            vkUpdateDescriptorSets(Vulkan->Device, 2u, Writes.data(), 0u, nullptr);
+        }
     }
 }
 
@@ -1876,10 +1883,10 @@ bool SwapchainExchange::BringLuminanceReduction() noexcept
     }
 
     VkDescriptorPoolSize PoolSizes[2]{};
-    PoolSizes[0] = { VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,  kCycleSlotCount };
-    PoolSizes[1] = { VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, kCycleSlotCount };
+    PoolSizes[0] = { VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,  2u * kCycleSlotCount };
+    PoolSizes[1] = { VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 2u * kCycleSlotCount };
     VkDescriptorPoolCreateInfo PoolInfo{ VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO };
-    PoolInfo.maxSets       = kCycleSlotCount;
+    PoolInfo.maxSets       = 2u * kCycleSlotCount;
     PoolInfo.poolSizeCount = 2u;
     PoolInfo.pPoolSizes    = PoolSizes;
     if (vkCreateDescriptorPool(Vulkan->Device, &PoolInfo, nullptr, &Vulkan->LuminancePool) != VK_SUCCESS) return false;
@@ -1891,6 +1898,7 @@ bool SwapchainExchange::BringLuminanceReduction() noexcept
     AllocateInfo.descriptorSetCount = kCycleSlotCount;
     AllocateInfo.pSetLayouts        = SetLayouts.data();
     if (vkAllocateDescriptorSets(Vulkan->Device, &AllocateInfo, Vulkan->LuminanceSets) != VK_SUCCESS) return false;
+    if (vkAllocateDescriptorSets(Vulkan->Device, &AllocateInfo, Vulkan->LuminanceLinearSets) != VK_SUCCESS) return false;
 
     WriteLuminanceDescriptors();
 
@@ -3404,11 +3412,6 @@ bool SwapchainExchange::BringDistanceFieldGIStage() noexcept
     Init.OutputImageView  = Vulkan->StorageImageView;
     Init.SurfaceImageView = static_cast<VkImageView>(Visibility.QuerySurfaceView());
     Init.NormalImageView  = static_cast<VkImageView>(Visibility.QueryNormalView());
-    Init.HistoryImageView        = Vulkan->HistoryImageView;
-    Init.HistorySurfaceImageView = Vulkan->HistorySurfaceImageView;
-    Init.MomentImageView         = Vulkan->MomentImageView;
-    for (uint32_t I = 0u; I < 3u; ++I) Init.PreviousHistoryViews[I] = Vulkan->PreviousHistoryViews[I];
-    Init.MotionImageView  = static_cast<VkImageView>(Visibility.QueryMotionView());
     Init.TriangleBuffer   = static_cast<VkBuffer>(Visibility.QueryFlatTriangleBuffer());
     Init.MaterialBuffer   = Vulkan->MaterialBuffer;
     Init.InstanceBuffer   = static_cast<VkBuffer>(Visibility.QueryInstanceBuffer());
@@ -3775,151 +3778,6 @@ bool SwapchainExchange::RecordComputeCommands(uint32_t ImageOrdinal, const Dispa
                                       && (Dispatch.FeatureFlags & DispatchFeatureGlobalIllumination) != 0u;
     bool NonRaytracedGIRecorded = false;
 
-    // Snapshot all temporal inputs (history mean, history surface, moments) into the Previous* images BEFORE a
-    //    kernel can overwrite the current ones. Both lighting paths reproject through these: the raytraced kernel
-    //    and the Distance Field GI resolve write the same three images under the same protocol.
-    auto SnapshotHistory = [&]()
-    {
-        Visibility.RecordHistorySnapshotBoundary(Command,Vulkan->ActiveSlot,false);
-        const VkImage Current[3]={Vulkan->HistoryImage,Vulkan->HistorySurfaceImage,Vulkan->MomentImage};
-        VkImageMemoryBarrier Before[6]{};
-        for(uint32_t I=0; I<6; ++I) {
-            auto& B=Before[I]; B.sType=VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
-            B.oldLayout=B.newLayout=VK_IMAGE_LAYOUT_GENERAL;
-            B.srcQueueFamilyIndex=B.dstQueueFamilyIndex=VK_QUEUE_FAMILY_IGNORED;
-            B.image=I<3 ? Current[I] : Vulkan->PreviousHistory[I-3];
-            B.subresourceRange.aspectMask=VK_IMAGE_ASPECT_COLOR_BIT;
-            B.subresourceRange.levelCount=B.subresourceRange.layerCount=1;
-            B.srcAccessMask=VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT | VK_ACCESS_TRANSFER_READ_BIT | VK_ACCESS_TRANSFER_WRITE_BIT;
-            B.dstAccessMask=I<3 ? VK_ACCESS_TRANSFER_READ_BIT : VK_ACCESS_TRANSFER_WRITE_BIT;
-        }
-        vkCmdPipelineBarrier(Command,VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT | VK_PIPELINE_STAGE_TRANSFER_BIT,
-            VK_PIPELINE_STAGE_TRANSFER_BIT,0,0,nullptr,0,nullptr,6,Before);
-        VkImageCopy Copy{};
-        Copy.srcSubresource.aspectMask=Copy.dstSubresource.aspectMask=VK_IMAGE_ASPECT_COLOR_BIT;
-        Copy.srcSubresource.layerCount=Copy.dstSubresource.layerCount=1;
-        Copy.extent={RenderWidth,RenderHeight,1};
-        for(uint32_t I=0; I<3; ++I)
-            vkCmdCopyImage(Command,Current[I],VK_IMAGE_LAYOUT_GENERAL,Vulkan->PreviousHistory[I],VK_IMAGE_LAYOUT_GENERAL,1,&Copy);
-        for(uint32_t I=0; I<6; ++I) {
-            auto& B=Before[I]; B.srcAccessMask=B.dstAccessMask;
-            B.dstAccessMask=I<3 ? VK_ACCESS_SHADER_WRITE_BIT : VK_ACCESS_SHADER_READ_BIT;
-        }
-        vkCmdPipelineBarrier(Command,VK_PIPELINE_STAGE_TRANSFER_BIT,VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-            0,0,nullptr,0,nullptr,6,Before);
-        Visibility.RecordHistorySnapshotBoundary(Command,Vulkan->ActiveSlot,true);
-    };
-
-    // ②a R7 à-trous denoise. The kernel (either path) wrote LINEAR demodulated radiance + variance into denoise
-    //     slot 0, parked the albedo in the presentation image and skipped the tone map; the final level here
-    //     remodulates and tone-maps into the presentation image.
-    auto RecordDenoiseChain = [&]()
-    {
-        const uint32_t DenoiseGroupX = (RenderWidth  + kDenoiseGroupSize - 1u) / kDenoiseGroupSize;
-        const uint32_t DenoiseGroupY = (RenderHeight + kDenoiseGroupSize - 1u) / kDenoiseGroupSize;
-
-        vkCmdBindPipeline(Command, VK_PIPELINE_BIND_POINT_COMPUTE, Vulkan->DenoisePipeline);
-
-        // The filter reads HistorySurfaceImage for its normal, depth and background tests, and that image is
-        //    written by the ReSTIR kernel dispatched immediately above. Without ordering the kernel's writes
-        //    against these reads, a tap can sample a surface texel that has not been written yet: depth reads
-        //    as 0, the tap is rejected as background, and those pixels filter with fewer taps than their
-        //    neighbours. Because workgroups retire roughly in linear ID order the incomplete frontier follows
-        //    column boundaries, so it shows up as vertical banding rather than isolated speckle.
-        {
-            // Three images to order, same bracket: the surface image feeds every level's edge stops, and the
-            //    PRESENTATION image now carries the albedo the kernel parked for the final level's
-            //    remodulation read — unordered, the final level could read a texel the kernel had not
-            //    written yet and remodulate with garbage.
-            // Current history alpha feeds progressive strength at every level.
-            VkImageMemoryBarrier KernelOutputs[3]{};
-            for (uint32_t Slot = 0u; Slot < 3u; ++Slot)
-            {
-                VkImageMemoryBarrier& KernelOutput       = KernelOutputs[Slot];
-                KernelOutput.sType                       = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
-                KernelOutput.oldLayout                   = VK_IMAGE_LAYOUT_GENERAL;
-                KernelOutput.newLayout                   = VK_IMAGE_LAYOUT_GENERAL;
-                KernelOutput.srcQueueFamilyIndex         = VK_QUEUE_FAMILY_IGNORED;
-                KernelOutput.dstQueueFamilyIndex         = VK_QUEUE_FAMILY_IGNORED;
-                KernelOutput.image                       = Slot == 0u ? Vulkan->HistorySurfaceImage
-                                                                      : (Slot == 1u ? Vulkan->StorageImage : Vulkan->HistoryImage);
-                KernelOutput.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-                KernelOutput.subresourceRange.levelCount = 1u;
-                KernelOutput.subresourceRange.layerCount = 1u;
-                KernelOutput.srcAccessMask               = VK_ACCESS_SHADER_WRITE_BIT;
-                KernelOutput.dstAccessMask               = VK_ACCESS_SHADER_READ_BIT
-                                                         | (Slot == 1u ? VK_ACCESS_SHADER_WRITE_BIT : 0u);
-            }
-            vkCmdPipelineBarrier(Command,
-                VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-                0u, 0u, nullptr, 0u, nullptr, 3u, KernelOutputs);
-        }
-
-        // R10 #8: how many levels run is tier-keyed. Descriptor sets exist for kDenoiseLevelCount, so a
-        //    shorter chain simply stops early — and because binding 3 (the presentation image) is written by
-        //    whichever level carries FinalLevel, the tone map still happens exactly once wherever we stop.
-        //    Clamped into 1..kDenoiseLevelCount: a 0 would leave the presentation image unwritten this frame,
-        //    and anything above the ceiling would index a descriptor set that was never allocated.
-        const uint32_t LiveDenoiseLevels =
-            std::clamp(Dispatch.DenoiseLevelCount == 0u ? kDenoiseLevelCount : Dispatch.DenoiseLevelCount,
-                       1u, kDenoiseLevelCount);
-        for (uint32_t Level = 0u; Level < LiveDenoiseLevels; ++Level)
-        {
-            Visibility.RecordDenoiseBoundary(Command,Vulkan->ActiveSlot,Level,false);
-            // Both ping-pong slots must be ordered against the previous level, in BOTH directions:
-            //   · read-after-write  — this level reads what the previous level wrote;
-            //   · write-after-read  — this level OVERWRITES the slot the previous level was reading.
-            // Barriering only the source with WRITE→READ leaves the second hazard unordered, so a workgroup
-            //    of this level could clobber a texel a still-running workgroup of the previous level had not
-            //    yet consumed. That surfaces as a per-workgroup tile pattern across the image.
-            VkImageMemoryBarrier Barriers[2]{};
-            for (uint32_t Slot = 0u; Slot < 2u; ++Slot)
-            {
-                Barriers[Slot].sType                       = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
-                Barriers[Slot].oldLayout                   = VK_IMAGE_LAYOUT_GENERAL;
-                Barriers[Slot].newLayout                   = VK_IMAGE_LAYOUT_GENERAL;
-                Barriers[Slot].srcQueueFamilyIndex         = VK_QUEUE_FAMILY_IGNORED;
-                Barriers[Slot].dstQueueFamilyIndex         = VK_QUEUE_FAMILY_IGNORED;
-                Barriers[Slot].image                       = Vulkan->DenoiseImages[Slot];
-                Barriers[Slot].subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-                Barriers[Slot].subresourceRange.levelCount = 1u;
-                Barriers[Slot].subresourceRange.layerCount = 1u;
-                Barriers[Slot].srcAccessMask               = VK_ACCESS_SHADER_WRITE_BIT | VK_ACCESS_SHADER_READ_BIT;
-                Barriers[Slot].dstAccessMask               = VK_ACCESS_SHADER_WRITE_BIT | VK_ACCESS_SHADER_READ_BIT;
-            }
-            vkCmdPipelineBarrier(Command,
-                VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-                0u, 0u, nullptr, 0u, nullptr, 2u, Barriers);
-
-            DenoisePushRecord Push{};
-            Push.Extent[0]      = RenderWidth;
-            Push.Extent[1]      = RenderHeight;
-            Push.StepSize       = 1u << Level;          // 1, 2, 4, 8, 16 — the "holes" widen each level
-            Push.Enabled        = 1u;
-            Push.NormalPower    = 64.0f;
-            Push.DepthScale     = 0.05f;
-            // Per-level sigma_l schedule: tighten the luminance stop as the taps widen — levels 2+ have
-            //    4/8/16 px-spaced taps and are where detail smears (measured: +0.42 dB overall, fresh-glint
-            //    retention 86.9% -> 92.4%; dark high-noise areas keep slightly more residue).
-            {
-                static constexpr float kSigmaSchedule[5] = { 4.0f, 4.0f, 2.0f, 1.0f, 1.0f };
-                Push.LuminanceScale = kSigmaSchedule[Level < 5u ? Level : 4u];
-            }
-            Push.Exposure       = Dispatch.Exposure;    // the filter owns the tone map, so it needs the exposure
-            Push.FinalLevel     = (Level + 1u == LiveDenoiseLevels) ? 1u : 0u;
-            Push.ColourSaturation = Dispatch.ColourSaturation;
-
-            vkCmdPushConstants(Command, Vulkan->DenoisePipelineLayout, VK_SHADER_STAGE_COMPUTE_BIT,
-                               0u, sizeof(Push), &Push);
-            vkCmdBindDescriptorSets(Command, VK_PIPELINE_BIND_POINT_COMPUTE, Vulkan->DenoisePipelineLayout,
-                                    0u, 1u, &Vulkan->DenoiseSets[Level], 0u, nullptr);
-            // ⚠️ The filter's workgroup is 8×8, NOT the kernel's 16×16. Reusing the kernel's group count here
-            //     covered only half the width and half the height — exactly the top-left quarter of the image.
-            vkCmdDispatch(Command, DenoiseGroupX, DenoiseGroupY, 1u);
-            Visibility.RecordDenoiseBoundary(Command,Vulkan->ActiveSlot,Level,true);
-        }
-    };
-
     // 1) Distance Field GI (Primary non-raytraced GI stage)
     if (Frame.DebugView == DebugViewCategory::Off && NonRaytracedGIRequested && QueryDistanceFieldGIReady())
     {
@@ -3942,25 +3800,12 @@ bool SwapchainExchange::RecordComputeCommands(uint32_t ImageOrdinal, const Dispa
         DfParams.CameraEye[2]   = Dispatch.CameraOriginZ;
         DfParams.Exposure       = Dispatch.Exposure;
         DfParams.FrameIndex     = Dispatch.AccumulationIndex;
-        // Temporal history is shared with the raytraced kernel: valid only while the same path has been writing it
-        //    at this size. A path switch or resize restarts at 0 (no reprojection, count 1), exactly as the kernel.
-        const bool HistoryUsable = Vulkan->HistoryContentsValid && Vulkan->HistoryWidth == RenderWidth && Vulkan->HistoryHeight == RenderHeight;
-        DfParams.AccumulationIndex = HistoryUsable ? std::max(1u, Dispatch.AccumulationIndex) : 0u;
-        if (DfParams.AccumulationIndex > 0u) SnapshotHistory();
         DfParams.MaterialRevision = SurfaceMaterialRevision;
         DfParams.FeatureFlags   = Dispatch.FeatureFlags;
         DfParams.ReflectionMode = (Dispatch.FeatureFlags & DispatchFeatureReflectionMask) >> DispatchFeatureReflectionShift;
         DfParams.RenderWidth    = RenderWidth;
         DfParams.RenderHeight   = RenderHeight;
         NonRaytracedGIRecorded = DistanceFieldStage.RecordFrame(Command, DfParams);
-        if (NonRaytracedGIRecorded)
-        {
-            Vulkan->HistoryContentsValid = true;
-            Vulkan->HistoryWidth = RenderWidth; Vulkan->HistoryHeight = RenderHeight;
-            // The resolve demodulated and parked the albedo when the denoise bit was set, so the chain MUST run to
-            //    produce a presentation image; without the bit it tone-mapped itself.
-            if ((Dispatch.FeatureFlags & DispatchFeatureDenoise) != 0u && Vulkan->DenoisePipeline) RecordDenoiseChain();
-        }
     }
 
     if (Frame.DebugView == DebugViewCategory::Off && !NonRaytracedGIRecorded)
@@ -3988,7 +3833,38 @@ bool SwapchainExchange::RecordComputeCommands(uint32_t ImageOrdinal, const Dispa
             vkCmdBindDescriptorSets(Command, VK_PIPELINE_BIND_POINT_COMPUTE, Layout, 1u, 1u, &Shadows, 0u, nullptr);
         }
         vkCmdPushConstants(Command, Layout, VK_SHADER_STAGE_COMPUTE_BIT, 0u, sizeof(DispatchConfiguration), &LiveDispatch);
-        if (LiveDispatch.AccumulationIndex > 0u) SnapshotHistory();
+        // Snapshot all temporal inputs BEFORE any invocation can overwrite the current
+        // images. Frame-zero does not read history; skip its undefined contents.
+        if(LiveDispatch.AccumulationIndex > 0u) {
+            Visibility.RecordHistorySnapshotBoundary(Command,Vulkan->ActiveSlot,false);
+            const VkImage Current[3]={Vulkan->HistoryImage,Vulkan->HistorySurfaceImage,Vulkan->MomentImage};
+            VkImageMemoryBarrier Before[6]{};
+            for(uint32_t I=0; I<6; ++I) {
+                auto& B=Before[I]; B.sType=VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+                B.oldLayout=B.newLayout=VK_IMAGE_LAYOUT_GENERAL;
+                B.srcQueueFamilyIndex=B.dstQueueFamilyIndex=VK_QUEUE_FAMILY_IGNORED;
+                B.image=I<3 ? Current[I] : Vulkan->PreviousHistory[I-3];
+                B.subresourceRange.aspectMask=VK_IMAGE_ASPECT_COLOR_BIT;
+                B.subresourceRange.levelCount=B.subresourceRange.layerCount=1;
+                B.srcAccessMask=VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT | VK_ACCESS_TRANSFER_READ_BIT | VK_ACCESS_TRANSFER_WRITE_BIT;
+                B.dstAccessMask=I<3 ? VK_ACCESS_TRANSFER_READ_BIT : VK_ACCESS_TRANSFER_WRITE_BIT;
+            }
+            vkCmdPipelineBarrier(Command,VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT | VK_PIPELINE_STAGE_TRANSFER_BIT,
+                VK_PIPELINE_STAGE_TRANSFER_BIT,0,0,nullptr,0,nullptr,6,Before);
+            VkImageCopy Copy{};
+            Copy.srcSubresource.aspectMask=Copy.dstSubresource.aspectMask=VK_IMAGE_ASPECT_COLOR_BIT;
+            Copy.srcSubresource.layerCount=Copy.dstSubresource.layerCount=1;
+            Copy.extent={RenderWidth,RenderHeight,1};
+            for(uint32_t I=0; I<3; ++I)
+                vkCmdCopyImage(Command,Current[I],VK_IMAGE_LAYOUT_GENERAL,Vulkan->PreviousHistory[I],VK_IMAGE_LAYOUT_GENERAL,1,&Copy);
+            for(uint32_t I=0; I<6; ++I) {
+                auto& B=Before[I]; B.srcAccessMask=B.dstAccessMask;
+                B.dstAccessMask=I<3 ? VK_ACCESS_SHADER_WRITE_BIT : VK_ACCESS_SHADER_READ_BIT;
+            }
+            vkCmdPipelineBarrier(Command,VK_PIPELINE_STAGE_TRANSFER_BIT,VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+                0,0,nullptr,0,nullptr,6,Before);
+            Visibility.RecordHistorySnapshotBoundary(Command,Vulkan->ActiveSlot,true);
+        }
         const uint32_t GroupX = (RenderWidth  + kLocalGroupSizeX - 1u) / kLocalGroupSizeX;
         const uint32_t GroupY = (RenderHeight + kLocalGroupSizeY - 1u) / kLocalGroupSizeY;
         // R10 ② — bracket the ReSTIR dispatch itself. The trailing span (query 10→11) also contains the à-trous
@@ -4000,17 +3876,125 @@ bool SwapchainExchange::RecordComputeCommands(uint32_t ImageOrdinal, const Dispa
         Vulkan->HistoryContentsValid=true;
         Vulkan->HistoryWidth=RenderWidth; Vulkan->HistoryHeight=RenderHeight;
 
-        if (TraceRequested && (Dispatch.FeatureFlags & DispatchFeatureDenoise) != 0u && Vulkan->DenoisePipeline) RecordDenoiseChain();
+        // ②a R7 à-trous denoise. The kernel wrote LINEAR radiance + variance into denoise slot 0 and, with the
+        //     feature on, skipped the tone map; the final level here performs it into the presentation image.
+        //     Each level reads what the previous one wrote, so they are strictly ordered by a barrier.
+        if (TraceRequested && (Dispatch.FeatureFlags & DispatchFeatureDenoise) != 0u && Vulkan->DenoisePipeline)
+        {
+            const uint32_t DenoiseGroupX = (RenderWidth  + kDenoiseGroupSize - 1u) / kDenoiseGroupSize;
+            const uint32_t DenoiseGroupY = (RenderHeight + kDenoiseGroupSize - 1u) / kDenoiseGroupSize;
+
+            vkCmdBindPipeline(Command, VK_PIPELINE_BIND_POINT_COMPUTE, Vulkan->DenoisePipeline);
+
+            // The filter reads HistorySurfaceImage for its normal, depth and background tests, and that image is
+            //    written by the ReSTIR kernel dispatched immediately above. Without ordering the kernel's writes
+            //    against these reads, a tap can sample a surface texel that has not been written yet: depth reads
+            //    as 0, the tap is rejected as background, and those pixels filter with fewer taps than their
+            //    neighbours. Because workgroups retire roughly in linear ID order the incomplete frontier follows
+            //    column boundaries, so it shows up as vertical banding rather than isolated speckle.
+            {
+                // Three images to order, same bracket: the surface image feeds every level's edge stops, and the
+                //    PRESENTATION image now carries the albedo the kernel parked for the final level's
+                //    remodulation read — unordered, the final level could read a texel the kernel had not
+                //    written yet and remodulate with garbage.
+                // Current history alpha feeds progressive strength at every level.
+                VkImageMemoryBarrier KernelOutputs[3]{};
+                for (uint32_t Slot = 0u; Slot < 3u; ++Slot)
+                {
+                    VkImageMemoryBarrier& KernelOutput       = KernelOutputs[Slot];
+                    KernelOutput.sType                       = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+                    KernelOutput.oldLayout                   = VK_IMAGE_LAYOUT_GENERAL;
+                    KernelOutput.newLayout                   = VK_IMAGE_LAYOUT_GENERAL;
+                    KernelOutput.srcQueueFamilyIndex         = VK_QUEUE_FAMILY_IGNORED;
+                    KernelOutput.dstQueueFamilyIndex         = VK_QUEUE_FAMILY_IGNORED;
+                    KernelOutput.image                       = Slot == 0u ? Vulkan->HistorySurfaceImage
+                                                                          : (Slot == 1u ? Vulkan->StorageImage : Vulkan->HistoryImage);
+                    KernelOutput.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+                    KernelOutput.subresourceRange.levelCount = 1u;
+                    KernelOutput.subresourceRange.layerCount = 1u;
+                    KernelOutput.srcAccessMask               = VK_ACCESS_SHADER_WRITE_BIT;
+                    KernelOutput.dstAccessMask               = VK_ACCESS_SHADER_READ_BIT
+                                                             | (Slot == 1u ? VK_ACCESS_SHADER_WRITE_BIT : 0u);
+                }
+                vkCmdPipelineBarrier(Command,
+                    VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+                    0u, 0u, nullptr, 0u, nullptr, 3u, KernelOutputs);
+            }
+
+            // R10 #8: how many levels run is tier-keyed. Descriptor sets exist for kDenoiseLevelCount, so a
+            //    shorter chain simply stops early — and because binding 3 (the presentation image) is written by
+            //    whichever level carries FinalLevel, the tone map still happens exactly once wherever we stop.
+            //    Clamped into 1..kDenoiseLevelCount: a 0 would leave the presentation image unwritten this frame,
+            //    and anything above the ceiling would index a descriptor set that was never allocated.
+            const uint32_t LiveDenoiseLevels =
+                std::clamp(Dispatch.DenoiseLevelCount == 0u ? kDenoiseLevelCount : Dispatch.DenoiseLevelCount,
+                           1u, kDenoiseLevelCount);
+            for (uint32_t Level = 0u; Level < LiveDenoiseLevels; ++Level)
+            {
+                Visibility.RecordDenoiseBoundary(Command,Vulkan->ActiveSlot,Level,false);
+                // Both ping-pong slots must be ordered against the previous level, in BOTH directions:
+                //   · read-after-write  — this level reads what the previous level wrote;
+                //   · write-after-read  — this level OVERWRITES the slot the previous level was reading.
+                // Barriering only the source with WRITE→READ leaves the second hazard unordered, so a workgroup
+                //    of this level could clobber a texel a still-running workgroup of the previous level had not
+                //    yet consumed. That surfaces as a per-workgroup tile pattern across the image.
+                VkImageMemoryBarrier Barriers[2]{};
+                for (uint32_t Slot = 0u; Slot < 2u; ++Slot)
+                {
+                    Barriers[Slot].sType                       = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+                    Barriers[Slot].oldLayout                   = VK_IMAGE_LAYOUT_GENERAL;
+                    Barriers[Slot].newLayout                   = VK_IMAGE_LAYOUT_GENERAL;
+                    Barriers[Slot].srcQueueFamilyIndex         = VK_QUEUE_FAMILY_IGNORED;
+                    Barriers[Slot].dstQueueFamilyIndex         = VK_QUEUE_FAMILY_IGNORED;
+                    Barriers[Slot].image                       = Vulkan->DenoiseImages[Slot];
+                    Barriers[Slot].subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+                    Barriers[Slot].subresourceRange.levelCount = 1u;
+                    Barriers[Slot].subresourceRange.layerCount = 1u;
+                    Barriers[Slot].srcAccessMask               = VK_ACCESS_SHADER_WRITE_BIT | VK_ACCESS_SHADER_READ_BIT;
+                    Barriers[Slot].dstAccessMask               = VK_ACCESS_SHADER_WRITE_BIT | VK_ACCESS_SHADER_READ_BIT;
+                }
+                vkCmdPipelineBarrier(Command,
+                    VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+                    0u, 0u, nullptr, 0u, nullptr, 2u, Barriers);
+
+                DenoisePushRecord Push{};
+                Push.Extent[0]      = RenderWidth;
+                Push.Extent[1]      = RenderHeight;
+                Push.StepSize       = 1u << Level;          // 1, 2, 4, 8, 16 — the "holes" widen each level
+                Push.Enabled        = 1u;
+                Push.NormalPower    = 64.0f;
+                Push.DepthScale     = 0.05f;
+                // Per-level sigma_l schedule: tighten the luminance stop as the taps widen — levels 2+ have
+                //    4/8/16 px-spaced taps and are where detail smears (measured: +0.42 dB overall, fresh-glint
+                //    retention 86.9% -> 92.4%; dark high-noise areas keep slightly more residue).
+                {
+                    static constexpr float kSigmaSchedule[5] = { 4.0f, 4.0f, 2.0f, 1.0f, 1.0f };
+                    Push.LuminanceScale = kSigmaSchedule[Level < 5u ? Level : 4u];
+                }
+                Push.Exposure       = Dispatch.Exposure;    // the filter owns the tone map, so it needs the exposure
+                Push.FinalLevel     = (Level + 1u == LiveDenoiseLevels) ? 1u : 0u;
+                Push.ColourSaturation = Dispatch.ColourSaturation;
+
+                vkCmdPushConstants(Command, Vulkan->DenoisePipelineLayout, VK_SHADER_STAGE_COMPUTE_BIT,
+                                   0u, sizeof(Push), &Push);
+                vkCmdBindDescriptorSets(Command, VK_PIPELINE_BIND_POINT_COMPUTE, Vulkan->DenoisePipelineLayout,
+                                        0u, 1u, &Vulkan->DenoiseSets[Level], 0u, nullptr);
+                // ⚠️ The filter's workgroup is 8×8, NOT the kernel's 16×16. Reusing the kernel's group count here
+                //     covered only half the width and half the height — exactly the top-left quarter of the image.
+                vkCmdDispatch(Command, DenoiseGroupX, DenoiseGroupY, 1u);
+                Visibility.RecordDenoiseBoundary(Command,Vulkan->ActiveSlot,Level,true);
+            }
+        }
     }
 
     // ②a2 A6b — measure the frame's average log luminance for adaptive exposure. Not for a debug view: that
     //      writes false colours into the presentation image, and exposing for a normal-map visualisation would
-    //      be meaningless. Runs for BOTH lighting paths — the raytraced kernel and the Distance Field GI resolve
-    //      both write the linear running mean into HistoryImage.
+    //      be meaningless. Runs for BOTH lighting paths — the raytraced kernel's linear frame is HistoryImage,
+    //      the Distance Field GI resolve's is DenoiseImages[0] (LuminanceLinearSets).
     if (Vulkan->LuminancePipeline && Frame.DebugView == DebugViewCategory::Off)
     {
-        const VkImage         MeasuredImage = Vulkan->HistoryImage;
-        const VkDescriptorSet MeasuredSet   = Vulkan->LuminanceSets[Vulkan->ActiveSlot];
+        const VkImage         MeasuredImage = NonRaytracedGIRecorded ? Vulkan->DenoiseImages[0] : Vulkan->HistoryImage;
+        const VkDescriptorSet MeasuredSet   = NonRaytracedGIRecorded ? Vulkan->LuminanceLinearSets[Vulkan->ActiveSlot] : Vulkan->LuminanceSets[Vulkan->ActiveSlot];
         // The kernel wrote the linear frame this pass; the reduction reads it. Without this the reduction
         //    races the kernel and measures a half-written frame, which would make the exposure jitter.
         VkImageMemoryBarrier HistoryBarrier{ VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER };
@@ -4057,7 +4041,7 @@ bool SwapchainExchange::RecordComputeCommands(uint32_t ImageOrdinal, const Dispa
         vkCmdDispatch(Command, (TapsX + 7u) / 8u, (TapsY + 7u) / 8u, 1u);
     }
 
-    if(Frame.DebugView != DebugViewCategory::Off || ShadowStageRecorded) Vulkan->HistoryContentsValid=false;
+    if(Frame.DebugView != DebugViewCategory::Off || ShadowStageRecorded || NonRaytracedGIRecorded) Vulkan->HistoryContentsValid=false;
     Visibility.RecordKernelEnd(Command, Vulkan->ActiveSlot);
 
     if (TyreSmoke.Resident() && Frame.DebugView == DebugViewCategory::Off)
@@ -4084,7 +4068,7 @@ bool SwapchainExchange::RecordComputeCommands(uint32_t ImageOrdinal, const Dispa
         Projection.Lighting.SmokeAlbedo = 0.82f;
         Projection.Lighting.TemperatureScale = 0.35f;
         Projection.ColourTransfer = 0u;   // both lighting paths now present through the ACES transfer
-        const bool Denoised = (Dispatch.FeatureFlags & DispatchFeatureDenoise) != 0u && Vulkan->DenoisePipeline;
+        const bool Denoised = !NonRaytracedGIRecorded && ((Dispatch.FeatureFlags & DispatchFeatureDenoise) != 0u);
         const uint32_t Levels = std::clamp(Dispatch.DenoiseLevelCount == 0u ? kDenoiseLevelCount : Dispatch.DenoiseLevelCount,
                                           1u, kDenoiseLevelCount);
         const uint32_t RadianceSlot = Denoised ? Levels % 2u : 0u;
