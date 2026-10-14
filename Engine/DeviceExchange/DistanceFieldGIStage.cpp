@@ -484,7 +484,8 @@ bool DistanceFieldGIStage::RecordFrame(VkCommandBuffer Command, const DistanceFi
     if (FrameNumber % 120u == 0u)
     {
         std::cerr << "[SdfGI] no bake; placements=" << Geometry.QueryPlacements().size()
-                  << ", card budget=" << std::min(kRadianceBudget, CardTexels) << ", gather=half-resolution/4 samples";
+                  << ", card budget=" << std::min(kRadianceBudget, CardTexels) << ", gather=half-resolution/4 samples"
+                  << ", debug view=" << Frame.DebugView << ", reflection mode=" << Frame.ReflectionMode;
         if (GpuDurations[0] >= 0.0f)
             std::cerr << ", GPU ms capture/radiance/gather/resolve=" << GpuDurations[0] << '/' << GpuDurations[1]
                       << '/' << GpuDurations[2] << '/' << GpuDurations[3];
