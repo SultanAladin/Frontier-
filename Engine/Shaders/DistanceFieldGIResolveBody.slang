@@ -219,8 +219,9 @@ void main()
         vec3 Incoming=ToLocal(F,Direction);
         float Facing=Directional ? 1.0 : max(-dot(ShadowTapNormal[Tap].xyz,Direction),0.0);
         if (DebugStage==21u) { imageStore(LinearRadiance,pixel,vec4(0,1,1,1)); imageStore(OutputImage,pixel,vec4(0,1,1,1)); return; }
-        if (Incoming.z<=0.0 || Facing<=0.0) continue;
-        if (DebugStage==22u) { imageStore(LinearRadiance,pixel,vec4(1,0,1,1)); imageStore(OutputImage,pixel,vec4(1,0,1,1)); return; }
+        bool RejectedTap=Incoming.z<=0.0 || Facing<=0.0;
+        if (DebugStage==22u) { vec4 Shown=RejectedTap ? vec4(1,0,1,1) : vec4(1,1,0,1); imageStore(LinearRadiance,pixel,Shown); imageStore(OutputImage,pixel,Shown); return; }
+        if (RejectedTap) continue;
         float Visibility=(DebugStage==19u || DebugStage==23u || DebugStage==24u || DebugStage==25u) ? 1.0 : ShadowLitFraction(P,F.Geometric,Incoming.z,Tap);
         if (DebugStage==23u) { imageStore(LinearRadiance,pixel,vec4(1,0.5,0,1)); imageStore(OutputImage,pixel,vec4(1,0.5,0,1)); return; }
         float Geometry=Directional ? Incoming.z*Visibility :
