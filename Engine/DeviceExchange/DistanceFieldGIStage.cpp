@@ -7,7 +7,6 @@
 #include "DriverProgress.h"
 #include <algorithm>
 #include <cmath>
-#include <cstdlib>
 #include <cstring>
 #include <fstream>
 #include <iostream>
@@ -470,11 +469,8 @@ bool DistanceFieldGIStage::RecordFrame(VkCommandBuffer Command, const DistanceFi
         vkCmdDispatch(Command, X, Y, 1u);
         Settle(Compute, Compute, VK_ACCESS_SHADER_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT);
     };
-    // TEMPORARY fault probe (FRONTIER_GI_SKIP bitmask): 1 cards, 2 radiance, 4 gather, 8 resolve.
-    static const uint32_t SkipStages = []{ const char* Value = std::getenv("FRONTIER_GI_SKIP");
-                                           return Value ? static_cast<uint32_t>(std::strtoul(Value, nullptr, 0)) : 0u; }();
     Stamp(0u);
-    if (Capture && !(SkipStages & 1u)) Dispatch(0u, (CardWidth + 7u) / 8u, (CardHeight + 7u) / 8u);
+    if (Capture) Dispatch(0u, (CardWidth + 7u) / 8u, (CardHeight + 7u) / 8u);
     Stamp(1u);
     // Carry untouched lighting forward before refreshing a fixed-size card window. This is lighting, not a bake.
     Settle(Compute | Transfer, Transfer, VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT | VK_ACCESS_TRANSFER_WRITE_BIT,
@@ -488,10 +484,10 @@ bool DistanceFieldGIStage::RecordFrame(VkCommandBuffer Command, const DistanceFi
            VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT);
     Stamp(2u);
     const uint32_t CardTexels = CardWidth * CardHeight;
-    if (!(SkipStages & 2u)) Dispatch(1u, (std::min(kRadianceBudget, CardTexels) + 63u) / 64u, 1u);
+    Dispatch(1u, (std::min(kRadianceBudget, CardTexels) + 63u) / 64u, 1u);
     Stamp(3u);
     Stamp(4u);
-    if (!(SkipStages & 4u)) Dispatch(2u, ((Frame.RenderWidth + 1u) / 2u + 7u) / 8u, ((Frame.RenderHeight + 1u) / 2u + 7u) / 8u);
+    Dispatch(2u, ((Frame.RenderWidth + 1u) / 2u + 7u) / 8u, ((Frame.RenderHeight + 1u) / 2u + 7u) / 8u);
     Stamp(5u);
     // Carry this frame's gather into the accumulation the next frame validates against (irradiance, guide
     //    normal, surface record), the same carry the card pair gets above. Half-resolution copies; the resolve
@@ -508,7 +504,7 @@ bool DistanceFieldGIStage::RecordFrame(VkCommandBuffer Command, const DistanceFi
     Settle(Transfer, Compute, VK_ACCESS_TRANSFER_READ_BIT | VK_ACCESS_TRANSFER_WRITE_BIT,
            VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT);
     Stamp(6u);
-    if (!(SkipStages & 8u)) Dispatch(3u, (Frame.RenderWidth + 15u) / 16u, (Frame.RenderHeight + 15u) / 16u);
+    Dispatch(3u, (Frame.RenderWidth + 15u) / 16u, (Frame.RenderHeight + 15u) / 16u);
     Stamp(7u);
     if (FrameNumber % 120u == 0u)
     {

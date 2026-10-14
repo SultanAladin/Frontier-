@@ -30,9 +30,6 @@ void main()
     imageStore(GatherIrradiance,Pixel,vec4(0.0));
     imageStore(GatherNormal,Pixel,vec4(0.0));
     imageStore(GatherSurface,Pixel,vec4(0.0));
-    // TEMPORARY fault probe 92: no material resolve, no transport — constant guides.
-    if (PC.Tuning.w>91.5 && PC.Tuning.w<92.5)
-    { imageStore(GatherIrradiance,Pixel,vec4(0.01)); imageStore(GatherNormal,Pixel,vec4(0.0,0.0,1.0,1.0)); imageStore(GatherSurface,Pixel,vec4(0.0)); return; }
     vec4 Surface=imageLoad(SurfaceImage,SurfacePixel);
     uint Packed=floatBitsToUint(Surface.w), Instance=Packed>>14u;
     if (Packed==0xFFFFFFFFu || Instance>=uint(Instances.length())) return;

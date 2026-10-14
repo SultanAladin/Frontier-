@@ -111,8 +111,7 @@ void FacetSurface(uint Facet, vec3 Position, out vec3 Albedo, out vec3 Emission,
 
 vec3 ReflectedRadiance(vec3 Position, vec3 GeometricNormal, vec3 Direction, float Roughness)
 {
-    // TEMPORARY fault probe (FRONTIER_GI_DEBUG=99): reflections reduced to the dome. Remove with the probes.
-    if (PC.Tuning.w > 90.0 || Roughness > 0.55) return SkyAlongApprox(Direction, Roughness);
+    if (Roughness > 0.55) return SkyAlongApprox(Direction, Roughness);
     float Tolerance; uint Receiver;
     SampleSceneDistance(Position, Tolerance, Receiver);
     vec3 Origin = Position + GeometricNormal * max(Tolerance * 3.0, 0.003);
@@ -198,10 +197,6 @@ void main()
         return;
     }
 
-    // TEMPORARY fault probe 94: nothing past visibility.
-    if (PC.Tuning.w > 93.5 && PC.Tuning.w < 94.5)
-    { imageStore(LinearRadiance, pixel, vec4(0.5)); imageStore(OutputImage, pixel, vec4(0.5)); return; }
-
     // ── the receiving material, decoded ─────────────────────────────────────────────────────────────────────
     // Same unpack, same instance row, same ResolveMaterial call as ReSTIRViewport.slang's primary hit. The
     //    shading frame comes back from the decode, so the normal map and the tangent basis are the raytraced
@@ -228,17 +223,12 @@ void main()
     vec3 woLoc = ToLocal(F, V);
     if (woLoc.z <= 0.0) { imageStore(LinearRadiance, pixel, vec4(0.0)); imageStore(OutputImage, pixel, vec4(0.0, 0.0, 0.0, 1.0)); return; }
     ResolvedLayers layers = ResolveLayers(m, woLoc);
-    // TEMPORARY fault probe 95: material decoded, nothing shaded.
-    if (PC.Tuning.w > 94.5 && PC.Tuning.w < 95.5)
-    { imageStore(LinearRadiance, pixel, vec4(0.5)); imageStore(OutputImage, pixel, vec4(0.5)); return; }
 
     // Direct-light visibility comes from the same raster maps as plain raster; no SDF shadow or hidden mesh rays.
     vec3 col = vec3(0.0);
     vec3 directOnly = vec3(0.0);
     float sunVisibility = 1.0;
-    // TEMPORARY fault probe 97: no shadow taps.
-    uint TapLimit = (PC.Tuning.w > 96.5 && PC.Tuning.w < 97.5) ? 0u : min(ShadowControl.z,kShadowMaximumTaps);
-    for (uint Tap=0u; Tap<TapLimit; ++Tap)
+    for (uint Tap=0u; Tap<min(ShadowControl.z,kShadowMaximumTaps); ++Tap)
     {
         bool Directional=(ShadowControl.w&(1u<<Tap))!=0u;
         vec3 Delta=ShadowTapOrigin[Tap].xyz-P;
@@ -254,14 +244,9 @@ void main()
         if (Directional) sunVisibility = Visibility;
     }
     directOnly = col;
-    // TEMPORARY fault probe 96: direct light only.
-    if (PC.Tuning.w > 95.5 && PC.Tuning.w < 96.5)
-    { imageStore(LinearRadiance, pixel, vec4(col,1.0)); imageStore(OutputImage, pixel, vec4(DisplayTransfer(col),1.0)); return; }
-
     // --- indirect diffuse: an irradiance through this material's hemispherical response ---
     vec3 response = AmbientResponse(m, layers, woLoc);
-    vec3 irradiance = (PC.Tuning.w > 92.5 && PC.Tuning.w < 93.5) ? PC.SkyAmbient.xyz :   // TEMPORARY fault probe 93
-                      (flags & kFeatureGlobalIllumination) != 0u
+    vec3 irradiance = (flags & kFeatureGlobalIllumination) != 0u
         ? ReconstructIrradiance(pixel,P,F.Normal,visibility) * PC.Tuning.y      // distance-field diffuse transport
         : PC.SkyAmbient.xyz;                                                    // plain raster: sky ambient fill (never black)
     col += response * irradiance;

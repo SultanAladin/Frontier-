@@ -217,29 +217,11 @@ jobs:
           #    for the exterior and cockpit views (the car spawns at the origin facing +X; eye from DriveCabinLayout.h),
           #    the play capture leaves the camera to the project.
           # (The simulate-transport bisect that used to run here is concluded and its hooks are removed.)
-          # TEMPORARY fault probes: edit-at-90 (frame count alone), exterior-at-8/30 (pinned view alone). Remove
-          #    once the pre-first-present lavapipe fault is attributed.
-          Capture probe-edit90       90 --render-preset 2 --transport 0
-          Capture probe-exterior8     8 --render-preset 2 --transport 0 --camera -7.0 -6.0 2.0 0.0 0.0 0.7
-          Capture probe-exterior30   30 --render-preset 2 --transport 0 --camera -7.0 -6.0 2.0 0.0 0.0 0.7
-          FRONTIER_GI_DEBUG=99 Capture probe-exterior-noreflect 30 --render-preset 2 --transport 0 --camera -7.0 -6.0 2.0 0.0 0.0 0.7
-          FRONTIER_GI_DEBUG=90 Capture probe-exterior-nogather 30 --render-preset 2 --transport 0 --camera -7.0 -6.0 2.0 0.0 0.0 0.7
-          FRONTIER_GI_DEBUG=91 Capture probe-exterior-nomarch 30 --render-preset 2 --transport 0 --camera -7.0 -6.0 2.0 0.0 0.0 0.7
-          FRONTIER_GI_DEBUG=92 Capture probe-exterior-nogathermat 30 --render-preset 2 --transport 0 --camera -7.0 -6.0 2.0 0.0 0.0 0.7
-          FRONTIER_GI_DEBUG=93 Capture probe-exterior-noreconstruct 30 --render-preset 2 --transport 0 --camera -7.0 -6.0 2.0 0.0 0.0 0.7
-          FRONTIER_GI_SKIP=15 Capture probe-exterior-skipall 30 --render-preset 2 --transport 0 --camera -7.0 -6.0 2.0 0.0 0.0 0.7
-          FRONTIER_GI_SKIP=1 Capture probe-exterior-skipcards 30 --render-preset 2 --transport 0 --camera -7.0 -6.0 2.0 0.0 0.0 0.7
-          FRONTIER_GI_SKIP=2 Capture probe-exterior-skipradiance 30 --render-preset 2 --transport 0 --camera -7.0 -6.0 2.0 0.0 0.0 0.7
-          FRONTIER_GI_SKIP=4 Capture probe-exterior-skipgather 30 --render-preset 2 --transport 0 --camera -7.0 -6.0 2.0 0.0 0.0 0.7
-          FRONTIER_GI_SKIP=8 Capture probe-exterior-skipresolve 30 --render-preset 2 --transport 0 --camera -7.0 -6.0 2.0 0.0 0.0 0.7
-          FRONTIER_GI_DEBUG=94 Capture probe-exterior-res94 30 --render-preset 2 --transport 0 --camera -7.0 -6.0 2.0 0.0 0.0 0.7
-          FRONTIER_GI_DEBUG=95 Capture probe-exterior-res95 30 --render-preset 2 --transport 0 --camera -7.0 -6.0 2.0 0.0 0.0 0.7
-          FRONTIER_GI_DEBUG=96 Capture probe-exterior-res96 30 --render-preset 2 --transport 0 --camera -7.0 -6.0 2.0 0.0 0.0 0.7
-          FRONTIER_GI_DEBUG=97 Capture probe-exterior-res97 30 --render-preset 2 --transport 0 --camera -7.0 -6.0 2.0 0.0 0.0 0.7
-          # The GI views are captured at transport 0 with the camera pinned: the scene is the same parked car on
-          #    the same course through the same SDF pipeline, while the simulate transports (1/2) currently fault
-          #    on lavapipe before the first present — a pre-existing host fault, witnessed by sdf-gi-play below,
-          #    that kept every transport-2 PNG in this folder silently stale. sdf-gi-play stays as that witness.
+          # The GI proof views are captured at transport 0 with the camera pinned: the scene is the same parked
+          #    car on the same course through the same SDF pipeline, deterministic frame to frame. (The pinned
+          #    views used to ride the simulate transports, whose lavapipe runs faulted intermittently before the
+          #    first present and silently left stale PNGs in this folder; sdf-gi-play remains the simulate
+          #    witness, and Capture() deletes the target PNG first so a failed capture can never republish one.)
           Capture sdf-gi-exterior    90 --render-preset 2 --transport 0 --camera -7.0 -6.0 2.0 0.0 0.0 0.7
           Capture sdf-gi-cockpit     90 --render-preset 2 --transport 0 --camera -0.2 0.42 1.12 2.8 0.42 0.47
           Capture sdf-gi-play        90 --render-preset 2 --transport 1
