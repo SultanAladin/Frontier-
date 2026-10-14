@@ -45,6 +45,7 @@ const uint  kIdentityNone        = 0xFFFFFFFFu;
 const float kReprojectNormalCos  = 0.906308;   // cos 25°, the kernel's rule
 const float kReprojectDepthTol   = 0.10;       // 10 % relative
 const float kMovingHistoryBound  = 32.0;       // SVGF α clamp for a pixel that moved
+const float kChangeHistoryBound  = 8.0;        // history kept when the lighting itself changed under a still pixel
 float Luminance(vec3 c) { return dot(c, vec3(0.2126, 0.7152, 0.0722)); }
 // Reflection mode (Counts.w): 0 = Off, 1 = Sky. RT modes never enter this route.
 const uint kReflectOff = 0u, kReflectSky = 1u;
@@ -185,6 +186,17 @@ void ResolveTemporal(ivec2 pixel, vec3 radiance, vec3 normal, float depth, uint 
         count   = history.a;
         moments = imageLoad(PreviousMomentImage, pixel).xy;
     }
+    // A still receiver under CHANGING light — the ground a car's shadow sweeps across — reprojects to itself, keeps
+    //    its unbounded count and absorbs the change at 1/n: the shadow visibly lags the car. When the new sample
+    //    sits outside the history's own spread (4σ from the moments, and at least a quarter of the mean so sampling
+    //    noise on a single-sample estimator cannot trigger it), the count is cut to kChangeHistoryBound so the mean
+    //    re-tracks within a few frames. A converged, unchanged pixel never trips it.
+    if (count > kChangeHistoryBound)
+    {
+        float historySigma = sqrt(max(moments.y - moments.x * moments.x, 0.0));
+        if (abs(Luminance(radiance) - moments.x) > max(4.0 * historySigma, 0.25 * moments.x + 1e-3)) count = kChangeHistoryBound;
+    }
+
     count += 1.0;
     vec3  mean = history.rgb + (radiance - history.rgb) / count;
     float luma = Luminance(radiance);

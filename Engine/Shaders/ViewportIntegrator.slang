@@ -897,6 +897,7 @@ const float kReprojectDepthTol  = kTemporalDepthTol;    // 10 % relative
 //    α ≈ 1/32, so lighting changes land within about a second at 30 fps instead of at 1/n for an unbounded n.
 //    A still pixel is exempt (prevPx == pixel keeps the raw count), so a held frame still converges without limit.
 const float kMovingHistoryBound = 32.0;
+const float kChangeHistoryBound = 8.0;    // history kept when the lighting itself changed under a still pixel
 
 // ⚠️ D10: normal + depth agree for TWO DIFFERENT OBJECTS more often than it is comfortable to admit — two objects
 //    exchanging places, a tumble that brings a different face to the same pixel at the same distance, an object leaving
@@ -1002,6 +1003,17 @@ void ResolveSurface(uvec2 pixel, vec3 radiance, vec3 normal, float depth, uint i
     vec2 lensExtent=vec2(float(ViewportWidth),float(ViewportHeight));
     vec3 lensRadiance=FlareAlong((vec2(pixel)+.5)/lensExtent,lensExtent.x/max(lensExtent.y,1.0));
     radiance+=lensRadiance;
+
+    // A still receiver under CHANGING light — the ground a car's shadow sweeps across — reprojects to itself, keeps
+    //    its unbounded count and absorbs the change at 1/n: the shadow visibly lags the car. When the new sample
+    //    sits outside the history's own spread (4σ from the moments, and at least a quarter of the mean so sampling
+    //    noise on a single-sample estimator cannot trigger it), the count is cut to kChangeHistoryBound so the mean
+    //    re-tracks within a few frames. A converged, unchanged pixel never trips it.
+    if (count > kChangeHistoryBound)
+    {
+        float historySigma = sqrt(max(moments.y - moments.x * moments.x, 0.0));
+        if (abs(Luminance(radiance) - moments.x) > max(4.0 * historySigma, 0.25 * moments.x + 1e-3)) count = kChangeHistoryBound;
+    }
 
     count      = count + 1.0;
     vec3 mean  = history.rgb + (radiance - history.rgb) / count;
