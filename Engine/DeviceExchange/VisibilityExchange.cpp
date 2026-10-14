@@ -84,6 +84,7 @@ struct GpuImage
 struct VisibilityExchange::VulkanRecord
 {
     std::vector<InstanceRecord> PendingInstances;
+    std::vector<TyreDeformationRecord> PendingTyres;
     struct TransferExtent { VkBuffer Destination; std::vector<unsigned char> Bytes; };
     std::vector<TransferExtent> PendingGeometry;
     std::vector<uint32_t> ResidentCorners;
@@ -98,6 +99,7 @@ struct VisibilityExchange::VulkanRecord
 
     // Scene (host-visible, uploaded once)
     GpuBuffer Vertices, Indices, Instances, Clusters, Materials, Luminaires, FlatTriangles;
+    GpuBuffer TyreDeformations;   // kTyreDeformationSlots × 2 records, zero until a project publishes
     VkBuffer  BorrowedSlabs = VK_NULL_HANDLE;                   // R4b: SwapchainExchange's MaterialSlabRecord[] (raster binding 6)
     VkBuffer  BorrowedReservoir = VK_NULL_HANDLE;             // R6 row 3: kernel's prev-frame reservoirs (resolve binding 13, M/W/Age views)
     VkSampler BorrowedSampler = VK_NULL_HANDLE;                 // R4b: bindless table sampler + views (raster binding 7)
@@ -412,7 +414,7 @@ void VisibilityExchange::Retire() noexcept
     VkDevice D = Vulkan->Device;
     vkDeviceWaitIdle(D);
     RetireTargets();
-    for (GpuBuffer* B : { &Vulkan->Vertices, &Vulkan->Indices, &Vulkan->Instances, &Vulkan->Clusters, &Vulkan->Materials, &Vulkan->Luminaires, &Vulkan->FlatTriangles,
+    for (GpuBuffer* B : { &Vulkan->Vertices, &Vulkan->Indices, &Vulkan->Instances, &Vulkan->Clusters, &Vulkan->Materials, &Vulkan->Luminaires, &Vulkan->FlatTriangles, &Vulkan->TyreDeformations,
                           &Vulkan->Draws, &Vulkan->Counters, &Vulkan->VisibleBitsA, &Vulkan->VisibleBitsB })
         DestroyBuffer(D, *B);
     for (uint32_t S = 0u; S < kMaximumCycleSlots; ++S)
@@ -500,9 +502,9 @@ bool VisibilityExchange::BringPipelines() noexcept
     if (!MakePipelineLayout(Vulkan->CullLayout, 0u, 0u, Vulkan->CullPipelineLayout)) return false;
     if (!MakeCompute("Engine/Shaders/ClusterCull.spv", Vulkan->CullPipelineLayout, Vulkan->CullPipeline)) return false;
 
-    // ② Raster: 0 frame, 1 instances, 2 clusters, 3 vertices — R4b: 4 (unused), 5 materials, 6 slabs, 7 Textures[] (variable count, last) for the alpha mask
+    // ② Raster: 0 frame, 1 instances, 2 clusters, 3 vertices, 4 tyre deformation records, 5 materials, 6 slabs, 7 Textures[] (variable count, last) for the alpha mask
     {
-        std::vector<VkDescriptorSetLayoutBinding> RasterBindings{ Binding(0, UBO, VS | FS), Binding(1, SSBO, VS | FS), Binding(2, SSBO, VS | FS), Binding(3, SSBO, VS), Binding(5, SSBO, VS | FS), Binding(6, SSBO, VS | FS) };
+        std::vector<VkDescriptorSetLayoutBinding> RasterBindings{ Binding(0, UBO, VS | FS), Binding(1, SSBO, VS | FS), Binding(2, SSBO, VS | FS), Binding(3, SSBO, VS), Binding(4, SSBO, VS), Binding(5, SSBO, VS | FS), Binding(6, SSBO, VS | FS) };
         if (Vulkan->TextureSlotCapacity > 0u)
         {
             VkDescriptorSetLayoutBinding Table = Binding(7, TEX, FS); Table.descriptorCount = Vulkan->TextureSlotCapacity;
@@ -527,7 +529,7 @@ bool VisibilityExchange::BringPipelines() noexcept
 
     // ④ Resolve: shared position, normal, material-auxiliary, and albedo targets feed raster primary shading and the indirect-light gather.
     if (!MakeLayout({ Binding(0, UBO, CS), Binding(1, SSBO, CS), Binding(2, SSBO, CS), Binding(3, SSBO, CS), Binding(4, SSBO, CS), Binding(5, SSBO, CS),
-                      Binding(6, TEX, CS), Binding(7, TEX, CS), Binding(8, TEX, CS), Binding(9, TEX, CS), Binding(10, IMG, CS), Binding(11, IMG, CS), Binding(12, IMG, CS), Binding(13, SSBO, CS), Binding(14, IMG, CS), Binding(15, IMG, CS) }, Vulkan->ResolveLayout)) return false;
+                      Binding(6, TEX, CS), Binding(7, TEX, CS), Binding(8, TEX, CS), Binding(9, TEX, CS), Binding(10, IMG, CS), Binding(11, IMG, CS), Binding(12, IMG, CS), Binding(13, SSBO, CS), Binding(14, IMG, CS), Binding(15, IMG, CS), Binding(16, SSBO, CS) }, Vulkan->ResolveLayout)) return false;
     if (!MakePipelineLayout(Vulkan->ResolveLayout, 0u, 0u, Vulkan->ResolvePipelineLayout)) return false;
     if (!MakeCompute("Engine/Shaders/SurfaceResolve.spv", Vulkan->ResolvePipelineLayout, Vulkan->ResolvePipeline)) return false;
 
@@ -765,7 +767,7 @@ bool VisibilityExchange::BringDescriptorSets() noexcept
     VkDevice D = Vulkan->Device;
     constexpr uint32_t MaxHiZLevels = 16u;
     const uint32_t RasterSetCount = kMaximumCycleSlots * 2u;
-    std::array<VkDescriptorPoolSize, 4u> Sizes{ { { VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 32u }, { VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 128u + 2u * RasterSetCount },
+    std::array<VkDescriptorPoolSize, 4u> Sizes{ { { VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 32u }, { VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 160u + 3u * RasterSetCount },
                                                   { VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 64u + Vulkan->TextureSlotCapacity * RasterSetCount }, { VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 64u } } };
     VkDescriptorPoolCreateInfo Pool{ VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO };
     Pool.flags   = Vulkan->TextureSlotCapacity > 0u ? static_cast<VkDescriptorPoolCreateFlags>(VK_DESCRIPTOR_POOL_CREATE_UPDATE_AFTER_BIND_BIT) : 0u;
@@ -866,6 +868,11 @@ void VisibilityExchange::UploadScene(const SceneStructure& Scene) noexcept
     (void)UploadBuffer(D, P, Vulkan->Materials,     Scene.QueryMaterials().QueryRecords().data(), Bytes(Scene.QueryMaterials().QueryRecords()), S, "materials");   // R4a MaterialRecord[]
     (void)UploadBuffer(D, P, Vulkan->Luminaires,    Scene.QueryLuminaires().data(),    Bytes(Scene.QueryLuminaires()),    S, "luminaires");
     (void)UploadBuffer(D, P, Vulkan->FlatTriangles, Scene.QueryFlatTriangles().data(), Bytes(Scene.QueryFlatTriangles()), S, "flat triangles");
+    {
+        const std::vector<TyreDeformationRecord> Inactive(static_cast<size_t>(kTyreDeformationSlots) * 2u);
+        (void)UploadBuffer(D, P, Vulkan->TyreDeformations, Inactive.data(), Bytes(Inactive), S | VK_BUFFER_USAGE_TRANSFER_DST_BIT, "tyre deformation");
+    }
+    Vulkan->PendingTyres.clear();
 
     TriangleCount  = Scene.QueryTriangleCount();
     InstanceCount  = static_cast<uint32_t>(Scene.QueryInstances().size());
@@ -975,6 +982,14 @@ bool VisibilityExchange::RefreshInstances(const InstanceRecord* Rows, uint32_t C
     return true;
 }
 
+bool VisibilityExchange::RefreshTyreDeformations(const TyreDeformationRecord* Pairs, uint32_t Count) noexcept
+{
+    if (Pairs == nullptr || Count == 0u || Count > kTyreDeformationSlots * 2u) return false;
+    if (Vulkan == nullptr || !Vulkan->TyreDeformations.Buffer) return false;
+    Vulkan->PendingTyres.assign(Pairs, Pairs + Count);
+    return true;
+}
+
 //------------------------------------------------------------------------------------------------------------------------
 //                                                   DESCRIPTOR WRITES
 //------------------------------------------------------------------------------------------------------------------------
@@ -1024,6 +1039,7 @@ void VisibilityExchange::WriteDescriptorSets() noexcept
             Buffer(R, 1u, SSBO, Vulkan->Instances.Buffer);
             Buffer(R, 2u, SSBO, Vulkan->Clusters.Buffer);
             Buffer(R, 3u, SSBO, Vulkan->Vertices.Buffer);
+            Buffer(R, 4u, SSBO, Vulkan->TyreDeformations.Buffer);
             Buffer(R, 5u, SSBO, Vulkan->Materials.Buffer);
             Buffer(R, 6u, SSBO, Vulkan->BorrowedSlabs ? Vulkan->BorrowedSlabs : Vulkan->Materials.Buffer);
         }
@@ -1043,6 +1059,7 @@ void VisibilityExchange::WriteDescriptorSets() noexcept
         if (Vulkan->PresentationView) Image(X, 12u, IMG, Vulkan->PresentationView);
         Image (X, 14u, IMG, Vulkan->MaterialAux.View);
         Image (X, 15u, IMG, Vulkan->Albedo.View);
+        Buffer(X, 16u, SSBO, Vulkan->TyreDeformations.Buffer);
     }
     // HiZ sets: set L writes level L; set 0 reads the depth attachment, set L>0 reads level L−1.
     for (uint32_t L = 0u; L < Vulkan->HiZ.Levels; ++L)
@@ -1249,6 +1266,24 @@ void VisibilityExchange::RecordFrame(void* CommandHandle, uint32_t Slot, const V
         vkCmdPipelineBarrier(Command, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT,
                              0u, 0u, nullptr, 1u, &Transfer, 0u, nullptr);
         Vulkan->PendingInstances.clear();
+    }
+    if (!Vulkan->PendingTyres.empty())
+    {
+        VkBufferMemoryBarrier Transfer{ VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER };
+        Transfer.srcAccessMask = VK_ACCESS_SHADER_READ_BIT;
+        Transfer.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+        Transfer.srcQueueFamilyIndex = Transfer.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+        Transfer.buffer = Vulkan->TyreDeformations.Buffer;
+        Transfer.size = VK_WHOLE_SIZE;
+        vkCmdPipelineBarrier(Command, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT,
+                             0u, 0u, nullptr, 1u, &Transfer, 0u, nullptr);
+        const VkDeviceSize Bytes = Vulkan->PendingTyres.size() * sizeof(TyreDeformationRecord);   // ≤ 16 KiB: one update
+        vkCmdUpdateBuffer(Command, Vulkan->TyreDeformations.Buffer, 0u, Bytes, Vulkan->PendingTyres.data());
+        Transfer.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+        Transfer.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+        vkCmdPipelineBarrier(Command, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT,
+                             0u, 0u, nullptr, 1u, &Transfer, 0u, nullptr);
+        Vulkan->PendingTyres.clear();
     }
     if (!Vulkan->PendingGeometry.empty())
     {

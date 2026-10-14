@@ -18,6 +18,7 @@ layout(local_size_x = 16, local_size_y = 16, local_size_z = 1) in;
 
 #include "Shaders/SceneRecords.slang"
 #include "Shaders/RayGeneration.slang"
+#include "Shaders/TyreDeformation.slang"
 
 layout(std430, set = 0, binding = 1) readonly buffer InstanceExtent { InstanceRecord Instances[]; };
 layout(std430, set = 0, binding = 2) readonly buffer ClusterExtent  { ClusterRecord  Clusters[];  };
@@ -55,6 +56,7 @@ struct GpuReservoirView
     uvec4 Identity;  // D10: x = instance << 14 | primitive; yzw reserved
 };
 layout(std430, set = 0, binding = 13) readonly buffer ReservoirExtent { GpuReservoirView Reservoirs[]; };
+layout(std430, set = 0, binding = 16) readonly buffer TyreExtent { TyreDeformationRecord Tyres[]; };
 
 // Debug views — mirror DebugViewCategory in Engine/DeviceExchange/VisibilityExchange.h
 const uint kDebugOff        = 0u;
@@ -101,6 +103,11 @@ void main()
         vec3 A = (Instance.World * vec4(Vertices[Indices[Base + 0u] + Instance.VertexOffset].Position.xyz, 1.0)).xyz;
         vec3 B = (Instance.World * vec4(Vertices[Indices[Base + 1u] + Instance.VertexOffset].Position.xyz, 1.0)).xyz;
         vec3 C = (Instance.World * vec4(Vertices[Indices[Base + 2u] + Instance.VertexOffset].Position.xyz, 1.0)).xyz;
+        if ((Instance.Flags & TYRE_DEFORM_FLAG) != 0u)
+        {   // the raster bent this wheel's vertices; reconstruct the same bent triangle (position, normal, wire)
+            TyreDeformationRecord Tyre = Tyres[TYRE_DEFORM_SLOT(Instance.Flags) * 2u];
+            A = DeformTyrePoint(A, Tyre); B = DeformTyrePoint(B, Tyre); C = DeformTyrePoint(C, Tyre);
+        }
         Material  = Instance.MaterialIndex;
         ClusterId = Instance.ClusterOffset + Primitive / 128u;
         // A primitive past the instance's fine range IS an alternative: the patch preview says so on screen.

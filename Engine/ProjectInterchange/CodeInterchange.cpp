@@ -143,6 +143,8 @@ bool CodeInterchange::Construct(const ProjectSpecification& ResolvedSpecificatio
         GetProcAddress(static_cast<HMODULE>(CodeImage), "ProjectGeometryInterchange"));
     DisplayEntry = reinterpret_cast<FrontierProjectDisplay>(
         GetProcAddress(static_cast<HMODULE>(CodeImage), "ProjectDisplayInterchange"));
+    TyreDeformationEntry = reinterpret_cast<FrontierProjectTyreDeformation>(
+        GetProcAddress(static_cast<HMODULE>(CodeImage), "ProjectTyreDeformationInterchange"));
     FrameConcludedEntry = reinterpret_cast<FrontierProjectFrameConcluded>(
         GetProcAddress(static_cast<HMODULE>(CodeImage), "ProjectFrameConcludedInterchange"));
 #else
@@ -150,6 +152,7 @@ bool CodeInterchange::Construct(const ProjectSpecification& ResolvedSpecificatio
     SmokeEntry = reinterpret_cast<FrontierProjectSmoke>(dlsym(CodeImage, "ProjectSmokeInterchange"));
     GeometryEntry = reinterpret_cast<FrontierProjectGeometry>(dlsym(CodeImage, "ProjectGeometryInterchange"));
     DisplayEntry = reinterpret_cast<FrontierProjectDisplay>(dlsym(CodeImage, "ProjectDisplayInterchange"));
+    TyreDeformationEntry = reinterpret_cast<FrontierProjectTyreDeformation>(dlsym(CodeImage, "ProjectTyreDeformationInterchange"));
     FrameConcludedEntry = reinterpret_cast<FrontierProjectFrameConcluded>(dlsym(CodeImage, "ProjectFrameConcludedInterchange"));
 #endif
     const FrontierConstructProjectInterchange ConstructInterchange = QueryConstructionEntry(CodeImage);
@@ -256,6 +259,7 @@ void CodeInterchange::Retire() noexcept
     TransportEntry = nullptr;
     SmokeEntry = nullptr;
     DisplayEntry = nullptr;
+    TyreDeformationEntry = nullptr;
     FrameConcludedEntry = nullptr;
     ActiveInterchange = {};
     ReleaseCodeImage(CodeImage);

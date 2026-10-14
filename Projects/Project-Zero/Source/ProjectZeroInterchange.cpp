@@ -4,7 +4,9 @@
 // 📦 Project-Zero owns authored-car behaviour; shared vehicle mechanics and Frontier-owned rendering cross versioned C records.
 
 #include "../../../Engine/ProjectInterchange/ProjectInterchange.h"
-#include "../../../Engine/ProjectInterchange/GeometryInterchange.h"
+#include "../../../Engine/ProjectInterchange/TyreDeformationInterchange.h"
+#include "../../../Engine/PhysicalDynamics/Vehicle/TyreDeformationPublisher.h"
+#include <array>
 #include "../../../Engine/ProjectInterchange/VehicleInterchange.h"
 #include "../../../Engine/DisplayPresentation/ChaseCameraSolver.h"
 #include "../../../Engine/PhysicalDynamics/Vehicle/DriverInputIntegrator.h"
@@ -120,8 +122,18 @@ struct ZeroVehicleSequence
         return true;
     }
 
+    std::array<Frontier::TyreDeformationRecord, 4> TyreRecords{};
+    uint64_t TyreRevision = 0u;
+
     void PublishGeometry()
     {
+        const auto& Tyres = Vehicle.Tyres();
+        const auto& Wheels = Vehicle.Telemetry().Wheels;
+        for (uint32_t Wheel = 0u; Wheel < 4u; ++Wheel)
+            TyreRecords[Wheel] = (Wheel < Tyres.size() && Wheel < Wheels.size())
+                ? Frontier::Vehicle::ComposeTyreDeformation(Tyres[Wheel], Wheels[Wheel], Vehicle.Configuration().Tyre)
+                : Frontier::TyreDeformationRecord{};
+        ++TyreRevision;
         if (!Reception.ReceiveSceneMutation) return;
         for (uint32_t Slot = 0u; Slot < 5u; ++Slot)
         {
@@ -265,6 +277,27 @@ extern "C" FRONTIER_CODE_IMAGE_EXPORT uint32_t FRONTIER_CODE_IMAGE_CALL Construc
     DeliveredInterchange->ConstructProject = &ConstructProject;
     DeliveredInterchange->AdvanceProject = &AdvanceProject;
     DeliveredInterchange->RetireProject = &RetireProject;
+    return 1u;
+}
+
+extern "C" FRONTIER_CODE_IMAGE_EXPORT uint32_t FRONTIER_CODE_IMAGE_CALL ProjectTyreDeformationInterchange(
+    void* ProjectRecord, FrontierProjectTyreDeformationReading* Reading)
+{
+    if (!Reading || Reading->StructureSize != sizeof(*Reading) || Reading->InterchangeNumber != 1u) return 2u;
+    const auto* Sequence = static_cast<const ZeroVehicleSequence*>(ProjectRecord);
+    Reading->Count = 0u;
+    Reading->Revision = Sequence && Sequence->PreviousTransport ? Sequence->TyreRevision : 0u;
+    if (Reading->Capacity == 0u) { Reading->Count = 4u; return 1u; }
+    if (!Sequence || !Reading->Revision) return 0u;
+    if (!Reading->Records || !Reading->SubjectNames) return 2u;
+    static_assert(sizeof(FrontierTyreDeformationRecord) == sizeof(Frontier::TyreDeformationRecord), "record layouts must agree");
+    const uint32_t Count = Reading->Capacity < 4u ? Reading->Capacity : 4u;
+    for (uint32_t Wheel = 0u; Wheel < Count; ++Wheel)
+    {
+        Reading->SubjectNames[Wheel] = VehicleSubjects[Wheel + 1u];
+        std::memcpy(&Reading->Records[Wheel], &Sequence->TyreRecords[Wheel], sizeof(FrontierTyreDeformationRecord));
+    }
+    Reading->Count = Count;
     return 1u;
 }
 

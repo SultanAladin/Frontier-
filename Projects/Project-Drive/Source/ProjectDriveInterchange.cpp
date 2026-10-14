@@ -7,6 +7,8 @@
 
 #include "VehicleInstanceSequence.h"
 #include "../../../Engine/ProjectInterchange/VehicleInterchange.h"
+#include "../../../Engine/ProjectInterchange/TyreDeformationInterchange.h"
+#include "../../../Engine/PhysicalDynamics/Vehicle/TyreDeformationPublisher.h"
 #include "ChaseCameraSolver.h"
 #include "DriveCabinDisplays.h"
 #include "../../../Engine/ProjectInterchange/DisplayInterchange.h"
@@ -18,6 +20,7 @@
 #include "../../../Engine/PhysicalDynamics/Vehicle/DriverInputIntegrator.h"
 
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <new>
 #include <cstdio>
@@ -41,6 +44,8 @@ struct DriveSequence
     std::vector<Frontier::InstanceRecord> Poses{5u};
     uint32_t PreviousTransport = 0u;
     bool PreviousReset = false;
+    std::array<Frontier::TyreDeformationRecord, 4> TyreRecords{};   // the GPU deformation records, one per wheel
+    uint64_t TyreRevision = 0u;                                      // advances with every consumed physics result
     Frontier::Drive::DriveCabinDisplays Displays;   // the cabin tablet + cluster sheets (SurfaceDisplay)
     double DisplaySeconds = 0.0;                    // [s] accumulated cycle time the display rates run on
 
@@ -67,7 +72,20 @@ struct DriveSequence
         JoinPhysics();
         if (!ResultsPending || !Vehicle) { ResultsPending = false; return; }
         ResultsPending = false;
+        ComposeTyreRecords();
         DeliverPoses();
+    }
+    void ComposeTyreRecords()
+    {
+        const auto& Tyres = Vehicle->Tyres();
+        const auto& Wheels = Vehicle->Telemetry().Wheels;
+        for (size_t Index = 0u; Index < TyreRecords.size(); ++Index)
+        {
+            if (Index < Tyres.size() && Index < Wheels.size())
+                TyreRecords[Index] = Frontier::Vehicle::ComposeTyreDeformation(Tyres[Index], Wheels[Index], Vehicle->Configuration().Tyre);
+            else TyreRecords[Index] = {};
+        }
+        ++TyreRevision;
     }
     void LaunchPhysics()
     {
@@ -410,6 +428,28 @@ extern "C" FRONTIER_CODE_IMAGE_EXPORT uint32_t FRONTIER_CODE_IMAGE_CALL Construc
 extern "C" FRONTIER_CODE_IMAGE_EXPORT void FRONTIER_CODE_IMAGE_CALL ProjectFrameConcludedInterchange(void* ProjectRecord)
 {
     FrameConcluded(ProjectRecord);
+}
+
+extern "C" FRONTIER_CODE_IMAGE_EXPORT uint32_t FRONTIER_CODE_IMAGE_CALL ProjectTyreDeformationInterchange(
+    void* ProjectRecord, FrontierProjectTyreDeformationReading* Reading)
+{
+    if (!Reading || Reading->StructureSize != sizeof(*Reading) || Reading->InterchangeNumber != 1u) return 2u;
+    static const char* Subjects[] = { "Tyre FL", "Tyre FR", "Tyre RL", "Tyre RR" };
+    auto* Sequence = static_cast<DriveSequence*>(ProjectRecord);
+    Reading->Count = 0u;
+    Reading->Revision = Sequence && Sequence->Vehicle ? Sequence->TyreRevision : 0u;
+    if (Reading->Capacity == 0u) { Reading->Count = 4u; return 1u; }
+    if (!Sequence || !Sequence->Vehicle || Reading->Revision == 0u) return 0u;
+    if (!Reading->Records || !Reading->SubjectNames) return 2u;
+    static_assert(sizeof(FrontierTyreDeformationRecord) == sizeof(Frontier::TyreDeformationRecord), "record layouts must agree");
+    const uint32_t Count = std::min<uint32_t>(Reading->Capacity, 4u);
+    for (uint32_t Index = 0u; Index < Count; ++Index)
+    {
+        Reading->SubjectNames[Index] = Subjects[Index];
+        std::memcpy(&Reading->Records[Index], &Sequence->TyreRecords[Index], sizeof(FrontierTyreDeformationRecord));
+    }
+    Reading->Count = Count;
+    return 1u;
 }
 
 extern "C" FRONTIER_CODE_IMAGE_EXPORT uint32_t FRONTIER_CODE_IMAGE_CALL ProjectDisplayInterchange(

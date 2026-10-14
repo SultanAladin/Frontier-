@@ -3293,6 +3293,11 @@ bool SwapchainExchange::BringVisibility() noexcept
     return Result == VK_SUCCESS;
 }
 
+bool SwapchainExchange::RefreshTyreDeformations(const TyreDeformationRecord* Pairs, uint32_t Count) noexcept
+{
+    return Visibility.RefreshTyreDeformations(Pairs, Count);
+}
+
 bool SwapchainExchange::RefreshInstances(const InstanceRecord* Rows, uint32_t Count) noexcept
 {
     if (!Visibility.RefreshInstances(Rows, Count)) return false;

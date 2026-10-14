@@ -22,6 +22,7 @@
 #include "OrientationClassifier.h"
 #include "ShadowExchange.h"
 #include "../GeometricRaster/ClipProjection.h"
+#include "../GeometricRaster/TyreDeformationRecord.h"
 #include <cstdint>
 #include <vector>
 
@@ -166,6 +167,11 @@ public:
     //    reads it is submitted, which is why the caller does this before RecordAndPresent.
     [[nodiscard]] bool  RefreshInstances(const InstanceRecord* Rows, uint32_t Count) noexcept;
     [[nodiscard]] bool  RefreshGeometry(const SceneStructure& Scene) noexcept;
+
+    // Tyre deformation records (Shaders/TyreDeformation.slang): pairs of [current, previous] per slot, at most
+    //    kTyreDeformationSlots pairs. Staged like RefreshInstances and copied in queue order by RecordFrame; the
+    //    resident buffer is zero (every record inactive) until the first call, so an undeformed scene costs nothing.
+    [[nodiscard]] bool  RefreshTyreDeformations(const TyreDeformationRecord* Pairs, uint32_t Count) noexcept;
 
     // Instances resident after the last UploadScene — the bound RefreshInstances must match.
     [[nodiscard]] uint32_t QueryInstanceCount() const noexcept { return InstanceCount; }

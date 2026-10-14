@@ -9,6 +9,7 @@
 #include "GeometryInterchange.h"
 #include "SmokeTransportInterchange.h"
 #include "DisplayInterchange.h"
+#include "TyreDeformationInterchange.h"
 #include "ProjectSpecification.h"
 
 // Optional per-frame conclusion hook (exported by the project as "ProjectFrameConcludedInterchange"). Not part
@@ -59,6 +60,10 @@ public:
     uint32_t ProjectSmoke(FrontierProjectSmokeReading& Reading) const
     { return SmokeEntry ? SmokeEntry(ProjectRecord, &Reading) : 0u; }
 
+    [[nodiscard]] bool TyreDeformationAvailable() const noexcept { return TyreDeformationEntry != nullptr; }
+    uint32_t ProjectTyreDeformation(FrontierProjectTyreDeformationReading& Reading) const
+    { return TyreDeformationEntry ? TyreDeformationEntry(ProjectRecord, &Reading) : 0u; }
+
     [[nodiscard]] bool DisplayAvailable() const noexcept { return DisplayEntry != nullptr; }
     uint32_t ProjectDisplay(FrontierProjectDisplayReading& Reading) const
     { return DisplayEntry ? DisplayEntry(ProjectRecord, &Reading) : 0u; }
@@ -82,6 +87,7 @@ private:
     FrontierProjectSmoke      SmokeEntry = nullptr;
     FrontierProjectGeometry   GeometryEntry = nullptr;
     FrontierProjectDisplay    DisplayEntry = nullptr;
+    FrontierProjectTyreDeformation TyreDeformationEntry = nullptr;
     void*                     CodeImage = nullptr;
     FrontierProjectInterchange ActiveInterchange{};
     void*                     ProjectRecord = nullptr;

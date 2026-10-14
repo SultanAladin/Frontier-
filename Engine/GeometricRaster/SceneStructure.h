@@ -42,6 +42,7 @@ enum InstanceFlag : uint32_t
 {
     InstanceFlagDoubleSided = 1u << 0,    // material.doubleSided → normal-cone cull disabled for its clusters
     InstanceFlagEmissive    = 1u << 1,    // at least one luminaire triangle
+    InstanceFlagTyreDeform  = 1u << 2,    // a wheel bent by Shaders/TyreDeformation.slang; record slot in bits 16..23 (TyreDeformationRecord.h)
 };
 
 struct InstanceRecord

@@ -65,6 +65,7 @@ int RunProjectFluidPreview();
 #include "../ProjectInterchange/CodeInterchange.h"
 #include "GeometrySequence.h"
 #include "SmokeSequence.h"
+#include "TyreDeformationSequence.h"
 #include "DisplaySequence.h"
 #include "../ProjectInterchange/ProjectSpecification.h"
 #include "../SpatialInterface/InterfaceScreenSequence.h"
@@ -338,6 +339,7 @@ int Frontier::RunFrontierRuntime(
     Frontier::SceneStructure Level;
     Frontier::HostRuntime::GeometrySequence ProjectGeometry;
     Frontier::HostRuntime::SmokeSequence ProjectSmoke;
+    Frontier::HostRuntime::TyreDeformationSequence ProjectTyres;   // per-wheel contact records the GPU bends the tyres with
     Frontier::HostRuntime::DisplaySequence ProjectDisplays;   // SurfaceDisplay sheets the project rasters (tablet, cluster)
     Frontier::TextureIndex   Textures;
     uint32_t MaxTextureLevels = 1u;   // R6 row 3: deepest mip chain resident (F3 scene-census row; computed once below)
@@ -1850,6 +1852,7 @@ int Frontier::RunFrontierRuntime(
         {
             ProjectRestInstances = AnimatedInstances;
             ProjectGeometry.CaptureRest(Level, AnimatedInstances);
+            ProjectTyres.Construct(Level, AnimatedInstances, ActiveInterchange);
             ProjectEditCamera = Camera;
         }
         bool ProjectMoved = false;
@@ -1893,6 +1896,18 @@ int Frontier::RunFrontierRuntime(
             Logger.RecordMessage(Frontier::DiagnosticSeverity::Refusal, "Project geometry", ProjectRefusal.c_str());
             break;
         }
+        bool TyresChanged = false;
+        if (Transport != 0u && !ProjectTyres.Advance(Level, AnimatedInstances, ActiveInterchange, TyresChanged, ProjectRefusal))
+        {
+            Logger.RecordMessage(Frontier::DiagnosticSeverity::Refusal, "Project tyre deformation", ProjectRefusal.c_str());
+            break;
+        }
+        if (TyresChanged)
+        {
+            const auto& Pairs = ProjectTyres.QueryRecords();
+            (void)Surface.RefreshTyreDeformations(Pairs.data(), static_cast<uint32_t>(Pairs.size()));
+            ProjectMoved = true;   // the stamped flags ride along with the next RefreshInstances
+        }
         if (Transport == 0u) ProjectSmoke.Reclaim();
         else if (!ProjectSmoke.Advance(ActiveInterchange, ProjectRefusal))
         {
@@ -1917,6 +1932,7 @@ int Frontier::RunFrontierRuntime(
                 Logger.RecordMessage(Frontier::DiagnosticSeverity::Refusal, "Project geometry", "Authored topology changed during playback");
                 break;
             }
+            ProjectTyres.Reclaim(AnimatedInstances);
             if (!ProjectRestInstances.empty()) AnimatedInstances = ProjectRestInstances;
             Camera = ProjectEditCamera;
             ProjectRestInstances.clear();

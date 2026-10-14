@@ -261,6 +261,8 @@ public:
     // D3: per-frame instance transform refresh (no reallocation, no device stall). See
     //    VisibilityExchange::RefreshInstances. Returns false if the count no longer matches the resident scene.
     [[nodiscard]] bool          RefreshInstances(const InstanceRecord* Rows, uint32_t Count) noexcept;
+    // Per-wheel tyre deformation records ([current, previous] pairs) — see VisibilityExchange::RefreshTyreDeformations.
+    [[nodiscard]] bool          RefreshTyreDeformations(const TyreDeformationRecord* Pairs, uint32_t Count) noexcept;
     /// 📦 Reports readiness of the SDF transport, not merely selection of render mode one.
     [[nodiscard]] bool QueryDistanceFieldGIReady() const noexcept { return DistanceGeometryResident && DistanceFieldStage.IsReady(); }
     void AssignDistanceFieldGI(bool Enabled) noexcept;
