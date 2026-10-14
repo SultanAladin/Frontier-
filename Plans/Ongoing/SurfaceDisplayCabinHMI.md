@@ -85,7 +85,10 @@ invariants, revision monotonicity, interchange refusals), writing PNGs + `Surfac
    `VehicleInstanceSequence.cpp` files to the same `.obj` under `/Fo<dir>\` — same-named sources now get a
    folder-qualified object of their own. The workflow also emits every `error C…/LNK…` line as an annotation, so a
    failure is readable without the raw log.
-8. **Open — needs a GPU:** the in-engine frame of the lit screens in GI; measuring the single-slot texture refresh.
+8. ✅ In-engine frame on the Distance Field GI route (CI, software Vulkan, 14 Oct 2026): `Exhibits/Gallery/ProjectDrive/live/sdf-gi-cockpit.png`
+   shows the dark launcher and the cluster readable from the driver's eye; `sdf-gi-cockpit-tap.png` is the same frame after
+   `--tap 0.639 0.36 40 40` (a synthetic finger on the first launcher icon, pointer ray → interchange → sheet → single-slot
+   refresh): the application opened on the glass. Measuring the refresh on hardware remains open.
 9. ✅ First in-game look (14 Oct 2026) fixed two things:
    - **No touch.** The only Drive camera was the chase camera 7 m behind the car, so the 300 mm tablet covered a
      few dozen screen pixels: one pixel of mouse jitter was several sheet pixels, every tap exceeded the 12 px slop
