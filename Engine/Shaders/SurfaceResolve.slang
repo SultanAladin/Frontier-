@@ -161,6 +161,16 @@ void main()
             if (dot(ShadingNormal, Normal) < 0.0) ShadingNormal = -ShadingNormal;
         }
     }
+    else
+    {
+        // Background: carry the pixel's own ray out to a far point, so a sky consumer that only has the
+        //    position image (DistanceFieldGIResolve's miss branch) recovers the view direction per pixel
+        //    rather than one constant toward the origin — the dome was a flat colour without this.
+        CameraBasis Camera;
+        Camera.Origin = CameraOrigin.xyz; Camera.Forward = CameraForward.xyz; Camera.Right = CameraRight.xyz; Camera.Up = CameraUp.xyz;
+        Camera.TanHalfFov = CameraForward.w; Camera.Aspect = CameraRight.w;
+        Position = CameraOrigin.xyz + GeneratePrimaryDirection(Camera, Pixel, Jitter.zw, Extent.xy) * 1.0e4;
+    }
 
     imageStore(SurfaceImage, ivec2(Pixel), vec4(Position, uintBitsToFloat(Visibility)));
     imageStore(NormalImage,  ivec2(Pixel), vec4(Normal, 0.0));
