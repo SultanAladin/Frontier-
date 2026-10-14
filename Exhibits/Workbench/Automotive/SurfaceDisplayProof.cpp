@@ -19,9 +19,11 @@
 #include "SurfaceDisplay/DisplayTouchProjection.h"
 #include "SurfaceDisplay/TabletScreenSequence.h"
 
+#include <algorithm>
 #include <cmath>
 #include <cstdio>
 #include <string>
+#include <vector>
 
 using namespace Frontier;
 
@@ -148,6 +150,54 @@ int main(int ArgumentCount, char** Arguments)
         Save(Sheet, Output + "/Cluster_" + H.Name + ".png");
         Cluster.AssignReading(Dials);
         Check(!Cluster.Raster(), (std::string("unchanged reading does not re-raster: ") + H.Name).c_str());
+    }
+
+    // ── power-on sequence: deterministic frames, a dark glass first, touch ignored, the launcher revealed at the end ──
+    {
+        (void)Tablet.PresentAspect(0.30f / 0.19f, 1.0f);
+        Tablet.PresentHome();
+        (void)Tablet.Raster();
+        const DisplaySheetStructure& Sheet = Tablet.QuerySheet();
+        auto Mean = [&]() {
+            double Sum = 0.0; const uint8_t* T = Sheet.QueryTexels();
+            const size_t Count = static_cast<size_t>(Sheet.QueryWidth()) * Sheet.QueryHeight();
+            for (size_t I = 0u; I < Count; ++I, T += 4) Sum += (T[0] + T[1] + T[2]) / 3.0;
+            return Sum / std::max<size_t>(Count, 1u);
+        };
+        const double LauncherMean = Mean();
+        Tablet.BeginStartup(2.8f, 0x44415249u, "FRONTIER");
+        Check(Tablet.StartupActive(), "startup armed");
+        const float Stops[] = { 0.0f, 0.4f, 0.9f, 1.4f, 1.9f, 2.3f, 2.6f, 2.8f };
+        double FirstMean = 0.0; uint64_t LastRevision = Sheet.QueryRevision();
+        int Index = 0;
+        for (float Stop : Stops)
+        {
+            (void)Tablet.AdvanceStartup(10.0 + Stop);
+            const bool Changed = Tablet.Raster();
+            char Name[64]; std::snprintf(Name, sizeof(Name), "/Tablet_Startup_%02d.png", Index++);
+            Save(Sheet, Output + Name);
+            Check(Changed && Sheet.QueryRevision() > LastRevision, "startup frame re-rasters");
+            LastRevision = Sheet.QueryRevision();
+            if (Stop == 0.0f) FirstMean = Mean();
+            if (Stop == 0.9f)
+            {
+                // A tap during the boot does nothing: still on the launcher once the veil lifts.
+                DisplayTouchProjection Touch;
+                Tap(Tablet, Touch, 0.14f * Sheet.QueryWidth(), 0.50f * Sheet.QueryHeight());
+                Check(Tablet.QueryReading().Application == nullptr, "touch ignored while booting");
+            }
+        }
+        Check(!Tablet.StartupActive(), "startup ends at its duration");
+        Check(FirstMean < 6.0, "first startup frame is dark glass");
+        Check(std::fabs(Mean() - LauncherMean) < 0.5, "launcher revealed unchanged after startup");
+        // Determinism: the same frame of a fresh sequence rasters identically.
+        Tablet.BeginStartup(2.8f, 0x44415249u, "FRONTIER");
+        (void)Tablet.AdvanceStartup(20.0 + 1.4f); (void)Tablet.Raster();
+        std::vector<uint8_t> A(Sheet.QueryTexels(), Sheet.QueryTexels() + Sheet.QueryByteCount());
+        Tablet.BeginStartup(2.8f, 0x44415249u, "FRONTIER");
+        (void)Tablet.AdvanceStartup(30.0 + 1.4f); (void)Tablet.Raster();
+        Check(std::equal(A.begin(), A.end(), Sheet.QueryTexels()), "startup frame is deterministic in (seed, time)");
+        (void)Tablet.AdvanceStartup(40.0); (void)Tablet.Raster();
     }
 
     std::printf("%s (%d failures)\n", Failures == 0 ? "PASS" : "FAIL", Failures);

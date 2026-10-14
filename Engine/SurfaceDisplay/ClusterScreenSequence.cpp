@@ -124,12 +124,21 @@ bool ClusterScreenSequence::Raster() noexcept
     char Speed[16], Revolutions[16];
     std::snprintf(Speed, sizeof(Speed), "%d", static_cast<int>(std::lround(std::fabs(Reading.SpeedKph))));
     std::snprintf(Revolutions, sizeof(Revolutions), "%.1f", std::round(Reading.EngineRpm / 100.0f) / 10.0f);
-    RasterGauge(LeftCentre, Row, Radius, std::min(1.0f, std::fabs(Reading.SpeedKph) / Reading.SpeedLimitKph), kPi * 0.75f, kPi * 1.5f, "#8fd1ac", Speed);
-    RasterGauge(RightCentre, Row, Radius, std::min(1.0f, Reading.EngineRpm / Reading.RpmLimit), kPi * 0.75f, kPi * 1.5f, "#f0c27a", Revolutions);
+    // During power-on the needles sweep to full scale and back (the classic self-test), then hand over to the readings.
+    float SpeedFraction = std::min(1.0f, std::fabs(Reading.SpeedKph) / Reading.SpeedLimitKph);
+    float RpmFraction   = std::min(1.0f, Reading.EngineRpm / Reading.RpmLimit);
+    if (Startup.Active())
+    {
+        const float Sweep = std::sin(std::clamp((Startup.Progress() - 0.1f) / 0.75f, 0.0f, 1.0f) * kPi);
+        SpeedFraction = std::max(SpeedFraction, Sweep); RpmFraction = std::max(RpmFraction, Sweep);
+    }
+    RasterGauge(LeftCentre, Row, Radius, SpeedFraction, kPi * 0.75f, kPi * 1.5f, "#8fd1ac", Speed);
+    RasterGauge(RightCentre, Row, Radius, RpmFraction, kPi * 0.75f, kPi * 1.5f, "#f0c27a", Revolutions);
     (void)Raster_.Text(Reading.Gear, kClusterDesignWidth / 2.0f, Row + (Flat ? 24.0f : 30.0f), Flat ? 66.0f : 84.0f, C("#f2f6ef"), DisplayTextAlignment::Centre, DisplayTextWeight::Light);
     const bool Lit[4] = { Reading.AbsActive, Reading.TractionActive, Reading.OilWarning, Reading.LowBeam };
     for (int I = 0; I < 4; ++I)
         Raster_.FillCircle(kClusterDesignWidth / 2.0f - 90.0f + I * 60.0f, LampDown, 6.0f, C(Lit[I] ? Lamps[I][0] : "#3a2b26"));
+    if (Startup.Active()) Startup.Compose(Raster_, kClusterDesignWidth, DesignHeight);
     Raster_.AssignMask(nullptr);
     Sheet.Commit();
     Dirty = false;

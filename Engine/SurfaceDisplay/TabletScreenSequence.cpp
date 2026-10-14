@@ -774,6 +774,7 @@ bool TabletScreenSequence::Raster() noexcept
     default:                                  RasterLaunchpad(); break;
     }
     if (Values.Brightness < 100.0f) Raster_.Veil((100.0f - Values.Brightness) / 140.0f);
+    if (Startup.Active()) Startup.Compose(Raster_, PanelWidth, PanelHeight);
     Sheet.Commit();
     Dirty = false;
     return true;
@@ -902,6 +903,7 @@ void TabletScreenSequence::AdvanceSlider(const Region& R, float Across) noexcept
 
 void TabletScreenSequence::ForwardTouch(const DisplayTouchReading& Touch) noexcept
 {
+    if (Startup.Active()) return;   // the glass is booting: nothing under the finger yet
     // Sheet pixels → design units.
     const float Across = Touch.Across / Scale - OffsetAcross, Down = Touch.Down / Scale - OffsetDown;
     const Region* Contact = QueryContact(Across, Down);

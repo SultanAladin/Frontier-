@@ -115,7 +115,7 @@ tap while paused or stationary there.
 
 ## Deferred / known limits
 
-- Startup particle sequence and per-car tablet specifications beyond ControlVehicle.
+- Per-car tablet specifications beyond ControlVehicle. (The startup particle sequence landed 14 Oct 2026: `Engine/SurfaceDisplay/DisplayStartupSequence.{h,cpp}`, composed by both screen sequences, proof frames `VisualProof/SurfaceDisplay/Tablet_Startup_*.png`.)
 - The single-slot refresh waits on the graphics queue for the frame in flight; a fenced staging ring is the
   follow-up once measured on hardware.
 - Shape-mask edge anti-aliasing uses the sheet alpha; the quad outline itself is the hard clip.

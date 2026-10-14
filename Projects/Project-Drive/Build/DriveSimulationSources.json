@@ -19,6 +19,7 @@
     "Engine/SurfaceDisplay/DisplaySurfaceStructure.cpp",
     "Engine/SurfaceDisplay/DisplayTouchProjection.cpp",
     "Engine/SurfaceDisplay/DisplayMeshProjection.cpp",
+    "Engine/SurfaceDisplay/DisplayStartupSequence.cpp",
     "Engine/SurfaceDisplay/TabletScreenSequence.cpp",
     "Engine/SurfaceDisplay/ClusterScreenSequence.cpp"
   ]

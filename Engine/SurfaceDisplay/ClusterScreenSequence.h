@@ -12,6 +12,7 @@
 #pragma once
 
 #include "DisplayRasterProjection.h"
+#include "DisplayStartupSequence.h"
 #include "DisplaySurfaceStructure.h"
 
 #include <cstdint>
@@ -57,6 +58,11 @@ public:
     void AssignReading(const ClusterReading& Reading) noexcept;
     bool Raster() noexcept;
 
+    // Power-on sequence over the gauges (see DisplayStartupSequence); the needles sweep up and back meanwhile.
+    void BeginStartup(float DurationSeconds, uint32_t Seed, const char* Wordmark) noexcept { Startup.Begin(DurationSeconds, Seed, Wordmark, "#f0c27a"); Dirty = true; }
+    bool AdvanceStartup(double Seconds) noexcept { const bool Changing = Startup.Advance(Seconds); if (Changing) Dirty = true; return Changing; }
+    [[nodiscard]] bool StartupActive() const noexcept { return Startup.Active(); }
+
     [[nodiscard]] const DisplaySheetStructure& QuerySheet() const noexcept { return Sheet; }
     [[nodiscard]] DisplaySheetStructure&       AccessSheet()      noexcept { return Sheet; }
     [[nodiscard]] bool                         IsDirty()  const noexcept { return Dirty; }
@@ -72,6 +78,7 @@ private:
     std::string              BackdropName, BackdropCaption;
     bool                     BackdropValid = false;
     DisplayRasterProjection  Raster_;
+    DisplayStartupSequence   Startup;
     TypefaceSheetCodec*      Faces[2] = { nullptr, nullptr };
     DisplayOutlineCategory   Outline = DisplayOutlineCategory::Hexagon;
     std::vector<DisplayPoint> SheetOutline, SheetOutlineInset;   // [design] outline paths for mask and rim

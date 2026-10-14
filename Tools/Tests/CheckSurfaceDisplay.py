@@ -30,7 +30,7 @@ Arguments.output.mkdir(parents=True, exist_ok=True)
 
 SurfaceDisplay = [f"Engine/SurfaceDisplay/{Name}.cpp" for Name in
                   ["DisplaySheetStructure", "TypefaceSheetCodec", "DisplayRasterProjection", "DisplaySurfaceStructure",
-                   "DisplayTouchProjection", "DisplayMeshProjection", "TabletScreenSequence", "ClusterScreenSequence"]]
+                   "DisplayTouchProjection", "DisplayMeshProjection", "DisplayStartupSequence", "TabletScreenSequence", "ClusterScreenSequence"]]
 Content = [Source for Source in json.loads((Root / "Projects/Project-Drive/Build/DriveContentSources.json").read_text())["sources"]
            if not Source.endswith("DriveContentHost.cpp")]
 

@@ -13,6 +13,7 @@
 #pragma once
 
 #include "DisplayRasterProjection.h"
+#include "DisplayStartupSequence.h"
 #include "DisplayTouchProjection.h"
 
 #include <cstdint>
@@ -96,6 +97,13 @@ public:
     [[nodiscard]] bool PresentApplication(const char* Identifier) noexcept;
     void AdvanceClock(int Hour, int Minute) noexcept;
 
+    // Power-on: the generic startup sequence runs over the launcher for Duration seconds from the first AdvanceStartup;
+    //    touches are ignored meanwhile. AdvanceStartup returns true while the sheet needs re-rastering for it.
+    void BeginStartup(float DurationSeconds, uint32_t Seed, const char* Wordmark) noexcept { Startup.Begin(DurationSeconds, Seed, Wordmark); Dirty = true; }
+    bool AdvanceStartup(double Seconds) noexcept { const bool Changing = Startup.Advance(Seconds); if (Changing) Dirty = true; return Changing; }
+    [[nodiscard]] bool StartupActive() const noexcept { return Startup.Active(); }
+    [[nodiscard]] const DisplayStartupSequence& QueryStartup() const noexcept { return Startup; }
+
     // Rasterises when dirty. Returns true when the sheet changed (its revision advanced).
     bool Raster() noexcept;
     [[nodiscard]] const DisplaySheetStructure& QuerySheet() const noexcept { return Sheet; }
@@ -173,6 +181,7 @@ private:
     DisplaySheetStructure    Background;               // cached wallpaper gradients (see RasterBackground)
     bool                     BackgroundValid = false, BackgroundLight = false;
     DisplayRasterProjection  Raster_;
+    DisplayStartupSequence   Startup;
     TypefaceSheetCodec*      Faces[3] = { nullptr, nullptr, nullptr };
     TabletPreviewSource*     Preview = nullptr;
     TabletReading            Reading;

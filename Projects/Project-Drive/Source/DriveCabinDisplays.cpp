@@ -68,6 +68,10 @@ bool DriveCabinDisplays::Construct(const std::string& FontDirectory, float ComRe
     (void)Tablet.PresentAspect(Screens[0].Fixture.Screen.Width / Screens[0].Fixture.Screen.Height, 1.0f);
     Cluster.AssignTypefaces(&Light, &Regular);
     (void)Cluster.PresentSurface(Screens[1].Surface, 1.5f);
+    // Ignition: both panels power on through the engine's startup sequence — the tablet a little longer than the
+    //    cluster, as a tablet boots slower than an instrument self-test; the seeds keep the two swarms distinct.
+    Tablet.BeginStartup(2.8f, 0x44415249u, "FRONTIER");
+    Cluster.BeginStartup(1.9f, 0x434c5553u, nullptr);
 
     // The Garage turntable: the authored shell with its family palette.
     {
@@ -160,7 +164,11 @@ void DriveCabinDisplays::Advance(const Frontier::Vehicle::ChassisState* Chassis,
         RasterPreview();
     }
 
-    if (Tablet.IsDirty() && Seconds - Screens[0].LastRaster >= kTabletInterval) { if (Tablet.Raster()) Screens[0].LastRaster = Seconds; }
+    // The startup sequences clock on the display time base and raster at the cluster's rate while they run.
+    (void)Tablet.AdvanceStartup(Seconds);
+    (void)Cluster.AdvanceStartup(Seconds);
+    const double TabletInterval = Tablet.StartupActive() ? kClusterInterval : kTabletInterval;
+    if (Tablet.IsDirty() && Seconds - Screens[0].LastRaster >= TabletInterval) { if (Tablet.Raster()) Screens[0].LastRaster = Seconds; }
     if (Cluster.IsDirty() && Seconds - Screens[1].LastRaster >= kClusterInterval) { if (Cluster.Raster()) Screens[1].LastRaster = Seconds; }
 }
 

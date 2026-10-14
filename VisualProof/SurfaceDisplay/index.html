@@ -58,6 +58,18 @@ runs the Android/iPhone-style touch state machine, and the launcher icon under t
 <figure><img src="Tablet_Design_Focus.png"><figcaption>Design: Focus.</figcaption></figure>
 <figure><img src="Tablet_Design_Collections.png"><figcaption>Design: Collections.</figcaption></figure>
 </div>
+<h2>Power-on sequence (DisplayStartupSequence, 2.8 s on the tablet, 1.9 s on the cluster)</h2>
+<p>Deterministic in (seed, time): particles gather into a ring, the wordmark fades up, the veil lifts off the launcher. Touches are ignored while it runs; the cluster sweeps its needles to full scale and back meanwhile.</p>
+<div class="grid">
+<figure><img src="Tablet_Startup_00.png"><figcaption>t = 0.0 s: dark glass, the scatter.</figcaption></figure>
+<figure><img src="Tablet_Startup_01.png"><figcaption>t = 0.4 s: the swarm starts in.</figcaption></figure>
+<figure><img src="Tablet_Startup_02.png"><figcaption>t = 0.9 s: swirling toward the ring (touch ignored).</figcaption></figure>
+<figure><img src="Tablet_Startup_03.png"><figcaption>t = 1.4 s: the ring closes, the wordmark fades up.</figcaption></figure>
+<figure><img src="Tablet_Startup_04.png"><figcaption>t = 1.9 s: settled.</figcaption></figure>
+<figure><img src="Tablet_Startup_05.png"><figcaption>t = 2.3 s: the veil lifts.</figcaption></figure>
+<figure><img src="Tablet_Startup_06.png"><figcaption>t = 2.6 s: launcher coming through.</figcaption></figure>
+<figure><img src="Tablet_Startup_07.png"><figcaption>t = 2.8 s: the launcher, unchanged.</figcaption></figure>
+</div>
 
 <h2>5 · Cluster outlines (static proof)</h2>
 <div class="g g3">
