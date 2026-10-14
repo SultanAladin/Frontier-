@@ -32,24 +32,6 @@ const uint kFeatureGlobalIllumination = 1u;    // bit 0: distance-field diffuse 
 // Reflection mode (Counts.w): 0 = Off, 1 = Sky. RT modes never enter this route.
 const uint kReflectOff = 0u, kReflectSky = 1u;
 
-// Horizon → zenith gradient about the sky ambient, plus a broad solar aureole. Roughness widens the lobe, which
-//    is what a prefiltered cube would have done for a glossy reflection.
-vec3 SkyAlongApprox(vec3 Direction, float Roughness)
-{
-    const vec3  up      = vec3(0.0, 0.0, 1.0);                       // world is RH Z-up, metres
-    const float height  = clamp(dot(Direction, up) * 0.5 + 0.5, 0.0, 1.0);
-    // SkyAmbient is the hemisphere's irradiance scale the transport uses as fill; the dome's RADIANCE seen directly
-    //    is a fraction of it (the raytraced path's atmosphere renders a mid-blue zenith and a bright, whiter
-    //    horizon at the same exposure — these factors were read off the two paths' CI captures side by side).
-    const vec3  zenith  = PC.SkyAmbient.xyz * 0.30;
-    const vec3  horizon = PC.SkyAmbient.xyz * vec3(0.75, 0.62, 0.48);
-    vec3 dome = mix(horizon, zenith, height * height);
-    const float sunCos  = clamp(dot(Direction, normalize(PC.SunDirectionRadiance.xyz)), 0.0, 1.0);
-    const float sharp   = mix(2048.0, 8.0, clamp(Roughness, 0.0, 1.0));
-    dome += PC.SunColour.xyz * PC.SunDirectionRadiance.w * pow(sunCos, sharp) * 0.02;
-    return dome;
-}
-
 // Half-resolution incident light, reconstructed before material evaluation and tone mapping.
 // Never borrow across placement identity, a silhouette or a different receiver plane.
 vec3 ReconstructIrradiance(ivec2 Pixel, vec3 Position, vec3 Normal, uint Visibility)
@@ -57,7 +39,7 @@ vec3 ReconstructIrradiance(ivec2 Pixel, vec3 Position, vec3 Normal, uint Visibil
     ivec2 Center=Pixel/2, Extent=min(imageSize(GatherIrradiance),(ivec2(PC.RenderExtent.xy)+1)/2);
     vec3 Sum=vec3(0.0);
     float Total=0.0;
-    // 5×5 half-resolution footprint (a 10-pixel radius at full resolution): the 4-sample gather is far too sparse
+    // 5×5 half-resolution footprint (a 10-pixel radius at full resolution): the 8-sample gather is far too sparse
     //    for a 3×3 to average, which is what showed as speckle on every dark surface. The geometry guards below
     //    keep the wider window from bleeding across silhouettes, placements or receiver planes.
     for (int Row=-2;Row<=2;++Row) for (int Column=-2;Column<=2;++Column)
@@ -77,7 +59,12 @@ vec3 ReconstructIrradiance(ivec2 Pixel, vec3 Position, vec3 Normal, uint Visibil
         Sum+=imageLoad(GatherIrradiance,Neighbor).xyz*Weight;
         Total+=Weight;
     }
-    return Total>0.0 ? Sum/Total : PC.SkyAmbient.xyz;
+    if (Total>0.0) return Sum/Total;
+    // 📝 No neighbour passed the geometry guards. The centre texel is this pixel's own gather, so use it
+    //    rather than the unoccluded sky: falling back to SkyAmbient here painted sky-bright speckles across
+    //    curved panels and silhouettes wherever the guards rejected the whole window.
+    vec4 Own=imageLoad(GatherIrradiance,clamp(Center,ivec2(0),Extent-1));
+    return imageLoad(GatherNormal,clamp(Center,ivec2(0),Extent-1)).w>0.0 ? Own.xyz : PC.SkyAmbient.xyz;
 }
 
 // Schlick Fresnel for the specular/reflection weight.
@@ -90,10 +77,9 @@ vec3 Fresnel(vec3 f0, float cosTheta){ float m = clamp(1.0 - cosTheta, 0.0, 1.0)
 //    lobes above the threshold see the dome alone — their reflection is the irradiance the gather already
 //    integrates, and a 20 m march per sample bought nothing visible there. This is the software (field) tier of
 //    reflections; mesh-exact reflections stay on the raytraced route.
-#if 0
 vec3 ReflectedRadiance(vec3 Position, vec3 GeometricNormal, vec3 Direction, float Roughness)
 {
-    if (Roughness > 0.55 || (uint(PC.Tuning.w + 0.5) & 0x100u) != 0u) return SkyAlongApprox(Direction, Roughness);
+    if (Roughness > 0.55) return SkyAlongApprox(Direction, Roughness);
     float Tolerance; uint Receiver;
     SampleSceneDistance(Position, Tolerance, Receiver);
     vec3 Origin = Position + GeometricNormal * max(Tolerance * 3.0, 0.003);
@@ -118,7 +104,6 @@ vec3 ReflectedRadiance(vec3 Position, vec3 GeometricNormal, vec3 Direction, floa
     return max(HitSurface.Emission, vec3(0.0)) + Diffuse * (Direct + Indirect);
 }
 
-#endif
 vec3 Reflection(vec3 Position, SurfaceFrame Surface, vec3 View, ShadingRecord Material, ResolvedLayers Layers, uint Mode)
 {
     if (Mode==kReflectOff || Material.SpecularWeight<=0.0) return vec3(0.0);
@@ -138,7 +123,7 @@ vec3 Reflection(vec3 Position, SurfaceFrame Surface, vec3 View, ShadingRecord Ma
             GgxVndfPdf(OutgoingAnisotropic,HalfDirection,Layers.HazeAlpha),Material.HazinessWeight) /
             (4.0*max(dot(OutgoingAnisotropic,HalfDirection),1e-6));
         vec3 Direction=Surface.Tangent*Incoming.x+Surface.Bitangent*Incoming.y+Surface.Normal*Incoming.z;
-        vec3 Incident=SkyAlongApprox(Direction,Material.SpecularRoughness);   // BISECT: field reflections disconnected
+        vec3 Incident=ReflectedRadiance(Position,Surface.Geometric,Direction,Material.SpecularRoughness);
         Result+=Incident*EvaluateBaseSpecular(Material,Layers,Outgoing,Incoming)*Incoming.z/max(Density,1e-8);
     }
     return Result/float(Samples);
@@ -245,10 +230,15 @@ void main()
     uint debugView = uint(PC.Tuning.w + 0.5) & 0xFFu;
     if (debugView != 0u)
     {
+        // 📝 View 4 is the gather's own measured sky fraction, stored per gather texel by the gather pass:
+        //    1.0 is a fully unoccluded hemisphere, 0.0 is total occlusion. It replaces an irradiance ratio
+        //    that read near-white even where the march had found the body, and so hid the sky leak it was
+        //    built to expose.
+        ivec2 GatherPixel = clamp(pixel / 2, ivec2(0), min(imageSize(GatherIrradiance), (ivec2(PC.RenderExtent.xy) + 1) / 2) - 1);
         vec3 shown = debugView == 1u ? irradiance * 0.5 :
                      debugView == 2u ? directOnly :
                      debugView == 3u ? vec3(sunVisibility) / max(PC.SkyAmbient.w, 1e-4) :
-                                       vec3(dot(irradiance, vec3(1.0 / 3.0)) / max(dot(PC.SkyAmbient.xyz, vec3(1.0 / 3.0)), 1e-6)) / max(PC.SkyAmbient.w, 1e-4);
+                                       vec3(imageLoad(GatherIrradiance, GatherPixel).w) / max(PC.SkyAmbient.w, 1e-4);
         imageStore(LinearRadiance, pixel, vec4(shown, 1.0));
         imageStore(OutputImage, pixel, vec4(DisplayTransfer(shown), 1.0));
         return;

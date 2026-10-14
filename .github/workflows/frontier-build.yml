@@ -214,9 +214,6 @@ jobs:
           # Project-Drive runs the Distance Field GI path (preset 2). Same scene, same settings; the camera is pinned
           #    for the exterior and cockpit views (the car spawns at the origin facing +X; eye from DriveCabinLayout.h),
           #    the play capture leaves the camera to the project.
-          # Bisect of the simulate-transport fault (each a single change off the production configuration).
-          Capture bisect-simulate-5 5 --render-preset 2 --transport 2 --camera -7.0 -6.0 2.0 0.0 0.0 0.7
-          FRONTIER_GI_BUDGET=16384 FRONTIER_SDF_TOLERANCE_CAP=10 Capture bisect-allold 20 --render-preset 2 --transport 2 --camera -7.0 -6.0 2.0 0.0 0.0 0.7
           Capture sdf-gi-exterior    90 --render-preset 2 --transport 2 --camera -7.0 -6.0 2.0 0.0 0.0 0.7
           Capture sdf-gi-cockpit     90 --render-preset 2 --transport 2 --camera -0.2 0.42 1.12 2.8 0.42 0.47
           Capture sdf-gi-play        90 --render-preset 2 --transport 1
@@ -228,7 +225,6 @@ jobs:
           FRONTIER_GI_DEBUG=2 Capture sdf-gi-exterior-direct     60 --render-preset 2 --transport 2 --camera -7.0 -6.0 2.0 0.0 0.0 0.7
           FRONTIER_GI_DEBUG=3 Capture sdf-gi-exterior-sunvis     60 --render-preset 2 --transport 2 --camera -7.0 -6.0 2.0 0.0 0.0 0.7
           FRONTIER_GI_DEBUG=4 Capture sdf-gi-exterior-skyfrac    60 --render-preset 2 --transport 2 --camera -7.0 -6.0 2.0 0.0 0.0 0.7
-          rm -f Exhibits/Gallery/ProjectDrive/live/{sdf-gi-simulate,raster-simulate,restir-simulate}.*
           # Proper deflate (the host's writer stores raw scanlines) and a short log tail, so the branch commit stays small.
           python3 -m pip install --quiet pillow
           python3 - <<'PY'

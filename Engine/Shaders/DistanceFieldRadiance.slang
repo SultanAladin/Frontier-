@@ -25,7 +25,8 @@ void main()
     float Cosine=max(0.0,dot(Normal,normalize(PC.SunDirectionRadiance.xyz)));
     float Visibility=PC.SunDirectionRadiance.w>0.0 && Cosine>0.0 ? DistanceShadow(Position,CardNormal(Facet,Facets[Facet].Normal.xyz)) : 1.0;
     vec3 Direct=PC.SunColour.xyz*PC.SunDirectionRadiance.w*Cosine*Visibility/3.14159265359;
-    vec3 Indirect=GatherDistanceRadiance(Position,Normal,false)*Emission.w;
+    float SkyFraction;
+    vec3 Indirect=GatherDistanceRadiance(Position,Normal,false,SkyFraction)*Emission.w;
     vec3 Radiance=Emission.xyz+Diffuse*(Direct+Indirect);
     float Weight=PC.Tuning.z>0.5 ? 1.0 : 0.25;
     imageStore(NextRadiance,Pixel,vec4(mix(imageLoad(PreviousRadiance,Pixel).xyz,min(Radiance,vec3(65504.0)),Weight),1.0));

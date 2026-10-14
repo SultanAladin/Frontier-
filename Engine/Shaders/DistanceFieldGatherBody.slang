@@ -30,7 +30,10 @@ void main()
     ShadingRecord Material=ResolveMaterial(Materials[Placement.MaterialIndex],Placement,Packed&0x3FFFu,
         Surface.xyz,View,length(PC.CameraEye.xyz-Surface.xyz)*0.0015,Frame);
     if (dot(Frame.Normal,View)<=0.0 || dot(Frame.Emission,Frame.Emission)>0.0) return;
-    vec3 Incoming=GatherDistanceRadiance(Surface.xyz,Frame.Normal,true);
-    imageStore(GatherIrradiance,Pixel,vec4(clamp(Incoming,vec3(0.0),vec3(65504.0)),1.0));
+    float SkyFraction;
+    vec3 Incoming=GatherDistanceRadiance(Surface.xyz,Frame.Normal,true,SkyFraction);
+    // 📝 The alpha channel carries the gather's measured sky fraction (missed directions / directions cast),
+    //    so the resolve's diagnostic view shows occlusion itself, not an irradiance ratio in disguise.
+    imageStore(GatherIrradiance,Pixel,vec4(clamp(Incoming,vec3(0.0),vec3(65504.0)),SkyFraction));
     imageStore(GatherNormal,Pixel,vec4(Frame.Normal,1.0));
 }

@@ -33,6 +33,51 @@ CPU showcase images below remain CPU proofs; they are not GPU startup screenshot
 
 The following upstream sections describe design targets; the implementation and limits above take precedence.
 
+## Image-quality repair — 2026-10-14
+
+The Project-Drive live captures (`Exhibits/Gallery/ProjectDrive/live/sdf-gi-*.png`, lavapipe) still read as
+washed, speckled and flat against the ReSTIR capture of the same scene. Diagnosis, in the order it was
+established:
+
+- Direct light is not the problem. The `sdf-gi-exterior-direct` and `-sunvis` diagnostic captures are crisp:
+  checker, sun shadow and materials resolve correctly there. The fault sits in the indirect estimate.
+- The screen gather was a single-frame estimator with no accumulation: 4 cosine directions per half-resolution
+  texel, a per-pixel seed that never changes, and a 5x5 reconstruction. That is the frozen sandpaper grain on
+  the cockpit and editor captures.
+- The sphere march exhausted its 32 steps before reaching occluders at grazing angles. A CPU mirror of the
+  shipped march (same lattice construction, same step rule) run on the authored Drive geometry measured,
+  for cosine-distributed directions: beside the car 0.102 field hits against 0.189 exact ray hits; under the
+  body 0.920 against 0.957. Sky leaked through the missing third, so contact occlusion washed out.
+- A missed gather direction returned the flat sky ambient at full strength, while the sky a view ray sees is
+  the dome at 0.30-0.75 of that scale. Indirect light was therefore too bright and too blue everywhere.
+- The resolve's reconstruction fell back to that same unoccluded ambient wherever its geometry guards
+  rejected the whole 5x5 window, painting sky-bright speckles on curved panels.
+- The field-traced reflection tier stood disconnected behind `#if 0` (a bisect remnant), so metallic paint
+  and glass received only the flat ambient specular term and read as grey plastic or black.
+- The old sky-fraction diagnostic divided irradiance by the ambient and read near-white even where the march
+  had found the body; it could not show any of the above.
+- The fields themselves are coarse: a 64-cell lattice cap and a 0.10 m cell floor put a 0.11 m speed bump at
+  one voxel and the march tolerance at 0.02 m. That caps quality; it is not what made the image broken.
+
+Repairs landed with this note:
+
+- `DistanceFieldTransport`: the march runs 64 steps at 0.85 relaxation with a minimum advance of half the
+  surface tolerance (mirror: 0.166 beside the car, 0.955 under the body, at ~40 steps average). A missed
+  direction now returns the sky dome (`SkyAlongApprox`, shared with the resolve) instead of the flat ambient.
+  The screen gather casts 8 directions, a card relight 4, and the gather reports its measured sky fraction.
+- `DistanceFieldGIResolve`: field-traced reflections are reconnected; the reconstruction falls back to the
+  pixel's own gather texel instead of the unoccluded sky; diagnostic view 4 shows the measured sky fraction.
+- `DistanceFieldStructure`: fields are sampled at a 0.05 m target on a 128-cell cap (artifact revision 3).
+  Features under ~0.05 m and double-sided shells thinner than the old 0.10 m cell still cannot be represented;
+  that remains the tier's stated ceiling, with mesh-exact transport on the raytraced route.
+- The bisect scaffolding is removed: no `FRONTIER_GI_BUDGET` / `FRONTIER_SDF_TOLERANCE_CAP` /
+  `FRONTIER_GI_REFLECT` hooks, no bisect captures in CI.
+
+Still open after this repair: the temporal history and a-trous route tried and reverted earlier on
+2026-10-14 stays reverted — the single-frame estimator is less noisy at 8 directions, not noise-free.
+The transport-1/2 captures on lavapipe also end in a worker-thread fault after the capture writes; whether
+that is this stage or the vehicle simulation is still unproven, and it is not chased here.
+
 ---
 
 ## 1. Architectural Motivation & Render Mode Taxonomy

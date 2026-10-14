@@ -20,9 +20,9 @@ namespace Frontier
 namespace
 {
 constexpr uint64_t kDistanceSignature = 0x32464453544E5246ull; // FRNTSDF2, little-endian IEEE binary32
-constexpr uint32_t kDistanceRevision = 2u;
-constexpr uint32_t kMaximumDimension = 64u;
-constexpr float kMinimumCell = 0.10f;                         // [m] import-time local sampling target
+constexpr uint32_t kDistanceRevision = 3u;                    // [-] 3: the 0.05 m sampling target below; a revision-2 artifact's lattice no longer matches its header
+constexpr uint32_t kMaximumDimension = 128u;
+constexpr float kMinimumCell = 0.05f;                         // [m] import-time local sampling target
 
 struct DistanceFieldFileRecord
 {
@@ -407,8 +407,7 @@ bool DistanceFieldStructure::ProjectPlacement(uint32_t Slot, const InstanceRecor
     //    at the 64-cell cap has 0.6 m cells, and a 0.21 m tolerance lifted every gather ray's origin 0.63 m off the
     //    ground — above the underside of a car — so the sky leaked under everything (CI capture
     //    sdf-gi-exterior-skyfrac, before). Capped, the ground's own trilinear plane is still exact.
-    static const float ToleranceCap = []{ const char* Value = std::getenv("FRONTIER_SDF_TOLERANCE_CAP"); return Value ? static_cast<float>(std::atof(Value)) : 0.04f; }();   // CI bisect hook
-    Placement.Maximum[3] = std::clamp(MinimumCell * Placement.Minimum[3] * 0.35f, 0.002f, std::max(ToleranceCap, 0.002f));
+    Placement.Maximum[3] = std::clamp(MinimumCell * Placement.Minimum[3] * 0.35f, 0.002f, 0.04f);
     for (uint32_t Axis = 0u; Axis < 3u; ++Axis)
     {
         Placement.WorldMinimum[Axis] = std::numeric_limits<float>::max();

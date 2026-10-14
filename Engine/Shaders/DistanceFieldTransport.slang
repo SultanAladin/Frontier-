@@ -152,6 +152,26 @@ float SurfaceCoverage(uint Facet, vec3 Position)
     return imageLoad(SurfaceNormal, Pixel).w;
 }
 
+// Horizon → zenith gradient about the sky ambient, plus a broad solar aureole. Roughness widens the lobe, which
+//    is what a prefiltered cube would have done for a glossy reflection. This is the radiance a ray that leaves
+//    the fields actually sees: a gather sample that misses must return this dome, never the flat ambient, or
+//    every unoccluded point is lit as if the whole hemisphere were zenith-bright and the image washes blue.
+vec3 SkyAlongApprox(vec3 Direction, float Roughness)
+{
+    const vec3  up      = vec3(0.0, 0.0, 1.0);                       // world is RH Z-up, metres
+    const float height  = clamp(dot(Direction, up) * 0.5 + 0.5, 0.0, 1.0);
+    // SkyAmbient is the hemisphere's irradiance scale the transport uses as fill; the dome's RADIANCE seen directly
+    //    is a fraction of it (the raytraced path's atmosphere renders a mid-blue zenith and a bright, whiter
+    //    horizon at the same exposure — these factors were read off the two paths' CI captures side by side).
+    const vec3  zenith  = PC.SkyAmbient.xyz * 0.30;
+    const vec3  horizon = PC.SkyAmbient.xyz * vec3(0.75, 0.62, 0.48);
+    vec3 dome = mix(horizon, zenith, height * height);
+    const float sunCos  = clamp(dot(Direction, normalize(PC.SunDirectionRadiance.xyz)), 0.0, 1.0);
+    const float sharp   = mix(2048.0, 8.0, clamp(Roughness, 0.0, 1.0));
+    dome += PC.SunColour.xyz * PC.SunDirectionRadiance.w * pow(sunCos, sharp) * 0.02;
+    return dome;
+}
+
 struct DistanceRayHit { float Travel; uint Facet; };
 DistanceRayHit TraceDistanceField(vec3 Origin, vec3 Direction, float Maximum)
 {
@@ -160,7 +180,11 @@ DistanceRayHit TraceDistanceField(vec3 Origin, vec3 Direction, float Maximum)
     Hit.Facet = 0xFFFFFFFFu;
     float Travel = 0.002;
     // Deliberately bounded diffuse-GI approximation. No exact-triangle fallback, world BVH or clipmap construction.
-    for (uint Step = 0u; Step < 32u && Travel < Maximum; ++Step)
+    // 📝 64 steps, and the minimum advance is half the surface tolerance, not one and a half times it: at
+    //    32 steps a grazing ray beside the car exhausted its budget in open field and reported sky where an exact
+    //    ray hits the body (CPU mirror of this march on the Drive scene: 0.102 hits against 0.189 exact beside
+    //    the car; 64 steps at 0.85 relaxation measure 0.166, and 0.955 against 0.957 exact under the body).
+    for (uint Step = 0u; Step < 64u && Travel < Maximum; ++Step)
     {
         float Tolerance;
         uint Facet;
@@ -173,7 +197,7 @@ DistanceRayHit TraceDistanceField(vec3 Origin, vec3 Direction, float Maximum)
             Hit.Facet = Facet;
             return Hit;
         }
-        Travel += max(Distance * 0.75, Tolerance * 1.5);
+        Travel += max(Distance * 0.85, Tolerance * 0.5);
     }
     return Hit;
 }
@@ -205,7 +229,7 @@ uint ScrambleSample(uint Sequence)
     return Sequence ^ (Sequence >> 16u);
 }
 
-vec3 GatherDistanceRadiance(vec3 Position, vec3 Normal, bool Current)
+vec3 GatherDistanceRadiance(vec3 Position, vec3 Normal, bool Current, out float SkyFraction)
 {
     float Tolerance;
     uint Receiver;
@@ -213,20 +237,26 @@ vec3 GatherDistanceRadiance(vec3 Position, vec3 Normal, bool Current)
     vec3 Origin = Position + Normal * max(Tolerance * 3.0, 0.003);
     uint Seed = ScrambleSample(gl_GlobalInvocationID.x) ^ ScrambleSample(gl_GlobalInvocationID.y + 0x9e3779b9u);
     vec2 Shift = vec2(ScrambleSample(Seed), ScrambleSample(Seed + 1u)) / 4294967296.0;
-    uint SampleCount = Current ? 4u : 2u;
+    // 📝 The screen gather is a single-frame estimator — there is no temporal history on this route — so its
+    //    sample count is the whole variance budget: 8 cosine-stratified directions at half resolution, and 4
+    //    for a card relight, whose Jacobi blend over frames averages further visits on top.
+    uint SampleCount = Current ? 8u : 4u;
+    uint SkyCount = 0u;
     vec3 Result = vec3(0.0);
     // Firefly ceiling. A diffuse card can return at most albedo/π of the sun's irradiance (≈0.32 × SunColour) plus
-    //    sky; a single sample above that is a card-footprint/mip mismatch, not light, and with 4 samples one such
-    //    tap paints a white speck on a dark bonnet. Clamped per sample, before the mean.
+    //    sky; a single sample above that is a card-footprint/mip mismatch, not light, and with few samples one
+    //    such tap paints a white speck on a dark bonnet. Clamped per sample, before the mean.
     vec3 Ceiling = max(PC.SunColour.xyz * 0.4, PC.SkyAmbient.xyz * 6.0);
     for (uint Sample = 0u; Sample < SampleCount; ++Sample)
     {
         vec3 Direction = HemisphereDirection(Normal, Sample, SampleCount, Shift);
         DistanceRayHit Hit = TraceDistanceField(Origin, Direction, 20.0);
-        vec3 Radiance = Hit.Facet == 0xFFFFFFFFu ? PC.SkyAmbient.xyz :
+        if (Hit.Facet == 0xFFFFFFFFu) ++SkyCount;
+        vec3 Radiance = Hit.Facet == 0xFFFFFFFFu ? SkyAlongApprox(Direction, 1.0) :
                         SampleCachedRadiance(Hit.Facet, Origin + Direction * Hit.Travel, Current);
         Result += min(Radiance, Ceiling);
     }
+    SkyFraction = float(SkyCount) / float(SampleCount);
     return Result / float(SampleCount);
 }
 #endif
