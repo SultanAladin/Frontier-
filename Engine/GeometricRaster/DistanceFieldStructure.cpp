@@ -406,9 +406,10 @@ bool DistanceFieldStructure::ProjectPlacement(uint32_t Slot, const InstanceRecor
     // The march's surface tolerance, world metres. A third of the finest cell, bounded above: a 480 m ground slab
     //    at the 64-cell cap has 0.6 m cells, and a 0.21 m tolerance lifted every gather ray's origin 0.63 m off the
     //    ground — above the underside of a car — so the sky leaked under everything (CI capture
-    //    sdf-gi-exterior-skyfrac, before). Capped, the ground's own trilinear plane is still exact.
-    static const float ToleranceCap = []{ const char* Value = std::getenv("FRONTIER_SDF_TOLERANCE_CAP"); return Value ? static_cast<float>(std::atof(Value)) : 0.04f; }();   // CI bisect hook
-    Placement.Maximum[3] = std::clamp(MinimumCell * Placement.Minimum[3] * 0.35f, 0.002f, std::max(ToleranceCap, 0.002f));
+    //    sdf-gi-exterior-skyfrac, before). Capped, the ground's own trilinear plane is still exact. (This cap is
+    //    production configuration now; the environment override it briefly carried was a CI bisect hook.)
+    constexpr float kMarchToleranceCap = 0.04f;   // [m]
+    Placement.Maximum[3] = std::clamp(MinimumCell * Placement.Minimum[3] * 0.35f, 0.002f, kMarchToleranceCap);
     for (uint32_t Axis = 0u; Axis < 3u; ++Axis)
     {
         Placement.WorldMinimum[Axis] = std::numeric_limits<float>::max();

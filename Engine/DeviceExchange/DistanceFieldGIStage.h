@@ -142,6 +142,11 @@ class DistanceFieldGIStage
     void                   RetireCardImages(uint32_t First);
     bool                   ConstructPipelines();
     bool                   WriteDescriptors();
+    // 📝 Card-space images 0..4 (radiance pair, captured diffuse/normal/emission), then screen-space images at
+    //    half resolution: 5/6 the frame's gather and its geometry guide, 7/8/9 the accumulated gather the next
+    //    frame validates against, 10 the surface record (position, placement) the gather writes for that copy.
+    static constexpr uint32_t CardImageCount = 11u;
+
     DistanceFieldStageInit Initialization{};
     VkBuffer               Buffers[6]{};
     VkDeviceMemory         Memory[6]{};
@@ -156,9 +161,9 @@ class DistanceFieldGIStage
     float                  TimestampPeriod = 0.0f;
     bool                   RecordedSlots[3]{};
     float                  GpuDurations[4]{};
-    VkImage                CardImages[7]{};
-    VkImageView            CardViews[7]{};
-    VkDeviceMemory         CardStorage[7]{};
+    VkImage                CardImages[CardImageCount]{};
+    VkImageView            CardViews[CardImageCount]{};
+    VkDeviceMemory         CardStorage[CardImageCount]{};
     uint32_t               CardWidth = 0u, CardHeight = 0u;
     bool                   CardImagesInitialized = false;
     bool                   ScreenImagesInitialized = false;

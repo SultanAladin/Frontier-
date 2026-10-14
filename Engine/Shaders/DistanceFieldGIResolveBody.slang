@@ -32,23 +32,8 @@ const uint kFeatureGlobalIllumination = 1u;    // bit 0: distance-field diffuse 
 // Reflection mode (Counts.w): 0 = Off, 1 = Sky. RT modes never enter this route.
 const uint kReflectOff = 0u, kReflectSky = 1u;
 
-// Horizon → zenith gradient about the sky ambient, plus a broad solar aureole. Roughness widens the lobe, which
-//    is what a prefiltered cube would have done for a glossy reflection.
-vec3 SkyAlongApprox(vec3 Direction, float Roughness)
-{
-    const vec3  up      = vec3(0.0, 0.0, 1.0);                       // world is RH Z-up, metres
-    const float height  = clamp(dot(Direction, up) * 0.5 + 0.5, 0.0, 1.0);
-    // SkyAmbient is the hemisphere's irradiance scale the transport uses as fill; the dome's RADIANCE seen directly
-    //    is a fraction of it (the raytraced path's atmosphere renders a mid-blue zenith and a bright, whiter
-    //    horizon at the same exposure — these factors were read off the two paths' CI captures side by side).
-    const vec3  zenith  = PC.SkyAmbient.xyz * 0.30;
-    const vec3  horizon = PC.SkyAmbient.xyz * vec3(0.75, 0.62, 0.48);
-    vec3 dome = mix(horizon, zenith, height * height);
-    const float sunCos  = clamp(dot(Direction, normalize(PC.SunDirectionRadiance.xyz)), 0.0, 1.0);
-    const float sharp   = mix(2048.0, 8.0, clamp(Roughness, 0.0, 1.0));
-    dome += PC.SunColour.xyz * PC.SunDirectionRadiance.w * pow(sunCos, sharp) * 0.02;
-    return dome;
-}
+// 📝 The sky dome (SkyAlongApprox) is defined once in DistanceFieldTransport.slang, which this body includes:
+//    the resolve's background and reflections and the gather's missed rays all read the same dome.
 
 // Half-resolution incident light, reconstructed before material evaluation and tone mapping.
 // Never borrow across placement identity, a silhouette or a different receiver plane.
@@ -77,7 +62,13 @@ vec3 ReconstructIrradiance(ivec2 Pixel, vec3 Position, vec3 Normal, uint Visibil
         Sum+=imageLoad(GatherIrradiance,Neighbor).xyz*Weight;
         Total+=Weight;
     }
-    return Total>0.0 ? Sum/Total : PC.SkyAmbient.xyz;
+    // No neighbour described this surface (silhouette texels, grazing normal-mapped points): fall back to the
+    //    texel under the pixel itself, and only where even that is empty to the dome about the receiver's own
+    //    normal. The flat ambient this used to return painted full sky onto exactly the occluded edge pixels
+    //    that had earned no sky at all.
+    if (Total>0.0) return Sum/Total;
+    vec3 Own=imageLoad(GatherIrradiance,clamp(Center,ivec2(0),Extent-1)).xyz;
+    return dot(Own,Own)>0.0 ? Own : SkyAlongApprox(Normal,1.0);
 }
 
 // Schlick Fresnel for the specular/reflection weight.
@@ -90,10 +81,9 @@ vec3 Fresnel(vec3 f0, float cosTheta){ float m = clamp(1.0 - cosTheta, 0.0, 1.0)
 //    lobes above the threshold see the dome alone — their reflection is the irradiance the gather already
 //    integrates, and a 20 m march per sample bought nothing visible there. This is the software (field) tier of
 //    reflections; mesh-exact reflections stay on the raytraced route.
-#if 0
 vec3 ReflectedRadiance(vec3 Position, vec3 GeometricNormal, vec3 Direction, float Roughness)
 {
-    if (Roughness > 0.55 || (uint(PC.Tuning.w + 0.5) & 0x100u) != 0u) return SkyAlongApprox(Direction, Roughness);
+    if (Roughness > 0.55) return SkyAlongApprox(Direction, Roughness);
     float Tolerance; uint Receiver;
     SampleSceneDistance(Position, Tolerance, Receiver);
     vec3 Origin = Position + GeometricNormal * max(Tolerance * 3.0, 0.003);
@@ -118,7 +108,6 @@ vec3 ReflectedRadiance(vec3 Position, vec3 GeometricNormal, vec3 Direction, floa
     return max(HitSurface.Emission, vec3(0.0)) + Diffuse * (Direct + Indirect);
 }
 
-#endif
 vec3 Reflection(vec3 Position, SurfaceFrame Surface, vec3 View, ShadingRecord Material, ResolvedLayers Layers, uint Mode)
 {
     if (Mode==kReflectOff || Material.SpecularWeight<=0.0) return vec3(0.0);
@@ -138,7 +127,7 @@ vec3 Reflection(vec3 Position, SurfaceFrame Surface, vec3 View, ShadingRecord Ma
             GgxVndfPdf(OutgoingAnisotropic,HalfDirection,Layers.HazeAlpha),Material.HazinessWeight) /
             (4.0*max(dot(OutgoingAnisotropic,HalfDirection),1e-6));
         vec3 Direction=Surface.Tangent*Incoming.x+Surface.Bitangent*Incoming.y+Surface.Normal*Incoming.z;
-        vec3 Incident=SkyAlongApprox(Direction,Material.SpecularRoughness);   // BISECT: field reflections disconnected
+        vec3 Incident=ReflectedRadiance(Position,Surface.Geometric,Direction,Material.SpecularRoughness);
         Result+=Incident*EvaluateBaseSpecular(Material,Layers,Outgoing,Incoming)*Incoming.z/max(Density,1e-8);
     }
     return Result/float(Samples);
