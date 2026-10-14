@@ -111,7 +111,8 @@ void FacetSurface(uint Facet, vec3 Position, out vec3 Albedo, out vec3 Emission,
 
 vec3 ReflectedRadiance(vec3 Position, vec3 GeometricNormal, vec3 Direction, float Roughness)
 {
-    if (Roughness > 0.55) return SkyAlongApprox(Direction, Roughness);
+    // TEMPORARY fault probe (FRONTIER_GI_DEBUG=99): reflections reduced to the dome. Remove with the probes.
+    if (PC.Tuning.w > 90.0 || Roughness > 0.55) return SkyAlongApprox(Direction, Roughness);
     float Tolerance; uint Receiver;
     SampleSceneDistance(Position, Tolerance, Receiver);
     vec3 Origin = Position + GeometricNormal * max(Tolerance * 3.0, 0.003);
