@@ -1,0 +1,22 @@
+[Startup] CSV: Build/Diagnostics/startup-1791964946336.csv
+[Startup] main t=0.110277ms phase=-1ms rss=23.707MiB peak=23.707MiB private_bytes=-1 payload=0B pid=5119
+[INFO] [Bootstrap] ProjectDrive windowed Frontier renderer starting.
+[Startup] BuiltInSceneReady t=2.01392ms phase=-1ms rss=24.5469MiB peak=24.5469MiB private_bytes=-1 payload=0B pid=5119
+[Startup] SceneDecode:begin t=2.0893ms phase=-1ms rss=24.6719MiB peak=24.6719MiB private_bytes=-1 payload=0B pid=5119
+[INFO] [Scene] DriveCourse.r7: 22168 triangles, 26 instances, 193 clusters, 21 materials, 1692 luminaires, bounds [-240.00 -240.00 -0.02]..[240.00 240.00 1.79] m
+[Startup] SceneDecode:end t=37.0002ms phase=34.8631ms rss=36.8594MiB peak=47.832MiB private_bytes=-1 payload=0B pid=5119
+[INFO] [Materials] Materials: 21 descriptors -> 21 records, 21 slabs (limit 1, 0 folded), 6 placements, 0 cameras, 0 punctual lights
+[Startup] TextureDecode:begin t=37.1652ms phase=-1ms rss=37.1953MiB peak=47.832MiB private_bytes=-1 payload=0B pid=5119
+[Startup] VulkanBringUp:begin t=37.2325ms phase=-1ms rss=37.2656MiB peak=47.832MiB private_bytes=-1 payload=0B pid=5119
+[Startup] CwbvhBuild:begin t=37.3067ms phase=-1ms rss=37.4648MiB peak=47.832MiB private_bytes=-1 payload=0B pid=5119
+[SwapchainExchange] Window created: 1280x720
+[GPU startup] Driver preparation may run on the CPU. Stage counts are milestones, not a compilation percentage.
+[GPU startup] STAGE 1/18 BEGIN BringInstance
+[GPU startup] Application-requested validation=OFF (externally injected layers are not audited here)
+[SwapchainExchange] glfwGetRequiredInstanceExtensions returned nothing - Vulkan surface extensions unavailable.
+[SwapchainExchange] Bring-up stopped at stage BringInstance.
+[FATAL] [Bootstrap] SwapchainExchange bring-up failed - see the [SwapchainExchange] lines above for the failing stage.
+
+ProjectDrive could not open its window. Press Enter to close this console.
+[Startup] CwbvhBuild:end t=72.7293ms phase=35.3506ms rss=77.1133MiB peak=99.2422MiB private_bytes=-1 payload=0B pid=5119
+[Startup] TextureDecode:end t=125.368ms phase=88.096ms rss=122.637MiB peak=149.371MiB private_bytes=-1 payload=0B pid=5119
