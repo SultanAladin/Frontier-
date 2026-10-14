@@ -194,12 +194,23 @@ public:
         float DriftX = 0.0f, DriftY = 0.0f;
         if (Cloud.FollowWind)
         {
-            float Drift[3] = { 0.0f, 0.0f, 0.0f };
-            WindField::SampleStep(Wind, Altitude, Drift);
-            // Parentheses are load-bearing: Drift *= (Time * 0.8) is the pre-split order, and the reassociated
-            //    (Drift * Time) * 0.8 rounds differently in the last ulp (caught by the split's proof test).
-            DriftX = Drift[0] * (Time * 0.8f);
-            DriftY = Drift[1] * (Time * 0.8f);
+            // BULK translation at the reference (mid-slab) altitude — uniform across height, so it slides the
+            //    deck rigidly and preserves its shape. GPU twin: WeatherMedia.slang::WeatherDrift.
+            const float MidSlab = (Base + Top) * 0.5f;
+            float Bulk[3] = { 0.0f, 0.0f, 0.0f };
+            WindField::SampleStep(Wind, MidSlab, Bulk);
+            // Parentheses are load-bearing: Bulk *= (Time * 0.8) is the pre-split order, and the reassociated
+            //    (Bulk * Time) * 0.8 rounds differently in the last ulp (caught by the split's proof test).
+            DriftX = Bulk[0] * (Time * 0.8f);
+            DriftY = Bulk[1] * (Time * 0.8f);
+            if (Wind.Advection > 0.5f)   // SHEAR mode: a bounded, coherent lean (time capped at 45 s)
+            {
+                float Local[3] = { 0.0f, 0.0f, 0.0f };
+                WindField::SampleStep(Wind, Altitude, Local);
+                const float Hold = (Time < 45.0f ? Time : 45.0f) * 0.8f;
+                DriftX += (Local[0] - Bulk[0]) * Hold;
+                DriftY += (Local[1] - Bulk[1]) * Hold;
+            }
         }
         // The field also EVOLVES, not merely slides: Time × EvolutionRate walks each octave through the noise
         //    at its own rate. Wind is both the wind and the stirring, which is why the rate reads it.

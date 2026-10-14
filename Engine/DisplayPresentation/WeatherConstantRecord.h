@@ -39,6 +39,7 @@ inline WeatherConstantRecord PackWeatherConstants(const CloudLayerSettings& C,
     //    (WeatherEvolve / VolumetricMedia::EvolutionRate) even on a still day, and a still day was exactly
     //    when the sky used to be a frozen photograph.
     if(Volumes)W[3][0]=Time;
+    W[3][2]=(MediaWinds?MediaWinds[0]:Wind).Advection;   // 0 translate / 1 shear (shared across media)
     (void)Moving;
     return R;
 }

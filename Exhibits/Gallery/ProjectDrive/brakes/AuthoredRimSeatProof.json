@@ -1,0 +1,23 @@
+{
+  "passed": true,
+  "cpuOnly": true,
+  "samples": 256,
+  "oldShoulderWidthAnchor": {
+    "beadHalfWidthM": 0.1979,
+    "maximumAuthoredSurfaceDistanceM": 0.04461857882346802,
+    "meanAuthoredSurfaceDistanceM": 0.04461802139197358
+  },
+  "correctedRimSeat": {
+    "beadHalfWidthM": 0.146446,
+    "maximumAuthoredSurfaceDistanceM": 0.00037895386085275303,
+    "meanAuthoredSurfaceDistanceM": 0.00029557036898226487
+  },
+  "method": "Nearest point on every authored rigid rim triangle; no visual radius adjustment.",
+  "limitations": "Small residual is authored polygon faceting; dynamic native/physical anchor measurements are recorded separately.",
+  "sourceSHA256": {
+    "Projects/Project-Drive/Source/ControlVehicleWheelMesh.inl": "55a19a1e7f7932d60ef47cdc2339fecd0b6f1ed5ca9f7311bea701862ca04edb",
+    "Engine/PhysicalDynamics/Vehicle/VehicleGeometry.h": "f3eca32b0abd8278b6f7d0b2a19a13b6d63d1ca918222762435239739f753310",
+    "Engine/PhysicalDynamics/Vehicle/XPBDSoftTyre.h": "9a1b751e8a0727771edc78cae2a0904a4414df9aae4ecbd227eec0270e8ce273",
+    "Tools/Tests/CheckDriveBead.py": "d59979c21c8909c265143f9982e21437a204dad8916e18ed276e2a9dfd3370b7"
+  }
+}

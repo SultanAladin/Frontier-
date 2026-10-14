@@ -1,0 +1,9 @@
+PASS sliding heat, three thermal lags, independent wheels and thermal balance: tread 126.91 C, carcass 21.09 C, gas 20.05 C, residual 0.000000584 J
+PASS adiabatic gas work, pressure response, airborne friction exclusion and transactional input refusal
+PASS hot gas feeds actual XPBD pressure without rebuilding particles or rest geometry
+PASS sustained-overheat ignition and fuel consumption; ignited airborne tyre can keep burning (low-threshold diagnostic fixture)
+PASS exact density, temperature and WORLD velocity preservation over three-axis integer shifts; obstruction invalidated, noise clock retained
+PASS on-demand acquisition, lingering plume, stop/start reuse, refused live resize and explicit release
+PASS quiet plume freezes world bounds, fades before release, retains heat-only volume and refuses nonfinite tuning
+PASS lateral-only wheel source, airborne friction exclusion, airborne combustion and no-slip support exclusion
+PASS host-owned on-demand C snapshot copying, paused revision reuse and transactional malformed-payload refusal

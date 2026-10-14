@@ -16,7 +16,7 @@ if not (R/'.cache/icon-art/release/libthorvg.a').exists():subprocess.run(['pytho
 base=json.loads((R/'Exhibits/Gallery/SunFullPanel/ReleaseCommands.json').read_text());template=base[0][:base[0].index('-c')]
 # Reconstruct the application syntax command from source paths, not a stale report
 # containing another machine's absolute checkout path.
-syntax=template+['-I'+str(T/'Engine'/d) for d in ['ContentInterchange','DeviceExchange','DisplayPresentation','Editor','GeometricRaster','PhysicalDynamics','PlatformInterchange','Shaders','SpatialInterface']]+['-I'+str(R/'.cache/vulkan-headers-sky/include'),'-I'+str(T/'Projects/Project-Dyno/Source'),'-fsyntax-only',str(T/'Projects/Project-Zero/Source/GameExecution.cpp')]
+syntax=template+['-I'+str(T/'Engine'/d) for d in ['ContentInterchange','DeviceExchange','DisplayPresentation','Editor','GeometricRaster','PhysicalDynamics','PlatformInterchange','Shaders','SpatialInterface']]+['-I'+str(R/'.cache/vulkan-headers-sky/include'),'-I'+str(T/'Projects/Project-Dyno/Source'),'-fsyntax-only',str(T/'Engine/Host/FrontierRuntime.cpp')]
 template+= [x for x in syntax if x.startswith('-I')]+['-I'+str(T/'Exhibits/Workbench/Editor/Counterparts'),'-I'+str(T/'ExternalPackages/thorvg/inc'),'-DTVG_STATIC','-pthread']
 template=[x for x in template if not x.startswith('-O')]+['-O1' if args.sanitize else '-O0' if args.debug else '-O2']
 if args.sanitize:template+=['-fsanitize=address,undefined','-fno-omit-frame-pointer']

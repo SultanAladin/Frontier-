@@ -80,6 +80,9 @@ function Import-ToolchainEnvironment
 
 Import-ToolchainEnvironment
 
+& python (Join-Path $RepositoryRoot 'Tools/Build/ProjectCodeSequence.py') --project Project-Zero --compiler cl.exe
+if ($LASTEXITCODE -ne 0) { throw 'ProjectZero code image build refused.' }
+
 #-------------------------------------------------------------------------------------------------------------------------
 #                                                 CPU REFERENCE SOURCES
 #-------------------------------------------------------------------------------------------------------------------------

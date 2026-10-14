@@ -237,7 +237,7 @@ constexpr MirrorMaterial kMirrorMats[9] =
 // The rows the ReSTIR viewport renders: one per object span of the traced scene (soil plus the hundred objects),
 //    seated under a "Showcase" folder, the fly camera under "Cameras", then the
 //    celestial page rows exactly as before. This is the same roster GameExecution seats from the level.
-uint32_t FillMirrorInstances(Frontier::EditorInstance* Instances, const Frontier::ProjectZero::RayTracingSolver& Scene) noexcept
+uint32_t FillMirrorInstances(Frontier::EditorInstance* Instances, const Frontier::HostRuntime::RayTracingSolver& Scene) noexcept
 {
     uint32_t N = 0u;
     auto Seat = [&](const char* Label, Frontier::EditorInstanceCategory Cat, uint32_t Depth, const float* Tint,
@@ -262,7 +262,7 @@ uint32_t FillMirrorInstances(Frontier::EditorInstance* Instances, const Frontier
     const auto& Tris  = Scene.QueryTriangles();
     for (const auto& Span : Spans)
     {
-        char Meta[24]; std::snprintf(Meta, sizeof(Meta), "%u tris", Span.TriangleCount);
+        char Meta[48]; std::snprintf(Meta, sizeof(Meta), "%u tris", Span.TriangleCount);
         const auto& M = Mats[Tris[Span.FirstTriangle].MaterialIndex];
         const bool Emissive = M.EmissiveRadiance.x + M.EmissiveRadiance.y + M.EmissiveRadiance.z > 0.0f;
         const float Tint[3] = { M.AlbedoColor.x, M.AlbedoColor.y, M.AlbedoColor.z };
@@ -474,9 +474,9 @@ int main()
 
     // The scene the ReSTIR viewport renders, traced here on the CPU (the Vulkan build runs the same estimator on
     //    the GPU) and handed to the Viewport panel as its texture.
-    Frontier::ProjectZero::RayTracingSolver Scene;
+    Frontier::HostRuntime::RayTracingSolver Scene;
     Scene.ConstructShowcaseScene();
-    Frontier::ProjectZero::FlyThroughSolver Camera;
+    Frontier::HostRuntime::FlyThroughSolver Camera;
     Camera.AssignSpatialLocation(Frontier::Vector3{ 0.0f, -14.0f, 2.2f });
     Camera.AssignOrientationEuler(-2.0f * 3.14159265f / 180.0f, 220.0f * 3.14159265f / 180.0f, 0.0f);
     constexpr uint32_t kViewW = 480u, kViewH = 300u;

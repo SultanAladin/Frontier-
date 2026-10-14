@@ -271,7 +271,11 @@ const std::array<VectorGlyphRecord, static_cast<size_t>(ControlCentreIconCategor
     // 38: CameraBody — lucide "video". The camera row; VideoRenderScale is already spoken for by the dashboard.
     VectorGlyphRecord{ "CameraBody", "M16 8a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2zM16 10l5.24-3.14a.5.5 0 0 1 .76.43v9.42a.5.5 0 0 1-.76.43L16 14", 24, 24, 2.0f },
     // 39: LayersSlabs — lucide "layers" (verbatim: top diamond + two chevron layers). The Materials hub row.
-    VectorGlyphRecord{ "LayersSlabs", "M12.83 2.18a2 2 0 0 0-1.66 0L2.6 6.08a1 1 0 0 0 0 1.83l8.58 3.91a2 2 0 0 0 1.66 0l8.58-3.9a1 1 0 0 0 0-1.83zM2 12a1 1 0 0 0 .58.91l8.6 3.91a2 2 0 0 0 1.65 0l8.58-3.9A1 1 0 0 0 22 12M2 17a1 1 0 0 0 .58.91l8.6 3.91a2 2 0 0 0 1.65 0l8.58-3.9A1 1 0 0 0 22 17", 24, 24, 2.0f }
+    VectorGlyphRecord{ "LayersSlabs", "M12.83 2.18a2 2 0 0 0-1.66 0L2.6 6.08a1 1 0 0 0 0 1.83l8.58 3.91a2 2 0 0 0 1.66 0l8.58-3.9a1 1 0 0 0 0-1.83zM2 12a1 1 0 0 0 .58.91l8.6 3.91a2 2 0 0 0 1.65 0l8.58-3.9A1 1 0 0 0 22 12M2 17a1 1 0 0 0 .58.91l8.6 3.91a2 2 0 0 0 1.65 0l8.58-3.9A1 1 0 0 0 22 17", 24, 24, 2.0f },
+    // 40: RaytracingBeam — custom glyph for the Raytracing tile. A sphere (the traced object), an incoming camera
+    //     ray striking its upper-left, a reflected bounce ray leaving down-left, and a transmitted ray exiting
+    //     down-right — the one-bounce path trace the tile turns on, distinct from Sparkles (anti-aliasing).
+    VectorGlyphRecord{ "RaytracingBeam", "M19 13a4 4 0 1 1-8 0 4 4 0 0 1 8 0zM2 3.5 11.7 10.3M12 10.5 3.5 20M18.3 16.2 22 21", 24, 24, 2.0f }
 };
 
 //------------------------------------------------------------------------------------------------------------------------

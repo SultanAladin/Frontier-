@@ -11,7 +11,7 @@ Run commands **from the repository root**. This is the current consolidated buil
 | Native editor CPU proof | Python 3.11+, Git, CMake 3.21+, Ninja, C++20 compiler; no GPU required | `python Tools/Bootstrap.py --profile proof` |
 | Project-Dyno (audio) | Python 3.11+, C++20 compiler; MSVC on Windows, g++/clang++ on Linux | `python Tools/Bootstrap.py --package miniaudio` |
 | Project-Fluid CPU tests | CMake 3.21+, Ninja, C++20 compiler | No external download for the CPU preset |
-| SolidArc standalone | CMake and C++20 compiler | See commands below |
+| SolidArc Windows GUI | MSVC x64, Windows SDK, Vulkan SDK, locked dependencies | Built with Frontier Release |
 | Browser experiment | Node.js 20.19+ and npm | `npm --prefix Experimental/FrontierEditor ci` |
 
 **Installed source != built library.** A downloaded GLFW, ThorVG or Jolt folder contains source. Project-Zero must also compile its `.lib`/DLL outputs. Re-downloading source does not fix a missing compiler, stale CMake cache, incompatible ISA or linker configuration.
@@ -74,17 +74,16 @@ bash Projects/Project-Dyno/Build/ToolchainSequence.sh
 
 No Vulkan, ImGui, ThorVG or GLFW installation is needed for this project. Linux output: `Projects/Project-Dyno/Build/Output/Linux/Release/Binary/Project-Dyno`. The Linux build was executed successfully when these instructions were added; Windows execution remains untested here.
 
-### Project-Fluid and SolidArc
+### Project-Fluid
 
 ```sh
 cmake --preset fluid-cpu
 cmake --build --preset fluid-cpu
 ctest --preset fluid-cpu
 
-cmake -S Editor/AuthoringTools/Modelling/SolidArc -B build/solidarc
-cmake --build build/solidarc --target SolidArc SolidArcVerification --parallel 3
-ctest --test-dir build/solidarc --output-on-failure
 ```
+
+SolidArc is a Windows D3D11 authoring window built automatically alongside a Development Release Frontier build. Use `Build/SolidArc/SolidArc.exe` or the viewport Add (+) → Authoring Tools → Open in SolidArc menu. The SolidArc standalone CMake route builds reusable libraries only; it does not create a console executable or run headless verifications. CI publishes a single `frontier-windows-desktop` artifact containing both applications and compiled shaders.
 
 GPU fluid is a separate path: [Fluid GPU testing](FluidGpuTesting.md).
 

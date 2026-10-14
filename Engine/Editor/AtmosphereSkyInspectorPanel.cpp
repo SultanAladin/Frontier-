@@ -1,5 +1,7 @@
 #include "AtmosphereSkyInspectorPanel.h"
 #include "ControlPanel.h"
+#include "CurvePanel.h"
+#include "EnvironmentProjection.h"
 #include "SkyBakePreview.h"
 #include "SunColourTemperature.h"
 #include "SunReferenceDraw.h"
@@ -89,55 +91,16 @@ void Update(SkyCache& C,const EditorSkyImage& Image){
     C.Source=Image.Pixels;C.Revision=Image.Revision;
     for(auto* T:{&C.Radiance,&C.Transmission,&C.FullSphere,&C.Profile})ImTextureDataQueueUpload(T,0,0,T->Width,T->Height);
 }
-// The original reference's wavelength curves. These are labelled illustrations, not bake data.
-void GradientQuad(Canvas C,ImVec2 A,ImVec2 B,ImVec2 CC,ImVec2 D,ImU32 CA,ImU32 CB,ImU32 CColour,ImU32 CD){
-    ImVec2 UV=ImGui::GetFontTexUvWhitePixel();C.D->PrimReserve(6,4);unsigned Base=C.D->_VtxCurrentIdx;
-    for(unsigned I:{0u,1u,2u,0u,2u,3u})C.D->PrimWriteIdx(ImDrawIdx(Base+I));
-    C.D->PrimWriteVtx(C.P(A.x,A.y),UV,CA);C.D->PrimWriteVtx(C.P(B.x,B.y),UV,CB);C.D->PrimWriteVtx(C.P(CC.x,CC.y),UV,CColour);C.D->PrimWriteVtx(C.P(D.x,D.y),UV,CD);
-}
-void Spectrum(Canvas C,float X,float Y,float Width,bool Scatter=false){
-    const ImU32 OzoneStops[]={Colour(138,116,185,.7f),Colour(117,151,201,.7f),Colour(155,183,160,.7f),Colour(201,180,125,.7f),Colour(192,134,129,.7f)};
-    const ImU32 ScatterStops[]={Colour(146,127,176,.65f),Colour(127,157,201,.65f),Colour(148,181,169,.65f),Colour(197,178,126,.65f),Colour(194,139,124,.65f)};
-    const float Offset[]={0,.25f,.5f,Scatter?.75f:.72f,1};const auto* Stops=Scatter?ScatterStops:OzoneStops;
-    for(int I=0;I<4;++I)C.D->AddRectFilledMultiColor(C.P(X+Width*Offset[I],Y),C.P(X+Width*Offset[I+1],Y+3),Stops[I],Stops[I+1],Stops[I+1],Stops[I]);
-}
-void Scattering(Canvas C,float Rayleigh,float Haze){
-    for(float Y:{35.f,80.f,125.f,170.f})C.Dash({24,Y},{595,Y},Colour(255,255,255,12/255.f),1,2,6);
-    for(float X:{24.f,167.f,310.f,452.f,595.f})C.Line({X,20},{X,181},Colour(255,255,255,7/255.f));
-    auto Bezier=[](ImVec2 A,ImVec2 B,ImVec2 CC,ImVec2 D,float T){float U=1-T;return ImVec2(U*U*U*A.x+3*U*U*T*B.x+3*U*T*T*CC.x+T*T*T*D.x,U*U*U*A.y+3*U*U*T*B.y+3*U*T*T*CC.y+T*T*T*D.y);};
-    std::array<ImVec2,81> Line;
-    for(int I=0;I<=80;++I){float T=I/40.f;Line[I]=I<=40?Bezier({24,160-Rayleigh*43},{135,160-Rayleigh*35},{150,148},{320,158},T):Bezier({320,158},{490,168},{510,171},{595,172},T-1);}
-    float MinimumY=181;for(auto P:Line)MinimumY=std::min(MinimumY,P.y);
-    auto Fill=[&](float Y){return Colour(145,175,210,.19f*(181-Y)/std::max(.001f,181-MinimumY));};
-    for(int I=1;I<=80;++I)GradientQuad(C,Line[I-1],Line[I],{Line[I].x,181},{Line[I-1].x,181},Fill(Line[I-1].y),Fill(Line[I].y),Fill(181),Fill(181));
-    C.Stroke(Line,Colour(161,185,216),2);
-    for(int I=0;I<=80;++I){float T=I/80.f,U=1-T;Line[I]={U*U*24+2*U*T*310+T*T*595,U*U*(170-Haze*1.1f)+2*U*T*(175-Haze*.9f)+T*T*(177-Haze*.7f)};}
-    C.Stroke(Line,Colour(204,186,149),1.2f,5,5);Spectrum(C,24,193,571,true);C.Text(24,218,"380 nm",Muted,10,false);C.Text(310,218,"Visible spectrum",Muted);C.Text(555,218,"780 nm",Muted,10,false);
-}
-void Haze(Canvas C,float Amount){
-    C.D->AddRectFilled(C.P(25,16),C.P(335,116),Colour(27,27,27),10*C.Scale);C.D->AddRect(C.P(25,16),C.P(335,116),Colour(255,255,255,11/255.f),10*C.Scale);
-    C.D->AddRectFilledMultiColor(C.P(25,16),C.P(335,116),Colour(202,184,156,0),Colour(202,184,156,Amount/450),Colour(202,184,156,Amount/450),Colour(202,184,156,0));
-    ImVec2 UV=ImGui::GetFontTexUvWhitePixel();C.D->PrimReserve(3,3);unsigned Base=C.D->_VtxCurrentIdx;
-    for(unsigned I:{0u,1u,2u})C.D->PrimWriteIdx(ImDrawIdx(Base+I));
-    C.D->PrimWriteVtx(C.P(34,67),UV,Colour(215,192,151,.42f));C.D->PrimWriteVtx(C.P(327,35),UV,Colour(215,192,151,.38f*std::exp(-Amount/22)));C.D->PrimWriteVtx(C.P(327,100),UV,Colour(215,192,151,.38f*std::exp(-Amount/22)));
-    for(int I=0;I<32;++I)C.Circle(float(50+I*53%275),float(28+I*31%75),.6f+I%3*.45f,Colour(214,193,157,Amount/200));
-    std::array<ImVec2,45> P;for(int I=0;I<45;++I)P[I]={35+I*6.5f,108-78*std::exp(-Amount/25*I/44)};C.Stroke(P,Colour(212,188,148),1.4f);C.Circle(35,67,4,Colour(237,219,184));C.Text(25,138,"LIGHT SOURCE",Muted,9,false);C.Text(268,138,"DISTANCE",Muted,9,false);
-}
-void Ozone(Canvas C,float Amount){
-    for(float Y:{36.f,77.f,118.f})C.Dash({22,Y},{338,Y},Colour(255,255,255,11/255.f),1,2,5);
-    C.Dash({22,36},{338,36},Colour(188,165,130,.5f),1,4,5);
-    std::array<ImVec2,81> P;for(int I=0;I<=80;++I){float T=I/80.f;P[I]={22+T*316,36+Amount*.78f*std::exp(-std::pow((T-.59f)/.23f,2.0f))};}
-    auto Fill=[&](float Y){return Colour(184,160,209,.2f-.18f*(Y-36)/std::max(.001f,Amount*.78f));};
-    for(int I=1;I<=80;++I)GradientQuad(C,{P[I-1].x,36},{P[I].x,36},P[I],P[I-1],Fill(36),Fill(36),Fill(P[I].y),Fill(P[I-1].y));
-    C.Stroke(P,Colour(190,163,221),1.6f);C.Circle(22+.59f*316,36+Amount*.78f,3.5f,Colour(216,195,237));C.Dash({22+.59f*316,42+Amount*.78f},{22+.59f*316,138},Colour(183,154,205,.25f),1,2,4);
-    Spectrum(C,22,142,316);C.Text(22,166,"380 nm",Muted,9,false);C.Text(180,166,"VISIBLE LIGHT",Muted,9);C.Text(301,166,"780 nm",Muted,9,false);
-}
+
 }
 void RecordAtmosphereSkyInspector(ControlPanel& Controls,EditorInstance&,EditorSheet& Sheet) noexcept {
     if(!Find(Sheet,"Rayleigh")||!Find(Sheet,"Fetch Baked Dome")){ImGui::TextUnformatted("Atmosphere / Sky properties unavailable");return;}
     auto& Cached=Cache();Update(Cached,Sheet.SkyImage);ImFont* Font=ImGui::GetFont();for(auto* F:ImGui::GetIO().Fonts->Fonts)if(std::strcmp(F->GetDebugName(),"Sun reference / regular")==0)Font=F;
     ImGui::PushFont(Font,14);float W=std::max(240.f,ImGui::GetContentRegionAvail().x-40);auto Origin=ImGui::GetCursorScreenPos();Origin.x+=20;Origin.y+=20;Panel U{Controls,Sheet,ImGui::GetWindowDrawList(),Origin,Font};bool Wide=W>=700;float Col=Wide?(W-16)/2:W;
-    U.Text(0,0,"Inspector / Environment",10,Muted);U.Text(0,40,"Atmosphere",W<360?24:32);U.Text(0,97,"BAKING",10,Muted);
+    U.Text(0,0,"Inspector / Environment",10,Muted);U.Text(0,40,"Atmosphere",W<360?24:32);
+    auto RecordBaking=[&](float PositionY) {
+        const ImVec2 Saved=U.O;U.O.y+=PositionY-97;
+U.Text(0,97,"BAKING",10,Muted);
     U.Card(0,120,W,225,"Atmosphere bake");auto* Fetch=Find(Sheet,"Fetch Baked Dome");float TileW=W<360?96:119,BakeX=TileW+36;
     ImGui::SetCursorScreenPos(U.At(24,179));if(ImGui::InvisibleButton("##sky-fetch",{TileW,106}))Fetch->On=!Fetch->On;
     ImU32 Key=Fetch->On?IM_COL32(105,200,132,255):IM_COL32(204,118,115,255);
@@ -162,13 +125,72 @@ void RecordAtmosphereSkyInspector(ControlPanel& Controls,EditorInstance&,EditorS
     else U.Wrap(44,Y+108+ImageH/2,W-88,"Bake the atmosphere to see the actual HDR image here. No substitute illustration.");
     U.Wrap(24,Y+116+ImageH,W-48,Cached.View==0?"Altitude profile · sampled opposite the baked Sun · zenith above, horizon below":Cached.View==3?"Full sphere · zenith / horizon / nadir; black below ground is expected":"360° sky panorama · zenith at top, horizon below · decoded from the bake");Y+=Height+16;
     U.Wrap(8,Y,W-16,"Atmospheric scattering only: the bright area is scattered sunlight, not the Sun disc. Moon, stars, clouds and fog remain separate.");Y+=52;
+        U.O=Saved;return Y-97;
+    };
+    float Y=110;
     U.Card(0,Y,W,485,"Atmospheric scattering");char Text[64];std::snprintf(Text,sizeof(Text),"%.1f ×",double(Find(Sheet,"Rayleigh")->Figure));U.Text(24,Y+65,Text,40);U.Text(24,Y+115,"How air molecules scatter sunlight",11,Muted);
-    U.D->PushClipRect(U.At(24,Y+145),U.At(W-24,Y+395),true);Scattering(Fit(U.D,U.At(24,Y+145),{W-48,250},620,225),Find(Sheet,"Rayleigh")->Figure,Find(Sheet,"Mie")->Figure/6*100);U.D->PopClipRect();U.Slider(24,Y+409,W-48,"Rayleigh");Y+=501;
-    U.Card(0,Y,Col,380,"Aerosol haze");std::snprintf(Text,sizeof(Text),"%.2f ×",double(Find(Sheet,"Mie")->Figure));U.Text(24,Y+62,Text,38);U.Wrap(24,Y+110,Col-48,"Suspended particles soften and attenuate light");Haze(Fit(U.D,U.At(24,Y+146),{Col-48,160},360,150),Find(Sheet,"Mie")->Figure/6*100);U.Slider(24,Y+308,Col-48,"Mie");
-    float OX=Wide?Col+16:0,OY=Wide?Y:Y+396;U.Card(OX,OY,Col,380,"Ozone absorption");std::snprintf(Text,sizeof(Text),"%.2f ×",double(Find(Sheet,"Ozone")->Figure));U.Text(OX+24,OY+62,Text,38);U.Wrap(OX+24,OY+110,Col-48,"Selective absorption across visible wavelengths");Ozone(Fit(U.D,U.At(OX+24,OY+146),{Col-48,160},360,178),Find(Sheet,"Ozone")->Figure/4*100);U.Slider(OX+24,OY+308,Col-48,"Ozone");Y=OY+396;
+    const ImGuiID WavelengthIdentity = ImGui::GetID("##sky-wavelength");
+    const ImGuiID DistanceIdentity = ImGui::GetID("##sky-path");
+    const ImGuiID AltitudeIdentity = ImGui::GetID("##sky-altitude");
+    float Wavelength = ImGui::GetStateStorage()->GetFloat(WavelengthIdentity,550);
+    float Distance = ImGui::GetStateStorage()->GetFloat(DistanceIdentity,2.5f);
+    float Altitude = ImGui::GetStateStorage()->GetFloat(AltitudeIdentity,8000);
+    CurvePanel ScatterCurve{U.At(24,Y+153), {W-48,188}, {380,0}, {780,20}};
+    ScatterCurve.RecordProbe("##sky-scattering-curve", Wavelength, 4, "nm");
+    const float RayleighSample = ScatterCurve.RecordCurve([&](float Sample)
+    {
+        return EnvironmentProjection::SampleScattering(Sample,Find(Sheet,"Rayleigh")->Figure);
+    }, IM_COL32(161,185,216,255));
+    ScatterCurve.RecordCurve([&](float Sample) { return EnvironmentProjection::SampleAerosolScattering(Sample,Find(Sheet,"Mie")->Figure); }, IM_COL32(204,186,149,255));
+    std::snprintf(Text,sizeof(Text),"%.0f nm · Rayleigh %.3f x · Mie %.2f x",double(ScatterCurve.Probe),double(RayleighSample),double(EnvironmentProjection::SampleAerosolScattering(ScatterCurve.Probe,Find(Sheet,"Mie")->Figure)));
+    U.Wrap(24,Y+351,W-48,Text);
+    U.Wrap(24,Y+373,W-48,"Relative wavelength study: Rayleigh λ^-4, illustrative aerosol λ^-1.3. Drag to probe.");
+    U.Slider(24,Y+409,W-48,"Rayleigh");Y+=501;
+    U.Card(0,Y,Col,380,"Aerosol haze");
+    std::snprintf(Text,sizeof(Text),"%.2f ×",double(Find(Sheet,"Mie")->Figure));
+    U.Text(24,Y+62,Text,38);U.Wrap(24,Y+110,Col-48,"Illustrative attenuation · not a native ray march");
+    CurvePanel HazeCurve{U.At(24,Y+146), {Col-48,110}, {0,0}, {10,100}};
+    HazeCurve.RecordProbe("##sky-haze-curve", Distance, 0.1f, "");
+    const float Transmission = HazeCurve.RecordCurve([&](float Sample)
+    {
+        return 100 * EnvironmentProjection::SampleHazeTransmission(Sample,Find(Sheet,"Mie")->Figure);
+    }, IM_COL32(212,188,148,255));
+    std::snprintf(Text,sizeof(Text),"Path %.2f · %.1f%% transmitted",double(HazeCurve.Probe),double(Transmission));
+    U.Text(24,Y+264,Text,10,Muted);
+    U.Text(24,Y+284,"Normalized path · exp(-0.2 × Mie × path)",10,Muted);
+    U.Slider(24,Y+308,Col-48,"Mie");
+    float OX=Wide?Col+16:0,OY=Wide?Y:Y+396;
+    U.Card(OX,OY,Col,380,"Ozone absorption");
+    std::snprintf(Text,sizeof(Text),"%.2f ×",double(Find(Sheet,"Ozone")->Figure));
+    U.Text(OX+24,OY+62,Text,38);U.Wrap(OX+24,OY+110,Col-48,"Illustrative Gaussian band · not spectroscopy");
+    CurvePanel OzoneCurve{U.At(OX+24,OY+146), {Col-48,110}, {380,0}, {780,100}};
+    OzoneCurve.RecordProbe("##sky-ozone-curve", Wavelength, 4, "nm");
+    const float Absorption = OzoneCurve.RecordCurve([&](float Sample)
+    {
+        return 100 * EnvironmentProjection::SampleOzoneTransmission(Sample,Find(Sheet,"Ozone")->Figure);
+    }, IM_COL32(190,163,221,255));
+    std::snprintf(Text,sizeof(Text),"%.0f nm · %.1f%% transmitted",double(OzoneCurve.Probe),double(Absorption));
+    U.Text(OX+24,OY+264,Text,10,Muted);
+    U.Text(OX+24,OY+284,"Shared wavelength probe · band 600 nm",10,Muted);
+    U.Slider(OX+24,OY+308,Col-48,"Ozone");Y=OY+396;
     U.Card(0,Y,W,410,"Density falloff");U.Slider(24,Y+60,W-48,"Rayleigh Scale H");
-    for(int I=0;I<10;++I){float Km=float(9-I),Width=8+std::exp(-Km/(Find(Sheet,"Rayleigh Scale H")->Figure/1000))*85;std::snprintf(Text,sizeof(Text),"%d km",9-I);U.Text(24,Y+138+I*19,Text,10,Muted);U.D->AddRectFilled(U.At(70,Y+140+I*19),U.At(70+(W-100)*Width/100,Y+148+I*19),IM_COL32(125,148,169,130),4);}
+    CurvePanel DensityCurve{U.At(24,Y+137), {W-48,141}, {0,0}, {Find(Sheet,"Atmosphere")->Figure,1}};
+    DensityCurve.RecordProbe("##sky-density-curve", Altitude, Find(Sheet,"Atmosphere")->Figure / 100, "m");
+    const float AirDensity = DensityCurve.RecordCurve([&](float Sample)
+    {
+        return EnvironmentProjection::SampleDensity(Sample,Find(Sheet,"Rayleigh Scale H")->Figure);
+    }, IM_COL32(161,185,216,255));
+    const float AerosolDensity = DensityCurve.RecordCurve([&](float Sample)
+    {
+        return EnvironmentProjection::SampleDensity(Sample,Find(Sheet,"Mie Scale H")->Figure);
+    }, IM_COL32(212,188,148,255));
+    std::snprintf(Text,sizeof(Text),"%.0f m · air %.3f · aerosol %.3f",double(DensityCurve.Probe),double(AirDensity),double(AerosolDensity));
+    U.Wrap(24,Y+288,W-48,Text);
+    U.Text(24,Y+312,"Relative density exp(-altitude / scale height)",10,Muted);
     U.Slider(24,Y+336,W-48,"Mie Scale H");Y+=426;
+    ImGui::GetStateStorage()->SetFloat(WavelengthIdentity,Wavelength);
+    ImGui::GetStateStorage()->SetFloat(DistanceIdentity,Distance);
+    ImGui::GetStateStorage()->SetFloat(AltitudeIdentity,Altitude);
     U.Card(0,Y,W,150,"Ground reflectance");ImGui::SetCursorScreenPos(U.At(24,Y+61));Controls.ColourChip("##ground-albedo",Find(Sheet,"Ground Albedo")->ColourTint);U.Wrap(24,Y+110,W-48,"Original RGB ground albedo · applied separately, not stored in the smooth dome bake.");Y+=166;
     // Retain native fields absent from the reference without inventing physical percentages.
     ImGui::SetCursorScreenPos(U.At(0,Y));ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding,{24,20});ImGui::BeginChild("##sky-extra",{W,0},ImGuiChildFlags_AutoResizeY|ImGuiChildFlags_AlwaysUseWindowPadding,ImGuiWindowFlags_NoScrollbar|ImGuiWindowFlags_NoScrollWithMouse);
@@ -183,6 +205,7 @@ void RecordAtmosphereSkyInspector(ControlPanel& Controls,EditorInstance&,EditorS
         ImGui::Dummy({0,12});ImGui::PopID();
     }
     ImGui::EndChild();float EH=ImGui::GetItemRectSize().y;ImGui::PopStyleVar();U.Card(0,Y,W,EH,"");
-    ImGui::SetCursorScreenPos(U.At(0,Y+EH+20));ImGui::TextDisabled("Reference diagrams are illustrative. The panorama alone displays actual baked pixels.");ImGui::Dummy({0,20});ImGui::PopFont();
+    Y+=EH+20;Y+=RecordBaking(Y);
+    ImGui::SetCursorScreenPos(U.At(0,Y+20));ImGui::TextDisabled("Drag probes · arrows / Home / End. Studies are not LUTs; the panorama displays actual baked pixels.");ImGui::Dummy({0,20});ImGui::PopFont();
 }
 }

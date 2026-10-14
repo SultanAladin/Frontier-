@@ -14,12 +14,14 @@
 #extension GL_GOOGLE_include_directive : require
 #include "Shaders/SceneRecords.slang"
 #include "Shaders/ShadowRecords.slang"
+#include "Shaders/TyreDeformation.slang"
 
 layout(push_constant) uniform ShadowPush { uint ShadowTapIndex; };   // which tap this draw is filling
 
 layout(std430, set = 0, binding = 1) readonly buffer InstanceExtent { InstanceRecord Instances[]; };
 layout(std430, set = 0, binding = 2) readonly buffer ClusterExtent  { ClusterRecord  Clusters[];  };
 layout(std430, set = 0, binding = 3) readonly buffer VertexExtent   { VertexRecord   Vertices[];  };
+layout(std430, set = 0, binding = 4) readonly buffer TyreExtent     { TyreDeformationRecord Tyres[]; };
 
 layout(location = 0) flat out uint OutCluster;
 layout(location = 1)      out vec2 OutTexcoord;   // alpha-masked cut-outs must punch holes in the shadow too
@@ -32,6 +34,7 @@ void main()
 
     vec3 Object = Vertices[uint(gl_VertexIndex)].Position.xyz;
     vec4 World  = Instance.World * vec4(Object, 1.0);
+    if ((Instance.Flags & TYRE_DEFORM_FLAG) != 0u) World.xyz = DeformTyrePoint(World.xyz, Tyres[TYRE_DEFORM_SLOT(Instance.Flags) * 2u]);
 
     OutCluster  = ClusterIndex;
     OutTexcoord = Vertices[uint(gl_VertexIndex)].Texcoord.xy;

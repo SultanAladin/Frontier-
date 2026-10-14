@@ -5,6 +5,7 @@
 #include <algorithm>
 #include <array>
 #include <cmath>
+#include <cstdint>
 #include <stdexcept>
 namespace FrontierProof {
 struct Image { const unsigned char* Pixels; int Width, Height, Channels; };

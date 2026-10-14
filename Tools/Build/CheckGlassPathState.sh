@@ -12,7 +12,7 @@ cd "$(dirname "${BASH_SOURCE[0]}")/../.."
 python3 - <<'PY'
 from pathlib import Path
 
-source = Path("Engine/Shaders/ReSTIRViewport.slang").read_text()
+source = Path("Engine/Shaders/ViewportIntegrator.slang").read_text()
 checks = {
     "front-face starts outside the medium": "bool curInsideSolid = false;",
     "medium tracks the opening instance": "uint curMediumInstance = 0xFFFFFFFFu;",

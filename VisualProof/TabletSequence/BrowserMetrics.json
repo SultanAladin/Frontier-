@@ -1,0 +1,267 @@
+{
+  "recordedDate": "2026-10-13",
+  "passed": true,
+  "browserExecution": true,
+  "nativeExecution": false,
+  "softwareGraphics": true,
+  "designs": {
+    "launchpad": {
+      "name": "Launchpad",
+      "openedAppsByProjectedPointer": 12,
+      "retainedDesignOnReturn": true
+    },
+    "dashboard": {
+      "name": "Dashboard",
+      "openedAppsByProjectedPointer": 12,
+      "retainedDesignOnReturn": true
+    },
+    "collections": {
+      "name": "Collections",
+      "openedAppsByProjectedPointer": 12,
+      "retainedDesignOnReturn": true
+    },
+    "focus": {
+      "name": "Focus",
+      "openedAppsByProjectedPointer": 12,
+      "retainedDesignOnReturn": true
+    },
+    "console": {
+      "name": "Console",
+      "openedAppsByProjectedPointer": 12,
+      "retainedDesignOnReturn": true
+    }
+  },
+  "pageErrors": [],
+  "interactiveOpenCount": 60,
+  "initial": {
+    "Design": "launchpad",
+    "Application": null,
+    "Revision": 2,
+    "ApplicationCount": 12,
+    "Values": {
+      "steering": 50,
+      "height": 35,
+      "stiffness": 65,
+      "spoiler": 14,
+      "pressure": 185,
+      "temperature": 22,
+      "fan": 2,
+      "volume": 55,
+      "brightness": 90,
+      "laps": 8,
+      "zoom": 1
+    },
+    "RoomReady": false,
+    "Nickname": "Aladin",
+    "MessageCount": 2,
+    "FocusIndex": 0,
+    "TextTarget": "",
+    "RegionCount": 14,
+    "Camera": {
+      "Mode": "3d",
+      "Yaw": -24,
+      "Pitch": 12,
+      "Zoom": 1
+    },
+    "Hardware": {
+      "Width": 0.4,
+      "Height": 0.25,
+      "Thickness": 0.012,
+      "Bezel": 0.0075,
+      "DisplayWidth": 0.385,
+      "DisplayHeight": 0.235,
+      "CoverThickness": 0.0024,
+      "DisplayDepth": 0.003,
+      "Family": "grand",
+      "Radius": 0.016,
+      "DisplayRadius": 0.0094
+    },
+    "Preview": {
+      "Loaded": true,
+      "Failure": "",
+      "Facets": 19948,
+      "Revision": 0,
+      "RateHz": 30,
+      "Width": 640,
+      "Height": 400,
+      "OwnCamera": true,
+      "OwnLighting": true,
+      "Spin": true
+    },
+    "Cluster": {
+      "Outline": "hexagon",
+      "Speed": 2,
+      "Revolutions": 1230,
+      "Gear": "1",
+      "Revision": 4,
+      "RateHz": 30,
+      "Width": 1000,
+      "Height": 559,
+      "Demonstration": true,
+      "Hardware": {
+        "Width": 0.34,
+        "Height": 0.19
+      },
+      "Visible": true
+    },
+    "Families": {
+      "coupe": {
+        "Name": "Coupé console",
+        "Caption": "Compact, upright",
+        "Width": 0.3,
+        "Height": 0.2,
+        "Thickness": 0.01
+      },
+      "grand": {
+        "Name": "Grand tourer",
+        "Caption": "The reference 400 × 250",
+        "Width": 0.4,
+        "Height": 0.25,
+        "Thickness": 0.012
+      },
+      "estate": {
+        "Name": "Wide estate",
+        "Caption": "Low and panoramic",
+        "Width": 0.48,
+        "Height": 0.22,
+        "Thickness": 0.014
+      },
+      "utility": {
+        "Name": "Utility",
+        "Caption": "Tall portrait console",
+        "Width": 0.26,
+        "Height": 0.33,
+        "Thickness": 0.016
+      }
+    },
+    "GlassVisible": true,
+    "PhysicallyTransmissiveGlass": true,
+    "TextureWidth": 1966,
+    "TextureHeight": 1200,
+    "FrameCount": 4,
+    "Renderer": {
+      "frame": 72,
+      "calls": 53,
+      "triangles": 8230,
+      "points": 0,
+      "lines": 0
+    },
+    "FlatDeviceTexture": true
+  },
+  "vehiclePreview": {
+    "asset": "ControlVehicle.glb",
+    "facets": 19948,
+    "ownScene": true,
+    "renderTarget": [
+      640,
+      400
+    ],
+    "rateHz": 30,
+    "orbitByPanelDrag": true,
+    "visualOnly": true
+  },
+  "consoleFamilies": {
+    "coupe": {
+      "widthMm": 300,
+      "heightMm": 200,
+      "thicknessMm": 10,
+      "texture": [
+        1920,
+        1253
+      ],
+      "clusterOutline": "trapezoid",
+      "launcherChosenInSettings": "focus"
+    },
+    "estate": {
+      "widthMm": 480,
+      "heightMm": 220,
+      "thicknessMm": 14,
+      "texture": [
+        2709,
+        1200
+      ],
+      "clusterOutline": "pill",
+      "launcherChosenInSettings": "console"
+    },
+    "utility": {
+      "widthMm": 260,
+      "heightMm": 330,
+      "thicknessMm": 16,
+      "texture": [
+        1920,
+        2470
+      ],
+      "clusterOutline": "arc",
+      "launcherChosenInSettings": "collections"
+    }
+  },
+  "applicationControls": {
+    "rayPickedSlider": true,
+    "setupTabs": true,
+    "roomReadiness": true,
+    "localMessageTextEntry": true,
+    "profileTextEntry": true,
+    "escapeHome": true
+  },
+  "cameraAndHardware": {
+    "perspective": true,
+    "orthographic": true,
+    "touchInFlatMode": true,
+    "edgeView": true,
+    "backViewCannotActivateFrontScreen": true,
+    "glassToggle": true,
+    "finishChanges": true,
+    "fixedTextureAcrossCameraChanges": true,
+    "backgroundDragOrbit": true
+  },
+  "mobile": {
+    "viewport": "390x844",
+    "noHorizontalOverflow": true,
+    "projectedTouchOpensApp": true
+  },
+  "sourceSHA256": {
+    "index.html": "60b4d1e1d437c261c03130749d4acd44ab04617c4b29aed0e5a8cf7d9f6afdce",
+    "TabletPanel.css": "94f9dc201653b72cfcd3cc840927aec10dcf6c2a9d5df39f4c51b2dd130ed806",
+    "AppSpecification.js": "76bddd39378a215ffec4b2f7aaad690c2c92862d68a4df815f1db86d8d165e47",
+    "IconDepot.js": "d90dc85b8eae11445be18f92c9bc57a7cd77019f1ea33176b97a67701eb657b9",
+    "ScreenSequence.js": "dc1817aea2fd913f28ed573777271021232bd54a49ccbc29503be28b5c51aa05",
+    "TabletStructure.js": "cc802b34a7f64593e48567216d19a80d3722e2eb2e99d7f7380dbe12a4a5c0eb",
+    "TabletSequence.js": "e57013c042224d38a3f1f60653ebd84c24181a9c3838c1b88f307f179e7b9434",
+    "ClusterSequence.js": "489a18d93fb8d290cab265b8db004105b3816148064f9fbfd65b8ddf9e445b12",
+    "VehiclePreviewSequence.js": "ae395783158632c24a7c19bbaa837f1fbe77768af904b4b9ec492186e98cb59a",
+    "ControlVehicle.glb": "c08466f8d04e305bfecd0d16fd58b78a7ee33f54945ea87351ea85eb8886cbf5",
+    "ControlVehicle.json": "257386214869d236bad27f0f0566a7517e380ab843b94049fedd656a0e4235b1",
+    "Build.mjs": "aa07cab176c3b7af05d00639207252998bd2ce0c4c2efaa3d78283d659892865",
+    "package.json": "ebe7146e25181dffbf1c9c31236a7219ebdfe7f516cedd553ad8803f77cd0e58",
+    "package-lock.json": "8eeafe57dc024c3e289d8ce8a3e109befe043ad46a0605a960d7cefeaa8ddcf9",
+    "TabletRuntime.js": "3617e84c95feda967f3d4d0cd1ecfeb628576210f63ea1a2e263e529c0805434",
+    "TabletMetrics.mjs": "19c4d4ccb757d5bbadfb340a8b59dab562974298a50cd2acac1430d9b3611369",
+    "BrowserMetrics.mjs": "2798063c297c1eeaf40bfc2f07fd8513cd6afa63e1b387b4c6b0aa7538c0a5fd"
+  },
+  "imageSHA256": {
+    "Cluster-arc.png": "afbe3ea85aaab6f0ceec5016e72dd6e1f0cc158171ac4282b147623b62bb7e28",
+    "Cluster-pill.png": "a28b51641e9f13c3fe365cfa987924dfbb30155574b0b960f9f0645283e7ca21",
+    "Cluster-trapezoid.png": "aba7984ffad712c1f3d0205bd38460b370745d7387b10467b2a9fe1f32beb3d7",
+    "Collections.png": "22027a9cad221604c6f92edf00d37b24abd755f0d3db120164ae8e12a9610367",
+    "Console-coupe.png": "3f3ebd64e685bbeb0fdac74300a1b36569ffd2afd0d889351aeeb9ebee62f4c2",
+    "Console-estate.png": "a1440ebc456015e46c8a3451188f0a649c2645b9c0f13c46c2bfe827a7abaeff",
+    "Console-utility.png": "da363b7b764751d70a15eac18988afd8e63c448ec014ceb2e0cc7acf2b432022",
+    "Console.png": "e79ac9ab0cddba1715a3374b3cb32dea22d0a126516b5acea8c44433fc63e1aa",
+    "Dashboard.png": "871cf5ee2095fd905417780941448f93dfbe064988492c49d536e41c6a7f295c",
+    "FlatTablet.png": "790c9ac806d494db1b0445b319219944055a9a7b7e6545289900a6a2f496cb94",
+    "Focus.png": "fbc46f926e34585af83df3f192435dcbacfdd1b7cee23d200f913d5c4a29909b",
+    "GaragePreview.png": "63fbea344612a06e99ae630f5f8e22b508d85d4817ca557b8d332ef3868e268e",
+    "GaragePreviewScreen.png": "c4c9d4da84afecc85a465a13e5ef415022f5e7073e2e91b0436faee75437dea8",
+    "Launchpad.png": "45f0888d204de002632e2a9d369bc70f16082ba7b765d59e3483ad88ae2839d7",
+    "MobileTablet.png": "58d0f2bd389d75f0d6f54d267a91de6cc57c54638c7fee2f2eb5c99248e4f14f",
+    "Tablet.png": "71df4f5e6a7c7016f611217bc76e9b5771b40fd1cc75d1e4399d3e60d357e07a",
+    "TabletBack.png": "9b4c001b37ababfb46070fa6100fe6b31a74dcbbd91ce9138610ae23f59781e9",
+    "TabletEdge.png": "eec9c9e7b57824f98f584feaa5bf06a095cb14e1da4e09550c8291bf07a176e8",
+    "collections-screen.png": "9dbaf0d9e13f881acac2ef9b28cffe464bee17de2073dd9f4cd22f76e41e95aa",
+    "console-screen.png": "8eb680b184e7c5fda062ac5e7b8b248c1af6cc36d759862e7c9ee501fbb77898",
+    "dashboard-screen.png": "0ef07e97992d963e1f807df0f7af4923948a516f25e18516e77230ddb417e1e2",
+    "focus-screen.png": "e8942323a9047cbf7b60facf2228e36c2e77735e8b22dd639d69a352a17d52f1",
+    "launchpad-screen.png": "e4774cd034dad0fe9bbb71da800998196626d2b5eb9f222f55a607dd2d516e97"
+  },
+  "scope": "Actual WebGL tablet hardware and cover glass, flat canvas-to-GPU screen texture, five launcher designs chosen in Settings, four console families, four irregular cluster outlines, the extracted project car preview, and pointer/touch/text interaction. Local UI demos only; no native or online execution."
+}

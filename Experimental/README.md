@@ -4,6 +4,10 @@ These browser design studies are separate from the native C++ editor.
 
 | Prototype | Entry point |
 | --- | --- |
+| Dynamic signed fields — WebGPU GI and diagnostics | [Open demo](DistanceIntegrator/index.html) |
+| Deforming quads — current-triangle WebGPU GI | [Open demo](DeformationIntegrator/index.html) |
+| Radiance Transport — native WebGPU | [Open demo](RadianceIntegrator/index.html) |
+| SolidArc — native CAD in WebAssembly with a Fluid-style workspace | [SolidArc/index.html](SolidArc/index.html) |
 | Frontier Editor — outliner, inspector and sliding Construct menu | [FrontierEditor/index.html](FrontierEditor/index.html) |
 | SVG icon gallery | [FrontierEditor/icons.html](FrontierEditor/icons.html) |
 | Collection-icon options | [FrontierEditor/collection-icon-options.html](FrontierEditor/collection-icon-options.html) |

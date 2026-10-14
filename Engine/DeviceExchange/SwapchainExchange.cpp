@@ -15,6 +15,8 @@
 #include <thorvg.h>
 
 #include "SwapchainExchange.h"
+#include "RayQueryExchange.h"
+
 #include "TelemetryProbe.h"   // dev/debug-only: exact shader-load and bring-up stage timings; compiles out of ship builds
 #include "../ContentInterchange/MaterialIndex.h"
 #include "../ContentInterchange/TextureIndex.h"
@@ -76,6 +78,14 @@ static constexpr uint32_t kLuminanceSampleStride = 32u;
 //    DisplayPresentation/SkyConstantRecord.h. DeviceExchange must not include DisplayPresentation (it is the
 //    layer below it), so the size is restated here and CheckSkyKernel.sh fails the build if the two disagree.
 static constexpr uint32_t kSkyRecordBytes = 144u;
+// DeviceExchange receives sky data as the 144-byte ABI payload rather than depending on the presentation layer.
+// The indirect-light route consumes only the first two std140 rows, whose layout is fixed by the SkyKernelParity gate.
+struct SkyTransportPrefix
+{
+    float SunDirection[4];
+    float SunRadiance[4];
+};
+static_assert(sizeof(SkyTransportPrefix) == 32u, "indirect-light sky prefix must consume exactly two std140 rows");
 // The Celestial moon uniform block (binding 22) is eighteen std140 rows — 288 B, pinned by static_assert in
 //    DisplayPresentation/MoonConstantRecord.h. Same layering as the sky record above: restated here, and the moon
 //    gate fails the build if the two disagree.
@@ -95,6 +105,9 @@ static constexpr uint32_t kStarRecordBytes = 32u;
 
 struct SwapchainExchange::VulkanRecord
 {
+    struct TransferExtent { VkBuffer Destination; std::vector<unsigned char> Bytes; };
+    std::vector<TransferExtent> PendingTraversal;
+
     // ── Instance and surface ──────────────────────────────────────────────────────────────────────────────────────────
     VkInstance               Instance              = VK_NULL_HANDLE;
     VkDebugUtilsMessengerEXT DebugMessenger        = VK_NULL_HANDLE;
@@ -117,6 +130,7 @@ struct SwapchainExchange::VulkanRecord
     std::vector<VkImageView> SwapchainImageViews;
 
     // ── Storage image (compute writes; blit to swapchain) ────────────────────────────────────────────────────────────
+    bool                     StorageInitialised = false;
     VkImage                  StorageImage          = VK_NULL_HANDLE;
     VkDeviceMemory           StorageMemory         = VK_NULL_HANDLE;
     VkImageView              StorageImageView      = VK_NULL_HANDLE;
@@ -137,6 +151,7 @@ struct SwapchainExchange::VulkanRecord
     // no descriptor rewrites or slot parity while commands can be in flight.
     bool HistoryContentsValid=false;
     uint32_t HistoryWidth=0, HistoryHeight=0;
+    uint32_t PresentedWidth=0, PresentedHeight=0;   // the render rectangle of the last recorded frame (--capture crops to it)
     VkImage PreviousHistory[3]{};
     VkDeviceMemory PreviousHistoryMemory[3]{};
     VkImageView PreviousHistoryViews[3]{};
@@ -157,8 +172,17 @@ struct SwapchainExchange::VulkanRecord
     VkBuffer                 SlabBuffer            = VK_NULL_HANDLE;   // R4a: MaterialSlabRecord[] (binding 10)
     VkDeviceMemory           SlabMemory            = VK_NULL_HANDLE;
     // R4a bindless textures (binding 15 since R4b, sampler2D[], partially bound): one image + view per resident texture
-    struct ResidentTexture { VkImage Image = VK_NULL_HANDLE; VkDeviceMemory Memory = VK_NULL_HANDLE; VkImageView View = VK_NULL_HANDLE; };
+    struct ResidentTexture { VkImage Image = VK_NULL_HANDLE; VkDeviceMemory Memory = VK_NULL_HANDLE; VkImageView View = VK_NULL_HANDLE;
+                             uint32_t Width = 0u, Height = 0u, LevelCount = 0u; VkFormat Format = VK_FORMAT_UNDEFINED; };
     std::vector<ResidentTexture> Textures;
+    // Live texture refresh (SurfaceDisplay sheets): texels queued on the CPU are copied into this cycle slot's
+    //    staging buffer and recorded as buffer→image copies at the head of the frame's command buffer — the slot's
+    //    fence has already been waited, so the staging memory is free, and the image barrier orders the copy
+    //    against the previous frame's samples. No device idle, no descriptor rewrite: the slot keeps its view.
+    struct TextureRefresh { uint32_t Slot; uint32_t Width, Height, LevelCount; std::vector<uint8_t> Texels; std::vector<uint32_t> LevelOffsets; bool DeviceLevels = false; };
+    std::vector<TextureRefresh> PendingTextureRefresh;
+    struct RefreshStaging { VkBuffer Buffer = VK_NULL_HANDLE; VkDeviceMemory Memory = VK_NULL_HANDLE; void* Mapped = nullptr; VkDeviceSize Bytes = 0u; };
+    std::array<RefreshStaging, kCycleSlotCount> TextureRefreshStaging = {};
     VkSampler                TextureSampler        = VK_NULL_HANDLE;
     ResidentTexture          ShadingTables[2];                       // R4b: 0 = GGX energy (A, B, E_avg), 1 = LTC sheen (aInv, bInv, R) — RGBA32F 32×32
     VkSampler                TableSampler          = VK_NULL_HANDLE; // linear, clamp-to-edge, no mips
@@ -172,7 +196,8 @@ struct SwapchainExchange::VulkanRecord
     VkPipelineLayout         LuminanceLayout     = VK_NULL_HANDLE;
     VkDescriptorSetLayout    LuminanceSetLayout  = VK_NULL_HANDLE;
     VkDescriptorPool         LuminancePool       = VK_NULL_HANDLE;
-    VkDescriptorSet          LuminanceSets[kCycleSlotCount] = {};
+    VkDescriptorSet          LuminanceSets[kCycleSlotCount] = {};         // reads HistoryImage (raytraced kernel's linear mean)
+    VkDescriptorSet          LuminanceLinearSets[kCycleSlotCount] = {};   // reads DenoiseImages[0] (Distance Field GI resolve's linear radiance)
 
     bool                     DescriptorIndexing    = false;   // runtimeDescriptorArray + partially bound granted by the driver
     // Binding 8/9 are the active CWBVH node/leaf blobs. With TlasInstanceCount == 0 they hold the world-space
@@ -204,11 +229,13 @@ struct SwapchainExchange::VulkanRecord
     VkBuffer                 SkyBuffer             = VK_NULL_HANDLE;
     VkDeviceMemory           SkyMemory             = VK_NULL_HANDLE;
     void*                    SkyMapped             = nullptr;
+    std::array<unsigned char, kSkyRecordBytes> SkyPending{};
     // Celestial moon record (binding 22). Same arrangement as the sky record: one 288 B uniform buffer,
     //    host-visible and persistently mapped, re-packed by the project every frame.
     VkBuffer                 MoonBuffer            = VK_NULL_HANDLE;
     VkDeviceMemory           MoonMemory            = VK_NULL_HANDLE;
     void*                    MoonMapped            = nullptr;
+    std::array<unsigned char, kMoonRecordBytes> MoonPending{};
     // Celestial post/weather record (binding 24), 544 bytes. The mapping is for initialization;
     //    per-frame pending bytes are copied by an ordered command, not by an in-flight host write.
     VkBuffer                 PostBuffer            = VK_NULL_HANDLE;
@@ -259,10 +286,18 @@ struct SwapchainExchange::VulkanRecord
     VkDescriptorSetLayout    ComputeDescriptorLayout = VK_NULL_HANDLE;
     VkDescriptorPool         ComputeDescriptorPool   = VK_NULL_HANDLE;
     VkDescriptorSet          ComputeDescriptorSet    = VK_NULL_HANDLE;
+    VkDescriptorSet          ComputeDescriptorSets[kCycleSlotCount]{}; // one writer after each slot's completed fence
     VkPipelineLayout         ComputePipelineLayout   = VK_NULL_HANDLE;
     PipelineDiagnostics::Options PipelineOptions{};
     VkPipelineCache          PipelineCache           = VK_NULL_HANDLE;
     VkPipeline               ComputePipeline         = VK_NULL_HANDLE;
+    RayQueryExchange         RayQueries;
+    bool                     RayQueryEnabled = false;
+    uint32_t                 RayQueryInstanceCount = 0u;
+    VkPipeline               RayQueryPipeline = VK_NULL_HANDLE;
+    VkPipelineLayout         RayQueryPipelineLayout = VK_NULL_HANDLE;
+    VkPipeline               RasterPipeline          = VK_NULL_HANDLE;
+    VkPipelineLayout         RasterPipelineLayout    = VK_NULL_HANDLE;
 
     // R7 denoiser: its own pipeline and a small per-level descriptor set. Six sets are allocated (five à-trous
     //    levels plus one spare) so a level's bindings can be written once at bring-up instead of every frame.
@@ -382,7 +417,7 @@ static std::vector<uint32_t> LoadSpirv(const std::string& RelativePath)
 //                                         BUFFER ALLOCATION HELPER
 //------------------------------------------------------------------------------------------------------------------------
 
-static void AllocateBuffer(
+static VkResult AllocateBuffer(
     VkDevice                           Device,
     VkPhysicalDeviceMemoryProperties&  MemoryProperties,
     VkDeviceSize                       ByteCount,
@@ -391,33 +426,59 @@ static void AllocateBuffer(
     VkBuffer&                          OutBuffer,
     VkDeviceMemory&                    OutMemory) noexcept
 {
-    VkBufferCreateInfo BufferInfo{};
-    BufferInfo.sType       = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
-    BufferInfo.size        = ByteCount;
-    BufferInfo.usage       = UsageFlags;
+    OutBuffer = VK_NULL_HANDLE;
+    OutMemory = VK_NULL_HANDLE;
+    if (!ByteCount) return VK_ERROR_INITIALIZATION_FAILED;
+    VkBufferCreateInfo BufferInfo{ VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO };
+    BufferInfo.size = ByteCount;
+    BufferInfo.usage = UsageFlags | VK_BUFFER_USAGE_TRANSFER_DST_BIT;
     BufferInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
-    (void)vkCreateBuffer(Device, &BufferInfo, nullptr, &OutBuffer);
-
+    VkResult AllocationResult = vkCreateBuffer(Device, &BufferInfo, nullptr, &OutBuffer);
+    if (AllocationResult != VK_SUCCESS) return AllocationResult;
     VkMemoryRequirements Requirements{};
     vkGetBufferMemoryRequirements(Device, OutBuffer, &Requirements);
-
-    VkMemoryAllocateInfo AllocateInfo{};
-    AllocateInfo.sType          = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
-    AllocateInfo.allocationSize = Requirements.size;
-    for (uint32_t Index = 0u; Index < MemoryProperties.memoryTypeCount; ++Index)
-    {
-        if ((Requirements.memoryTypeBits & (1u << Index)) &&
-            (MemoryProperties.memoryTypes[Index].propertyFlags & MemoryFlags) ==
-             static_cast<VkMemoryPropertyFlags>(MemoryFlags))
+    AllocationResult = VK_ERROR_FEATURE_NOT_PRESENT;
+    uint32_t Selected = UINT32_MAX;
+    // Prefer a compatible device-local mapping (ReBAR/UMA), but permit a coherent system-heap fallback.
+    // A missing memory combination is a refusal, never an accidental allocation from type zero.
+    for (uint32_t Priority = 0u; Priority < 2u && Selected == UINT32_MAX; ++Priority)
+        for (uint32_t Index = 0u; Index < MemoryProperties.memoryTypeCount; ++Index)
         {
-            AllocateInfo.memoryTypeIndex = Index;
-            break;
+            const auto Properties = MemoryProperties.memoryTypes[Index].propertyFlags;
+            const bool Local = (Properties & VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT) != 0u;
+            if (!(Requirements.memoryTypeBits & (1u << Index)) || (Properties & MemoryFlags) != MemoryFlags ||
+                Local != (Priority == 0u)) continue;
+            VkMemoryAllocateInfo Allocation{ VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO };
+            Allocation.allocationSize = Requirements.size;
+            Allocation.memoryTypeIndex = Index;
+            AllocationResult = vkAllocateMemory(Device, &Allocation, nullptr, &OutMemory);
+            if (AllocationResult == VK_SUCCESS) { Selected = Index; break; }
+            OutMemory = VK_NULL_HANDLE;
+            if (AllocationResult != VK_ERROR_OUT_OF_DEVICE_MEMORY && AllocationResult != VK_ERROR_OUT_OF_HOST_MEMORY)
+            {
+                vkDestroyBuffer(Device, OutBuffer, nullptr);
+                OutBuffer = VK_NULL_HANDLE;
+                return AllocationResult;
+            }
         }
+    if (Selected == UINT32_MAX)
+    {
+        vkDestroyBuffer(Device, OutBuffer, nullptr);
+        OutBuffer = VK_NULL_HANDLE;
+        return AllocationResult;
+    }
+    AllocationResult = vkBindBufferMemory(Device, OutBuffer, OutMemory, 0u);
+    if (AllocationResult != VK_SUCCESS)
+    {
+        vkDestroyBuffer(Device, OutBuffer, nullptr);
+        vkFreeMemory(Device, OutMemory, nullptr);
+        OutBuffer = VK_NULL_HANDLE;
+        OutMemory = VK_NULL_HANDLE;
+        return AllocationResult;
     }
     std::cerr << "[Allocation] buffer requested=" << ByteCount << " allocated=" << Requirements.size
-              << " memory_flags=" << MemoryProperties.memoryTypes[AllocateInfo.memoryTypeIndex].propertyFlags << " (request, not live total)\n";
-    (void)vkAllocateMemory(Device, &AllocateInfo, nullptr, &OutMemory);
-    vkBindBufferMemory(Device, OutBuffer, OutMemory, 0);
+              << " memory_flags=" << MemoryProperties.memoryTypes[Selected].propertyFlags << " (request, not live total)\n";
+    return VK_SUCCESS;
 }
 
 //============================================================================================================================================
@@ -474,6 +535,7 @@ bool SwapchainExchange::Bring() noexcept
 
     glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
     glfwWindowHint(GLFW_RESIZABLE,  GLFW_TRUE);
+    glfwWindowHint(GLFW_VISIBLE, Configuration.HideUntilPresented ? GLFW_FALSE : GLFW_TRUE);
 
     GlfwWindow = glfwCreateWindow(
         static_cast<int>(Configuration.Width),
@@ -572,6 +634,9 @@ void SwapchainExchange::Retire() noexcept
     if (Vulkan->ImGuiRenderPass)     vkDestroyRenderPass     (Vulkan->Device, Vulkan->ImGuiRenderPass,     nullptr);
     if (Vulkan->ImGuiDescriptorPool) vkDestroyDescriptorPool (Vulkan->Device, Vulkan->ImGuiDescriptorPool, nullptr);
 
+    TyreSmoke.Reclaim();
+    DistanceFieldStage.Destroy();
+    Vulkan->RayQueries.Retire();
     Visibility.Retire();
     RetireSwapchain();
 
@@ -643,6 +708,10 @@ void SwapchainExchange::Retire() noexcept
     Vulkan->ReleaseSemaphores.clear();
 
     if (Vulkan->ComputeCommandPool)    vkDestroyCommandPool       (Vulkan->Device, Vulkan->ComputeCommandPool,    nullptr);
+    if (Vulkan->RayQueryPipeline) vkDestroyPipeline(Vulkan->Device, Vulkan->RayQueryPipeline, nullptr);
+    if (Vulkan->RayQueryPipelineLayout) vkDestroyPipelineLayout(Vulkan->Device, Vulkan->RayQueryPipelineLayout, nullptr);
+    if (Vulkan->RasterPipeline) vkDestroyPipeline(Vulkan->Device, Vulkan->RasterPipeline, nullptr);
+    if (Vulkan->RasterPipelineLayout) vkDestroyPipelineLayout(Vulkan->Device, Vulkan->RasterPipelineLayout, nullptr);
     if (Vulkan->ComputePipeline)       vkDestroyPipeline          (Vulkan->Device, Vulkan->ComputePipeline,       nullptr);
     if (Vulkan->ComputePipelineLayout) vkDestroyPipelineLayout    (Vulkan->Device, Vulkan->ComputePipelineLayout, nullptr);
     if (Vulkan->DenoisePipeline)       vkDestroyPipeline          (Vulkan->Device, Vulkan->DenoisePipeline,       nullptr);
@@ -912,7 +981,8 @@ bool SwapchainExchange::BringPhysicalDevice() noexcept
     const RayTracingTierCategory Resolved  = Capabilities.ResolveTier(RayTracingRequest);
     std::cerr << "[SwapchainExchange] Ray tracing: supported = " << RayTracingCapabilitySet::TierName(Supported)
               << ", requested = " << RayTracingCapabilitySet::RequestName(RayTracingRequest)
-              << ", using = " << RayTracingCapabilitySet::TierName(Resolved)
+              << ", selected capability = " << RayTracingCapabilitySet::TierName(Resolved)
+              << "; actual traversal is reported after scene upload"
               << "  [AS ext " << Capabilities.AccelerationStructureExtension << " feat " << Capabilities.AccelerationStructureFeature
               << " | RQ ext " << Capabilities.RayQueryExtension << " feat " << Capabilities.RayQueryFeature
               << " | RP ext " << Capabilities.RayTracingPipelineExtension
@@ -946,7 +1016,19 @@ bool SwapchainExchange::BringLogicalDevice() noexcept
     AddQueueFamily(Vulkan->GraphicsFamily);
     AddQueueFamily(Vulkan->ComputeFamily);
 
-    const char* DeviceExtensions[] = { VK_KHR_SWAPCHAIN_EXTENSION_NAME };
+    std::vector<const char*> DeviceExtensions{ VK_KHR_SWAPCHAIN_EXTENSION_NAME };
+    const bool RayQueryRequested = Capabilities.ResolveTier(RayTracingRequest) >= RayTracingTierCategory::RayQuery;
+    VkPhysicalDeviceAccelerationStructureFeaturesKHR Acceleration{ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_ACCELERATION_STRUCTURE_FEATURES_KHR };
+    VkPhysicalDeviceRayQueryFeaturesKHR RayQuery{ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_QUERY_FEATURES_KHR };
+    if (RayQueryRequested)
+    {
+        DeviceExtensions.push_back(VK_KHR_ACCELERATION_STRUCTURE_EXTENSION_NAME);
+        DeviceExtensions.push_back(VK_KHR_RAY_QUERY_EXTENSION_NAME);
+        DeviceExtensions.push_back(VK_KHR_DEFERRED_HOST_OPERATIONS_EXTENSION_NAME);
+        Acceleration.accelerationStructure = VK_TRUE;
+        Acceleration.pNext = &RayQuery;
+        RayQuery.rayQuery = VK_TRUE;
+    }
 
     VkPhysicalDeviceFeatures DeviceFeatures{};
     DeviceFeatures.shaderStorageImageWriteWithoutFormat = VK_TRUE;
@@ -958,6 +1040,8 @@ bool SwapchainExchange::BringLogicalDevice() noexcept
     vkGetPhysicalDeviceFeatures2(Vulkan->PhysicalDevice, &Supported2);
     VkPhysicalDeviceVulkan12Features Enabled12{ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_FEATURES };
     Enabled12.drawIndirectCount = Supported12.drawIndirectCount;
+    Enabled12.bufferDeviceAddress = RayQueryRequested ? VK_TRUE : VK_FALSE;
+    if (RayQueryRequested) Enabled12.pNext = &Acceleration;
     DrawIndirectCountSupported  = Supported12.drawIndirectCount == VK_TRUE;
     // R4a: bindless texture table — Vulkan 1.2 descriptor indexing (core on every Vulkan 1.2 driver incl. Pascal).
     //    Requested only when offered; without it the material table uploads but textures stay off (logged once).
@@ -976,6 +1060,7 @@ bool SwapchainExchange::BringLogicalDevice() noexcept
     DeviceFeatures.multiDrawIndirect = Supported2.features.multiDrawIndirect;
     DeviceFeatures.geometryShader    = Supported2.features.geometryShader;
     DeviceFeatures.shaderStorageImageWriteWithoutFormat = Supported2.features.shaderStorageImageWriteWithoutFormat;
+    DeviceFeatures.shaderStorageImageExtendedFormats = Supported2.features.shaderStorageImageExtendedFormats;
 
     VkPhysicalDeviceFeatures2 EnabledFeatures2{ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2 };
     EnabledFeatures2.features = DeviceFeatures;
@@ -986,8 +1071,8 @@ bool SwapchainExchange::BringLogicalDevice() noexcept
     DeviceInfo.pNext                   = &EnabledFeatures2;
     DeviceInfo.queueCreateInfoCount    = static_cast<uint32_t>(QueueInfoList.size());
     DeviceInfo.pQueueCreateInfos       = QueueInfoList.data();
-    DeviceInfo.enabledExtensionCount   = 1u;
-    DeviceInfo.ppEnabledExtensionNames = DeviceExtensions;
+    DeviceInfo.enabledExtensionCount   = static_cast<uint32_t>(DeviceExtensions.size());
+    DeviceInfo.ppEnabledExtensionNames = DeviceExtensions.data();
     DeviceInfo.pEnabledFeatures        = nullptr;
 
     const VkResult DeviceResult = vkCreateDevice(Vulkan->PhysicalDevice, &DeviceInfo, nullptr, &Vulkan->Device);
@@ -1000,6 +1085,15 @@ bool SwapchainExchange::BringLogicalDevice() noexcept
     vkGetDeviceQueue(Vulkan->Device, Vulkan->GraphicsFamily, 0u, &Vulkan->GraphicsQueue);
     vkGetDeviceQueue(Vulkan->Device, Vulkan->ComputeFamily,  0u, &Vulkan->ComputeQueue);
 
+    if (RayQueryRequested)
+    {
+        Vulkan->RayQueryEnabled = Vulkan->RayQueries.Construct(Vulkan->Device, Vulkan->PhysicalDevice, Vulkan->GraphicsQueue, Vulkan->GraphicsFamily);
+        if (!Vulkan->RayQueryEnabled)
+        {
+            Vulkan->RayQueries.Retire();
+            std::cerr << "[RayQuery] Device resources refused; using software traversal.\n";
+        }
+    }
     Vulkan->PipelineOptions=PipelineDiagnostics::Parse(std::getenv("FRONTIER_PIPELINE_TEST"));
     if(!Vulkan->PipelineOptions.Recognized) std::cerr<<"[GPU startup] Unknown FRONTIER_PIPELINE_TEST; using default"<<std::endl;
     std::cerr<<"[GPU startup] Pipeline test: disable_restir_optimization="<<Vulkan->PipelineOptions.DisableOptimization
@@ -1268,6 +1362,7 @@ static bool CreateStorageImage(VkDevice Device, const VkPhysicalDeviceMemoryProp
 
 bool SwapchainExchange::BringStorageImage() noexcept
 {
+    Vulkan->StorageInitialised = false;
     const VkExtent2D Extent{ Configuration.Width, Configuration.Height };
 
     // ① Presentation image — the compute pass writes tone-mapped 8-bit colour, blitted to the swapchain.
@@ -1319,10 +1414,11 @@ bool SwapchainExchange::BringStorageImage() noexcept
         Vulkan->ReservoirBytes =
             static_cast<VkDeviceSize>(Extent.width) * static_cast<VkDeviceSize>(Extent.height) * sizeof(VulkanRecord::ReservoirBufferRecord);
         for (uint32_t I = 0u; I < 2u; ++I)
-            AllocateBuffer(Vulkan->Device, Vulkan->MemoryProperties, Vulkan->ReservoirBytes,
+            if (const VkResult Allocation = AllocateBuffer(Vulkan->Device, Vulkan->MemoryProperties, Vulkan->ReservoirBytes,
                            VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
                            VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
-                           Vulkan->ReservoirBuffers[I], Vulkan->ReservoirMemories[I]);
+                           Vulkan->ReservoirBuffers[I], Vulkan->ReservoirMemories[I]); Allocation != VK_SUCCESS)
+            { RefuseFrame("AllocateBuffer(BringStorageImage)", Allocation); return false; }
         Vulkan->ReservoirParity       = false;
         Vulkan->ReservoirsInitialised = false;
         std::cerr << "[SwapchainExchange] Reservoirs: 2 x " << (Vulkan->ReservoirBytes >> 20u) << " MB (80 B/px temporal DI state, D10 identity included).\n";
@@ -1332,10 +1428,11 @@ bool SwapchainExchange::BringStorageImage() noexcept
         //    set is a buffer the descriptor write has to branch on.
         Vulkan->GiReservoirBytes = Vulkan->ReservoirBytes;
         for (uint32_t I = 0u; I < 2u; ++I)
-            AllocateBuffer(Vulkan->Device, Vulkan->MemoryProperties, Vulkan->GiReservoirBytes,
+            if (const VkResult Allocation = AllocateBuffer(Vulkan->Device, Vulkan->MemoryProperties, Vulkan->GiReservoirBytes,
                            VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
                            VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
-                           Vulkan->GiReservoirBuffers[I], Vulkan->GiReservoirMemories[I]);
+                           Vulkan->GiReservoirBuffers[I], Vulkan->GiReservoirMemories[I]); Allocation != VK_SUCCESS)
+            { RefuseFrame("AllocateBuffer(BringStorageImage)", Allocation); return false; }
         Vulkan->GiReservoirParity       = false;
         Vulkan->GiReservoirsInitialised = false;
         std::cerr << "[SwapchainExchange] Indirect pool: 2 x " << (Vulkan->GiReservoirBytes >> 20u)
@@ -1560,6 +1657,29 @@ bool SwapchainExchange::BringComputePipeline() noexcept
         std::cerr << "[SwapchainExchange] vkCreateComputePipelines failed (VkResult " << static_cast<int>(PipelineResult) << ").\n";
         return false;
     }
+    if (Vulkan->RayQueryEnabled)
+    {
+        const auto HardwareSpirv = LoadSpirv("Engine/Shaders/RayQueryViewport.spv");
+        const VkDescriptorSetLayout Sets[] = { Vulkan->ComputeDescriptorLayout, Vulkan->RayQueries.DescriptorLayout() };
+        VkPipelineLayoutCreateInfo Layout{ VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO };
+        Layout.setLayoutCount = 2u;
+        Layout.pSetLayouts = Sets;
+        Layout.pushConstantRangeCount = 1u;
+        Layout.pPushConstantRanges = &PushRange;
+        VkShaderModule Compiled = VK_NULL_HANDLE;
+        VkShaderModuleCreateInfo Shader{ VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO };
+        Shader.codeSize = HardwareSpirv.size() * sizeof(uint32_t);
+        Shader.pCode = HardwareSpirv.data();
+        if (!HardwareSpirv.empty() && vkCreatePipelineLayout(Vulkan->Device, &Layout, nullptr, &Vulkan->RayQueryPipelineLayout) == VK_SUCCESS
+            && vkCreateShaderModule(Vulkan->Device, &Shader, nullptr, &Compiled) == VK_SUCCESS)
+        {
+            ComputeInfo.stage.module = Compiled;
+            ComputeInfo.layout = Vulkan->RayQueryPipelineLayout;
+            if (vkCreateComputePipelines(Vulkan->Device, Vulkan->PipelineCache, 1u, &ComputeInfo, nullptr, &Vulkan->RayQueryPipeline) != VK_SUCCESS)
+                std::cerr << "[RayQuery] Shader refused; using software traversal.\n";
+        }
+        if (Compiled) vkDestroyShaderModule(Vulkan->Device, Compiled, nullptr);
+    }
     SavePipelineCache("ReSTIR ready");
     return true;
 }
@@ -1686,22 +1806,30 @@ void SwapchainExchange::WriteLuminanceDescriptors() noexcept
     if (!Vulkan || !Vulkan->HistoryImageView) return;
     for (uint32_t Slot = 0u; Slot < kCycleSlotCount; ++Slot)
     {
-        if (!Vulkan->LuminanceSets[Slot]) continue;
-        // ⚠️ The HISTORY image, not the presentation image: the reduction must see LINEAR radiance. Measuring
-        //    the tone-mapped output would feed the curve its own result and the exposure would chase itself.
-        VkDescriptorImageInfo  ImageInfo{ VK_NULL_HANDLE, Vulkan->HistoryImageView, VK_IMAGE_LAYOUT_GENERAL };
-        VkDescriptorBufferInfo BufferInfo{ Vulkan->LuminanceBuffers[Slot], 0u, VK_WHOLE_SIZE };
+        // ⚠️ LINEAR radiance, never the presentation image: measuring the tone-mapped output would feed the curve
+        //    its own result and the exposure would chase itself. The raytraced kernel's linear frame is HistoryImage;
+        //    the Distance Field GI resolve writes its linear frame to DenoiseImages[0] (it never touches history), so
+        //    that path gets its own set — without it the SDF path never measured anything, the exposure stayed at
+        //    its seed, and sunlit ground and the 24-nit cabin screens both saturated to white.
+        const VkImageView Sources[2] = { Vulkan->HistoryImageView, Vulkan->DenoiseImageViews[0] };
+        VkDescriptorSet   Sets[2]    = { Vulkan->LuminanceSets[Slot], Vulkan->LuminanceLinearSets[Slot] };
+        for (uint32_t Source = 0u; Source < 2u; ++Source)
+        {
+            if (!Sets[Source] || !Sources[Source]) continue;
+            VkDescriptorImageInfo  ImageInfo{ VK_NULL_HANDLE, Sources[Source], VK_IMAGE_LAYOUT_GENERAL };
+            VkDescriptorBufferInfo BufferInfo{ Vulkan->LuminanceBuffers[Slot], 0u, VK_WHOLE_SIZE };
 
-        std::array<VkWriteDescriptorSet, 2u> Writes{};
-        Writes[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-        Writes[0].dstSet = Vulkan->LuminanceSets[Slot]; Writes[0].dstBinding = 0u;
-        Writes[0].descriptorCount = 1u; Writes[0].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
-        Writes[0].pImageInfo = &ImageInfo;
-        Writes[1].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-        Writes[1].dstSet = Vulkan->LuminanceSets[Slot]; Writes[1].dstBinding = 1u;
-        Writes[1].descriptorCount = 1u; Writes[1].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-        Writes[1].pBufferInfo = &BufferInfo;
-        vkUpdateDescriptorSets(Vulkan->Device, 2u, Writes.data(), 0u, nullptr);
+            std::array<VkWriteDescriptorSet, 2u> Writes{};
+            Writes[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+            Writes[0].dstSet = Sets[Source]; Writes[0].dstBinding = 0u;
+            Writes[0].descriptorCount = 1u; Writes[0].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
+            Writes[0].pImageInfo = &ImageInfo;
+            Writes[1].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+            Writes[1].dstSet = Sets[Source]; Writes[1].dstBinding = 1u;
+            Writes[1].descriptorCount = 1u; Writes[1].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+            Writes[1].pBufferInfo = &BufferInfo;
+            vkUpdateDescriptorSets(Vulkan->Device, 2u, Writes.data(), 0u, nullptr);
+        }
     }
 }
 
@@ -1744,9 +1872,10 @@ bool SwapchainExchange::BringLuminanceReduction() noexcept
         // ⚠️ TRANSFER_DST as well as STORAGE. The histogram is cleared with vkCmdFillBuffer, which is a transfer
         //    command, and a buffer that does not declare the usage is a spec violation the validation layer
         //    reports on every single frame. It happens to work on this driver; that is not a reason to keep it.
-        AllocateBuffer(Vulkan->Device, Vulkan->MemoryProperties, kLuminanceHistogramBytes,
+        if (const VkResult Allocation = AllocateBuffer(Vulkan->Device, Vulkan->MemoryProperties, kLuminanceHistogramBytes,
                        VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT, HostVisible,
-                       Vulkan->LuminanceBuffers[Slot], Vulkan->LuminanceMemory[Slot]);
+                       Vulkan->LuminanceBuffers[Slot], Vulkan->LuminanceMemory[Slot]); Allocation != VK_SUCCESS)
+        { RefuseFrame("AllocateBuffer(BringLuminanceReduction)", Allocation); return false; }
         if (!Vulkan->LuminanceBuffers[Slot]) return false;
         if (vkMapMemory(Vulkan->Device, Vulkan->LuminanceMemory[Slot], 0u, kLuminanceHistogramBytes, 0u,
                         &Vulkan->LuminanceMapped[Slot]) != VK_SUCCESS)
@@ -1755,10 +1884,10 @@ bool SwapchainExchange::BringLuminanceReduction() noexcept
     }
 
     VkDescriptorPoolSize PoolSizes[2]{};
-    PoolSizes[0] = { VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,  kCycleSlotCount };
-    PoolSizes[1] = { VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, kCycleSlotCount };
+    PoolSizes[0] = { VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,  2u * kCycleSlotCount };
+    PoolSizes[1] = { VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 2u * kCycleSlotCount };
     VkDescriptorPoolCreateInfo PoolInfo{ VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO };
-    PoolInfo.maxSets       = kCycleSlotCount;
+    PoolInfo.maxSets       = 2u * kCycleSlotCount;
     PoolInfo.poolSizeCount = 2u;
     PoolInfo.pPoolSizes    = PoolSizes;
     if (vkCreateDescriptorPool(Vulkan->Device, &PoolInfo, nullptr, &Vulkan->LuminancePool) != VK_SUCCESS) return false;
@@ -1770,6 +1899,7 @@ bool SwapchainExchange::BringLuminanceReduction() noexcept
     AllocateInfo.descriptorSetCount = kCycleSlotCount;
     AllocateInfo.pSetLayouts        = SetLayouts.data();
     if (vkAllocateDescriptorSets(Vulkan->Device, &AllocateInfo, Vulkan->LuminanceSets) != VK_SUCCESS) return false;
+    if (vkAllocateDescriptorSets(Vulkan->Device, &AllocateInfo, Vulkan->LuminanceLinearSets) != VK_SUCCESS) return false;
 
     WriteLuminanceDescriptors();
 
@@ -1888,8 +2018,9 @@ bool SwapchainExchange::BringSkyRecord() noexcept
     //    luminance accumulators, for the same reason: mapping and unmapping a tiny buffer every frame is a
     //    driver round trip for bytes that fit in two cache lines.
     constexpr uint32_t HostVisible = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
-    AllocateBuffer(Vulkan->Device, Vulkan->MemoryProperties, kSkyRecordBytes, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
-                   HostVisible, Vulkan->SkyBuffer, Vulkan->SkyMemory);
+    if (const VkResult Allocation = AllocateBuffer(Vulkan->Device, Vulkan->MemoryProperties, kSkyRecordBytes, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
+                   HostVisible, Vulkan->SkyBuffer, Vulkan->SkyMemory); Allocation != VK_SUCCESS)
+    { RefuseFrame("AllocateBuffer(BringSkyRecord)", Allocation); return false; }
     if (!Vulkan->SkyBuffer) return false;
     if (vkMapMemory(Vulkan->Device, Vulkan->SkyMemory, 0u, kSkyRecordBytes, 0u, &Vulkan->SkyMapped) != VK_SUCCESS)
         return false;
@@ -1903,8 +2034,9 @@ bool SwapchainExchange::BringMoonRecord() noexcept
 {
     // One 288 B uniform buffer, host-visible and persistently mapped — the same arrangement as the sky record.
     constexpr uint32_t HostVisible = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
-    AllocateBuffer(Vulkan->Device, Vulkan->MemoryProperties, kMoonRecordBytes, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
-                   HostVisible, Vulkan->MoonBuffer, Vulkan->MoonMemory);
+    if (const VkResult Allocation = AllocateBuffer(Vulkan->Device, Vulkan->MemoryProperties, kMoonRecordBytes, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
+                   HostVisible, Vulkan->MoonBuffer, Vulkan->MoonMemory); Allocation != VK_SUCCESS)
+    { RefuseFrame("AllocateBuffer(BringMoonRecord)", Allocation); return false; }
     if (!Vulkan->MoonBuffer) return false;
     if (vkMapMemory(Vulkan->Device, Vulkan->MoonMemory, 0u, kMoonRecordBytes, 0u, &Vulkan->MoonMapped) != VK_SUCCESS)
         return false;
@@ -1918,8 +2050,9 @@ bool SwapchainExchange::BringPostRecord() noexcept
 {
     // 544-byte post/weather UBO. Mapping initializes it; per-frame writes are queue ordered.
     constexpr uint32_t HostVisible = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
-    AllocateBuffer(Vulkan->Device, Vulkan->MemoryProperties, kPostRecordBytes, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
-                   HostVisible, Vulkan->PostBuffer, Vulkan->PostMemory);
+    if (const VkResult Allocation = AllocateBuffer(Vulkan->Device, Vulkan->MemoryProperties, kPostRecordBytes, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+                   HostVisible, Vulkan->PostBuffer, Vulkan->PostMemory); Allocation != VK_SUCCESS)
+    { RefuseFrame("AllocateBuffer(BringPostRecord)", Allocation); return false; }
     if (!Vulkan->PostBuffer) return false;
     if (vkMapMemory(Vulkan->Device, Vulkan->PostMemory, 0u, kPostRecordBytes, 0u, &Vulkan->PostMapped) != VK_SUCCESS)
         return false;
@@ -1935,8 +2068,9 @@ bool SwapchainExchange::BringStarTables() noexcept
     //    binding is valid from the first frame. UploadStarTables reallocates for the catalogue once loaded.
     constexpr uint32_t HostVisible = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
     const uint32_t CellBytes = kStarCellCount * kStarCellBytes;
-    AllocateBuffer(Vulkan->Device, Vulkan->MemoryProperties, CellBytes, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
-                   HostVisible, Vulkan->StarBuffer, Vulkan->StarMemory);
+    if (const VkResult Allocation = AllocateBuffer(Vulkan->Device, Vulkan->MemoryProperties, CellBytes, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
+                   HostVisible, Vulkan->StarBuffer, Vulkan->StarMemory); Allocation != VK_SUCCESS)
+    { RefuseFrame("AllocateBuffer(BringStarTables)", Allocation); return false; }
     if (!Vulkan->StarBuffer) return false;
     if (vkMapMemory(Vulkan->Device, Vulkan->StarMemory, 0u, CellBytes, 0u, &Vulkan->StarMapped) != VK_SUCCESS)
         return false;
@@ -1960,12 +2094,13 @@ bool SwapchainExchange::BringDescriptorSet() noexcept
     VkDescriptorPoolCreateInfo PoolInfo{};
     PoolInfo.sType         = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
     PoolInfo.flags         = Vulkan->DescriptorIndexing ? static_cast<VkDescriptorPoolCreateFlags>(VK_DESCRIPTOR_POOL_CREATE_UPDATE_AFTER_BIND_BIT) : 0u;
-    PoolInfo.maxSets       = 1u;
+    PoolInfo.maxSets       = kCycleSlotCount;
     PoolSizes[3].type            = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
     PoolSizes[3].descriptorCount = ComputeBindingTypeCount(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER);   // 21 live sky record · 22 live moon record · 24 live post record
     PoolInfo.poolSizeCount = 4u;
     PoolInfo.pPoolSizes    = PoolSizes.data();
-    (void)vkCreateDescriptorPool(Vulkan->Device, &PoolInfo, nullptr, &Vulkan->ComputeDescriptorPool);
+    for (auto& Size : PoolSizes) Size.descriptorCount *= kCycleSlotCount;
+    if (vkCreateDescriptorPool(Vulkan->Device, &PoolInfo, nullptr, &Vulkan->ComputeDescriptorPool) != VK_SUCCESS) return false;
 
     const uint32_t VariableCount = Vulkan->DescriptorIndexing ? kTextureSlotCapacity : 1u;
     VkDescriptorSetVariableDescriptorCountAllocateInfo VariableInfo{ VK_STRUCTURE_TYPE_DESCRIPTOR_SET_VARIABLE_DESCRIPTOR_COUNT_ALLOCATE_INFO };
@@ -1973,15 +2108,13 @@ bool SwapchainExchange::BringDescriptorSet() noexcept
     VariableInfo.pDescriptorCounts  = &VariableCount;
     VkDescriptorSetAllocateInfo AllocateInfo{};
     AllocateInfo.sType              = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
-    AllocateInfo.pNext              = &VariableInfo;
+    AllocateInfo.pNext              = Vulkan->DescriptorIndexing ? &VariableInfo : nullptr;
     AllocateInfo.descriptorPool     = Vulkan->ComputeDescriptorPool;
     AllocateInfo.descriptorSetCount = 1u;
     AllocateInfo.pSetLayouts        = &Vulkan->ComputeDescriptorLayout;
-    if (vkAllocateDescriptorSets(Vulkan->Device, &AllocateInfo, &Vulkan->ComputeDescriptorSet) != VK_SUCCESS)
-    {
-        std::cerr << "[SwapchainExchange] vkAllocateDescriptorSets failed.\n";
-        return false;
-    }
+    for (uint32_t Slot = 0u; Slot < kCycleSlotCount; ++Slot)
+        if (vkAllocateDescriptorSets(Vulkan->Device, &AllocateInfo, &Vulkan->ComputeDescriptorSets[Slot]) != VK_SUCCESS) return false;
+    Vulkan->ComputeDescriptorSet = Vulkan->ComputeDescriptorSets[0];
 
     // The scene SSBOs do not exist yet (UploadTriangles / UploadRadiance run after Bring()).
     //    WriteDescriptorSet() only writes the bindings whose resources exist - writing a VK_NULL_HANDLE
@@ -2180,10 +2313,14 @@ void SwapchainExchange::WriteDescriptorSet() noexcept
         TextureWrite.pImageInfo      = TextureInfos.data();
     }
 
-    if (WriteCount > 0u)
-        vkUpdateDescriptorSets(Vulkan->Device, WriteCount, Writes.data(), 0u, nullptr);
-    if (TextureWrite.descriptorCount > 0u)
-        vkUpdateDescriptorSets(Vulkan->Device, 1u, &TextureWrite, 0u, nullptr);
+    for (VkDescriptorSet Set : Vulkan->ComputeDescriptorSets)
+    {
+        if (!Set) continue;
+        for (uint32_t Index = 0u; Index < WriteCount; ++Index) Writes[Index].dstSet = Set;
+        TextureWrite.dstSet = Set;
+        if (WriteCount) vkUpdateDescriptorSets(Vulkan->Device, WriteCount, Writes.data(), 0u, nullptr);
+        if (TextureWrite.descriptorCount) vkUpdateDescriptorSets(Vulkan->Device, 1u, &TextureWrite, 0u, nullptr);
+    }
 
     // ── R7 denoiser sets ────────────────────────────────────────────────────────────────────────────────────────
     // One set per à-trous level, written once here rather than per frame: the images never change, only the push
@@ -2383,10 +2520,10 @@ void SwapchainExchange::UploadTriangles(const std::vector<TriangleIndex>& Triang
     const VkDeviceSize ByteCount = std::max<VkDeviceSize>(Triangles.size(), 1u) * sizeof(TriangleIndex);
     constexpr uint32_t HostVisible = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT
                                    | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
-
-    AllocateBuffer(Vulkan->Device, Vulkan->MemoryProperties, ByteCount,
+    if (const VkResult Allocation = AllocateBuffer(Vulkan->Device, Vulkan->MemoryProperties, ByteCount,
                    VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, HostVisible,
-                   Vulkan->TriangleBuffer, Vulkan->TriangleMemory);
+                   Vulkan->TriangleBuffer, Vulkan->TriangleMemory); Allocation != VK_SUCCESS)
+    { RefuseFrame("AllocateBuffer(UploadTriangles)", Allocation); return; }
 
     void* Mapped = nullptr;
     (void)vkMapMemory(Vulkan->Device, Vulkan->TriangleMemory, 0u, ByteCount, 0u, &Mapped);
@@ -2417,7 +2554,8 @@ void SwapchainExchange::UploadMaterials(const MaterialIndex& Materials) noexcept
     const auto Upload = [&](const void* Source, size_t Bytes, VkBuffer& Buffer, VkDeviceMemory& Memory)
     {
         const VkDeviceSize ByteCount = std::max<VkDeviceSize>(Bytes, 16u);   // a zero-sized buffer is invalid
-        AllocateBuffer(Vulkan->Device, Vulkan->MemoryProperties, ByteCount, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, HostVisible, Buffer, Memory);
+        if (const VkResult Allocation = AllocateBuffer(Vulkan->Device, Vulkan->MemoryProperties, ByteCount, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, HostVisible, Buffer, Memory); Allocation != VK_SUCCESS)
+        { RefuseFrame("AllocateBuffer(UploadMaterials)", Allocation); return; }
         void* Mapped = nullptr;
         (void)vkMapMemory(Vulkan->Device, Memory, 0u, ByteCount, 0u, &Mapped);
         if (Mapped)
@@ -2432,6 +2570,8 @@ void SwapchainExchange::UploadMaterials(const MaterialIndex& Materials) noexcept
     Upload(Materials.QuerySlabRecords().data(), Materials.QuerySlabRecords().size() * sizeof(MaterialSlabRecord), Vulkan->SlabBuffer,     Vulkan->SlabMemory);
 
     WriteDescriptorSet();
+    ++SurfaceMaterialRevision;
+    if (!SceneUploadInProgress) RefreshMaterialDescriptors();
 }
 
 //------------------------------------------------------------------------------------------------------------------------
@@ -2450,12 +2590,126 @@ void SwapchainExchange::DestroyTextures() noexcept
         if (T.Memory) vkFreeMemory      (Vulkan->Device, T.Memory, nullptr);
     }
     Vulkan->Textures.clear();
+    Vulkan->PendingTextureRefresh.clear();
+    for (VulkanRecord::RefreshStaging& S : Vulkan->TextureRefreshStaging)
+    {
+        if (S.Mapped) vkUnmapMemory(Vulkan->Device, S.Memory);
+        if (S.Buffer) vkDestroyBuffer(Vulkan->Device, S.Buffer, nullptr);
+        if (S.Memory) vkFreeMemory(Vulkan->Device, S.Memory, nullptr);
+        S = {};
+    }
+}
+
+bool SwapchainExchange::QueueTextureRefresh(uint32_t Slot, const TextureDescriptor& Texture, bool LevelZeroOnly) noexcept
+{
+    if (!Vulkan || !Vulkan->Device || Slot >= Vulkan->Textures.size()) return false;
+    const VulkanRecord::ResidentTexture& R = Vulkan->Textures[Slot];
+    const VkFormat Format = Texture.Encoding == TextureEncoding::Srgb8 ? VK_FORMAT_R8G8B8A8_SRGB : Texture.Encoding == TextureEncoding::Linear8 ? VK_FORMAT_R8G8B8A8_UNORM : VK_FORMAT_R16G16B16A16_SFLOAT;
+    // A refresh never resizes: a changed shape is a re-upload (the no-squash rule lives one layer up).
+    if (!R.Image || R.Width != Texture.Width || R.Height != Texture.Height || R.LevelCount != Texture.LevelCount || R.Format != Format ||
+        Texture.LevelOffsets.size() != Texture.LevelCount || Texture.Texels.empty()) return false;
+    const size_t BaseBytes = static_cast<size_t>(Texture.Width) * Texture.Height * Texture.TexelBytes();
+    if (Texture.Texels.size() < BaseBytes) return false;
+    const bool DeviceLevels = LevelZeroOnly && Texture.LevelCount > 1u;
+    auto Payload = [&](VulkanRecord::TextureRefresh& P)
+    {
+        P.DeviceLevels = DeviceLevels;
+        if (DeviceLevels) { P.Texels.assign(Texture.Texels.begin(), Texture.Texels.begin() + static_cast<ptrdiff_t>(BaseBytes)); P.LevelOffsets.assign(1u, 0u); }
+        else { P.Texels = Texture.Texels; P.LevelOffsets = Texture.LevelOffsets; }
+    };
+    for (VulkanRecord::TextureRefresh& Pending : Vulkan->PendingTextureRefresh)
+        if (Pending.Slot == Slot) { Payload(Pending); return true; }   // latest wins
+    VulkanRecord::TextureRefresh P{ Slot, Texture.Width, Texture.Height, Texture.LevelCount, {}, {}, false };
+    Payload(P);
+    Vulkan->PendingTextureRefresh.push_back(std::move(P));
+    return true;
+}
+
+void SwapchainExchange::RecordTextureRefresh(VkCommandBuffer Command, uint32_t CycleSlot) noexcept
+{
+    if (Vulkan->PendingTextureRefresh.empty()) return;
+    VkDeviceSize Total = 0u;
+    for (const VulkanRecord::TextureRefresh& P : Vulkan->PendingTextureRefresh) Total += P.Texels.size();
+    VulkanRecord::RefreshStaging& Staging = Vulkan->TextureRefreshStaging[CycleSlot];
+    if (Staging.Bytes < Total)
+    {
+        if (Staging.Mapped) vkUnmapMemory(Vulkan->Device, Staging.Memory);
+        if (Staging.Buffer) vkDestroyBuffer(Vulkan->Device, Staging.Buffer, nullptr);
+        if (Staging.Memory) vkFreeMemory(Vulkan->Device, Staging.Memory, nullptr);
+        Staging = {};
+        const VkDeviceSize Rounded = (Total + 65535u) & ~static_cast<VkDeviceSize>(65535u);
+        if (AllocateBuffer(Vulkan->Device, Vulkan->MemoryProperties, Rounded, VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+                           VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, Staging.Buffer, Staging.Memory) != VK_SUCCESS)
+        { Vulkan->PendingTextureRefresh.clear(); return; }
+        if (vkMapMemory(Vulkan->Device, Staging.Memory, 0u, VK_WHOLE_SIZE, 0u, &Staging.Mapped) != VK_SUCCESS || !Staging.Mapped)
+        { Vulkan->PendingTextureRefresh.clear(); return; }
+        Staging.Bytes = Rounded;
+    }
+    VkDeviceSize Cursor = 0u;
+    for (const VulkanRecord::TextureRefresh& P : Vulkan->PendingTextureRefresh)
+    {
+        const VulkanRecord::ResidentTexture& R = Vulkan->Textures[P.Slot];
+        std::memcpy(static_cast<uint8_t*>(Staging.Mapped) + Cursor, P.Texels.data(), P.Texels.size());
+        VkImageMemoryBarrier ToTransfer{ VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER };
+        ToTransfer.srcAccessMask = VK_ACCESS_SHADER_READ_BIT; ToTransfer.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+        ToTransfer.oldLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL; ToTransfer.newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+        ToTransfer.srcQueueFamilyIndex = ToTransfer.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+        ToTransfer.image = R.Image; ToTransfer.subresourceRange = { VK_IMAGE_ASPECT_COLOR_BIT, 0u, P.LevelCount, 0u, 1u };
+        vkCmdPipelineBarrier(Command, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT | VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT, 0u, 0u, nullptr, 0u, nullptr, 1u, &ToTransfer);
+        std::vector<VkBufferImageCopy> Copies(P.LevelCount);
+        for (uint32_t L = 0u; L < P.LevelCount && L < P.LevelOffsets.size(); ++L)
+        {
+            VkBufferImageCopy& C = Copies[L];
+            C.bufferOffset = Cursor + P.LevelOffsets[L];
+            C.imageSubresource = { VK_IMAGE_ASPECT_COLOR_BIT, L, 0u, 1u };
+            C.imageExtent = { std::max(1u, P.Width >> L), std::max(1u, P.Height >> L), 1u };
+        }
+        const uint32_t CopiedLevels = P.DeviceLevels ? 1u : P.LevelCount;
+        vkCmdCopyBufferToImage(Command, Staging.Buffer, R.Image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, CopiedLevels, Copies.data());
+        if (P.DeviceLevels)
+        {
+            // Mip chain by linear blit, level by level: source level → TRANSFER_SRC, blit, and it is finished.
+            int32_t W = static_cast<int32_t>(P.Width), H = static_cast<int32_t>(P.Height);
+            for (uint32_t L = 1u; L < P.LevelCount; ++L)
+            {
+                VkImageMemoryBarrier ToSource = ToTransfer;
+                ToSource.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT; ToSource.dstAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
+                ToSource.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL; ToSource.newLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
+                ToSource.subresourceRange = { VK_IMAGE_ASPECT_COLOR_BIT, L - 1u, 1u, 0u, 1u };
+                vkCmdPipelineBarrier(Command, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT, 0u, 0u, nullptr, 0u, nullptr, 1u, &ToSource);
+                const int32_t NW = std::max(1, W / 2), NH = std::max(1, H / 2);
+                VkImageBlit Blit{};
+                Blit.srcSubresource = { VK_IMAGE_ASPECT_COLOR_BIT, L - 1u, 0u, 1u }; Blit.srcOffsets[1] = { W, H, 1 };
+                Blit.dstSubresource = { VK_IMAGE_ASPECT_COLOR_BIT, L, 0u, 1u };      Blit.dstOffsets[1] = { NW, NH, 1 };
+                vkCmdBlitImage(Command, R.Image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, R.Image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1u, &Blit, VK_FILTER_LINEAR);
+                W = NW; H = NH;
+            }
+            // Levels 0..N-2 sit in TRANSFER_SRC, the last in TRANSFER_DST: hand them all back to the shaders.
+            VkImageMemoryBarrier Finished[2] = { ToTransfer, ToTransfer };
+            Finished[0].srcAccessMask = VK_ACCESS_TRANSFER_READ_BIT;  Finished[0].dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+            Finished[0].oldLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL; Finished[0].newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+            Finished[0].subresourceRange = { VK_IMAGE_ASPECT_COLOR_BIT, 0u, P.LevelCount - 1u, 0u, 1u };
+            Finished[1].srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT; Finished[1].dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+            Finished[1].oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL; Finished[1].newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+            Finished[1].subresourceRange = { VK_IMAGE_ASPECT_COLOR_BIT, P.LevelCount - 1u, 1u, 0u, 1u };
+            vkCmdPipelineBarrier(Command, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT | VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, 0u, 0u, nullptr, 0u, nullptr, 2u, Finished);
+            Cursor += P.Texels.size();
+            continue;
+        }
+        VkImageMemoryBarrier ToShader = ToTransfer;
+        ToShader.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT; ToShader.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+        ToShader.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL; ToShader.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+        vkCmdPipelineBarrier(Command, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT | VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, 0u, 0u, nullptr, 0u, nullptr, 1u, &ToShader);
+        Cursor += P.Texels.size();
+    }
+    Vulkan->PendingTextureRefresh.clear();
 }
 
 void SwapchainExchange::UploadTextures(const TextureIndex& Textures) noexcept
 {
     if (!Vulkan->Device || !Vulkan->DescriptorIndexing) return;
     vkDeviceWaitIdle(Vulkan->Device);
+    ++SurfaceMaterialRevision;
     DestroyTextures();
 
     if (!Vulkan->TextureSampler)
@@ -2471,7 +2725,7 @@ void SwapchainExchange::UploadTextures(const TextureIndex& Textures) noexcept
 
     const std::vector<TextureDescriptor>& Source = Textures.QueryTextures();
     const uint32_t Count = static_cast<uint32_t>(std::min<size_t>(Source.size(), kTextureSlotCapacity));
-    if (Count == 0u) { WriteDescriptorSet(); return; }
+    if (Count == 0u) { WriteDescriptorSet(); if (!SceneUploadInProgress) RefreshMaterialDescriptors(); return; }
     if (Source.size() > kTextureSlotCapacity)
         std::cerr << "[SwapchainExchange] " << Source.size() << " textures exceed the " << kTextureSlotCapacity << "-slot table - the rest are not resident.\n";
 
@@ -2480,8 +2734,9 @@ void SwapchainExchange::UploadTextures(const TextureIndex& Textures) noexcept
     for (uint32_t I = 0u; I < Count; ++I) StagingBytes += Source[I].Texels.size();
     std::cerr << "[Allocation] texture_staging_payload=" << StagingBytes << " (CPU texels retained separately)\n";
     VkBuffer Staging = VK_NULL_HANDLE; VkDeviceMemory StagingMemory = VK_NULL_HANDLE;
-    AllocateBuffer(Vulkan->Device, Vulkan->MemoryProperties, std::max<VkDeviceSize>(StagingBytes, 16u), VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
-                   VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, Staging, StagingMemory);
+    if (const VkResult Allocation = AllocateBuffer(Vulkan->Device, Vulkan->MemoryProperties, std::max<VkDeviceSize>(StagingBytes, 16u), VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+                   VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, Staging, StagingMemory); Allocation != VK_SUCCESS)
+    { RefuseFrame("AllocateBuffer(UploadTextures)", Allocation); return; }
     std::vector<VkDeviceSize> TextureOffset(Count);
     {
         void* Mapped = nullptr;
@@ -2507,9 +2762,10 @@ void SwapchainExchange::UploadTextures(const TextureIndex& Textures) noexcept
         ImageInfo.imageType = VK_IMAGE_TYPE_2D; ImageInfo.format = Format;
         ImageInfo.extent = { T.Width, T.Height, 1u }; ImageInfo.mipLevels = T.LevelCount; ImageInfo.arrayLayers = 1u;
         ImageInfo.samples = VK_SAMPLE_COUNT_1_BIT; ImageInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
-        ImageInfo.usage = VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
+        ImageInfo.usage = VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;   // SRC: refresh mips by blit
         ImageInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE; ImageInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
         if (vkCreateImage(Vulkan->Device, &ImageInfo, nullptr, &R.Image) != VK_SUCCESS) { R.Image = VK_NULL_HANDLE; continue; }
+        R.Width = T.Width; R.Height = T.Height; R.LevelCount = T.LevelCount; R.Format = Format;
         VkMemoryRequirements Requirements{};
         vkGetImageMemoryRequirements(Vulkan->Device, R.Image, &Requirements);
         VkMemoryAllocateInfo Allocate{ VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO };
@@ -2528,10 +2784,12 @@ void SwapchainExchange::UploadTextures(const TextureIndex& Textures) noexcept
     VkCommandBufferAllocateInfo CommandInfo{ VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO };
     CommandInfo.commandPool = Vulkan->ComputeCommandPool; CommandInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY; CommandInfo.commandBufferCount = 1u;
     VkCommandBuffer Command = VK_NULL_HANDLE;
-    (void)vkAllocateCommandBuffers(Vulkan->Device, &CommandInfo, &Command);
+    if (const VkResult Allocation = vkAllocateCommandBuffers(Vulkan->Device, &CommandInfo, &Command); Allocation != VK_SUCCESS)
+    { RefuseFrame("vkAllocateCommandBuffers(upload)", Allocation); return; }
     VkCommandBufferBeginInfo Begin{ VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO };
     Begin.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
-    (void)vkBeginCommandBuffer(Command, &Begin);
+    if (const VkResult Begun = vkBeginCommandBuffer(Command, &Begin); Begun != VK_SUCCESS)
+    { RefuseFrame("vkBeginCommandBuffer(upload)", Begun); return; }
     for (uint32_t I = 0u; I < Count; ++I)
     {
         const TextureDescriptor& T = Source[I];
@@ -2559,21 +2817,13 @@ void SwapchainExchange::UploadTextures(const TextureIndex& Textures) noexcept
         ToShader.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL; ToShader.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
         vkCmdPipelineBarrier(Command, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 0u, 0u, nullptr, 0u, nullptr, 1u, &ToShader);
     }
-    (void)vkEndCommandBuffer(Command);
-    VkFence Fence = VK_NULL_HANDLE;
-    VkFenceCreateInfo FenceInfo{ VK_STRUCTURE_TYPE_FENCE_CREATE_INFO };
-    (void)vkCreateFence(Vulkan->Device, &FenceInfo, nullptr, &Fence);
-    VkSubmitInfo Submit{ VK_STRUCTURE_TYPE_SUBMIT_INFO };
-    Submit.commandBufferCount = 1u; Submit.pCommandBuffers = &Command;
-    (void)vkQueueSubmit(Vulkan->ComputeQueue, 1u, &Submit, Fence);
-    (void)vkWaitForFences(Vulkan->Device, 1u, &Fence, VK_TRUE, UINT64_MAX);
-    vkDestroyFence(Vulkan->Device, Fence, nullptr);
-    vkFreeCommandBuffers(Vulkan->Device, Vulkan->ComputeCommandPool, 1u, &Command);
+    if (!SubmitUpload(Command)) return;
     vkDestroyBuffer(Vulkan->Device, Staging, nullptr);
     vkFreeMemory(Vulkan->Device, StagingMemory, nullptr);
 
     std::cerr << "[SwapchainExchange] Textures: " << Count << " resident (" << (StagingBytes >> 20) << " MB) in the bindless table.\n";
     WriteDescriptorSet();
+    if (!SceneUploadInProgress) RefreshMaterialDescriptors();
 }
 
 void SwapchainExchange::UploadShadingTables(const float* Energy, const float* Sheen, uint32_t Resolution) noexcept
@@ -2596,8 +2846,9 @@ void SwapchainExchange::UploadShadingTables(const float* Energy, const float* Sh
 
     const VkDeviceSize TableBytes = static_cast<VkDeviceSize>(N) * N * 4u * sizeof(float);
     VkBuffer Staging = VK_NULL_HANDLE; VkDeviceMemory StagingMemory = VK_NULL_HANDLE;
-    AllocateBuffer(Vulkan->Device, Vulkan->MemoryProperties, TableBytes * 2u, VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
-                   VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, Staging, StagingMemory);
+    if (const VkResult Allocation = AllocateBuffer(Vulkan->Device, Vulkan->MemoryProperties, TableBytes * 2u, VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+                   VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, Staging, StagingMemory); Allocation != VK_SUCCESS)
+    { RefuseFrame("AllocateBuffer(UploadShadingTables)", Allocation); return; }
     {
         void* Mapped = nullptr;
         (void)vkMapMemory(Vulkan->Device, StagingMemory, 0u, VK_WHOLE_SIZE, 0u, &Mapped);
@@ -2612,10 +2863,12 @@ void SwapchainExchange::UploadShadingTables(const float* Energy, const float* Sh
     VkCommandBufferAllocateInfo CommandInfo{ VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO };
     CommandInfo.commandPool = Vulkan->ComputeCommandPool; CommandInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY; CommandInfo.commandBufferCount = 1u;
     VkCommandBuffer Command = VK_NULL_HANDLE;
-    (void)vkAllocateCommandBuffers(Vulkan->Device, &CommandInfo, &Command);
+    if (const VkResult Allocation = vkAllocateCommandBuffers(Vulkan->Device, &CommandInfo, &Command); Allocation != VK_SUCCESS)
+    { RefuseFrame("vkAllocateCommandBuffers(upload)", Allocation); return; }
     VkCommandBufferBeginInfo Begin{ VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO };
     Begin.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
-    (void)vkBeginCommandBuffer(Command, &Begin);
+    if (const VkResult Begun = vkBeginCommandBuffer(Command, &Begin); Begun != VK_SUCCESS)
+    { RefuseFrame("vkBeginCommandBuffer(upload)", Begun); return; }
 
     for (uint32_t I = 0u; I < 2u; ++I)
     {
@@ -2627,6 +2880,7 @@ void SwapchainExchange::UploadShadingTables(const float* Energy, const float* Sh
         ImageInfo.usage = VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
         ImageInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE; ImageInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
         if (vkCreateImage(Vulkan->Device, &ImageInfo, nullptr, &R.Image) != VK_SUCCESS) { R.Image = VK_NULL_HANDLE; continue; }
+        R.Width = N; R.Height = N; R.LevelCount = 1u; R.Format = VK_FORMAT_R32G32B32A32_SFLOAT;
         VkMemoryRequirements Requirements{};
         vkGetImageMemoryRequirements(Vulkan->Device, R.Image, &Requirements);
         VkMemoryAllocateInfo Allocate{ VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO };
@@ -2656,16 +2910,7 @@ void SwapchainExchange::UploadShadingTables(const float* Energy, const float* Sh
         ToShader.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL; ToShader.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
         vkCmdPipelineBarrier(Command, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 0u, 0u, nullptr, 0u, nullptr, 1u, &ToShader);
     }
-    (void)vkEndCommandBuffer(Command);
-    VkFence Fence = VK_NULL_HANDLE;
-    VkFenceCreateInfo FenceInfo{ VK_STRUCTURE_TYPE_FENCE_CREATE_INFO };
-    (void)vkCreateFence(Vulkan->Device, &FenceInfo, nullptr, &Fence);
-    VkSubmitInfo Submit{ VK_STRUCTURE_TYPE_SUBMIT_INFO };
-    Submit.commandBufferCount = 1u; Submit.pCommandBuffers = &Command;
-    (void)vkQueueSubmit(Vulkan->ComputeQueue, 1u, &Submit, Fence);
-    (void)vkWaitForFences(Vulkan->Device, 1u, &Fence, VK_TRUE, UINT64_MAX);
-    vkDestroyFence(Vulkan->Device, Fence, nullptr);
-    vkFreeCommandBuffers(Vulkan->Device, Vulkan->ComputeCommandPool, 1u, &Command);
+    if (!SubmitUpload(Command)) return;
     vkDestroyBuffer(Vulkan->Device, Staging, nullptr);
     vkFreeMemory(Vulkan->Device, StagingMemory, nullptr);
     std::cerr << "[SwapchainExchange] Shading tables: GGX energy + LTC sheen, 2 x " << N << "x" << N << " RGBA32F resident (bindings 13/14).\n";
@@ -2673,6 +2918,7 @@ void SwapchainExchange::UploadShadingTables(const float* Energy, const float* Sh
     //    so without this rewrite bindings 13/14 stay unbound while the kernel samples them every pixel — silent
     //    garbage on forgiving drivers, a fault on strict ones. The rewrite is idempotent for every other binding.
     WriteDescriptorSet();
+    (void)BringDistanceFieldGIStage();
 }
 
 void* SwapchainExchange::SwapReservoirParity() noexcept
@@ -2750,7 +2996,8 @@ void SwapchainExchange::UploadTraversal(const TraversalIndex& Traversal) noexcep
     const auto Upload = [&](const std::vector<float>& Blob, VkBuffer& Buffer, VkDeviceMemory& Memory)
     {
         const VkDeviceSize ByteCount = static_cast<VkDeviceSize>(Blob.size()) * sizeof(float);
-        AllocateBuffer(Vulkan->Device, Vulkan->MemoryProperties, ByteCount, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, HostVisible, Buffer, Memory);
+        if (const VkResult Allocation = AllocateBuffer(Vulkan->Device, Vulkan->MemoryProperties, ByteCount, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, HostVisible, Buffer, Memory); Allocation != VK_SUCCESS)
+        { RefuseFrame("AllocateBuffer(UploadTraversal)", Allocation); return; }
         void* Mapped = nullptr;
         (void)vkMapMemory(Vulkan->Device, Memory, 0u, ByteCount, 0u, &Mapped);
         if (Mapped) { std::memcpy(Mapped, Blob.data(), static_cast<size_t>(ByteCount)); vkUnmapMemory(Vulkan->Device, Memory); }
@@ -2766,31 +3013,46 @@ void SwapchainExchange::UploadTraversal(const TraversalIndex& Traversal) noexcep
 
 bool SwapchainExchange::RefreshTraversal(const TraversalIndex& Traversal, const std::vector<TriangleIndex>& Facets) noexcept
 {
-    // D5 per-frame path. Unlike UploadTraversal this must NOT reallocate: no vkDeviceWaitIdle, no descriptor
-    //    rewrite, because the VkBuffer handles are unchanged. It only succeeds while the refitted blobs still fit
-    //    the allocations made at load — a refit preserves topology, so in practice they do, but a grown blob is
-    //    refused rather than truncated.
-    if (!Vulkan || !Vulkan->Device || !TraversalResident) return false;
-    if (!Vulkan->TraversalNodeBuffer || !Vulkan->TraversalLeafBuffer) return false;
-
-    const auto Refresh = [&](const std::vector<float>& Blob, VkDeviceMemory Memory, VkDeviceSize Capacity) -> bool
+    if (!Vulkan || !Vulkan->Device || !TraversalResident || Facets.size() != Vulkan->TriangleCount ||
+        !Vulkan->TraversalNodeBuffer || !Vulkan->TraversalLeafBuffer) return false;
+    const auto& Nodes = Traversal.QueryNodeBlob();
+    const auto& Leaves = Traversal.QueryLeafBlob();
+    if (Nodes.empty() || Leaves.empty() || Nodes.size() * sizeof(float) > TraversalNodeCapacity ||
+        Leaves.size() * sizeof(float) > TraversalLeafCapacity) return false;
+    try
     {
-        const VkDeviceSize ByteCount = static_cast<VkDeviceSize>(Blob.size()) * sizeof(float);
-        if (ByteCount == 0u || ByteCount > Capacity) return false;
-        void* Mapped = nullptr;
-        if (vkMapMemory(Vulkan->Device, Memory, 0u, ByteCount, 0u, &Mapped) != VK_SUCCESS || Mapped == nullptr) return false;
-        std::memcpy(Mapped, Blob.data(), static_cast<size_t>(ByteCount));
-        vkUnmapMemory(Vulkan->Device, Memory);
+        auto Publish = [&](VkBuffer Destination, const void* Source, size_t Count)
+        {
+            auto Found = std::find_if(Vulkan->PendingTraversal.begin(), Vulkan->PendingTraversal.end(),
+                                     [&](const auto& Transfer) { return Transfer.Destination == Destination; });
+            if (Found == Vulkan->PendingTraversal.end())
+            {
+                Vulkan->PendingTraversal.push_back({ Destination, {} });
+                Found = Vulkan->PendingTraversal.end() - 1;
+            }
+            const auto* Bytes = static_cast<const unsigned char*>(Source);
+            Found->Bytes.assign(Bytes, Bytes + Count);
+        };
+        Publish(Vulkan->TraversalNodeBuffer, Nodes.data(), Nodes.size() * sizeof(float));
+        Publish(Vulkan->TraversalLeafBuffer, Leaves.data(), Leaves.size() * sizeof(float));
+        Publish(Vulkan->TriangleBuffer, Facets.data(), Facets.size() * sizeof(TriangleIndex));
         return true;
-    };
+    }
+    catch (...) { return false; }
+}
 
-    if (!Refresh(Traversal.QueryNodeBlob(), Vulkan->TraversalNodeMemory, TraversalNodeCapacity)) return false;
-    if (!Refresh(Traversal.QueryLeafBlob(), Vulkan->TraversalLeafMemory, TraversalLeafCapacity)) return false;
-
-    // The kernel resolves a hit's material and normal from Triangles[], so the flat triangles must move with the
-    //    acceleration structure or shading would read the body's old position.
-    UploadTriangles(Facets);
-    return true;
+bool SwapchainExchange::RefreshGeometry(const SceneStructure& Scene, const TraversalIndex* Traversal) noexcept
+{
+    if (!Vulkan || !Vulkan->Device || !Visibility.RefreshGeometry(Scene) ||
+        !RefreshInstances(Scene.QueryInstances().data(), static_cast<uint32_t>(Scene.QueryInstances().size()))) return false;
+    // Deformation publishes local vertices but keeps imported SDF samples at the authored rest shape. Rigid hub
+    // motion follows placement matrices; rendering deformed vertices accurately is not a per-frame SDF bake.
+    try
+    {
+        if (Vulkan->RayQueries.Ready() && !Vulkan->RayQueries.RefreshGeometry(Scene)) return false;
+    }
+    catch (...) { return false; }
+    return !Traversal || RefreshTraversal(*Traversal, Scene.QueryFlatTriangles());
 }
 
 void SwapchainExchange::UploadInstanceTraversal(const InstanceAcceleration& Instances) noexcept
@@ -2799,7 +3061,7 @@ void SwapchainExchange::UploadInstanceTraversal(const InstanceAcceleration& Inst
     //    TLAS leaf it reads BlasPlacements[blas].NodeOffset/LeafOffset and then indexes CwbvhNodes/CwbvhTris — the same
     //    buffers at bindings 8 and 9 used by the world-space path. Therefore, while TlasInstanceCount > 0, bindings
     //    8/9 must be the InstanceAcceleration shared BLAS blobs, not the stale world-space whole-scene CWBVH. The
-    //    Cornell box/single-instance path worked because TlasInstanceCount stayed 0 and the shader never took this arm.
+    //    The single-instance path worked because TlasInstanceCount stayed 0 and the shader never took this arm.
     if (!Vulkan || !Vulkan->Device) return;
 
     const std::vector<float>&    BlasNodes  = Instances.QueryNodeBlob();
@@ -2811,6 +3073,7 @@ void SwapchainExchange::UploadInstanceTraversal(const InstanceAcceleration& Inst
     if (BlasNodes.empty() || BlasLeaves.empty() || Nodes.empty() || Primitives.empty() || Rows.empty() || Places.empty()) return;
 
     vkDeviceWaitIdle(Vulkan->Device);
+    Vulkan->PendingTraversal.clear();
     if (Vulkan->TraversalNodeBuffer) vkDestroyBuffer(Vulkan->Device, Vulkan->TraversalNodeBuffer, nullptr);
     if (Vulkan->TraversalLeafBuffer) vkDestroyBuffer(Vulkan->Device, Vulkan->TraversalLeafBuffer, nullptr);
     if (Vulkan->TlasNodeBuffer)      vkDestroyBuffer(Vulkan->Device, Vulkan->TlasNodeBuffer, nullptr);
@@ -2832,7 +3095,8 @@ void SwapchainExchange::UploadInstanceTraversal(const InstanceAcceleration& Inst
     const auto Upload = [&](const void* Source, VkDeviceSize ByteCount, VkBuffer& Buffer, VkDeviceMemory& Memory) -> bool
     {
         if (!Source || ByteCount == 0u) return false;
-        AllocateBuffer(Vulkan->Device, Vulkan->MemoryProperties, ByteCount, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, HostVisible, Buffer, Memory);
+        if (const VkResult Allocation = AllocateBuffer(Vulkan->Device, Vulkan->MemoryProperties, ByteCount, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT, HostVisible, Buffer, Memory); Allocation != VK_SUCCESS)
+        { RefuseFrame("AllocateBuffer(UploadInstanceTraversal)", Allocation); return false; }
         if (!Buffer || !Memory) return false;
         void* Mapped = nullptr;
         if (vkMapMemory(Vulkan->Device, Memory, 0u, ByteCount, 0u, &Mapped) != VK_SUCCESS || Mapped == nullptr) return false;
@@ -2870,14 +3134,19 @@ bool SwapchainExchange::RefreshInstanceTraversal(const InstanceAcceleration& Ins
     if (!Vulkan->TlasNodeBuffer || !Vulkan->TlasPrimitiveBuffer || !Vulkan->TlasInstanceBuffer || !Vulkan->BlasPlacementBuffer) return false;
 
     const auto Refresh = [&](const void* Source, size_t Count, VkDeviceSize ElementBytes,
-                             VkDeviceMemory Memory, VkDeviceSize Capacity) -> bool
+                             VkBuffer Destination, VkDeviceSize Capacity) -> bool
     {
         const VkDeviceSize ByteCount = static_cast<VkDeviceSize>(Count) * ElementBytes;
         if (ByteCount == 0u || ByteCount > Capacity) return false;
-        void* Mapped = nullptr;
-        if (vkMapMemory(Vulkan->Device, Memory, 0u, ByteCount, 0u, &Mapped) != VK_SUCCESS || Mapped == nullptr) return false;
-        std::memcpy(Mapped, Source, static_cast<size_t>(ByteCount));
-        vkUnmapMemory(Vulkan->Device, Memory);
+        auto Existing = std::find_if(Vulkan->PendingTraversal.begin(), Vulkan->PendingTraversal.end(),
+            [&](const auto& Transfer) { return Transfer.Destination == Destination; });
+        if (Existing == Vulkan->PendingTraversal.end())
+        {
+            Vulkan->PendingTraversal.push_back({ Destination, {} });
+            Existing = Vulkan->PendingTraversal.end() - 1;
+        }
+        const auto* Bytes = static_cast<const unsigned char*>(Source);
+        Existing->Bytes.assign(Bytes, Bytes + ByteCount);
         return true;
     };
 
@@ -2885,10 +3154,10 @@ bool SwapchainExchange::RefreshInstanceTraversal(const InstanceAcceleration& Ins
     const std::vector<uint32_t>& Primitives = Instances.QueryTlasPrimitiveList();
     const std::vector<TlasInstanceRecord>& Rows = Instances.QueryInstances();
     const std::vector<BlasPlacement>&      Places = Instances.QueryBlasPlacements();
-    if (!Refresh(Nodes.data(), Nodes.size(), sizeof(float), Vulkan->TlasNodeMemory, TlasNodeCapacity)) return false;
-    if (!Refresh(Primitives.data(), Primitives.size(), sizeof(uint32_t), Vulkan->TlasPrimitiveMemory, TlasPrimitiveCapacity)) return false;
-    if (!Refresh(Rows.data(), Rows.size(), sizeof(TlasInstanceRecord), Vulkan->TlasInstanceMemory, TlasInstanceCapacity)) return false;
-    if (!Refresh(Places.data(), Places.size(), sizeof(BlasPlacement), Vulkan->BlasPlacementMemory, BlasPlacementCapacity)) return false;
+    if (!Refresh(Nodes.data(), Nodes.size(), sizeof(float), Vulkan->TlasNodeBuffer, TlasNodeCapacity)) return false;
+    if (!Refresh(Primitives.data(), Primitives.size(), sizeof(uint32_t), Vulkan->TlasPrimitiveBuffer, TlasPrimitiveCapacity)) return false;
+    if (!Refresh(Rows.data(), Rows.size(), sizeof(TlasInstanceRecord), Vulkan->TlasInstanceBuffer, TlasInstanceCapacity)) return false;
+    if (!Refresh(Places.data(), Places.size(), sizeof(BlasPlacement), Vulkan->BlasPlacementBuffer, BlasPlacementCapacity)) return false;
     return true;
 }
 
@@ -2899,11 +3168,7 @@ bool SwapchainExchange::RefreshSky(const void* Bytes, uint32_t ByteCount) noexce
     //    baked planes. The size is refused rather than trusted: a short write would leave half an old sky in
     //    the buffer, and a long one would overrun the mapping.
     if (!Vulkan->Device || !Vulkan->SkyMapped || !Bytes || ByteCount != kSkyRecordBytes) return false;
-    // One memcpy into the persistent mapping: no reallocation, no descriptor rewrite, no device stall — the
-    //    same per-frame shape as RefreshTraversal. The buffer is shared by both cycle slots, so a sufficiently
-    //    adversarial scheduler could show one frame a half-old sky; RefreshTraversal accepts that shape for
-    //    megabytes of BVH, which is where the argument ends for 144 coherent bytes.
-    std::memcpy(Vulkan->SkyMapped, Bytes, kSkyRecordBytes);
+    std::memcpy(Vulkan->SkyPending.data(), Bytes, kSkyRecordBytes);
     return true;
 }
 
@@ -2914,11 +3179,7 @@ bool SwapchainExchange::RefreshMoons(const void* Bytes, uint32_t ByteCount) noex
     //    The size is refused rather than trusted: a short write would leave half an old roster in the buffer,
     //    and a long one would overrun the mapping.
     if (!Vulkan->Device || !Vulkan->MoonMapped || !Bytes || ByteCount != kMoonRecordBytes) return false;
-    // One memcpy into the persistent mapping: no reallocation, no descriptor rewrite, no device stall — the
-    //    same per-frame shape as RefreshSky. The buffer is shared by both cycle slots, so a sufficiently
-    //    adversarial scheduler could show one frame a half-old roster; RefreshTraversal accepts that shape for
-    //    megabytes of BVH, which is where the argument ends for 288 coherent bytes.
-    std::memcpy(Vulkan->MoonMapped, Bytes, kMoonRecordBytes);
+    std::memcpy(Vulkan->MoonPending.data(), Bytes, kMoonRecordBytes);
     return true;
 }
 
@@ -2964,8 +3225,9 @@ void SwapchainExchange::UploadStarTables(const void* CellBytes, uint32_t CellCou
     constexpr uint32_t HostVisible = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
     const uint32_t TotalBytes = CellCount * kStarCellBytes + StarCount * kStarRecordBytes;
     VkBuffer NewBuffer = VK_NULL_HANDLE; VkDeviceMemory NewMemory = VK_NULL_HANDLE; void* NewMapped = nullptr;
-    AllocateBuffer(Vulkan->Device, Vulkan->MemoryProperties, TotalBytes, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
-                   HostVisible, NewBuffer, NewMemory);
+    if (const VkResult Allocation = AllocateBuffer(Vulkan->Device, Vulkan->MemoryProperties, TotalBytes, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
+                   HostVisible, NewBuffer, NewMemory); Allocation != VK_SUCCESS)
+    { RefuseFrame("AllocateBuffer(UploadStarTables)", Allocation); return; }
     if (!NewBuffer) return;
     if (vkMapMemory(Vulkan->Device, NewMemory, 0u, TotalBytes, 0u, &NewMapped) != VK_SUCCESS)
     {
@@ -2994,17 +3256,53 @@ void SwapchainExchange::UploadStarTables(const void* CellBytes, uint32_t CellCou
     Write.descriptorCount = 1u;
     Write.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
     Write.pBufferInfo = &StarInfo;
-    vkUpdateDescriptorSets(Vulkan->Device, 1u, &Write, 0u, nullptr);
+    for (VkDescriptorSet Set : Vulkan->ComputeDescriptorSets)
+    {
+        Write.dstSet = Set;
+        vkUpdateDescriptorSets(Vulkan->Device, 1u, &Write, 0u, nullptr);
+    }
 }
 
-void SwapchainExchange::UploadScene(const SceneStructure& Scene, const TraversalIndex& Traversal, const TextureIndex* Textures) noexcept
+void SwapchainExchange::UploadScene(const SceneStructure& Scene, const TraversalIndex& Traversal,
+                                    const TextureIndex* Textures, bool RetainDistanceFields) noexcept
 {
-    if (!Vulkan->Device) return;
+    if (!Vulkan->Device || FrameFailed) return;
+    const VkResult Completed = vkDeviceWaitIdle(Vulkan->Device);
+    if (Completed != VK_SUCCESS) { RefuseFrame("vkDeviceWaitIdle(scene publication)", Completed); return; }
+    SceneUploadInProgress = true;
     Visibility.UploadScene(Scene);
     if (Textures) UploadTextures(*Textures);        // R4a: bindless table (binding 15) — before the descriptor writes below
+    if (FrameFailed) { SceneUploadInProgress = false; return; }
     UploadTriangles(Scene.QueryFlatTriangles());   // kernel: material / normal lookup by CWBVH primitive index
+    if (FrameFailed) { SceneUploadInProgress = false; return; }
     UploadMaterials(Scene.QueryMaterials());       // R4a: MaterialRecord + MaterialSlabRecord (bindings 2, 10)
+    if (FrameFailed) { SceneUploadInProgress = false; return; }
     UploadTraversal(Traversal);                    // R3: CWBVH node + triangle blobs (bindings 8-9)
+    if (FrameFailed) { SceneUploadInProgress = false; return; }
+    if (Vulkan->RayQueryPipeline)
+    {
+        Vulkan->RayQueryInstanceCount = static_cast<uint32_t>(Scene.QueryInstances().size());
+        if (!Vulkan->RayQueries.ConstructScene(Scene))
+            std::cerr << "[RayQuery] Triangle acceleration construction refused; using software traversal.\n";
+        else
+            std::cerr << "[RayQuery] Hardware triangle BLAS/TLAS resident: " << Vulkan->RayQueryInstanceCount
+                      << " instances; inline ray queries enabled for ReSTIR GI, shadows and mesh reflections.\n";
+    }
+    try
+    {
+        DistanceGeometryResident = RetainDistanceFields && DistanceGeometryResident
+            ? DistanceGeometry.RefreshReflectance(Scene) : DistanceGeometry.Construct(Scene);
+        if (!DistanceGeometryResident) std::cerr << "[SdfGI] import refused: " << DistanceGeometry.QueryRefusal() << '\n';
+    }
+    catch (...)
+    {
+        DistanceGeometryResident = false;
+        std::cerr << "[SdfGI] mesh import refused; direct raster remains available, without indirect light.\n";
+    }
+    SceneUploadInProgress = false;
+    // Rebind borrowed raster/material resources only after publication is complete; fields do not depend on RT traversal.
+    if (!BringDistanceFieldGIStage())
+        std::cerr << "[DistanceFieldGIStage] unavailable after scene upload; retaining the established renderer as fallback.\n";
 
     // R4b: the raster's alpha-mask test borrows the slab SSBO and the bindless table (VisibilityRaster.frag bindings 6 / 7).
     if (Vulkan->DescriptorIndexing)
@@ -3020,18 +3318,243 @@ bool SwapchainExchange::BringVisibility() noexcept
     if (!Visibility.Bring(Vulkan->Device, Vulkan->PhysicalDevice, kCycleSlotCount, DrawIndirectCountSupported, Vulkan->DescriptorIndexing ? kTextureSlotCapacity : 0u)) return false;
     if (!Visibility.Resize(Configuration.Width, Configuration.Height, Vulkan->StorageImageView)) return false;
     WriteDescriptorSet();
-    return true;
+    const VkDescriptorSetLayout Sets[] = { Vulkan->ComputeDescriptorLayout,
+        reinterpret_cast<VkDescriptorSetLayout>(Visibility.QueryShadowDescriptorLayout()) };
+    if (!Visibility.IsShadowReady() || !Sets[1]) return false;
+    VkPushConstantRange Push{ VK_SHADER_STAGE_COMPUTE_BIT, 0u, sizeof(DispatchConfiguration) };
+    VkPipelineLayoutCreateInfo Layout{ VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO };
+    Layout.setLayoutCount = 2u;
+    Layout.pSetLayouts = Sets;
+    Layout.pushConstantRangeCount = 1u;
+    Layout.pPushConstantRanges = &Push;
+    if (vkCreatePipelineLayout(Vulkan->Device, &Layout, nullptr, &Vulkan->RasterPipelineLayout) != VK_SUCCESS) return false;
+    const auto Spirv = LoadSpirv("Engine/Shaders/RasterViewport.spv");
+    if (Spirv.empty()) return false;
+    VkShaderModuleCreateInfo Shader{ VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO };
+    Shader.codeSize = Spirv.size() * sizeof(uint32_t);
+    Shader.pCode = Spirv.data();
+    VkShaderModule Compiled = VK_NULL_HANDLE;
+    if (vkCreateShaderModule(Vulkan->Device, &Shader, nullptr, &Compiled) != VK_SUCCESS) return false;
+    VkComputePipelineCreateInfo Compute{ VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO };
+    Compute.stage.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+    Compute.stage.stage = VK_SHADER_STAGE_COMPUTE_BIT;
+    Compute.stage.module = Compiled;
+    Compute.stage.pName = "main";
+    Compute.layout = Vulkan->RasterPipelineLayout;
+    const VkResult Result = vkCreateComputePipelines(Vulkan->Device, Vulkan->PipelineCache, 1u, &Compute, nullptr, &Vulkan->RasterPipeline);
+    vkDestroyShaderModule(Vulkan->Device, Compiled, nullptr);
+    return Result == VK_SUCCESS;
+}
+
+bool SwapchainExchange::RefreshTyreDeformations(const TyreDeformationRecord* Pairs, uint32_t Count) noexcept
+{
+    return Visibility.RefreshTyreDeformations(Pairs, Count);
+}
+
+bool SwapchainExchange::RefreshInstances(const InstanceRecord* Rows, uint32_t Count) noexcept
+{
+    if (!Visibility.RefreshInstances(Rows, Count)) return false;
+    if (Vulkan->RayQueries.Ready() && !Vulkan->RayQueries.RefreshPlacements(Rows, Count)) return false;
+    if (!DistanceGeometryResident) return true;
+    try
+    {
+        if (DistanceGeometry.RefreshInstances(Rows, Count)) return true;
+    }
+    catch (...) {}
+    DistanceGeometryResident = false;
+    std::cerr << "[SdfGI] placement refresh refused; indirect light suspended, not rebaked.\n";
+    return false;
+}
+
+void SwapchainExchange::AssignDistanceFieldGI(bool Enabled) noexcept
+{
+    if (DistanceFieldGIRequested == Enabled) return;
+    DistanceFieldGIRequested = Enabled;
+    if (!Enabled || !Vulkan || !Vulkan->Device) return;
+    const VkResult Completed = vkDeviceWaitIdle(Vulkan->Device);
+    if (Completed != VK_SUCCESS) { RefuseFrame("vkDeviceWaitIdle(SDF selection)", Completed); return; }
+    if (!BringDistanceFieldGIStage())
+        std::cerr << "[SdfGI] unavailable: " << DistanceFieldStage.QueryRefusal() << "; direct raster only.\n";
+}
+
+void SwapchainExchange::RefreshMaterialDescriptors() noexcept
+{
+    // Uploads complete readers before replacing borrowed resources. Rebind without destroying persistent fields or pipelines.
+    (void)BringDistanceFieldGIStage();
+    if (Vulkan->DescriptorIndexing && Visibility.IsReady())
+    {
+        std::vector<const void*> Views;
+        for (const VulkanRecord::ResidentTexture& Texture : Vulkan->Textures) Views.push_back(Texture.View);
+        Visibility.AssignRasterMaterials(Vulkan->SlabBuffer, Vulkan->TextureSampler, Views.data(), static_cast<uint32_t>(Views.size()));
+    }
+}
+
+bool SwapchainExchange::BringDistanceFieldGIStage() noexcept
+{
+    if ((!DistanceFieldGIRequested && !DistanceFieldStage.IsReady()) || !DistanceGeometryResident) return true;
+    if (!Visibility.IsReady() || !Visibility.IsShadowReady()) return true;
+    DistanceFieldStageInit Init{};
+    Init.ImageWidth = Configuration.Width;
+    Init.ImageHeight = Configuration.Height;
+    VkPhysicalDeviceVulkan12Features Features{VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_FEATURES};
+    VkPhysicalDeviceFeatures2 Supported{VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2};
+    Supported.pNext = &Features;
+    vkGetPhysicalDeviceFeatures2(Vulkan->PhysicalDevice, &Supported);
+    Init.TextureUpdateAfterBind = Features.descriptorBindingSampledImageUpdateAfterBind != VK_FALSE;
+    Init.PhysicalDevice   = Vulkan->PhysicalDevice;
+    Init.Geometry         = &DistanceGeometry;
+    Init.Device           = Vulkan->Device;
+    Init.MemoryProperties = Vulkan->MemoryProperties;
+    Init.PipelineCache = Vulkan->PipelineCache;
+    Init.ShadowDescriptorLayout = static_cast<VkDescriptorSetLayout>(Visibility.QueryShadowDescriptorLayout());
+    Init.QueueFamily = Vulkan->GraphicsFamily;
+    Init.CycleSlotCount = kCycleSlotCount;
+    Init.LinearImageView  = Vulkan->DenoiseImageViews[0];
+    Init.OutputImageView  = Vulkan->StorageImageView;
+    Init.SurfaceImageView = static_cast<VkImageView>(Visibility.QuerySurfaceView());
+    Init.NormalImageView  = static_cast<VkImageView>(Visibility.QueryNormalView());
+    Init.TriangleBuffer   = static_cast<VkBuffer>(Visibility.QueryFlatTriangleBuffer());
+    Init.MaterialBuffer   = Vulkan->MaterialBuffer;
+    Init.InstanceBuffer   = static_cast<VkBuffer>(Visibility.QueryInstanceBuffer());
+    Init.SlabBuffer       = Vulkan->SlabBuffer;
+    Init.VertexBuffer     = static_cast<VkBuffer>(Visibility.QueryVertexBuffer());
+    Init.IndexBuffer      = static_cast<VkBuffer>(Visibility.QueryIndexBuffer());
+    Init.TableSampler     = Vulkan->TableSampler;
+    Init.EnergyLutView    = Vulkan->ShadingTables[0].View;
+    Init.SheenLutView     = Vulkan->ShadingTables[1].View;
+    Init.TextureSampler   = Vulkan->TextureSampler;
+    DistanceTextureViews.clear();
+    DistanceTextureViews.reserve(Vulkan->Textures.size());
+    for (const VulkanRecord::ResidentTexture& T : Vulkan->Textures) DistanceTextureViews.push_back(T.View);
+    Init.TextureViews     = DistanceTextureViews.data();
+    Init.TextureCount     = static_cast<uint32_t>(DistanceTextureViews.size());
+    Init.TextureCapacity  = Vulkan->DescriptorIndexing ? Init.TextureCount : 0u;
+    if (!Init.TriangleBuffer || !Init.MaterialBuffer || !Init.InstanceBuffer
+     || !Init.SlabBuffer     || !Init.VertexBuffer   || !Init.IndexBuffer
+     || !Init.EnergyLutView  || !Init.SheenLutView) return true;
+    return DistanceFieldStage.Bring(Init);
 }
 
 //============================================================================================================================================
 //                                           RECORD AND PRESENT
 //============================================================================================================================================
 
+bool SwapchainExchange::SubmitUpload(VkCommandBuffer Command) noexcept
+{
+    VkResult Completion = vkEndCommandBuffer(Command);
+    if (Completion != VK_SUCCESS) { RefuseFrame("vkEndCommandBuffer(upload)", Completion); return false; }
+    VkFence Fence = VK_NULL_HANDLE;
+    VkFenceCreateInfo FenceInformation{ VK_STRUCTURE_TYPE_FENCE_CREATE_INFO };
+    Completion = vkCreateFence(Vulkan->Device, &FenceInformation, nullptr, &Fence);
+    if (Completion != VK_SUCCESS) { RefuseFrame("vkCreateFence(upload)", Completion); return false; }
+    VkSubmitInfo Submission{ VK_STRUCTURE_TYPE_SUBMIT_INFO };
+    Submission.commandBufferCount = 1u;
+    Submission.pCommandBuffers = &Command;
+    Completion = vkQueueSubmit(Vulkan->GraphicsQueue, 1u, &Submission, Fence);
+    if (Completion != VK_SUCCESS)
+    {
+        vkDestroyFence(Vulkan->Device, Fence, nullptr);
+        RefuseFrame("vkQueueSubmit(upload)", Completion);
+        return false; // never wait an unsignalled fence after a refused submission
+    }
+    Completion = vkWaitForFences(Vulkan->Device, 1u, &Fence, VK_TRUE, UINT64_MAX);
+    if (Completion != VK_SUCCESS) { RefuseFrame("vkWaitForFences(upload)", Completion); return false; }
+    vkDestroyFence(Vulkan->Device, Fence, nullptr);
+    vkFreeCommandBuffers(Vulkan->Device, Vulkan->ComputeCommandPool, 1u, &Command);
+    return true;
+}
+
+bool SwapchainExchange::ReadbackPresentation(std::vector<uint8_t>& Pixels, uint32_t& Width, uint32_t& Height) noexcept
+{
+    if (!Vulkan || !Vulkan->Device || !Vulkan->StorageImage || !Vulkan->StorageInitialised) return false;
+    if (vkDeviceWaitIdle(Vulkan->Device) != VK_SUCCESS) return false;
+    // The renderer draws a sub-rectangle at render scale and the blit stretches it; the capture is that rectangle.
+    Width  = Vulkan->PresentedWidth  ? std::min(Vulkan->PresentedWidth,  Configuration.Width)  : Configuration.Width;
+    Height = Vulkan->PresentedHeight ? std::min(Vulkan->PresentedHeight, Configuration.Height) : Configuration.Height;
+    const VkDeviceSize Bytes = static_cast<VkDeviceSize>(Width) * Height * 4u;
+    VkBuffer Staging = VK_NULL_HANDLE; VkDeviceMemory StagingMemory = VK_NULL_HANDLE;
+    if (AllocateBuffer(Vulkan->Device, Vulkan->MemoryProperties, Bytes, VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+                       VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, Staging, StagingMemory) != VK_SUCCESS)
+        return false;
+    VkCommandBufferAllocateInfo CommandInfo{ VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO };
+    CommandInfo.commandPool = Vulkan->ComputeCommandPool; CommandInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY; CommandInfo.commandBufferCount = 1u;
+    VkCommandBuffer Command = VK_NULL_HANDLE;
+    bool Copied = false;
+    if (vkAllocateCommandBuffers(Vulkan->Device, &CommandInfo, &Command) == VK_SUCCESS)
+    {
+        VkCommandBufferBeginInfo Begin{ VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO };
+        Begin.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+        if (vkBeginCommandBuffer(Command, &Begin) == VK_SUCCESS)
+        {
+            // The presentation image rests in GENERAL between frames (every frame's first barrier assumes so).
+            VkImageMemoryBarrier ToSource{ VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER };
+            ToSource.oldLayout = VK_IMAGE_LAYOUT_GENERAL; ToSource.newLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
+            ToSource.srcQueueFamilyIndex = ToSource.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+            ToSource.image = Vulkan->StorageImage;
+            ToSource.subresourceRange = { VK_IMAGE_ASPECT_COLOR_BIT, 0u, 1u, 0u, 1u };
+            ToSource.srcAccessMask = VK_ACCESS_MEMORY_WRITE_BIT | VK_ACCESS_MEMORY_READ_BIT; ToSource.dstAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
+            vkCmdPipelineBarrier(Command, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT, 0u, 0u, nullptr, 0u, nullptr, 1u, &ToSource);
+            VkBufferImageCopy Region{};
+            Region.imageSubresource = { VK_IMAGE_ASPECT_COLOR_BIT, 0u, 0u, 1u };
+            Region.imageExtent      = { Width, Height, 1u };
+            vkCmdCopyImageToBuffer(Command, Vulkan->StorageImage, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, Staging, 1u, &Region);
+            VkImageMemoryBarrier Back = ToSource;
+            Back.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL; Back.newLayout = VK_IMAGE_LAYOUT_GENERAL;
+            Back.srcAccessMask = VK_ACCESS_TRANSFER_READ_BIT; Back.dstAccessMask = VK_ACCESS_MEMORY_READ_BIT | VK_ACCESS_MEMORY_WRITE_BIT;
+            vkCmdPipelineBarrier(Command, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, 0u, 0u, nullptr, 0u, nullptr, 1u, &Back);
+            Copied = SubmitUpload(Command);   // ends, submits, waits and frees the command buffer
+        }
+    }
+    if (Copied)
+    {
+        void* Mapped = nullptr;
+        if (vkMapMemory(Vulkan->Device, StagingMemory, 0u, VK_WHOLE_SIZE, 0u, &Mapped) == VK_SUCCESS && Mapped)
+        {
+            Pixels.resize(static_cast<size_t>(Bytes));
+            std::memcpy(Pixels.data(), Mapped, static_cast<size_t>(Bytes));
+            vkUnmapMemory(Vulkan->Device, StagingMemory);
+        }
+        else Copied = false;
+    }
+    vkDestroyBuffer(Vulkan->Device, Staging, nullptr);
+    vkFreeMemory(Vulkan->Device, StagingMemory, nullptr);
+    return Copied;
+}
+
+void SwapchainExchange::RefuseFrame(const char* Operation, int32_t Code) noexcept
+{
+    if (FrameFailed) return;
+    FrameFailed = true;
+    FrameFailureOperation = Operation;
+    FrameFailureCode = Code;
+    std::cerr << "[SwapchainExchange] " << Operation << " failed: VkResult " << Code
+              << (Code == VK_ERROR_DEVICE_LOST ? " (VK_ERROR_DEVICE_LOST)" : "")
+              << ". Rendering stopped; no further submissions or semaphore/fence reuse.\n";
+}
+
+bool SwapchainExchange::CaptureSmoke(const FrontierProjectSmokeReading& Scalar, const FrontierSmokeTransportReading& Transport)
+{
+    if (!SmokeDeviceConstructed && Scalar.Extent)
+    {
+        SmokeDeviceSpecification Specification;
+        Specification.PhysicalDevice = Vulkan->PhysicalDevice;
+        Specification.Device = Vulkan->Device;
+        Specification.MemoryProperties = Vulkan->MemoryProperties;
+        Specification.FineExtent = 128u;
+        Specification.CycleSlotCount = kCycleSlotCount;
+        if (!TyreSmoke.Construct(Specification)) return false;
+        SmokeDeviceConstructed = true;
+    }
+    return TyreSmoke.Capture(Scalar, Transport);
+}
+
 void SwapchainExchange::RecordAndPresent(const DispatchConfiguration& Dispatch) noexcept
 {
+    if (FrameFailed || !Vulkan || !Vulkan->Device) return; // terminal: never reuse a failed cycle
     const uint32_t ActiveSlot = Vulkan->ActiveSlot;
-
-    vkWaitForFences(Vulkan->Device, 1u, &Vulkan->CycleFences[ActiveSlot], VK_TRUE, UINT64_MAX);
+    auto Failed = [&](const char* Operation, VkResult Result) noexcept { RefuseFrame(Operation, Result); };
+    const VkResult CycleWait = vkWaitForFences(Vulkan->Device, 1u, &Vulkan->CycleFences[ActiveSlot], VK_TRUE, UINT64_MAX);
+    if (CycleWait != VK_SUCCESS) { Failed("vkWaitForFences(cycle)", CycleWait); return; }
 
     // 🔴 A pending resize is handled BEFORE the acquire, not after it. Acquiring and then abandoning the frame
     //    leaves the acquire semaphore SIGNALLED with nothing ever waiting on it, and the next acquire on the
@@ -3041,9 +3564,16 @@ void SwapchainExchange::RecordAndPresent(const DispatchConfiguration& Dispatch) 
     if (ResizePending)
     {
         ResizePending = false;
-        (void)RebuildSwapchain();
+        if (!RebuildSwapchain()) Failed("RebuildSwapchain(resize)", VK_ERROR_INITIALIZATION_FAILED);
         return;
     }
+
+    // Do not acquire/signal a semaphore for a frame that cannot be submitted.
+    // Returning after acquire used to leave it signalled, then reuse it on the next frame.
+    if (!Vulkan->TriangleBuffer || !Vulkan->MaterialBuffer ||
+        ((Dispatch.FeatureFlags & DispatchFeatureRaytracing) != 0u && !TraversalResident) ||
+        !Visibility.IsReady() || !VisibilityFrameValid)
+        return;
 
     uint32_t ImageOrdinal = 0u;
     const VkResult AcquireResult = vkAcquireNextImageKHR(
@@ -3053,32 +3583,30 @@ void SwapchainExchange::RecordAndPresent(const DispatchConfiguration& Dispatch) 
     // An out-of-date acquire does not signal, so rebuilding here is safe.
     if (AcquireResult == VK_ERROR_OUT_OF_DATE_KHR)
     {
-        (void)RebuildSwapchain();
+        if (!RebuildSwapchain()) Failed("RebuildSwapchain(acquire)", VK_ERROR_INITIALIZATION_FAILED);
         return;
     }
 
     if (AcquireResult != VK_SUCCESS && AcquireResult != VK_SUBOPTIMAL_KHR)
     {
-        std::cerr << "[SwapchainExchange] vkAcquireNextImageKHR failed (VkResult " << static_cast<int>(AcquireResult) << ").\n";
-        return;
-    }
-
-    if (!Vulkan->TriangleBuffer || !Vulkan->MaterialBuffer || !TraversalResident || !Visibility.IsReady() || !VisibilityFrameValid)
-    {
-        // Descriptors for bindings 1/2/4-7 are unwritten until the scene is uploaded; dispatching now would be UB.
-        std::cerr << "[SwapchainExchange] RecordAndPresent called before UploadScene / AssignVisibilityFrame - frame skipped.\n";
+        Failed("vkAcquireNextImageKHR", AcquireResult);
         return;
     }
 
     if (Vulkan->ImageOrdinalFences[ImageOrdinal] != VK_NULL_HANDLE)
-        vkWaitForFences(Vulkan->Device, 1u, &Vulkan->ImageOrdinalFences[ImageOrdinal], VK_TRUE, UINT64_MAX);
-    Vulkan->ImageOrdinalFences[ImageOrdinal] = Vulkan->CycleFences[ActiveSlot];
+    {
+        const VkResult ImageWait = vkWaitForFences(Vulkan->Device, 1u, &Vulkan->ImageOrdinalFences[ImageOrdinal], VK_TRUE, UINT64_MAX);
+        if (ImageWait != VK_SUCCESS) { Failed("vkWaitForFences(image)", ImageWait); return; }
+    }
 
+    TyreSmoke.ReadCompleted(ActiveSlot);
+    Vulkan->ComputeDescriptorSet = Vulkan->ComputeDescriptorSets[ActiveSlot];
     void* PrevReservoirs = SwapReservoirParity();   // R6: prev = last frame's curr before recording the new frame
     Visibility.AssignReservoirView(PrevReservoirs);   // R6 row 3: resolve binding 13 follows the kernel's prev buffer (M/W/Age views)
-    RecordComputeCommands(ImageOrdinal, Dispatch);
+    if (!RecordComputeCommands(ImageOrdinal, Dispatch)) return;
 
-    vkResetFences(Vulkan->Device, 1u, &Vulkan->CycleFences[ActiveSlot]);
+    const VkResult Reset = vkResetFences(Vulkan->Device, 1u, &Vulkan->CycleFences[ActiveSlot]);
+    if (Reset != VK_SUCCESS) { Failed("vkResetFences(cycle)", Reset); return; }
 
     // The first touch of the acquired image is the blit (transfer stage), then the ImGui colour pass.
     VkPipelineStageFlags WaitStage = VK_PIPELINE_STAGE_TRANSFER_BIT | VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
@@ -3090,7 +3618,9 @@ void SwapchainExchange::RecordAndPresent(const DispatchConfiguration& Dispatch) 
     Submit.pCommandBuffers      = &Vulkan->ComputeCommands[ImageOrdinal];
     Submit.signalSemaphoreCount = 1u;
     Submit.pSignalSemaphores    = &Vulkan->ReleaseSemaphores[ImageOrdinal];
-    (void)vkQueueSubmit(Vulkan->GraphicsQueue, 1u, &Submit, Vulkan->CycleFences[ActiveSlot]);
+    const VkResult Submitted = vkQueueSubmit(Vulkan->GraphicsQueue, 1u, &Submit, Vulkan->CycleFences[ActiveSlot]);
+    if (Submitted != VK_SUCCESS) { Failed("vkQueueSubmit(graphics)", Submitted); return; }
+    Vulkan->ImageOrdinalFences[ImageOrdinal] = Vulkan->CycleFences[ActiveSlot];
 
     VkPresentInfoKHR PresentInfo{ VK_STRUCTURE_TYPE_PRESENT_INFO_KHR };
     PresentInfo.waitSemaphoreCount = 1u;
@@ -3100,47 +3630,78 @@ void SwapchainExchange::RecordAndPresent(const DispatchConfiguration& Dispatch) 
     PresentInfo.pImageIndices      = &ImageOrdinal;
 
     const VkResult PresentResult = vkQueuePresentKHR(Vulkan->GraphicsQueue, &PresentInfo);
+    if (PresentResult == VK_SUCCESS || PresentResult == VK_SUBOPTIMAL_KHR)
+    {
+        if (!PresentedFrame && Configuration.HideUntilPresented) glfwShowWindow(GlfwWindow);
+        PresentedFrame = true;
+    }
     if (PresentResult == VK_ERROR_OUT_OF_DATE_KHR || PresentResult == VK_SUBOPTIMAL_KHR || ResizePending)
     {
         ResizePending = false;
-        (void)RebuildSwapchain();
+        if (!RebuildSwapchain()) { Failed("RebuildSwapchain(present)", VK_ERROR_INITIALIZATION_FAILED); return; }
+    }
+    else if (PresentResult != VK_SUCCESS)
+    {
+        Failed("vkQueuePresentKHR", PresentResult);
+        return;
     }
 
     Vulkan->ActiveSlot = (ActiveSlot + 1u) % kCycleSlotCount;
 }
 
-//------------------------------------------------------------------------------------------------------------------------
-//                                           RECORD COMPUTE COMMANDS
-//------------------------------------------------------------------------------------------------------------------------
-
-void SwapchainExchange::RecordComputeCommands(uint32_t ImageOrdinal, const DispatchConfiguration& Dispatch) noexcept
+bool SwapchainExchange::RecordComputeCommands(uint32_t ImageOrdinal, const DispatchConfiguration& Dispatch) noexcept
 {
     VkCommandBuffer Command = Vulkan->ComputeCommands[ImageOrdinal];
-
-    VkCommandBufferBeginInfo BeginInfo{ VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO };
-    BeginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
-    (void)vkBeginCommandBuffer(Command, &BeginInfo);
-    // Queue-ordered update protects the shared post/weather UBO across cycle slots.
-    // vkCmdUpdateBuffer copies these 544 bytes while recording the command.
-    if(Vulkan->PostBuffer){
-        VkBufferMemoryBarrier B{VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER};
-        B.srcAccessMask=VK_ACCESS_UNIFORM_READ_BIT | VK_ACCESS_TRANSFER_WRITE_BIT;B.dstAccessMask=VK_ACCESS_TRANSFER_WRITE_BIT;
-        B.srcQueueFamilyIndex=B.dstQueueFamilyIndex=VK_QUEUE_FAMILY_IGNORED;
-        B.buffer=Vulkan->PostBuffer;B.offset=0;B.size=kPostRecordBytes;
-        vkCmdPipelineBarrier(Command,VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT | VK_PIPELINE_STAGE_TRANSFER_BIT,VK_PIPELINE_STAGE_TRANSFER_BIT,
-            0,0,nullptr,1,&B,0,nullptr);
-        vkCmdUpdateBuffer(Command,Vulkan->PostBuffer,0,kPostRecordBytes,Vulkan->PostPending.data());
-        B.srcAccessMask=VK_ACCESS_TRANSFER_WRITE_BIT;B.dstAccessMask=VK_ACCESS_UNIFORM_READ_BIT;
-        vkCmdPipelineBarrier(Command,VK_PIPELINE_STAGE_TRANSFER_BIT,VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-            0,0,nullptr,1,&B,0,nullptr);
+    const VkResult Reset = vkResetCommandBuffer(Command, 0u);
+    if (Reset != VK_SUCCESS) { RefuseFrame("vkResetCommandBuffer", Reset); return false; }
+    VkCommandBufferBeginInfo Begin{ VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO };
+    Begin.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+    const VkResult Begun = vkBeginCommandBuffer(Command, &Begin);
+    if (Begun != VK_SUCCESS) { RefuseFrame("vkBeginCommandBuffer", Begun); return false; }
+    if (!Vulkan->PendingTraversal.empty())
+    {
+        VkMemoryBarrier Transfer{ VK_STRUCTURE_TYPE_MEMORY_BARRIER };
+        Transfer.srcAccessMask = VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_TRANSFER_WRITE_BIT;
+        Transfer.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+        vkCmdPipelineBarrier(Command, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT | VK_PIPELINE_STAGE_TRANSFER_BIT,
+                             VK_PIPELINE_STAGE_TRANSFER_BIT,
+                             0u, 1u, &Transfer, 0u, nullptr, 0u, nullptr);
+        for (const auto& Upload : Vulkan->PendingTraversal)
+            for (VkDeviceSize Offset = 0u; Offset < Upload.Bytes.size(); Offset += 65536u)
+                vkCmdUpdateBuffer(Command, Upload.Destination, Offset,
+                    std::min<VkDeviceSize>(65536u, Upload.Bytes.size() - Offset), Upload.Bytes.data() + Offset);
+        Transfer.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+        Transfer.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+        vkCmdPipelineBarrier(Command, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+                             0u, 1u, &Transfer, 0u, nullptr, 0u, nullptr);
+        Vulkan->PendingTraversal.clear();
     }
-
+    RecordTextureRefresh(Command, Vulkan->ActiveSlot);
+    auto PublishUniform = [&](VkBuffer Buffer, const void* Bytes, uint32_t Count)
+    {
+        if (!Buffer) return;
+        VkBufferMemoryBarrier Before{ VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER };
+        Before.srcAccessMask = VK_ACCESS_UNIFORM_READ_BIT | VK_ACCESS_TRANSFER_WRITE_BIT;
+        Before.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+        Before.srcQueueFamilyIndex = Before.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+        Before.buffer = Buffer; Before.size = Count;
+        vkCmdPipelineBarrier(Command, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT | VK_PIPELINE_STAGE_TRANSFER_BIT,
+                             VK_PIPELINE_STAGE_TRANSFER_BIT, 0u, 0u, nullptr, 1u, &Before, 0u, nullptr);
+        vkCmdUpdateBuffer(Command, Buffer, 0u, Count, Bytes);
+        Before.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+        Before.dstAccessMask = VK_ACCESS_UNIFORM_READ_BIT;
+        vkCmdPipelineBarrier(Command, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+                             0u, 0u, nullptr, 1u, &Before, 0u, nullptr);
+    };
+    PublishUniform(Vulkan->SkyBuffer, Vulkan->SkyPending.data(), kSkyRecordBytes);
+    PublishUniform(Vulkan->MoonBuffer, Vulkan->MoonPending.data(), kMoonRecordBytes);
+    PublishUniform(Vulkan->PostBuffer, Vulkan->PostPending.data(), kPostRecordBytes);
 
     // ① Storage image → GENERAL for compute write
     {
         VkImageMemoryBarrier Barrier{};
         Barrier.sType                           = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
-        Barrier.oldLayout                       = VK_IMAGE_LAYOUT_UNDEFINED;
+        Barrier.oldLayout                       = Vulkan->StorageInitialised ? VK_IMAGE_LAYOUT_GENERAL : VK_IMAGE_LAYOUT_UNDEFINED;
         Barrier.newLayout                       = VK_IMAGE_LAYOUT_GENERAL;
         Barrier.srcQueueFamilyIndex             = VK_QUEUE_FAMILY_IGNORED;
         Barrier.dstQueueFamilyIndex             = VK_QUEUE_FAMILY_IGNORED;
@@ -3148,11 +3709,12 @@ void SwapchainExchange::RecordComputeCommands(uint32_t ImageOrdinal, const Dispa
         Barrier.subresourceRange.aspectMask     = VK_IMAGE_ASPECT_COLOR_BIT;
         Barrier.subresourceRange.levelCount     = 1u;
         Barrier.subresourceRange.layerCount     = 1u;
-        Barrier.srcAccessMask                   = 0u;
+        Barrier.srcAccessMask                   = Vulkan->StorageInitialised ? VkAccessFlags(VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_TRANSFER_READ_BIT) : VkAccessFlags(0u);
         Barrier.dstAccessMask                   = VK_ACCESS_SHADER_WRITE_BIT;
         vkCmdPipelineBarrier(Command,
-            VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+            Vulkan->StorageInitialised ? VK_PIPELINE_STAGE_ALL_COMMANDS_BIT : VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
             0u, 0u, nullptr, 0u, nullptr, 1u, &Barrier);
+        Vulkan->StorageInitialised = true;
     }
 
     // ①b History images → GENERAL; first use transitions from UNDEFINED, later uses order the previous frame's writes.
@@ -3194,7 +3756,8 @@ void SwapchainExchange::RecordComputeCommands(uint32_t ImageOrdinal, const Dispa
     // ①c R6 reservoirs: zero-fill once, then order the previous frame's writes before this frame's access. The
     //    indirect pool's pair (kFeatureGiReuse) is filled and ordered in the same two calls — same record, same
     //    lifetime, and a pair that missed either would be read uninitialised on the very first frame.
-    if (Vulkan->ReservoirBuffers[0u] && Vulkan->ReservoirBuffers[1u] && Vulkan->ReservoirBytes > 0u)
+    if ((Dispatch.FeatureFlags & DispatchFeatureRaytracing) != 0u
+        && Vulkan->ReservoirBuffers[0u] && Vulkan->ReservoirBuffers[1u] && Vulkan->ReservoirBytes > 0u)
     {
         VkBuffer ReservoirSet[4] =
         {
@@ -3250,45 +3813,99 @@ void SwapchainExchange::RecordComputeCommands(uint32_t ImageOrdinal, const Dispa
     //    the full-size targets); the blit below stretches that region over the whole swapchain image.
     const uint32_t RenderWidth  = std::clamp(Dispatch.ViewportWidth,  1u, Configuration.Width);
     const uint32_t RenderHeight = std::clamp(Dispatch.ViewportHeight, 1u, Configuration.Height);
+    Vulkan->PresentedWidth = RenderWidth; Vulkan->PresentedHeight = RenderHeight;
 
     // ①c R2 front end: cull → visibility raster → HiZ → cull → raster → surface resolve (writes bindings 4/5 for the
     //    kernel; in a debug view it writes the presentation image directly and the kernel is skipped).
     VisibilityFrameConfiguration Frame = VisibilityFrame;
     Frame.RenderWidth  = RenderWidth;
     Frame.RenderHeight = RenderHeight;
+    if (!TyreSmoke.RecordTransport(Command, Vulkan->ActiveSlot)) return false;
     Visibility.RecordFrame(Command, Vulkan->ActiveSlot, Frame);
 
-    // R10 ①d — the GI-off shadow stage. With Global Illumination off the ReSTIR kernel is not dispatched at all:
-    //    light visibility comes from shadow maps rasterised here, and ShadowResolve writes the presentation image
-    //    directly. The whole no-ray path lives in this branch, so with GI ON nothing below costs anything.
-    //
-    //    The fallback matters. If the stage cannot be recorded — no shadow SPIR-V, no emissive geometry in the
-    //    scene, an unsupported map size — we must NOT skip straight to present: the presentation image would keep
-    //    whatever the last frame left in it and the viewport would freeze on a stale picture. Dropping through to
-    //    the kernel is the honest failure, since that path always writes every pixel.
-    const bool GlobalIlluminationOff = (Dispatch.FeatureFlags & DispatchFeatureGlobalIllumination) == 0u;
+    // RT-off uses rasterized direct visibility. Only GI-on adds the persistent local-field transport.
+    const bool TraceRequested = (Dispatch.FeatureFlags & DispatchFeatureRaytracing) != 0u;
+    if (TraceRequested) Vulkan->RayQueries.RecordRefit(Command);
     bool ShadowStageRecorded = false;
-    // ShadowResolve has no celestial bindings. Use the existing compute fallback when
-    // weather is active; the GI feature flag remains OFF (zero secondary bounces).
-    // Disabling weather restores the map-only path. This costs direct shadow rays.
-    if (Frame.DebugView == DebugViewCategory::Off && GlobalIlluminationOff && !Vulkan->PostWeatherActive && ShadowFrameValid && Visibility.IsShadowReady())
+    if (Frame.DebugView == DebugViewCategory::Off && !TraceRequested)
     {
         ShadowFrameConfiguration Shadow = ShadowFrame;
-        if (Visibility.PlaceShadowTaps(Shadow))
-            ShadowStageRecorded = Visibility.RecordShadowFrame(Command, Vulkan->ActiveSlot, Shadow);
+        // The sun map is framed where the camera looks (see ShadowFrameConfiguration::Focus): a point ahead of the
+        //    eye, a radius that keeps every texel inside the region the viewer can tell apart.
+        constexpr float kShadowFocusRadius = 35.0f;   // [m] 70 m across the map: 14 cm/texel at 512, 3.4 cm at 2048
+        Shadow.FocusRadius = kShadowFocusRadius;
+        Shadow.Focus[0] = Dispatch.CameraOriginX + Dispatch.CameraForwardX * kShadowFocusRadius * 0.5f;
+        Shadow.Focus[1] = Dispatch.CameraOriginY + Dispatch.CameraForwardY * kShadowFocusRadius * 0.5f;
+        Shadow.Focus[2] = Dispatch.CameraOriginZ + Dispatch.CameraForwardZ * kShadowFocusRadius * 0.5f;
+        (void)Visibility.PlaceShadowTaps(Shadow);
+        ShadowStageRecorded = Visibility.RecordShadowFrame(Command, Vulkan->ActiveSlot, Shadow, false);
+    }
+    const bool NonRaytracedGIRequested = (Dispatch.FeatureFlags & DispatchFeatureRaytracing) == 0u
+                                      && (Dispatch.FeatureFlags & DispatchFeatureGlobalIllumination) != 0u;
+    bool NonRaytracedGIRecorded = false;
+
+    // 1) Distance Field GI (Primary non-raytraced GI stage)
+    if (Frame.DebugView == DebugViewCategory::Off && NonRaytracedGIRequested && QueryDistanceFieldGIReady())
+    {
+        DistanceFieldFrameParams DfParams{};
+        const SkyTransportPrefix* Sky = reinterpret_cast<const SkyTransportPrefix*>(Vulkan->SkyPending.data());
+        if (Sky)
+        {
+            // The SDF path has no atmosphere integral: its sky is a dome about this ambient (SkyAlongApprox). A grey
+            //    4 % of the sun read as a beige-white overcast against the raytraced path's blue; a clear sky's
+            //    zenith is bluish and a few percent of the sun's radiance, which is what this tint approximates.
+            constexpr float kSkyTint[3] = { 0.024f, 0.040f, 0.070f };
+            for (uint32_t Channel = 0u; Channel < 3u; ++Channel)
+            {
+                DfParams.SunDirection[Channel] = Sky->SunDirection[Channel];
+                DfParams.SunColour[Channel]    = Sky->SunRadiance[Channel];
+                DfParams.SkyAmbient[Channel]   = Sky->SunRadiance[Channel] * kSkyTint[Channel];
+            }
+            DfParams.SunRadiance = Sky->SunRadiance[3] > 0.0f ? 1.0f : 0.0f;
+        }
+        DfParams.CycleSlot = Vulkan->ActiveSlot;
+        DfParams.ShadowDescriptors = static_cast<VkDescriptorSet>(Visibility.QueryShadowDescriptors(Vulkan->ActiveSlot));
+        static const uint32_t GiDebugView = []{ const char* Value = std::getenv("FRONTIER_GI_DEBUG"); const char* Reflect = std::getenv("FRONTIER_GI_REFLECT");
+            return (Value ? static_cast<uint32_t>(std::atoi(Value)) : 0u) | ((Reflect && std::atoi(Reflect) == 0) ? 0x100u : 0u); }();
+        DfParams.DebugView      = GiDebugView;
+        DfParams.CameraEye[0]   = Dispatch.CameraOriginX;
+        DfParams.CameraEye[1]   = Dispatch.CameraOriginY;
+        DfParams.CameraEye[2]   = Dispatch.CameraOriginZ;
+        DfParams.Exposure       = Dispatch.Exposure;
+        DfParams.FrameIndex     = Dispatch.AccumulationIndex;
+        DfParams.MaterialRevision = SurfaceMaterialRevision;
+        DfParams.FeatureFlags   = Dispatch.FeatureFlags;
+        DfParams.ReflectionMode = (Dispatch.FeatureFlags & DispatchFeatureReflectionMask) >> DispatchFeatureReflectionShift;
+        DfParams.RenderWidth    = RenderWidth;
+        DfParams.RenderHeight   = RenderHeight;
+        NonRaytracedGIRecorded = DistanceFieldStage.RecordFrame(Command, DfParams);
     }
 
-    if (Frame.DebugView == DebugViewCategory::Off && !ShadowStageRecorded)
+    if (Frame.DebugView == DebugViewCategory::Off && !NonRaytracedGIRecorded)
     {
-        DispatchConfiguration LiveDispatch=Dispatch;
-        if(!Vulkan->HistoryContentsValid || Vulkan->HistoryWidth!=RenderWidth || Vulkan->HistoryHeight!=RenderHeight)
-            LiveDispatch.AccumulationIndex=0;
-        // ② Dispatch ReSTIR compute
-        vkCmdBindPipeline(Command, VK_PIPELINE_BIND_POINT_COMPUTE, Vulkan->ComputePipeline);
-        vkCmdBindDescriptorSets(Command, VK_PIPELINE_BIND_POINT_COMPUTE,
-            Vulkan->ComputePipelineLayout, 0u, 1u, &Vulkan->ComputeDescriptorSet, 0u, nullptr);
-        vkCmdPushConstants(Command, Vulkan->ComputePipelineLayout,
-            VK_SHADER_STAGE_COMPUTE_BIT, 0u, sizeof(DispatchConfiguration), &LiveDispatch);
+        DispatchConfiguration LiveDispatch = Dispatch;
+        if (!TraceRequested || !Vulkan->HistoryContentsValid || Vulkan->HistoryWidth != RenderWidth || Vulkan->HistoryHeight != RenderHeight)
+            LiveDispatch.AccumulationIndex = 0;
+        if (!TraceRequested)
+        {
+            LiveDispatch.FeatureFlags &= ~(DispatchFeatureDenoise | DispatchFeatureGiReuse | DispatchFeatureGlobalIllumination);
+            LiveDispatch.MaxReflectionBounces = LiveDispatch.MaxGiBounces = 0u;
+        }
+        const bool Hardware = TraceRequested && QueryRayTracingTier() == RayTracingTierCategory::RayQuery;
+        const VkPipelineLayout Layout = Hardware ? Vulkan->RayQueryPipelineLayout : TraceRequested ? Vulkan->ComputePipelineLayout : Vulkan->RasterPipelineLayout;
+        vkCmdBindPipeline(Command, VK_PIPELINE_BIND_POINT_COMPUTE, Hardware ? Vulkan->RayQueryPipeline : TraceRequested ? Vulkan->ComputePipeline : Vulkan->RasterPipeline);
+        if (Hardware)
+        {
+            const VkDescriptorSet Acceleration = Vulkan->RayQueries.Descriptors();
+            vkCmdBindDescriptorSets(Command, VK_PIPELINE_BIND_POINT_COMPUTE, Layout, 1u, 1u, &Acceleration, 0u, nullptr);
+        }
+        vkCmdBindDescriptorSets(Command, VK_PIPELINE_BIND_POINT_COMPUTE, Layout, 0u, 1u, &Vulkan->ComputeDescriptorSet, 0u, nullptr);
+        if (!TraceRequested)
+        {
+            const VkDescriptorSet Shadows = reinterpret_cast<VkDescriptorSet>(Visibility.QueryShadowDescriptors(Vulkan->ActiveSlot));
+            vkCmdBindDescriptorSets(Command, VK_PIPELINE_BIND_POINT_COMPUTE, Layout, 1u, 1u, &Shadows, 0u, nullptr);
+        }
+        vkCmdPushConstants(Command, Layout, VK_SHADER_STAGE_COMPUTE_BIT, 0u, sizeof(DispatchConfiguration), &LiveDispatch);
         // Snapshot all temporal inputs BEFORE any invocation can overwrite the current
         // images. Frame-zero does not read history; skip its undefined contents.
         if(LiveDispatch.AccumulationIndex > 0u) {
@@ -3326,16 +3943,16 @@ void SwapchainExchange::RecordComputeCommands(uint32_t ImageOrdinal, const Dispa
         // R10 ② — bracket the ReSTIR dispatch itself. The trailing span (query 10→11) also contains the à-trous
         //    denoise and the luminance reduction, so without this pair "kernel" was really "kernel + denoise +
         //    luminance" and no tier comparison could tell which of the three a change had moved.
-        Visibility.RecordRestirBegin(Command, Vulkan->ActiveSlot);
+        if (TraceRequested) Visibility.RecordRestirBegin(Command, Vulkan->ActiveSlot);
         vkCmdDispatch(Command, GroupX, GroupY, 1u);
-        Visibility.RecordRestirEnd(Command, Vulkan->ActiveSlot);
+        if (TraceRequested) Visibility.RecordRestirEnd(Command, Vulkan->ActiveSlot);
         Vulkan->HistoryContentsValid=true;
         Vulkan->HistoryWidth=RenderWidth; Vulkan->HistoryHeight=RenderHeight;
 
         // ②a R7 à-trous denoise. The kernel wrote LINEAR radiance + variance into denoise slot 0 and, with the
         //     feature on, skipped the tone map; the final level here performs it into the presentation image.
         //     Each level reads what the previous one wrote, so they are strictly ordered by a barrier.
-        if ((Dispatch.FeatureFlags & DispatchFeatureDenoise) != 0u && Vulkan->DenoisePipeline)
+        if (TraceRequested && (Dispatch.FeatureFlags & DispatchFeatureDenoise) != 0u && Vulkan->DenoisePipeline)
         {
             const uint32_t DenoiseGroupX = (RenderWidth  + kDenoiseGroupSize - 1u) / kDenoiseGroupSize;
             const uint32_t DenoiseGroupY = (RenderHeight + kDenoiseGroupSize - 1u) / kDenoiseGroupSize;
@@ -3441,61 +4058,98 @@ void SwapchainExchange::RecordComputeCommands(uint32_t ImageOrdinal, const Dispa
                 Visibility.RecordDenoiseBoundary(Command,Vulkan->ActiveSlot,Level,true);
             }
         }
-
-        // ②a2 A6b — measure the frame's average log luminance for adaptive exposure. Recorded INSIDE the
-        //      DebugView::Off branch: a debug view writes false colours into the presentation image, and
-        //      exposing for a normal-map visualisation would be meaningless.
-        if (Vulkan->LuminancePipeline)
-        {
-            // The kernel wrote HistoryImage this frame; the reduction reads it. Without this the reduction
-            //    races the kernel and measures a half-written frame, which would make the exposure jitter.
-            VkImageMemoryBarrier HistoryBarrier{ VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER };
-            HistoryBarrier.oldLayout                   = VK_IMAGE_LAYOUT_GENERAL;
-            HistoryBarrier.newLayout                   = VK_IMAGE_LAYOUT_GENERAL;
-            HistoryBarrier.srcQueueFamilyIndex         = VK_QUEUE_FAMILY_IGNORED;
-            HistoryBarrier.dstQueueFamilyIndex         = VK_QUEUE_FAMILY_IGNORED;
-            HistoryBarrier.image                       = Vulkan->HistoryImage;
-            HistoryBarrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-            HistoryBarrier.subresourceRange.levelCount = 1u;
-            HistoryBarrier.subresourceRange.layerCount = 1u;
-            HistoryBarrier.srcAccessMask               = VK_ACCESS_SHADER_WRITE_BIT;
-            HistoryBarrier.dstAccessMask               = VK_ACCESS_SHADER_READ_BIT;
-            vkCmdPipelineBarrier(Command, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-                                 0u, 0u, nullptr, 0u, nullptr, 1u, &HistoryBarrier);
-
-            // The accumulator is cleared on the GPU rather than the CPU: clearing the mapped pointer here would
-            //    race the previous frame's dispatch, which may still be adding to it.
-            vkCmdFillBuffer(Command, Vulkan->LuminanceBuffers[Vulkan->ActiveSlot], 0u, kLuminanceHistogramBytes, 0u);
-            VkBufferMemoryBarrier ClearBarrier{ VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER };
-            ClearBarrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-            ClearBarrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-            ClearBarrier.buffer              = Vulkan->LuminanceBuffers[Vulkan->ActiveSlot];
-            ClearBarrier.size                = VK_WHOLE_SIZE;
-            ClearBarrier.srcAccessMask       = VK_ACCESS_TRANSFER_WRITE_BIT;
-            ClearBarrier.dstAccessMask       = VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT;
-            vkCmdPipelineBarrier(Command, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-                                 0u, 0u, nullptr, 1u, &ClearBarrier, 0u, nullptr);
-
-            LuminancePushRecord Push{};
-            Push.Width  = RenderWidth;
-            Push.Height = RenderHeight;
-            // Exposure is a whole-frame property, so a subsample is plenty: at 1080p this is ~2 000 taps
-            //    rather than two million, and the pass does not appear in a frame time.
-            Push.Stride = kLuminanceSampleStride;
-
-            const uint32_t TapsX = (RenderWidth  + Push.Stride - 1u) / Push.Stride;
-            const uint32_t TapsY = (RenderHeight + Push.Stride - 1u) / Push.Stride;
-
-            vkCmdBindPipeline(Command, VK_PIPELINE_BIND_POINT_COMPUTE, Vulkan->LuminancePipeline);
-            vkCmdPushConstants(Command, Vulkan->LuminanceLayout, VK_SHADER_STAGE_COMPUTE_BIT, 0u, sizeof(Push), &Push);
-            vkCmdBindDescriptorSets(Command, VK_PIPELINE_BIND_POINT_COMPUTE, Vulkan->LuminanceLayout,
-                                    0u, 1u, &Vulkan->LuminanceSets[Vulkan->ActiveSlot], 0u, nullptr);
-            vkCmdDispatch(Command, (TapsX + 7u) / 8u, (TapsY + 7u) / 8u, 1u);
-        }
     }
 
-    if(Frame.DebugView != DebugViewCategory::Off || ShadowStageRecorded) Vulkan->HistoryContentsValid=false;
+    // ②a2 A6b — measure the frame's average log luminance for adaptive exposure. Not for a debug view: that
+    //      writes false colours into the presentation image, and exposing for a normal-map visualisation would
+    //      be meaningless. Runs for BOTH lighting paths — the raytraced kernel's linear frame is HistoryImage,
+    //      the Distance Field GI resolve's is DenoiseImages[0] (LuminanceLinearSets).
+    if (Vulkan->LuminancePipeline && Frame.DebugView == DebugViewCategory::Off)
+    {
+        const VkImage         MeasuredImage = NonRaytracedGIRecorded ? Vulkan->DenoiseImages[0] : Vulkan->HistoryImage;
+        const VkDescriptorSet MeasuredSet   = NonRaytracedGIRecorded ? Vulkan->LuminanceLinearSets[Vulkan->ActiveSlot] : Vulkan->LuminanceSets[Vulkan->ActiveSlot];
+        // The kernel wrote the linear frame this pass; the reduction reads it. Without this the reduction
+        //    races the kernel and measures a half-written frame, which would make the exposure jitter.
+        VkImageMemoryBarrier HistoryBarrier{ VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER };
+        HistoryBarrier.oldLayout                   = VK_IMAGE_LAYOUT_GENERAL;
+        HistoryBarrier.newLayout                   = VK_IMAGE_LAYOUT_GENERAL;
+        HistoryBarrier.srcQueueFamilyIndex         = VK_QUEUE_FAMILY_IGNORED;
+        HistoryBarrier.dstQueueFamilyIndex         = VK_QUEUE_FAMILY_IGNORED;
+        HistoryBarrier.image                       = MeasuredImage;
+        HistoryBarrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+        HistoryBarrier.subresourceRange.levelCount = 1u;
+        HistoryBarrier.subresourceRange.layerCount = 1u;
+        HistoryBarrier.srcAccessMask               = VK_ACCESS_SHADER_WRITE_BIT;
+        HistoryBarrier.dstAccessMask               = VK_ACCESS_SHADER_READ_BIT;
+        vkCmdPipelineBarrier(Command, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+                             0u, 0u, nullptr, 0u, nullptr, 1u, &HistoryBarrier);
+
+        // The accumulator is cleared on the GPU rather than the CPU: clearing the mapped pointer here would
+        //    race the previous frame's dispatch, which may still be adding to it.
+        vkCmdFillBuffer(Command, Vulkan->LuminanceBuffers[Vulkan->ActiveSlot], 0u, kLuminanceHistogramBytes, 0u);
+        VkBufferMemoryBarrier ClearBarrier{ VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER };
+        ClearBarrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+        ClearBarrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+        ClearBarrier.buffer              = Vulkan->LuminanceBuffers[Vulkan->ActiveSlot];
+        ClearBarrier.size                = VK_WHOLE_SIZE;
+        ClearBarrier.srcAccessMask       = VK_ACCESS_TRANSFER_WRITE_BIT;
+        ClearBarrier.dstAccessMask       = VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT;
+        vkCmdPipelineBarrier(Command, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+                             0u, 0u, nullptr, 1u, &ClearBarrier, 0u, nullptr);
+
+        LuminancePushRecord Push{};
+        Push.Width  = RenderWidth;
+        Push.Height = RenderHeight;
+        // Exposure is a whole-frame property, so a subsample is plenty: at 1080p this is ~2 000 taps
+        //    rather than two million, and the pass does not appear in a frame time.
+        Push.Stride = kLuminanceSampleStride;
+
+        const uint32_t TapsX = (RenderWidth  + Push.Stride - 1u) / Push.Stride;
+        const uint32_t TapsY = (RenderHeight + Push.Stride - 1u) / Push.Stride;
+
+        vkCmdBindPipeline(Command, VK_PIPELINE_BIND_POINT_COMPUTE, Vulkan->LuminancePipeline);
+        vkCmdPushConstants(Command, Vulkan->LuminanceLayout, VK_SHADER_STAGE_COMPUTE_BIT, 0u, sizeof(Push), &Push);
+        vkCmdBindDescriptorSets(Command, VK_PIPELINE_BIND_POINT_COMPUTE, Vulkan->LuminanceLayout,
+                                0u, 1u, &MeasuredSet, 0u, nullptr);
+        vkCmdDispatch(Command, (TapsX + 7u) / 8u, (TapsY + 7u) / 8u, 1u);
+    }
+
+    if(Frame.DebugView != DebugViewCategory::Off || ShadowStageRecorded || NonRaytracedGIRecorded) Vulkan->HistoryContentsValid=false;
     Visibility.RecordKernelEnd(Command, Vulkan->ActiveSlot);
+
+    if (TyreSmoke.Resident() && Frame.DebugView == DebugViewCategory::Off)
+    {
+        SmokeProjection Projection;
+        Projection.Eye[0] = Dispatch.CameraOriginX;
+        Projection.Eye[1] = Dispatch.CameraOriginY;
+        Projection.Eye[2] = Dispatch.CameraOriginZ;
+        Projection.Eye[3] = Dispatch.FieldOfViewTanHalf;
+        Projection.Forward[0] = Dispatch.CameraForwardX;
+        Projection.Forward[1] = Dispatch.CameraForwardY;
+        Projection.Forward[2] = Dispatch.CameraForwardZ;
+        Projection.Forward[3] = Dispatch.Exposure;
+        Projection.Right[0] = Dispatch.CameraRightX;
+        Projection.Right[1] = Dispatch.CameraRightY;
+        Projection.Right[2] = Dispatch.CameraRightZ;
+        Projection.Right[3] = Dispatch.ColourSaturation;
+        Projection.Up[0] = Dispatch.CameraUpX;
+        Projection.Up[1] = Dispatch.CameraUpY;
+        Projection.Up[2] = Dispatch.CameraUpZ;
+        Projection.Width = RenderWidth;
+        Projection.Height = RenderHeight;
+        Projection.Lighting.DensityExtinction = 6.0f;
+        Projection.Lighting.SmokeAlbedo = 0.82f;
+        Projection.Lighting.TemperatureScale = 0.35f;
+        Projection.ColourTransfer = 0u;   // both lighting paths now present through the ACES transfer
+        const bool Denoised = !NonRaytracedGIRecorded && ((Dispatch.FeatureFlags & DispatchFeatureDenoise) != 0u);
+        const uint32_t Levels = std::clamp(Dispatch.DenoiseLevelCount == 0u ? kDenoiseLevelCount : Dispatch.DenoiseLevelCount,
+                                          1u, kDenoiseLevelCount);
+        const uint32_t RadianceSlot = Denoised ? Levels % 2u : 0u;
+        Projection.Up[3] = Denoised ? 1.0f : 0.0f;
+        if (!TyreSmoke.RecordProjection(Command, Vulkan->ActiveSlot, Vulkan->DenoiseImageViews[RadianceSlot],
+                static_cast<VkImageView>(Visibility.QuerySurfaceView()), static_cast<VkImageView>(Visibility.QueryAlbedoView()),
+                Vulkan->StorageImageView, Projection)) return false;
+    }
 
     // ②a3 Editor selection outline — the picked instances' true silhouette, in green, straight onto the finished
     //      presentation image (SelectionOutline.spv reads the visibility id image per pixel). After the kernel and
@@ -3694,7 +4348,9 @@ void SwapchainExchange::RecordComputeCommands(uint32_t ImageOrdinal, const Dispa
         ImGui_ImplVulkan_RenderDrawData(DrawData, Command);
     vkCmdEndRenderPass(Command);
 
-    (void)vkEndCommandBuffer(Command);
+    const VkResult Sealed = vkEndCommandBuffer(Command);
+    if (Sealed != VK_SUCCESS) { RefuseFrame("vkEndCommandBuffer", Sealed); return false; }
+    return true;
 }
 
 //============================================================================================================================================
@@ -3821,11 +4477,13 @@ bool SwapchainExchange::RebuildSwapchain() noexcept
     glfwGetFramebufferSize(GlfwWindow, &FramebufferW, &FramebufferH);
     while (FramebufferW == 0 || FramebufferH == 0)
     {
+        if (glfwWindowShouldClose(GlfwWindow)) return true;
         glfwGetFramebufferSize(GlfwWindow, &FramebufferW, &FramebufferH);
         glfwWaitEvents();
     }
 
-    vkDeviceWaitIdle(Vulkan->Device);
+    const VkResult Completed = vkDeviceWaitIdle(Vulkan->Device);
+    if (Completed != VK_SUCCESS) { RefuseFrame("vkDeviceWaitIdle(resize)", Completed); return false; }
 
     for (auto& Framebuffer : Vulkan->ImGuiFramebuffers)
         vkDestroyFramebuffer(Vulkan->Device, Framebuffer, nullptr);
@@ -3835,6 +4493,7 @@ bool SwapchainExchange::RebuildSwapchain() noexcept
 
     if (!BringSwapchain() || !BringStorageImage()) return false;
     if (!Visibility.Resize(Configuration.Width, Configuration.Height, Vulkan->StorageImageView)) return false;
+    (void)BringDistanceFieldGIStage();
 
     // Every view handed out by the device seam has just been destroyed and recreated. Bumping the generation is how
     //    an overlay learns it must re-Resize; without it, it would keep rendering into a stale VkImageView.
@@ -4066,3 +4725,12 @@ void SwapchainExchange::OnFramebuffer(GLFWwindow* Window, int, int) noexcept
 }
 
 } // namespace Frontier
+
+namespace Frontier {
+RayTracingTierCategory SwapchainExchange::QueryRayTracingTier() const noexcept
+{
+    return Vulkan && Vulkan->RayQueryPipeline && Vulkan->RayQueries.Ready()
+        && (InstanceTraversalResident || Vulkan->RayQueryInstanceCount == 1u)
+        ? RayTracingTierCategory::RayQuery : RayTracingTierCategory::Software;
+}
+}

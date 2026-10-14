@@ -9,10 +9,12 @@
 #version 460
 #extension GL_GOOGLE_include_directive : require
 #include "Shaders/SceneRecords.slang"
+#include "Shaders/TyreDeformation.slang"
 
 layout(std430, set = 0, binding = 1) readonly buffer InstanceExtent { InstanceRecord Instances[]; };
 layout(std430, set = 0, binding = 2) readonly buffer ClusterExtent  { ClusterRecord  Clusters[];  };
 layout(std430, set = 0, binding = 3) readonly buffer VertexExtent   { VertexRecord   Vertices[];  };
+layout(std430, set = 0, binding = 4) readonly buffer TyreExtent     { TyreDeformationRecord Tyres[]; };
 
 layout(location = 0) flat out uint  OutCluster;
 layout(location = 1)      out vec4  OutPreviousClip;    // previous frame, unjittered
@@ -33,6 +35,12 @@ void main()
     vec3 Object   = Vertices[uint(gl_VertexIndex)].Position.xyz;
     vec4 World    = Instance.World         * vec4(Object, 1.0);
     vec4 Previous = Instance.PreviousWorld * vec4(Object, 1.0);
+    if ((Instance.Flags & TYRE_DEFORM_FLAG) != 0u)
+    {   // a wheel: bend this frame's and last frame's position with their own contact records (world space)
+        uint Slot = TYRE_DEFORM_SLOT(Instance.Flags);
+        World.xyz    = DeformTyrePoint(World.xyz,    Tyres[Slot * 2u]);
+        Previous.xyz = DeformTyrePoint(Previous.xyz, Tyres[Slot * 2u + 1u]);
+    }
 
     vec4 Clip = ViewClip * World;
     OutCurrentClip  = Clip;

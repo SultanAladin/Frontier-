@@ -18,6 +18,7 @@ layout(local_size_x = 16, local_size_y = 16, local_size_z = 1) in;
 
 #include "Shaders/SceneRecords.slang"
 #include "Shaders/RayGeneration.slang"
+#include "Shaders/TyreDeformation.slang"
 
 layout(std430, set = 0, binding = 1) readonly buffer InstanceExtent { InstanceRecord Instances[]; };
 layout(std430, set = 0, binding = 2) readonly buffer ClusterExtent  { ClusterRecord  Clusters[];  };
@@ -32,6 +33,12 @@ layout(set = 0, binding = 9)          uniform sampler2D  HiZImage;
 layout(set = 0, binding = 10, rgba32f) uniform writeonly image2D SurfaceImage;
 layout(set = 0, binding = 11, rgba16f) uniform writeonly image2D NormalImage;
 layout(set = 0, binding = 12, rgba8)   uniform writeonly image2D OutputImage;
+// Thread E — material aux G-buffer. The SDF GI and plain-raster paths do NOT run the full OpenPBR material
+//    evaluation, so they need the primary surface's metalness/roughness spelled out here to shade every material
+//    correctly (metals reflect, dielectrics diffuse). x = metalness, y = specular roughness, zw = 0. rgba16f is
+//    plenty for two 0..1 scalars and matches NormalImage's format. Written every pixel (background = 0,1).
+layout(set = 0, binding = 14, rgba16f) uniform writeonly image2D MaterialImage;
+layout(set = 0, binding = 15, rgba8)   uniform writeonly image2D AlbedoImage;
 
 // R6 row 3: prev-frame reservoirs for the M / W / Age debug views — the same buffer the kernel reads as
 //    binding 16 (written per frame by VisibilityExchange::RecordFrame), so the views show the last completed
@@ -49,6 +56,7 @@ struct GpuReservoirView
     uvec4 Identity;  // D10: x = instance << 14 | primitive; yzw reserved
 };
 layout(std430, set = 0, binding = 13) readonly buffer ReservoirExtent { GpuReservoirView Reservoirs[]; };
+layout(std430, set = 0, binding = 16) readonly buffer TyreExtent { TyreDeformationRecord Tyres[]; };
 
 // Debug views — mirror DebugViewCategory in Engine/DeviceExchange/VisibilityExchange.h
 const uint kDebugOff        = 0u;
@@ -95,6 +103,11 @@ void main()
         vec3 A = (Instance.World * vec4(Vertices[Indices[Base + 0u] + Instance.VertexOffset].Position.xyz, 1.0)).xyz;
         vec3 B = (Instance.World * vec4(Vertices[Indices[Base + 1u] + Instance.VertexOffset].Position.xyz, 1.0)).xyz;
         vec3 C = (Instance.World * vec4(Vertices[Indices[Base + 2u] + Instance.VertexOffset].Position.xyz, 1.0)).xyz;
+        if ((Instance.Flags & TYRE_DEFORM_FLAG) != 0u)
+        {   // the raster bent this wheel's vertices; reconstruct the same bent triangle (position, normal, wire)
+            TyreDeformationRecord Tyre = Tyres[TYRE_DEFORM_SLOT(Instance.Flags) * 2u];
+            A = DeformTyrePoint(A, Tyre); B = DeformTyrePoint(B, Tyre); C = DeformTyrePoint(C, Tyre);
+        }
         Material  = Instance.MaterialIndex;
         ClusterId = Instance.ClusterOffset + Primitive / 128u;
         // A primitive past the instance's fine range IS an alternative: the patch preview says so on screen.
@@ -148,9 +161,30 @@ void main()
             if (dot(ShadingNormal, Normal) < 0.0) ShadingNormal = -ShadingNormal;
         }
     }
+    else
+    {
+        // Background: carry the pixel's own ray out to a far point, so a sky consumer that only has the
+        //    position image (DistanceFieldGIResolve's miss branch) recovers the view direction per pixel
+        //    rather than one constant toward the origin — the dome was a flat colour without this.
+        CameraBasis Camera;
+        Camera.Origin = CameraOrigin.xyz; Camera.Forward = CameraForward.xyz; Camera.Right = CameraRight.xyz; Camera.Up = CameraUp.xyz;
+        Camera.TanHalfFov = CameraForward.w; Camera.Aspect = CameraRight.w;
+        Position = CameraOrigin.xyz + GeneratePrimaryDirection(Camera, Pixel, Jitter.zw, Extent.xy) * 1.0e4;
+    }
 
     imageStore(SurfaceImage, ivec2(Pixel), vec4(Position, uintBitsToFloat(Visibility)));
     imageStore(NormalImage,  ivec2(Pixel), vec4(Normal, 0.0));
+    // Thread E — publish the primary surface's material parameters for the non-raytraced paths. Roughness is
+    //    MaterialRecord.Albedo.w and metalness is Emissive.w (same fields the R4b debug views read below), so this
+    //    aux target never disagrees with the kernel's material. Background writes metal 0 / rough 1 (matte void).
+    {
+        bool  AuxHit   = Visibility != kVisibilityInvalid;
+        float AuxMetal = AuxHit ? Materials[Material].Emissive.w : 0.0;
+        float AuxRough = AuxHit ? Materials[Material].Albedo.w   : 1.0;
+        imageStore(MaterialImage, ivec2(Pixel), vec4(AuxMetal, AuxRough, 0.0, 0.0));
+        vec3 Albedo = AuxHit ? Materials[Material].Albedo.xyz : vec3(0.0);
+        imageStore(AlbedoImage, ivec2(Pixel), vec4(Albedo, 1.0));
+    }
 
     uint View = Control.z;
     if (View == kDebugOff) return;

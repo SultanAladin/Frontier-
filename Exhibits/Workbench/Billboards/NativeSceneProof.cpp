@@ -8,7 +8,7 @@
 #include <cstdio>
 #include <stdexcept>
 #include <limits>
-using namespace Frontier;using namespace Frontier::ProjectZero;
+using namespace Frontier;using namespace Frontier::HostRuntime;
 unsigned Checks=0;
 void Check(bool V,const char* N){++Checks;if(!V)throw std::runtime_error(N);std::printf("PASS %s\n",N);}
 EditorProperty& Find(EditorSheet& S,const char* N){for(unsigned G=0;G<S.GroupCount;++G)for(unsigned P=0;P<S.Groups[G].PropertyCount;++P)if(!std::strcmp(S.Groups[G].Properties[P].Label,N))return S.Groups[G].Properties[P];throw std::runtime_error(N);}
@@ -23,7 +23,8 @@ void Box(SceneStructure& L,const char* Name,float X,float Y,float Z,float SX,flo
  Matrix4x4 Identity;auto First=L.RegisterInstance(Mesh,Identity,Mat,InstanceFlagDoubleSided);auto Place=L.RegisterPlacement(Name,0xffffffffu,Identity,Identity);L.AttachInstances(Place,First,1);
 }
 #include "../WindBindings/NativeWindProof.h"
-int main(int argc,char** argv){if(argc>1&&!std::strcmp(argv[1],"--wind-bindings"))return RunWindBindings();try{
+int RunEditorConversion(const char* Output);
+int main(int argc,char** argv){if(argc>2&&!std::strcmp(argv[1],"--editor-conversion"))return RunEditorConversion(argv[2]);if(argc>1&&!std::strcmp(argv[1],"--wind-bindings"))return RunWindBindings();try{
  auto Level=std::make_unique<SceneStructure>();
  Box(*Level,"Ground",0,500,-4,1500,1800,4,.25f,.29f,.24f);
  for(int I=0;I<7;++I){float Y=60.f+I*95;Box(*Level,"Distance columns left",-45-I*70,Y,0,7,9,27+I*3,.55f,.43f,.29f);Box(*Level,"Distance columns right",45+I*70,Y,0,7,9,40+I*4,.25f,.36f,.45f);}
@@ -53,7 +54,10 @@ int main(int argc,char** argv){if(argc>1&&!std::strcmp(argv[1],"--wind-bindings"
  auto LocalBefore=Render("Local-fog-before");Edit(CelestialEntity::LocalFog,"Density",3);auto LocalAfter=Render("Local-fog-after");Difference("Local volumetric fog",LocalBefore,LocalAfter);Edit(CelestialEntity::LocalFog,"Density",.35f);
  auto LocalCloudBefore=Render("Local-cloud-before");Edit(CelestialEntity::LocalCloud,"Density",0);auto LocalCloudAfter=Render("Local-cloud-after");Difference("Local cloud density",LocalCloudBefore,LocalCloudAfter);Edit(CelestialEntity::LocalCloud,"Density",2.5f);
  Edit(CelestialEntity::Wind,"Speed",18);Sky->WeatherSeconds=0;auto WindBefore=Render("Wind-t0");const float Hours=Sky->Observation.LocalHours;float Eye[]={0,-110,26};Sky->Tick(45,Eye,0);Check(Sky->Observation.LocalHours==Hours,"Static Sun remains static while weather advances");auto WindAfter=Render("Wind-t45");Difference("Wind advection with Static Sun",WindBefore,WindAfter);Check(Raster->QueryCelestial().CloudTime==45&&Raster->QueryCelestial().Wind.Speed==18,"wind speed and simulation time reach march");
- Edit(CelestialEntity::Wind,"Speed",0);Sky->WeatherSeconds=0;auto Still=Render(nullptr);Sky->Tick(45,Eye,0);auto StillLater=Render(nullptr);Difference("Zero wind is stationary",Still,StillLater,false);
+ Edit(CelestialEntity::Wind,"Speed",0);Sky->WeatherSeconds=0;auto Still=Render(nullptr);Sky->Tick(45,Eye,0);auto StillLater=Render(nullptr);Difference("Zero wind retains procedural density evolution",Still,StillLater);
+ // Zero wind removes bulk transport, not the model's independent 0.010/s evolution term.
+ float StillVelocity[3];WindField::SampleStep(Raster->QueryCelestial().Wind,100,StillVelocity);
+ Check(StillVelocity[0]==0&&StillVelocity[1]==0&&StillVelocity[2]==0,"zero wind has zero bulk advection");
  Edit(CelestialEntity::Wind,"Speed",18);Rows[Index(Key(CelestialEntity::Wind))].Visible=false;Render(nullptr);Check(Raster->QueryCelestial().Wind.Speed==0,"hidden Wind does not advect media");Rows[Index(Key(CelestialEntity::Wind))].Visible=true;
  Sky->WeatherSeconds=0;Render(nullptr);
  EditorBillboardCamera C;EditorBillboard M;M.World[1]=10;C.Aspect=1.3f;auto P=ViewportBillboards::Project(M,C,520,400);Check(P.Visible&&P.X==260&&P.Y==200,"world projection centre");M.World[1]=-1;Check(!ViewportBillboards::Project(M,C,520,400).Visible,"behind-camera clipping");M.World[1]=.001f;Check(!ViewportBillboards::Project(M,C,520,400).Visible,"near clipping");M.World[1]=10;M.World[0]=1000;Check(!ViewportBillboards::Project(M,C,520,400).Visible,"offscreen clipping");M.World[0]=std::numeric_limits<float>::quiet_NaN();Check(!ViewportBillboards::Project(M,C,520,400).Visible,"nonfinite clipping");Check(!ViewportBillboards::Project(M,C,0,0).Visible,"zero viewport is safe");
@@ -72,15 +76,19 @@ int main(int argc,char** argv){if(argc>1&&!std::strcmp(argv[1],"--wind-bindings"
  for(unsigned K=0;K<MarkerCount;++K)Check(TestMarkers[K].Artwork!=IconSymbol::Count,"every billboard resolves a semantic icon");
  // The existing Markers header toggle now controls both painting and picking.
  auto* View=ImGui::FindWindowByName("Viewport");Check(View!=nullptr,"native viewport exists");
- const ImVec2 MarkerToggle(View->Pos.x+200,View->Pos.y+63);
- Click(MarkerToggle);Check(Host->QueryBillboardCentre(Key(CelestialEntity::Wind)).x<0,"Markers toggle hides proxies");
- Click(MarkerToggle);Check(Host->QueryBillboardCentre(Key(CelestialEntity::Wind)).x>=0,"Markers toggle restores proxies");
- for(auto Entity:{CelestialEntity::Wind,CelestialEntity::HeightFog,CelestialEntity::AtmosphericFog,CelestialEntity::CloudLayer,CelestialEntity::Sky,CelestialEntity::LocalCloud,CelestialEntity::LocalFog}){
+ // Locate the real current header control by its ImGui id, not a retired fixed x-coordinate.
+ ImVec2 MarkerToggle(-1,-1);const ImGuiID MarkerId=View->GetID("##markers");
+ for(float X=View->Pos.x+8;X<View->Pos.x+View->Size.x-8;X+=6){IO.AddMousePosEvent(X,View->DC.CursorStartPos.y+22);Tick();if(ImGui::GetCurrentContext()->HoveredId==MarkerId){MarkerToggle=IO.MousePos;break;}}
+ Check(MarkerToggle.x>=0,"current Markers header control located");
+ Check(Host->QueryBillboardCentre(Key(CelestialEntity::Wind)).x<0,"global wind intentionally has no world-space proxy");
+ Click(MarkerToggle);Check(Host->QueryBillboardCentre(Key(CelestialEntity::LocalFog)).x<0,"Markers toggle hides local proxies");
+ Click(MarkerToggle);Check(Host->QueryBillboardCentre(Key(CelestialEntity::LocalFog)).x>=0,"Markers toggle restores local proxies");
+ for(auto Entity:{CelestialEntity::LocalCloud,CelestialEntity::LocalFog}){
   Click(Host->QueryBillboardCentre(Key(Entity)));Check(Rows[Host->QueryPickedInstance()].InspectorKey==Key(Entity),"billboard selects matching outliner row");Check(Sheet->InspectorKey==Key(Entity),"billboard mounts real matching inspector");float U,V;bool Add;Check(!Host->QueryViewTap(&U,&V,&Add),"billboard click consumed before mesh picker");Check(Host->TakeBillboardSelection(),"billboard cancels older asynchronous mesh selection");Check(!Host->TakeBillboardSelection(),"selection notification consumed once");
  }
- Click(Host->QueryBillboardCentre(Key(CelestialEntity::Wind)));Capture("Editor-Wind");
+ Host->PickInstance(Index(Key(CelestialEntity::Wind)));Tick();Capture("Editor-Wind");
  ImGuiWindow* Slider=nullptr;for(auto* Win:ImGui::GetCurrentContext()->Windows)if(Win->Active&&std::strstr(Win->Name,"/Speed_"))Slider=Win;Check(Slider!=nullptr,"actual native Wind slider mounted");float Old=Sky->Wind.Speed;Click({Slider->Pos.x+Slider->Size.x*.7f,Slider->Pos.y+15});Check(Sky->Wind.Speed!=Old,"native mouse edit commits Wind speed");Render(nullptr);Check(Raster->QueryCelestial().Wind.Speed==Sky->Wind.Speed,"native mouse edit propagated to rendered scene");Tick();Capture("Editor-Wind-edited");
- Click(Host->QueryBillboardCentre(Key(CelestialEntity::HeightFog)));Capture("Editor-Fog");
+ Host->PickInstance(Index(Key(CelestialEntity::HeightFog)));Tick();Capture("Editor-Fog");
  auto FogMouseBefore=Render("Fog-mouse-before");
  Slider=nullptr;for(auto* Win:ImGui::GetCurrentContext()->Windows)if(Win->Active&&std::strstr(Win->Name,"/Density_"))Slider=Win;
  Check(Slider!=nullptr,"actual native Height Fog density slider mounted");
@@ -90,11 +98,11 @@ int main(int argc,char** argv){if(argc>1&&!std::strcmp(argv[1],"--wind-bindings"
  const float OldFogDensity=Sky->Fog.HeightDensity;
  Click({Slider->Pos.x+Slider->Size.x*.65f,Slider->Pos.y+15});Check(Sky->Fog.HeightDensity!=OldFogDensity,"native mouse edit commits fog density after scrolling");auto FogMouseAfter=Render("Fog-mouse-after");
  Difference("Native mouse Fog edit changes rendered pixels",FogMouseBefore,FogMouseAfter);Tick();Capture("Editor-Fog-edited");Edit(CelestialEntity::HeightFog,"Density",.001f);Render(nullptr);Tick();
- Click(Host->QueryBillboardCentre(Key(CelestialEntity::Sky)));Capture("Editor-Atmosphere");
+ Host->PickInstance(Index(Key(CelestialEntity::Sky)));Tick();Capture("Editor-Atmosphere");
  Click(Host->QueryBillboardCentre(Key(CelestialEntity::LocalCloud)));Capture("Editor-Local-cloud");
  // A modal above the viewport owns its clicks, not the scene or the markers beneath it.
  BlockInput=true;Tick();Tick();const auto PickBefore=Host->QueryPickedInstance();
- Click(Host->QueryBillboardCentre(Key(CelestialEntity::Wind)));Check(Host->QueryPickedInstance()==PickBefore,"modal blocks billboard selection");
+ Click(Host->QueryBillboardCentre(Key(CelestialEntity::LocalFog)));Check(Host->QueryPickedInstance()==PickBefore,"modal blocks billboard selection");
  float TapU,TapV;bool Additive;Check(!Host->QueryViewTap(&TapU,&TapV,&Additive),"modal blocks mesh selection too");
  BlockInput=false;CloseModal=true;Tick();CloseModal=false;Tick();
  // Overlapping local markers: nearest visible proxy wins, independent of roster order.
@@ -105,9 +113,9 @@ int main(int argc,char** argv){if(argc>1&&!std::strcmp(argv[1],"--wind-bindings"
  Tick();Click(Host->QueryBillboardCentre(Key(CelestialEntity::LocalCloud)));Check(Sheet->InspectorKey==Key(CelestialEntity::LocalFog),"nearest overlapping local billboard wins");
  std::memcpy(Sky->LocalCloud.Centre,CloudCentre,sizeof(CloudCentre));std::memcpy(Sky->LocalFog.Centre,FogCentre,sizeof(FogCentre));Tick();
  // Identity remains correct after reorder and rename; no sprite stores a row ordinal.
- auto A=Index(Key(CelestialEntity::Wind)),B=Index(Key(CelestialEntity::HeightFog));std::swap(Rows[A],Rows[B]);Tick();Click(Host->QueryBillboardCentre(Key(CelestialEntity::Wind)));Check(Host->QueryPickedInstance()==B&&Sheet->InspectorKey==Key(CelestialEntity::Wind),"reordered billboard resolves stable identity");
- std::snprintf(Rows[B].Label,sizeof(Rows[B].Label),"North wind");Tick();Click(Host->QueryBillboardCentre(Key(CelestialEntity::Wind)));Check(Sheet->InspectorKey==Key(CelestialEntity::Wind),"rename preserves identity");
- Rows[Folder].Visible=false;Tick();Check(Host->QueryBillboardCentre(Key(CelestialEntity::Wind)).x<0&&Host->QueryBillboardCentre(Key(CelestialEntity::LocalFog)).x<0,"hidden ancestor suppresses global and local proxies");Rows[Folder].Visible=true;Tick();
+ auto A=Index(Key(CelestialEntity::LocalFog)),B=Index(Key(CelestialEntity::LocalCloud));std::swap(Rows[A],Rows[B]);Tick();Click(Host->QueryBillboardCentre(Key(CelestialEntity::LocalFog)));Check(Host->QueryPickedInstance()==B&&Sheet->InspectorKey==Key(CelestialEntity::LocalFog),"reordered billboard resolves stable identity");
+ std::snprintf(Rows[B].Label,sizeof(Rows[B].Label),"Authored fog");Tick();Click(Host->QueryBillboardCentre(Key(CelestialEntity::LocalFog)));Check(Sheet->InspectorKey==Key(CelestialEntity::LocalFog),"rename preserves identity");
+ Rows[Folder].Visible=false;Tick();Check(Host->QueryBillboardCentre(Key(CelestialEntity::LocalFog)).x<0&&Host->QueryBillboardCentre(Key(CelestialEntity::LocalFog)).x<0,"hidden ancestor suppresses local proxies");Rows[Folder].Visible=true;Tick();
  // Move a local centre through the same inspector exchange, not a second marker transform.
  auto I=Index(Key(CelestialEntity::LocalFog));Session.Update(I,false);auto& Centre=Find(*Sheet,"Centre");Centre.Axes[0]=110;Session.Update(I,true);Tick();Check(Sky->LocalFog.Centre[0]==110,"local volume inspector owns marker position");
  Host.reset();for(auto* T:ImGui::GetPlatformIO().Textures){T->SetTexID(ImTextureID_Invalid);T->SetStatus(ImTextureStatus_Destroyed);}ImGui::DestroyContext();

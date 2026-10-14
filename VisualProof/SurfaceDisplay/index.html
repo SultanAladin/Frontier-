@@ -1,0 +1,82 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><title>SurfaceDisplay — Project-Drive cabin HMI proofs</title>
+<style>body{margin:0;background:#0c0f12;color:#dfe6ea;font:15px/1.5 system-ui,sans-serif}main{max-width:1500px;margin:0 auto;padding:28px}
+h1{font-weight:500;margin:0 0 6px}h2{font-weight:500;margin:36px 0 10px;border-bottom:1px solid #263038;padding-bottom:6px}p{color:#9fb0ba;max-width:980px}
+.g{display:grid;gap:14px}.g2{grid-template-columns:repeat(auto-fit,minmax(440px,1fr))}.g3{grid-template-columns:repeat(auto-fit,minmax(320px,1fr))}
+figure{margin:0;background:#141a1f;border:1px solid #233038;border-radius:10px;padding:10px}img{width:100%;display:block;border-radius:6px;background:#000}
+figcaption{color:#b7c5cd;font-size:13px;margin-top:8px}code{color:#8fd2b5;font-size:13px}.ok{color:#8fd2b5}</style></head><body><main>
+<h1>Project-Drive cabin HMI — C++ port, proofs</h1>
+<p>Every sheet below is rasterised by the engine module <code>Engine/SurfaceDisplay</code> on the CPU and copied out through the versioned C interchange
+(<code>ProjectDisplayInterchange</code>). Nothing here is the HTML prototype. Sections 1–2 were captured from the <em>real ProjectDrive code image</em>
+while it drove the vehicle solver (<code>_AgentScratch/seq.cpp</code> harness; same path as <code>DriveInterchangeChecks</code>). Regenerate the static sheets with
+<code>python Tools/Tests/CheckSurfaceDisplay.py</code>.</p>
+
+<h2>1 · Live from the code image: cluster follows the solver (30 Hz cap)</h2>
+<p>Full throttle from rest, then reverse input to brake. Speed, rpm and gear come from <code>VehicleTelemetry</code>; the caption switches to <span class="ok">LIVE VEHICLE</span> once Play starts.</p>
+<div class="g g3">
+<figure><img src="Live/Live_Cluster_Parked.png"><figcaption>Edit mode, parked — P, 0 km/h, "no live vehicle" caption, revision 1.</figcaption></figure>
+<figure><img src="Live/Live_Cluster_1s.png"><figcaption>1 s of throttle.</figcaption></figure>
+<figure><img src="Live/Live_Cluster_2s.png"><figcaption>2 s.</figcaption></figure>
+<figure><img src="Live/Live_Cluster_4s.png"><figcaption>4 s.</figcaption></figure>
+<figure><img src="Live/Live_Cluster_7s.png"><figcaption>7 s — 68 km/h, 5.6k rpm, gear 1.</figcaption></figure>
+<figure><img src="Live/Live_Cluster_10s.png"><figcaption>10 s.</figcaption></figure>
+<figure><img src="Live/Live_Cluster_14s.png"><figcaption>14 s.</figcaption></figure>
+<figure><img src="Live/Live_Cluster_Braking.png"><figcaption>After 2 s of brake input.</figcaption></figure>
+</div>
+
+<h2>2 · Live from the code image: tablet, and a touch through the posed glass</h2>
+<p>A world ray from the driver's seat is handed to the DLL in <code>FrontierProjectDisplayReading</code>; the DLL resolves it against the tablet's pose (chassis transform × cabin mount),
+runs the Android/iPhone-style touch state machine, and the launcher icon under the finger opens. The status bar shows the live speed and gear.</p>
+<div class="g g2">
+<figure><img src="Live/Live_Tablet_Parked.png"><figcaption>Parked — launcher, P, 0 km/h.</figcaption></figure>
+<figure><img src="Live/Live_Tablet_7s.png"><figcaption>Driving — 68 km/h in the status bar, 15 Hz re-raster when dirty.</figcaption></figure>
+<figure><img src="Live/Live_Tablet_AfterTap.png"><figcaption>Tap at (−0.30, +0.12) of the glass → sheet pixel (240, 289) → Drive Room opened.</figcaption></figure>
+<figure><img src="Live/Live_Tablet_Braking.png"><figcaption>During braking.</figcaption></figure>
+</div>
+
+<h2>3 · Where it sits in the real ControlVehicle (flat diagnostic projection)</h2>
+<p>The mesh has no HMI/steering sockets, so placement is estimated (<code>DriveCabinLayout.h</code>). Screens, bezels and the headliner lamp are authored onto the body span
+(materials 16–19, scene <code>DriveCourse.r7</code>) as emissive materials, so they are luminaires in the GI pass like the headlamps.</p>
+<div class="g g3">
+<figure><img src="Cabin_DriverEye.png"><figcaption>Driver's eye (LHD): tablet (mint) centre dash, cluster (amber) ahead of the wheel, lamp overhead.</figcaption></figure>
+<figure><img src="Cabin_Cutaway.png"><figcaption>Three-quarter, roof and glazing removed.</figcaption></figure>
+<figure><img src="Cabin_Plan.png"><figcaption>Plan, same cutaway.</figcaption></figure>
+</div>
+
+<h2>4 · Tablet apps and launcher designs (static proof)</h2>
+<div class="g g3">
+<figure><img src="Tablet_Launchpad.png"><figcaption>Launcher.</figcaption></figure>
+<figure><img src="Tablet_garage.png"><figcaption>Garage — the car preview is the ControlVehicle mesh through <code>DisplayMeshProjection</code>.</figcaption></figure>
+<figure><img src="Tablet_telemetry.png"><figcaption>Telemetry.</figcaption></figure>
+<figure><img src="Tablet_tyres.png"><figcaption>Tyres (tread °C / kPa from the thermal integrator).</figcaption></figure>
+<figure><img src="Tablet_climate.png"><figcaption>Climate.</figcaption></figure>
+<figure><img src="Tablet_drive-room.png"><figcaption>Drive Room.</figcaption></figure>
+<figure><img src="Tablet_vehicle.png"><figcaption>Vehicle.</figcaption></figure>
+<figure><img src="Tablet_settings.png"><figcaption>Settings — launcher picker.</figcaption></figure>
+<figure><img src="Tablet_Narrow.png"><figcaption>Narrow per-car specification: reflow, no squashed images.</figcaption></figure>
+<figure><img src="Tablet_Design_Console.png"><figcaption>Design: Console.</figcaption></figure>
+<figure><img src="Tablet_Design_Dashboard.png"><figcaption>Design: Dashboard.</figcaption></figure>
+<figure><img src="Tablet_Design_Focus.png"><figcaption>Design: Focus.</figcaption></figure>
+<figure><img src="Tablet_Design_Collections.png"><figcaption>Design: Collections.</figcaption></figure>
+</div>
+<h2>Power-on sequence (DisplayStartupSequence, 2.8 s on the tablet, 1.9 s on the cluster)</h2>
+<p>Deterministic in (seed, time): particles gather into a ring, the wordmark fades up, the veil lifts off the launcher. Touches are ignored while it runs; the cluster sweeps its needles to full scale and back meanwhile.</p>
+<div class="grid">
+<figure><img src="Tablet_Startup_00.png"><figcaption>t = 0.0 s: dark glass, the scatter.</figcaption></figure>
+<figure><img src="Tablet_Startup_01.png"><figcaption>t = 0.4 s: the swarm starts in.</figcaption></figure>
+<figure><img src="Tablet_Startup_02.png"><figcaption>t = 0.9 s: swirling toward the ring (touch ignored).</figcaption></figure>
+<figure><img src="Tablet_Startup_03.png"><figcaption>t = 1.4 s: the ring closes, the wordmark fades up.</figcaption></figure>
+<figure><img src="Tablet_Startup_04.png"><figcaption>t = 1.9 s: settled.</figcaption></figure>
+<figure><img src="Tablet_Startup_05.png"><figcaption>t = 2.3 s: the veil lifts.</figcaption></figure>
+<figure><img src="Tablet_Startup_06.png"><figcaption>t = 2.6 s: launcher coming through.</figcaption></figure>
+<figure><img src="Tablet_Startup_07.png"><figcaption>t = 2.8 s: the launcher, unchanged.</figcaption></figure>
+</div>
+
+<h2>5 · Cluster outlines (static proof)</h2>
+<div class="g g3">
+<figure><img src="Cluster_Hexagon.png"><figcaption>Hexagon (the one mounted in Drive).</figcaption></figure>
+<figure><img src="Cluster_Arc.png"><figcaption>Cut circle.</figcaption></figure>
+<figure><img src="Cluster_Trapezoid.png"><figcaption>Trapezoid.</figcaption></figure>
+<figure><img src="Cluster_Pill.png"><figcaption>Pill.</figcaption></figure>
+</div>
+<p style="margin-top:36px">Not yet shown: the in-engine frame of the lit screens in GI through Frontier.exe — needs a Windows/GPU run.</p>
+</main></body></html>

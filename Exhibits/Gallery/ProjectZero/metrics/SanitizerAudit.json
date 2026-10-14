@@ -1,0 +1,6 @@
+{
+  "passed": true,
+  "assertionGroups": 11,
+  "scope": "shared thermal/pressure/onset/CPU-domain/C-reception foundation only; not the vehicle or Vulkan programs",
+  "logSHA256": "c852bf8762102d8bc26ec6877fca77afdc4be4b18df2c226c21f94060315c397"
+}

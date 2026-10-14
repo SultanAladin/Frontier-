@@ -1,7 +1,7 @@
 //============================================================================================================================================
 //                                                      SWAPCHAINEXCHANGE.H
 //============================================================================================================================================
-// 🧩 Vulkan instance, surface, device, swapchain and recording-slot transport across the hardware vendor edge.
+// 📦 Vulkan instance, surface, device, swapchain and recording-slot transport across the hardware vendor edge.
 
 #pragma once
 
@@ -13,6 +13,8 @@
 #include "RayTracingCapabilitySet.h"
 #include "OrientationClassifier.h"
 #include "VisibilityExchange.h"
+#include "DistanceFieldGIStage.h"
+#include "SmokeExchange.h"
 #include "TriangleSpan.h"
 #include <cstdint>
 #include <string>
@@ -28,6 +30,7 @@ class SceneStructure;
 class TraversalIndex;      // GeometricRaster/TraversalIndex.h (R3 CWBVH)
 class InstanceAcceleration; // GeometricRaster/InstanceAcceleration.h (D6/D7 two-level: BLASes + instance TLAS)
 class TextureIndex;     // ContentInterchange/TextureIndex.h (R4a)
+struct TextureDescriptor; // ContentInterchange/TextureIndex.h — QueueTextureRefresh payload
 // R7 à-trous levels. Five doublings reach an 81x81 pixel footprint (1+2+4+8+16 taps either side of centre) for
 //    5 x 25 taps instead of 6561 — the whole point of the "with holes" formulation.
 static constexpr uint32_t kDenoiseLevelCount    = 5u;   // CEILING: descriptor sets and images are allocated for
@@ -47,7 +50,7 @@ static constexpr float    kLuminanceLog2High      =  30.0f;   // 1e9 cd/m², abo
 //    It used to be a percentile window — the middle 75 % — and a percentile cannot tell a bright outlier from a
 //    bright subject, because both are just "the top of the distribution".
 //
-//    That distinction is the whole problem. A Cornell frame with the roof oculus in shot is two populations: a
+//    That distinction is the whole problem. An interior frame with a roof oculus in shot is two populations: a
 //    room near 1 cd/m² and a hole showing sky at thousands. Walking about changes how much of the frame the
 //    hole covers, the bright mode slid into and out of the average, and the reading swung 2 to 4.7 stops as the
 //    camera moved. Exposure is global, so the SKY pumped along with the room — which is the tell, because a sky
@@ -89,6 +92,7 @@ struct SwapchainConfiguration
     uint32_t    Height;                         // [px]  surface vertical resolution
     const char* Title;                          // [-]   window title string
     bool        ValidationEnabled;              // [-]   Vulkan validation layer activation
+    bool        HideUntilPresented = false;     // [-]   keep the browser visible instead of showing a blank loading window
 };
 
 //------------------------------------------------------------------------------------------------------------------------
@@ -194,6 +198,22 @@ enum DispatchFeature : uint32_t
                                                    //     cosine sky fill bit-for-bit. Mirrors kFeatureSkyReservoir
                                                    //     (bit 9 is the kernel-internal D10 identity bit — skipped here
                                                    //     so the two lists cannot collide if a host ever packs it).
+    DispatchFeatureRaytracing         = 1u << 11,  // Thread E: RenderPath==0 → the raytraced ReSTIR kernel is the
+                                                   //     active path. Mirrors kFeatureRaytracing (bit 11) in
+                                                   //     ReSTIRViewport.slang. bits 12-14 are the denoise-guide
+                                                   //     selector (see the shader), left to the denoise plumbing.
+    // Thread E: the Reflections tile is a THREE-way cycler, not a bit — 0 = Off, 1 = Sky, 2 = Raytraced. It is
+    //     packed as a 2-bit field at bits 15-16 (mirrors kReflectionModeShift / kReflectionModeMask in the shader).
+    //     Use the shift/mask below rather than treating any single value as a flag.
+    DispatchFeatureReflectionShift    = 15u,
+    DispatchFeatureReflectionMask     = 3u << 15,
+
+    // The denoiser DETAIL-GUIDE id (DenoiseGuideCategory, 0..6) packed into bits [12..14]. Carried in FeatureFlags
+    //    rather than a new push field because DispatchConfiguration is at Vulkan's guaranteed 128-byte push ceiling.
+    //    The kernel decodes it to emit the per-pixel preserve weight the à-trous fades back to raw by; Standard (0)
+    //    leaves the weight zero, i.e. the pre-guide filter, so a host that never sets it renders bit-for-bit as before.
+    DispatchGuideShift                = 12u,
+    DispatchGuideMask                 = 7u << 12,
 };
 
 // Mirrors `layout(push_constant) uniform ReSTIRConstants` in Engine/Shaders/ReSTIRViewport.slang.
@@ -235,15 +255,26 @@ public:
 
     // R2: the whole level becomes resident (vertices · indices · instances · clusters · materials · luminaires) and the
     //    interim kernel's flat triangle / material SSBOs are taken from the same SceneStructure — one upload, one truth.
-    void                        UploadScene(const SceneStructure& Scene, const TraversalIndex& Traversal, const TextureIndex* Textures = nullptr) noexcept;
+    void                        UploadScene(const SceneStructure& Scene, const TraversalIndex& Traversal,
+                                            const TextureIndex* Textures = nullptr, bool RetainDistanceFields = false) noexcept;
 
     // D3: per-frame instance transform refresh (no reallocation, no device stall). See
     //    VisibilityExchange::RefreshInstances. Returns false if the count no longer matches the resident scene.
-    [[nodiscard]] bool          RefreshInstances(const InstanceRecord* Rows, uint32_t Count) noexcept
-    { return Visibility.RefreshInstances(Rows, Count); }
+    [[nodiscard]] bool          RefreshInstances(const InstanceRecord* Rows, uint32_t Count) noexcept;
+    // Per-wheel tyre deformation records ([current, previous] pairs) — see VisibilityExchange::RefreshTyreDeformations.
+    [[nodiscard]] bool          RefreshTyreDeformations(const TyreDeformationRecord* Pairs, uint32_t Count) noexcept;
+    /// 📦 Reports readiness of the SDF transport, not merely selection of render mode one.
+    [[nodiscard]] bool QueryDistanceFieldGIReady() const noexcept { return DistanceGeometryResident && DistanceFieldStage.IsReady(); }
+    void AssignDistanceFieldGI(bool Enabled) noexcept;
+    [[nodiscard]] bool RefreshGeometry(const SceneStructure& Scene, const TraversalIndex* Traversal = nullptr) noexcept;
+
     [[nodiscard]] uint32_t      QueryInstanceCount() const noexcept { return Visibility.QueryInstanceCount(); }
     void                        UploadTextures(const TextureIndex& Textures) noexcept;   // R4a bindless table → binding 18 (last since R6)
     void                        DestroyTextures() noexcept;
+    // Live refresh of one resident slot's texels (same shape/format/levels) — queued on the CPU, copied at the head
+    //    of the next frame's command buffer through per-cycle staging. SurfaceDisplay sheets (tablet, cluster) use it.
+    //    LevelZeroOnly copies just the base level and rebuilds the mip chain on the device by blit (TextureIndex::RefreshTexels).
+    [[nodiscard]] bool          QueueTextureRefresh(uint32_t Slot, const TextureDescriptor& Texture, bool LevelZeroOnly = false) noexcept;
     void                        UploadShadingTables(const float* Energy, const float* Sheen, uint32_t Resolution) noexcept;   // R4b: two RGBA32F Resolution² planes (ShadingTableCodec bake) → bindings 13 / 14, once
     void                        UploadTraversal(const TraversalIndex& Traversal) noexcept;   // R3 CWBVH blobs → bindings 8-9
 
@@ -289,8 +320,8 @@ public:
     // R2 frame front end (cull → visibility raster → HiZ → resolve) recorded before the kernel each frame.
     void                        AssignVisibilityFrame(const VisibilityFrameConfiguration& Frame) noexcept { VisibilityFrame = Frame; VisibilityFrameValid = true; }
 
-    // R10 — the GI-off shadow stage's per-frame settings (technique, map side, taps). Only consulted when Global
-    //    Illumination is off: with GI on the ReSTIR kernel owns light visibility and no shadow map is rasterised.
+    // R10 — the non-raytraced shadow stage's per-frame settings (technique, map side, taps). Consulted whenever
+    //    ray tracing is off, including SDF GI. With RT on, ReSTIR owns light visibility.
     //    The taps themselves are placed by VisibilityExchange from the resident emitters, so the caller supplies
     //    only the tier's choices and the Control Centre's resolution override.
     void                        AssignShadowFrame(const ShadowFrameConfiguration& Shadow) noexcept { ShadowFrame = Shadow; ShadowFrameValid = true; }
@@ -309,7 +340,14 @@ public:
     //    image — VisibilityExchange::RecordSelectionOutline). Count 0 turns the stroke off.
     void                        AssignSelectionOutline(const uint32_t* PickedInstances, uint32_t PickedCount) noexcept;
 
+    bool CaptureSmoke(const FrontierProjectSmokeReading& Scalar, const FrontierSmokeTransportReading& Transport);
+    const std::string& QuerySmokeRefusal() const noexcept { return TyreSmoke.QueryRefusal(); }
+    const SmokeDeviceMetrics& QuerySmokeMetrics() const noexcept { return TyreSmoke.QueryMetrics(); }
+
     void                        RecordAndPresent(const DispatchConfiguration& Dispatch) noexcept;
+    [[nodiscard]] bool          QueryFrameFailed() const noexcept { return FrameFailed; }
+    [[nodiscard]] const char*   QueryFrameFailureOperation() const noexcept { return FrameFailureOperation; }
+    [[nodiscard]] int32_t       QueryFrameFailureCode() const noexcept { return FrameFailureCode; }
 
     void                        SignalResize() noexcept { ResizePending = true; }
 
@@ -324,12 +362,13 @@ public:
     //    Slate.config.toml [render] ray_tracing_tier; the resolved tier is what the renderer must build for.
     void                        AssignRayTracingRequest(RayTracingRequestCategory Request) noexcept { RayTracingRequest = Request; }
     [[nodiscard]] const RayTracingCapabilitySet& QueryRayTracingCapabilities() const noexcept { return Capabilities; }
-    [[nodiscard]] RayTracingTierCategory QueryRayTracingTier() const noexcept { return Capabilities.ResolveTier(RayTracingRequest); }
+    [[nodiscard]] RayTracingTierCategory QueryRayTracingTier() const noexcept;
     [[nodiscard]] RayTracingRequestCategory QueryRayTracingRequest() const noexcept { return RayTracingRequest; }
     [[nodiscard]] bool          QueryFullscreen() const noexcept { return FullscreenActive; }
     [[nodiscard]] const char*   QueryPresentModeName() const noexcept;   // resolved VkPresentModeKHR, for diagnostics
 
     [[nodiscard]] CelestialBufferUsage QueryCelestialBufferUsage() const noexcept;
+    [[nodiscard]] bool HasPresentedFrame() const noexcept { return PresentedFrame; }
     [[nodiscard]] uint32_t      QueryWidth()  const noexcept { return Configuration.Width;  }
     [[nodiscard]] uint32_t      QueryHeight() const noexcept { return Configuration.Height; }
 
@@ -360,6 +399,11 @@ public:
     //    available yet. Reads the slot the GPU has already finished with, so it never stalls: the value is one
     //    or two frames stale, which is invisible against adaptation time constants measured in seconds.
     [[nodiscard]] float QueryAverageLogLuminance() const noexcept;
+
+    // The presented frame, read back as tightly packed RGBA8 rows (top row first). What the viewport shows — the
+    //    renderer's own tone-mapped output, before the editor chrome. Waits for the device to go idle, so it is a
+    //    proof/capture facility (--capture), never a per-frame one. False when there is no frame yet.
+    [[nodiscard]] bool ReadbackPresentation(std::vector<uint8_t>& Pixels, uint32_t& Width, uint32_t& Height) noexcept;
 
     [[nodiscard]] uint32_t QueryTargetGeneration() const noexcept { return TargetGeneration; }
 
@@ -402,14 +446,18 @@ private:
     [[nodiscard]] bool  BringCycleSlots()       noexcept;
     [[nodiscard]] bool  BringImGui()            noexcept;
     [[nodiscard]] bool  BringVisibility()       noexcept;
+    [[nodiscard]] bool  BringDistanceFieldGIStage() noexcept;
 
     void                RetireSwapchain()       noexcept;
     [[nodiscard]] bool  RebuildSwapchain()      noexcept;
     [[nodiscard]] uint32_t ResolvePresentMode() const noexcept;   // VkPresentModeKHR as uint32_t (header stays Vulkan-free)
 
-    void                RecordComputeCommands(uint32_t ImageOrdinal,
+    [[nodiscard]] bool  RecordComputeCommands(uint32_t ImageIndex,
                                               const DispatchConfiguration& Dispatch) noexcept;
     void                WriteDescriptorSet()   noexcept;
+    void                RefuseFrame(const char* Operation, int32_t Code) noexcept;
+    [[nodiscard]] bool  SubmitUpload(VkCommandBuffer Command) noexcept;
+    void                RecordTextureRefresh(VkCommandBuffer Command, uint32_t CycleSlot) noexcept;
     void                ConstructSceneBuffers() noexcept;
 
     [[nodiscard]] uint32_t ResolveMemoryType(uint32_t TypeMask, uint32_t PropertyMask) const noexcept;
@@ -434,6 +482,16 @@ private:
     bool                    FullscreenActive;    // [-]   window currently covers the primary monitor
     RayTracingCapabilitySet Capabilities;        // [-]   probed in BringPhysicalDevice
     VisibilityExchange      Visibility;          // [-]   R2 resident scene + cull / raster / HiZ / resolve
+    uint64_t               SurfaceMaterialRevision = 0u;
+    bool                   SceneUploadInProgress = false;
+    void                   RefreshMaterialDescriptors() noexcept;
+    DistanceFieldStructure DistanceGeometry;
+    SmokeExchange          TyreSmoke;
+    bool                   SmokeDeviceConstructed = false;
+    DistanceFieldGIStage    DistanceFieldStage;  // [-]   shared non-raytraced distance-field GI route (RenderPath == 1)
+    std::vector<VkImageView> DistanceTextureViews; // borrowed texture views survive descriptor reseating
+    bool                    DistanceGeometryResident = false;
+    bool                    DistanceFieldGIRequested = false;
     bool                    TraversalResident = false;
     uint64_t                TraversalNodeCapacity = 0u;   // [B] allocation size, so a refit refresh cannot overrun
     uint64_t                TraversalLeafCapacity = 0u;   // [B]   // [-]   R3 CWBVH uploaded (kernel refuses to run without it)
@@ -446,6 +504,10 @@ private:
     uint64_t                BlasPlacementCapacity = 0u;   // [B] BlasPlacement rows
     VisibilityFrameConfiguration VisibilityFrame{};
     bool                    VisibilityFrameValid = false;
+    bool                    PresentedFrame = false;
+    bool                    FrameFailed = false; // terminal submit/acquire/fence/present error; never recycle an unsignalled slot
+    const char*             FrameFailureOperation = "";
+    int32_t                 FrameFailureCode = 0;
     ShadowFrameConfiguration ShadowFrame{};        // R10: GI-off shadow settings (tier technique + resolution override)
     bool                    ShadowFrameValid = false;
 

@@ -14,7 +14,7 @@
 //
 //    usage: bash Tools/Build/CheckPerformanceTelemetry.sh
 
-#include "Projects/Project-Zero/Source/PerformanceTelemetrySequence.h"
+#include "Engine/Host/PerformanceTelemetrySequence.h"
 
 #include <cstdio>
 #include <cstdlib>
@@ -25,7 +25,7 @@
 #include <vector>
 
 using namespace Frontier;
-using namespace Frontier::ProjectZero;
+using namespace Frontier::HostRuntime;
 
 namespace {
 

@@ -28,7 +28,7 @@ void RecordCameraInspector(ControlPanel& Controls,EditorInstance&,EditorSheet& S
  auto* Font=ImGui::GetFont();for(auto* F:ImGui::GetIO().Fonts->Fonts)if(!std::strcmp(F->GetDebugName(),"Sun reference / regular"))Font=F;
  ImGui::PushFont(Font,14);ImGui::PushID("camera-optics");ImVec2 O=ImGui::GetCursorScreenPos();O.x+=20;O.y+=20;float W=std::max(240.f,ImGui::GetContentRegionAvail().x-40);Panel U{Controls,Sheet,ImGui::GetWindowDrawList(),O,Font};
  CameraOpticsSettings S;S.Focal=Find(Sheet,"Focal Length")->Figure;S.SensorWidth=Find(Sheet,"Sensor Width")->Figure;S.Aperture=Find(Sheet,"Aperture")->Figure;S.Subject=Find(Sheet,"Subject Distance")->Figure;auto Opt=EvaluateCameraOptics(S,Sheet.CameraAspect);char Text[180];
- U.Text(0,8,"Inspector / Scene / Cameras",8,Muted);U.Text(0,48,Sheet.CameraLive?"Main Camera":"Cine Camera · lens study",25);U.Wrap(0,83,W,Sheet.CameraLive?"LIVE PROJECTION · aperture and focus are diagnostics only":"INACTIVE STUDY · does not switch or modify the viewport camera");
+ U.Text(0,8,"Inspector / Scene / Cameras",8,Muted);U.Text(0,48,Sheet.CameraLive?"Editor Camera":"Cine Camera · lens study",25);U.Wrap(0,83,W,Sheet.CameraLive?"LIVE PROJECTION · aperture and focus are diagnostics only":"INACTIVE STUDY · does not switch or modify the viewport camera");
  float H=std::max(170.f,(W-48)*290/640);float Bottom=110+H+270;U.Card(0,110,W,H+270,"Lens + field of view");std::snprintf(Text,sizeof(Text),"%.1f mm",double(S.Focal));U.Text(24,164,Text,30);
  Canvas C=Fit(U.D,U.At(24,212),{W-48,H},640,290);float Extent=std::min(113.f,34+Opt.Horizontal*.85f),Gap=8+std::min(38.f,Opt.Pupil*.75f);
  C.Line({30,141},{610,141},Colour(179,165,191,.15f));C.Line({235,141},{553,141-Extent},Accent);C.Line({235,141},{553,141+Extent},Accent);C.Line({553,141-Extent},{553,141+Extent},Accent,2);
@@ -50,6 +50,6 @@ void RecordCameraInspector(ControlPanel& Controls,EditorInstance&,EditorSheet& S
  if(ImGui::IsItemFocused()){if(ImGui::IsKeyPressed(ImGuiKey_LeftArrow))Subject=std::max(1.f,Subject-1);if(ImGui::IsKeyPressed(ImGuiKey_RightArrow))Subject=std::min(100.f,Subject+1);}
  U.Slider(X2+24,Y2+327,CW-48,"Subject Distance");char Near[32],Far[32];Distance(Near,sizeof(Near),Opt.Near);Distance(Far,sizeof(Far),Opt.Far);std::snprintf(Text,sizeof(Text),"Near %s / far %s",Near,Far);U.Wrap(X2+24,Y2+402,CW-48,Text);
  Y=Y2+480;U.Card(0,Y,W,196,"Sensor / support");U.Slider(24,Y+60,std::min(480.f,W-48),"Sensor Width");std::snprintf(Text,sizeof(Text),"Aspect %.3f · hyperfocal %.1f m · pinhole renderer",double(Sheet.CameraAspect),double(Opt.Hyperfocal));U.Wrap(24,Y+130,W-48,Text);
- U.Wrap(0,Y+217,W,"Aperture and subject distance are session optical-study settings only. No depth-of-field, physical exposure, autofocus, camera switching or file persistence is claimed. Lens changes on Main Camera drive the real perspective projection.");ImGui::SetCursorScreenPos(U.At(0,Y+310));ImGui::Dummy({W,1});ImGui::PopID();ImGui::PopFont();
+ U.Wrap(0,Y+217,W,"Aperture and subject distance are session optical-study settings only. No depth-of-field, physical exposure, autofocus, camera switching or file persistence is claimed. Lens changes on Editor Camera drive the real perspective projection.");ImGui::SetCursorScreenPos(U.At(0,Y+310));ImGui::Dummy({W,1});ImGui::PopID();ImGui::PopFont();
 }
 }

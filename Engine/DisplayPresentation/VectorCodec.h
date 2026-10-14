@@ -106,7 +106,8 @@ enum class ControlCentreIconCategory : uint32_t
     LayoutPanelRight                    = 37,                   // ▤ lucide "panel-right" — properties-only mode
     CameraBody                          = 38,                   // 🎥 lucide "video" — camera row
     LayersSlabs                         = 39,                   // 🗂 lucide "layers" — Materials hub row (stacked slabs)
-    Count                               = 40
+    RaytracingBeam                      = 40,                   // ◈ custom — a camera ray bouncing off a sphere; the Raytracing tile
+    Count                               = 41
 };
 
 //------------------------------------------------------------------------------------------------------------------------

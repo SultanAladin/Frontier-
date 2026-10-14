@@ -1,0 +1,13 @@
+{
+  "branch": "arena/561c913e-frontier",
+  "sourceCheckpoint": "9417727b36d9a542ea274bcfc1eea5434016520c",
+  "remoteCheckpointVerified": "9417727b36d9a542ea274bcfc1eea5434016520c",
+  "approvedRevision": "1784c866a700bfe7a5d208fadf1ac2c5dfc625dc",
+  "freshFlightCases": 68,
+  "necessaryPasses": 58,
+  "necessaryFailures": 10,
+  "historicalMissingDataReused": false,
+  "rigidDirections": 26,
+  "nativeRimTicks": 96,
+  "gpuValidation": false
+}

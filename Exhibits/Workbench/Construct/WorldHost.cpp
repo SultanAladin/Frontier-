@@ -8,7 +8,7 @@ using namespace Frontier;
 void Check(bool V,const char* M){if(!V)throw std::runtime_error(M);}
 void Test(){
  SceneStructure W;
- unsigned Expected[]={12,960,128,64,2,768,2,0,0};
+ unsigned Expected[]={12,960,128,64,2,768,2,0,0,0,0,0,0,0,0};
  unsigned Total=0;
  for(unsigned K=0;K<unsigned(ConstructKind::Count);++K){
   ConstructRequest R;R.Kind=ConstructKind(K);R.Position[0]=float(K)*2;R.Name="Object";
@@ -20,6 +20,9 @@ void Test(){
   if(K<7)Check(P.InstanceCount==1&&W.QueryInstances()[P.FirstInstance].TriangleCount==Expected[K],"outliner placement instance attachment");
  }
  Check(W.QueryCameras().size()==1&&W.QueryPlacements()[7].Camera==0,"camera attachment");
+ Check(W.QueryPunctualLuminaires().size()==6,"all native light component kinds created");
+ for(unsigned I=9;I<15;++I)Check(W.QueryPlacements()[I].Luminaire==I-9,"light placement attachment");
+ Check(W.QueryPunctualLuminaires()[5].Category==PunctualLuminaireCategory::Strip&&W.QueryPunctualLuminaires()[5].Size[0]==2.f,"strip preset owns horizontal dimensions");
  Check(W.QueryLuminaires().size()==2&&W.QueryLuminairePower()>0,"emission sampler rebuilt");
  for(auto& I:W.QueryInstances())for(unsigned T=0;T<I.TriangleCount;++T){
   auto V=[&](unsigned J)->const VertexRecord&{return W.QueryVertices()[I.VertexOffset+W.QueryIndices()[I.FirstIndex+T*3+J]];};
@@ -30,7 +33,7 @@ void Test(){
  Check(!ConstructEntity(W,Bad)&&W.QueryPlacements().size()==Before,"invalid request mutated world");
  Bad.Size=1;Bad.Kind=ConstructKind(99);Check(!ConstructEntity(W,Bad),"invalid kind");
  Bad.Kind=ConstructKind::Cube;Bad.Name="bad\nname";Check(!ConstructEntity(W,Bad),"invalid name");
- std::cout<<"PASS: nine catalogue entities, "<<Total<<" real scene triangles; placements, cameras, emission, normals, stable IDs, duplicate names and rejection invariants. CPU only.\n";
+ std::cout<<"PASS: fifteen catalogue entities including six persistent light components, "<<Total<<" real scene triangles; placements, cameras, emission, normals, stable IDs, duplicate names and rejection invariants. CPU only.\n";
 }
 int main(int Argc,char** Argv){
  if(Argc>1&&std::string(Argv[1])=="--test"){Test();return 0;}

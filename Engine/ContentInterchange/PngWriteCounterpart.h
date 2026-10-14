@@ -45,20 +45,23 @@ inline void PushChunk(std::vector<unsigned char>& Out, const char Tag[4], const 
     PushBigEndian(Out, Crc32(Out.data() + Start, Out.size() - Start));
 }
 
-// Channels must be 3 (RGB). Returns 1 on success to match the stb signature.
+// Channels must be 3 (RGB) or 4 (RGBA). Returns 1 on success to match the stb signature. Four is wanted by
+//    anything that carries coverage with it - a flipbook sheet is the whole reason, since a tile without its
+//    alpha cannot be composited over a scene at all.
 inline int WritePng(const char* Path, int Width, int Height, int Channels, const void* Pixels, int Stride)
 {
-    if (Channels != 3 || Width <= 0 || Height <= 0) return 0;
+    if ((Channels != 3 && Channels != 4) || Width <= 0 || Height <= 0) return 0;
     const unsigned char* Source = static_cast<const unsigned char*>(Pixels);
 
     // Raw scanlines, each prefixed with filter byte 0.
     std::vector<unsigned char> Raw;
-    Raw.reserve(static_cast<size_t>(Height) * (static_cast<size_t>(Width) * 3u + 1u));
+    Raw.reserve(static_cast<size_t>(Height) * (static_cast<size_t>(Width) * static_cast<size_t>(Channels) + 1u));
     for (int Y = 0; Y < Height; ++Y)
     {
         Raw.push_back(0u);
         Raw.insert(Raw.end(), Source + static_cast<size_t>(Y) * Stride,
-                              Source + static_cast<size_t>(Y) * Stride + static_cast<size_t>(Width) * 3u);
+                              Source + static_cast<size_t>(Y) * Stride
+                                     + static_cast<size_t>(Width) * static_cast<size_t>(Channels));
     }
 
     // zlib stream: 0x78 0x01, then deflate stored blocks, then Adler-32.
@@ -88,7 +91,7 @@ inline int WritePng(const char* Path, int Width, int Height, int Channels, const
     PushBigEndian(Header, static_cast<uint32_t>(Width));
     PushBigEndian(Header, static_cast<uint32_t>(Height));
     Header.push_back(8u);   // bit depth
-    Header.push_back(2u);   // colour type: truecolour
+    Header.push_back(Channels == 4 ? 6u : 2u);   // colour type: truecolour, with alpha when asked
     Header.push_back(0u); Header.push_back(0u); Header.push_back(0u);
     PushChunk(Out, "IHDR", Header);
     PushChunk(Out, "IDAT", Stream);

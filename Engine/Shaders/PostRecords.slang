@@ -152,12 +152,25 @@ vec3 StarAlong(vec3 Direction, float SkyLuminance)
     uint Row    = min(uint((Py * 0.5 + 0.5) * 32.0), 31u);
     uint Cell   = Row * 32u + Column;
 
-    // A star is a POINT: half-pixel core, third-pixel skirt, cut at 1.6 radii — the raster's profile, which keeps
-    //    the energy inside roughly one pixel so the field reads as points, not smudges. Gain 1.0 (relative to
-    //    magnitude 0) with the measured 5.73 energy normalisation.
+    // A star is a POINT, but a POINT-SPREAD, not a hard disc. The previous profile was a flat-topped core
+    //    (Core = 1.0 for Angle <= Radius) with a narrow skirt and a hard cut at 1.6·Radius. Because that disc is
+    //    ~1 render pixel wide with a SHARP edge and is point-sampled once per pixel, it aliases into hard-edged
+    //    squares — worst on the reduced-resolution tiers, where a ~1-render-pixel disc is upscaled to 2×2+ display
+    //    pixels — and a bright core (Lum·5.73) clips through the tone map to a solid white BLOCK. That is the
+    //    "blocky / pixelated stars" artefact.
+    //
+    //    Replacement: a smooth, energy-preserving Gaussian PSF. Sigma is floored to ~0.9 of the ray-cone
+    //    (render-pixel) spread so the profile ALWAYS spans a pixel with a soft edge — no hard rim to alias — and
+    //    it grows gently with apparent magnitude so bright stars BLOOM softly rather than clipping to a square.
+    //    The total flux is matched to the old flat-top+skirt profile (its solid angle is 1.727·πR², times the
+    //    same 5.73 gain), so the faint-end calibration is preserved: only the SHAPE changes, not the energy.
     vec3 col = vec3(0.0);
     uvec2 Bucket = StarCells[Cell];
-    float Radius = max(PostStar.z * 0.0002, PostSpare0.x * 0.5);
+    const float kPiLocal = 3.14159265358979323846;
+    float PixelAngle = max(PostSpare0.x, 1e-6);
+    float RefRadius  = max(PostStar.z * 0.0002, PixelAngle * 0.5);   // the OLD radius — the calibration reference
+    const float kOldProfileArea = 1.727;                            // Ω_old / (πR²) for the flat-top + skirt disc
+    float FluxTarget = kPiLocal * RefRadius * RefRadius * kOldProfileArea * 5.73;   // preserved total flux
     for (uint I = 0u; I < Bucket.y; ++I)
     {
         StarEntry Star = StarStars[Bucket.x + I];
@@ -165,13 +178,16 @@ vec3 StarAlong(vec3 Direction, float SkyLuminance)
         float Dot = dot(Eq, Star.DirLum.xyz);
         if (Dot <= 0.0) continue;
         float Angle = acos(min(Dot, 1.0));
-        if (Angle > Radius * 1.6) continue;
-        float Falloff = (Angle - Radius) / (Radius * 0.35);
-        float Core = Angle <= Radius ? 1.0 : exp(-Falloff * Falloff);
+        // Brightness-aware PSF width: faint stars stay tight (~0.9 px), bright stars spread and bloom (≤ 3×).
+        float AppMag = max(Star.DirLum.w * PostStar.w, 0.0);
+        float Sigma  = max(PostStar.z * 0.0002, PixelAngle * 0.9) * clamp(1.0 + 0.55 * log2(1.0 + AppMag), 1.0, 3.0);
+        if (Angle > 3.0 * Sigma) continue;                          // 3σ support — smooth all the way to the edge
+        float Peak = FluxTarget / (2.0 * kPiLocal * Sigma * Sigma); // ∫ Peak·e^(-r²/2σ²) dΩ = FluxTarget
+        float Core = Peak * exp(-0.5 * Angle * Angle / (Sigma * Sigma));
         float Phase=dot(Star.DirLum.xyz,vec3(13.0,37.0,71.0));
         float T=(PostStarEffects.w+Phase)*6.28318530718*PostStarEffects.z;
         float Flux=1.0-clamp(PostStarEffects.y,0.0,1.0)*(0.5+0.3*sin(T)+0.2*sin(T*0.47+0.8));
-        col += Star.ColPad.rgb * (Star.DirLum.w * PostStar.w * Core * 5.73 * Flux);
+        col += Star.ColPad.rgb * (Star.DirLum.w * PostStar.w * Core * Flux);   // 5.73 is folded into Peak
     }
     return col;
 }

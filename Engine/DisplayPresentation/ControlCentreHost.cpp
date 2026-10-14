@@ -830,6 +830,7 @@ constexpr QuickTileStructure TileTable[static_cast<size_t>(QuickTileCategory::Co
     { QuickTileCategory::Notifications,      ControlCentreIconCategory::NotificationsBell,    "Notifications",       false },
     { QuickTileCategory::Quality,            ControlCentreIconCategory::SlidersQuality,       "Quality",             true  },
     { QuickTileCategory::PatchGeometry, ControlCentreIconCategory::SlidersQuality, "Patch Geometry", true },
+    { QuickTileCategory::Raytracing,    ControlCentreIconCategory::RaytracingBeam,       "Raytracing",    false },
 };
 
 constexpr uint32_t GridColumns = 4u;
@@ -909,7 +910,8 @@ bool ControlCentreHost::IsTileActive(QuickTileCategory Tile) const noexcept
     switch (Tile)
     {
         case QuickTileCategory::GlobalIllumination: return Settings.GlobalIllumination && Settings.GiBounces > 0u;
-        case QuickTileCategory::Reflections:        return Settings.ReflectionBounces > 0u;
+        case QuickTileCategory::Reflections:        return Settings.ReflectionMode != ReflectionModeCategory::Off;
+        case QuickTileCategory::Raytracing:         return Settings.Raytracing;
         case QuickTileCategory::AntiAliasing:       return Settings.AntiAliasing;
         case QuickTileCategory::FrameRateOverlay:   return Settings.FrameRateOverlay;
         case QuickTileCategory::Notifications:      return Settings.Notifications;
@@ -928,8 +930,9 @@ void ControlCentreHost::ToggleTile(QuickTileCategory Tile) noexcept
             Settings.GlobalIllumination = (Settings.GiBounces > 0u);
             break;
         case QuickTileCategory::Reflections:
-            Settings.ReflectionBounces = (Settings.ReflectionBounces + 1u) % 5u;
+            Settings.ReflectionMode = NextReflectionMode(Settings.ReflectionMode);   // Off -> Sky -> Raytraced
             break;
+        case QuickTileCategory::Raytracing:         Settings.Raytracing         = !Settings.Raytracing;         break;
         case QuickTileCategory::AntiAliasing:       Settings.AntiAliasing       = !Settings.AntiAliasing;       break;
         case QuickTileCategory::FrameRateOverlay:   Settings.FrameRateOverlay   = !Settings.FrameRateOverlay; NotificationPage.MirrorFrameRateOverlay(Settings.FrameRateOverlay); break;
         case QuickTileCategory::Notifications:      Settings.Notifications      = !Settings.Notifications;      break;
@@ -1091,10 +1094,9 @@ void ControlCentreHost::ConstructTileLayout(PixelSpace& Surface, uint32_t Slot, 
     { Label = Settings.PatchDebug == 0u ? "Patches: Off" : Settings.PatchDebug == 1u ? "Patch Tiles" : "Tiles + Wireframe"; }
     else if (Tile.Category == QuickTileCategory::Reflections)
     {
-        if (Settings.ReflectionBounces == 0u) std::snprintf(DynamicLabel, sizeof(DynamicLabel), "Refl: Off");
-        else if (Settings.ReflectionBounces == 1u) std::snprintf(DynamicLabel, sizeof(DynamicLabel), "Refl: 1 Bounce");
-        else std::snprintf(DynamicLabel, sizeof(DynamicLabel), "Refl: %u Bounces", Settings.ReflectionBounces);
-        Label = DynamicLabel;
+        Label = Settings.ReflectionMode == ReflectionModeCategory::Off ? "Refl: Off"
+              : Settings.ReflectionMode == ReflectionModeCategory::Sky ? "Refl: Sky"
+              :                                                          "Refl: Raytraced";
     }
     else if (Tile.Category == QuickTileCategory::GlobalIllumination)
     {
@@ -1525,15 +1527,14 @@ float ControlCentreHost::ConstructRenderPageLayout(PixelSpace& Surface, const Pl
     {
         const PlaneExtent Ctl = ControlKit::ControlRow(Surface, Content2.MinimumX, Row2Y, Content2.Width(), "Reflections",
                                                        ControlKit::Palette().TextDim, Opacity);
-        char ReflLabel[32];
-        if (Settings.ReflectionBounces == 0u) std::snprintf(ReflLabel, sizeof(ReflLabel), "Off");
-        else if (Settings.ReflectionBounces == 1u) std::snprintf(ReflLabel, sizeof(ReflLabel), "1 Bounce");
-        else std::snprintf(ReflLabel, sizeof(ReflLabel), "%u Bounces", Settings.ReflectionBounces);
+        const char* ReflLabel = Settings.ReflectionMode == ReflectionModeCategory::Off ? "Off"
+                              : Settings.ReflectionMode == ReflectionModeCategory::Sky ? "Sky"
+                              :                                                          "Raytraced";
         ButtonStructure Btn{}; Btn.Label = ReflLabel; Btn.Tone = ButtonToneCategory::Secondary; Btn.Height = RowH;
         const PlaneExtent BtnExt = Spanning(Ctl.MinimumX, Row2Y, std::min(Ctl.Width(), 160.0f), RowH);
         if (ControlKit::PillButton(Surface, BtnExt, Btn, Inner, Opacity).Clicked)
         {
-            Settings.ReflectionBounces = (Settings.ReflectionBounces + 1u) % 5u;
+            Settings.ReflectionMode = NextReflectionMode(Settings.ReflectionMode);   // Off -> Sky -> Raytraced
             ++Settings.Revision;
         }
         Row2Y += RowH + RowGap;
@@ -1583,7 +1584,31 @@ float ControlCentreHost::ConstructRenderPageLayout(PixelSpace& Surface, const Pl
         }
     }
 
-    return SectionH + 20.0f + Section2H;
+    // Section 3: Denoising — the detail-guide selector. Standard is the shipped à-trous; the other entries fade the
+    //    filtered result back toward the raw sample where a deterministic guide marks real shading detail, so
+    //    flakes / reflections / luminaires / rims / edges survive the filter. Smart combines them (the default).
+    const float Section3H = ControlKit::SectionPadding * 2.0f + HeadingH + RowH;
+    const PlaneExtent Card3    = Spanning(X, Y + SectionH + 20.0f + Section2H + 20.0f, W, Section3H);
+    const PlaneExtent Content3 = ControlKit::SectionCard(Surface, Card3, Radius, Opacity);
+    ControlKit::SectionHeading(Surface, Content3.MinimumX, Content3.MinimumY, Content3.Width(),
+                               "Denoising", "Keep genuine detail (flakes, reflections, glow, edges) through the filter", Ink90(), Ink50(), Opacity);
+    {
+        float Row3Y = Content3.MinimumY + HeadingH;
+        const PlaneExtent Ctl = ControlKit::ControlRow(Surface, Content3.MinimumX, Row3Y, Content3.Width(), "Detail Guide",
+                                                       ControlKit::Palette().TextDim, Opacity);
+        ButtonStructure Btn{}; Btn.Label = DenoiseGuideLabel(Settings.DenoiseGuide);
+        Btn.Tone = Settings.DenoiseGuide == DenoiseGuideCategory::Standard ? ButtonToneCategory::Secondary
+                                                                           : ButtonToneCategory::Primary;
+        Btn.Height = RowH;
+        const PlaneExtent BtnExt = Spanning(Ctl.MinimumX, Row3Y, std::min(Ctl.Width(), 160.0f), RowH);
+        if (ControlKit::PillButton(Surface, BtnExt, Btn, Inner, Opacity).Clicked)
+        {
+            Settings.DenoiseGuide = NextDenoiseGuide(Settings.DenoiseGuide);
+            ++Settings.Revision;
+        }
+    }
+
+    return SectionH + 20.0f + Section2H + 20.0f + Section3H;
 }
 
 void ControlCentreHost::ConstructRenderFloatingLayout(PixelSpace& Surface, float Opacity) noexcept

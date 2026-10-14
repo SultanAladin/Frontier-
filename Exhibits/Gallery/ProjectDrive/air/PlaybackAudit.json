@@ -1,0 +1,76 @@
+{
+  "passed": true,
+  "recordedDate": "2026-10-12",
+  "browserExecution": true,
+  "pages": {
+    "airborne-tyres.html": {
+      "clips": 9,
+      "pageSHA256": "ca6625a0461c179a217946dc3285f5eaea6e7149aa5f463471fd8de531fac03b",
+      "pausedMarkup": true,
+      "uncontrolledGifImages": 0,
+      "browser": {
+        "startsPaused": true,
+        "timeAdvancesOnPlay": true,
+        "pauseFreezesTime": true,
+        "resumeContinuesTime": true,
+        "exclusivePlayback": true,
+        "pauseAll": true,
+        "hiddenDocumentEventPause": true,
+        "textRendering": true,
+        "scriptErrors": []
+      }
+    },
+    "brakes-and-rim.html": {
+      "clips": 17,
+      "pageSHA256": "0e51affd94102fda737ddffff0ede989bdd7a56bfcefad9e80a22b5afa06c080",
+      "pausedMarkup": true,
+      "uncontrolledGifImages": 0,
+      "browser": {
+        "startsPaused": true,
+        "timeAdvancesOnPlay": true,
+        "pauseFreezesTime": true,
+        "resumeContinuesTime": true,
+        "exclusivePlayback": true,
+        "pauseAll": true,
+        "hiddenDocumentEventPause": true,
+        "textRendering": true,
+        "scriptErrors": []
+      }
+    },
+    "flight-and-slopes.html": {
+      "clips": 46,
+      "pageSHA256": "3d191109da1a14db36616a4ff77229a95f445411a14e74021563046106032ffc",
+      "pausedMarkup": true,
+      "uncontrolledGifImages": 0,
+      "browser": {
+        "startsPaused": true,
+        "timeAdvancesOnPlay": true,
+        "pauseFreezesTime": true,
+        "resumeContinuesTime": true,
+        "exclusivePlayback": true,
+        "pauseAll": true,
+        "hiddenDocumentEventPause": true,
+        "textRendering": true,
+        "scriptErrors": []
+      }
+    },
+    "index.html": {
+      "clips": 46,
+      "pageSHA256": "3d191109da1a14db36616a4ff77229a95f445411a14e74021563046106032ffc",
+      "pausedMarkup": true,
+      "uncontrolledGifImages": 0,
+      "browser": {
+        "startsPaused": true,
+        "timeAdvancesOnPlay": true,
+        "pauseFreezesTime": true,
+        "resumeContinuesTime": true,
+        "exclusivePlayback": true,
+        "pauseAll": true,
+        "hiddenDocumentEventPause": true,
+        "textRendering": true,
+        "scriptErrors": []
+      }
+    }
+  },
+  "sourceSHA256": "cbdd8e6aa25f3c1b47450f47c8f27bb15ac2d0fffe2119cf7119aa126a4ba02c"
+}

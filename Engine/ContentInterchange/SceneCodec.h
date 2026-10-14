@@ -29,6 +29,25 @@ struct SceneDecodeConfiguration
     bool     MergePrimitives  = false;   // [-] reserved: merge same-material primitives before clustering
 };
 
+// An object-space mesh offered for instancing. Positions and normals are ENGINE space (Z-up, metres); the
+//    encoder applies the axis swap, exactly as it does for span geometry.
+struct InstancedGeometryRecord
+{
+    const std::vector<VertexRecord>* Vertices = nullptr;
+    const std::vector<uint32_t>*     Indices  = nullptr;
+    std::string                      Name;                 // names the shared accessors in diagnostics
+};
+
+// One placement of one InstancedGeometryRecord.
+struct InstancedPlacementRecord
+{
+    uint32_t    Geometry = 0u;          // [idx] into SceneEncodeConfiguration::InstancedGeometry
+    uint32_t    Material = 0u;          // [idx] material slot — the thing that varies between placements
+    float       World[16]{};            // [-]   object → world, column-major, ENGINE axes (Z-up)
+    std::string Name;
+    bool        Dynamic  = false;
+};
+
 struct SceneEncodeConfiguration
 {
     std::string                 Name;                      // scene name; empty = "CornellBox"
@@ -38,6 +57,15 @@ struct SceneEncodeConfiguration
     //    one primitive per material, byte for byte. Set, each span becomes a named node + mesh, so the decode
     //    carries one placement per scene object for the outliner to walk.
     const std::vector<TriangleSpanRecord>* Spans = nullptr;
+
+    // ── Instanced placements ────────────────────────────────────────────────────────────────────────────────
+    // One object-space mesh, many placements. The vertex block is written ONCE and every placement's primitive
+    //    points at the same accessors, so a 67 832-triangle shader ball placed 400 times costs 1.9 MB in the
+    //    buffer rather than 760 MB. glTF carries material on the primitive and not on the node, which is why
+    //    there is a mesh entry per placement — a few hundred bytes of JSON each, against one copy of the data.
+    //    Written alongside the span geometry above: a level can have both, and the showcase does.
+    const std::vector<InstancedGeometryRecord>*  InstancedGeometry   = nullptr;
+    const std::vector<InstancedPlacementRecord>* InstancedPlacements = nullptr;
 };
 
 class SceneCodec

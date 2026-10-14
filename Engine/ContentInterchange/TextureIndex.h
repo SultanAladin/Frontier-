@@ -59,6 +59,15 @@ public:
     //    chain is built immediately, so no Decode is owed. The same Name replaces the slot IN PLACE — the texels
     //    move, the slot stays, exactly what a re-bake wants (descriptors name slots, never heaps).
     uint32_t RegisterHalves(const std::string& Name, const uint16_t* Halves, uint32_t Width, uint32_t Height) noexcept;
+    // Register raw RGBA8 texels (sRGB-encoded unless Linear) — a SurfaceDisplay sheet. Same in-place rule as
+    //    RegisterHalves: a repeated Name re-seats its slot, so a resized display keeps its material binding.
+    uint32_t RegisterTexels(const std::string& Name, const uint8_t* Rgba, uint32_t Width, uint32_t Height, bool Linear) noexcept;
+    // Same-shape live refresh of a RegisterTexels slot: level 0 is overwritten in place and the lower levels are
+    //    left STALE (the device rebuilds them by blit on the refresh copy — a CPU mip chain cost ~15-20 ms per
+    //    sheet, which is exactly the hitch a 30 Hz cluster cannot afford). False when the slot or shape mismatches.
+    bool RefreshTexels(uint32_t Slot, const uint8_t* Rgba, uint32_t Width, uint32_t Height) noexcept;
+    // Rebuild every stale chain on the CPU — owed before a FULL texture upload, which copies the CPU chain verbatim.
+    void ReconstructStaleLevels() noexcept;
 
     // Decode everything registered and not yet decoded. Returns the number of failures (placeholders created).
     //    `Report` receives one line per failure and the final summary. MaximumEdge caps the level-0 size (0 = no cap).
@@ -74,7 +83,7 @@ public:
     static void ConstructLevels(TextureDescriptor& T) noexcept;
 
 private:
-    struct Pending { std::vector<uint8_t> Encoded; bool Decoded = false; };
+    struct Pending { std::vector<uint8_t> Encoded; bool Decoded = false; bool LevelsStale = false; };
     std::vector<TextureDescriptor> Textures;
     std::vector<Pending>           Sources;
     TextureIndexMetrics            Metrics;

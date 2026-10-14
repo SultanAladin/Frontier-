@@ -32,6 +32,10 @@ public:
     void BeginOverlay() noexcept override;
     void EndTarget() noexcept override;
 
+    // Working pixels per visible pixel, each way (1..4, default 2). Edges are anti-aliased by box-filtering them down.
+    void     AssignSamples(uint32_t Samples) noexcept;
+    uint32_t QuerySamples() const noexcept;
+
     RasterImage Readback() const noexcept override;
     uint32_t    Pick(uint32_t X, uint32_t Y) const noexcept override;
     float       Depth(uint32_t X, uint32_t Y) const noexcept override;

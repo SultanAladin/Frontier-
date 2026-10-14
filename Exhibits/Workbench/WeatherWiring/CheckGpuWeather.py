@@ -24,7 +24,7 @@ for name,binding in [('HistoryPair',3),('HistorySurfacePair',18),('MomentPair',1
 s=(R/'Engine/Shaders/ReSTIRViewport.slang').read_text();begin=s.index('void ResolveSurface(');end=s.index('\nvoid Resolve(',begin);resolve=s[begin:end]
 assert resolve.index('imageStore(HistoryImage')<resolve.index('ApplyWeather(')<resolve.index('imageStore(DenoiseImage')
 assert 'surfaceHit' in resolve and 'weatherSurface.xyz-CameraOrigin' in resolve
-host=(R/'Projects/Project-Zero/Source/GameExecution.cpp').read_text()
+host=(R/'Engine/Host/FrontierRuntime.cpp').read_text()
 assert 'offsetof(Frontier::PostConstantRecord, Weather)' in host
 assert 'FinalDispatch.AccumulationIndex = Integrator.QueryAccumulationIndex()' in host
 host=(R/'Engine/DeviceExchange/SwapchainExchange.cpp').read_text()

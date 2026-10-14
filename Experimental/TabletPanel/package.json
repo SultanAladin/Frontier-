@@ -1,0 +1,16 @@
+{
+  "name": "frontier-tablet-panel",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "node Build.mjs",
+    "check": "node TabletMetrics.mjs"
+  },
+  "dependencies": {
+    "three": "0.180.0"
+  },
+  "devDependencies": {
+    "esbuild": "0.25.10",
+    "playwright-core": "1.55.1"
+  }
+}

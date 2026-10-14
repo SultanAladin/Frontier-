@@ -1,0 +1,224 @@
+{
+  "passed": true,
+  "cpuOnly": true,
+  "sourceSHA256": "f95a1593a8a18cf7d04c03cbc2875fb74c5ba205fb51eca9c4513b6a900752f2",
+  "cases": [
+    {
+      "case": "air--1_-1_-1",
+      "passed": true,
+      "positionDerivativeRmsPeakMPerS": 0.005593128885575917,
+      "positionDerivativeRmsMeanMPerS": 0.0011232615482083704,
+      "lateParticleVelocityMinusEndpointRimRmsMeanMPerS": 0.6496170923743343,
+      "recordingSHA256": "ca76e29487af0ae502e9737181cbf051fff0d4cb750bb821f6cc5c95ec83f622"
+    },
+    {
+      "case": "air--1_0_0",
+      "passed": true,
+      "positionDerivativeRmsPeakMPerS": 0.002344790554197675,
+      "positionDerivativeRmsMeanMPerS": 0.0011744666175268223,
+      "lateParticleVelocityMinusEndpointRimRmsMeanMPerS": 0.18120428754136567,
+      "recordingSHA256": "9a8866b959945f89a93482a6bbe747978dca59f01598ba4443526da2c0301903"
+    },
+    {
+      "case": "air--1_1_1",
+      "passed": true,
+      "positionDerivativeRmsPeakMPerS": 0.005211639063430173,
+      "positionDerivativeRmsMeanMPerS": 0.0010392392813766919,
+      "lateParticleVelocityMinusEndpointRimRmsMeanMPerS": 0.6490215955352625,
+      "recordingSHA256": "f02ec237293429ffc8a8603cc0b722fdceecbbbadd2d354dc57c45541b555be5"
+    },
+    {
+      "case": "air-0_0_-1",
+      "passed": true,
+      "positionDerivativeRmsPeakMPerS": 0.0011784293864930575,
+      "positionDerivativeRmsMeanMPerS": 0.0007250789097142555,
+      "lateParticleVelocityMinusEndpointRimRmsMeanMPerS": 0.8634729948155325,
+      "recordingSHA256": "202baa570dbe59d797324cbcfea1e3000c3cf30fa32358b81afd521489ae4e79"
+    },
+    {
+      "case": "air-0_1_1",
+      "passed": true,
+      "positionDerivativeRmsPeakMPerS": 0.004486727535679886,
+      "positionDerivativeRmsMeanMPerS": 0.001392816407882168,
+      "lateParticleVelocityMinusEndpointRimRmsMeanMPerS": 0.8454549963747816,
+      "recordingSHA256": "07e905c0e6db7d2ea3d955da90cbe278f0f2dc6586c5bdc652d8e2cf06271f1e"
+    },
+    {
+      "case": "air-1_0_-1",
+      "passed": true,
+      "positionDerivativeRmsPeakMPerS": 0.0029509623458364126,
+      "positionDerivativeRmsMeanMPerS": 0.000861364646578117,
+      "lateParticleVelocityMinusEndpointRimRmsMeanMPerS": 0.5439534608373128,
+      "recordingSHA256": "355733d068341712a9f4a2935e4981c7667ea061b456af46074653fdbdae0193"
+    },
+    {
+      "case": "air-1_1_0",
+      "passed": true,
+      "positionDerivativeRmsPeakMPerS": 0.0035832263550141675,
+      "positionDerivativeRmsMeanMPerS": 0.0013411246269931158,
+      "lateParticleVelocityMinusEndpointRimRmsMeanMPerS": 0.5059618462005459,
+      "recordingSHA256": "abc5ed0cf7db424896620d52f5f726685913fb3b21373859baff3a6c7b0b56e0"
+    },
+    {
+      "case": "air--1_-1_0",
+      "passed": true,
+      "positionDerivativeRmsPeakMPerS": 0.0037110825216693033,
+      "positionDerivativeRmsMeanMPerS": 0.0013712258515510575,
+      "lateParticleVelocityMinusEndpointRimRmsMeanMPerS": 0.5059807301741814,
+      "recordingSHA256": "a0c32aa7de4666124545d18aff1883d577dfdf40c29c95c287ee05c9dcd4f050"
+    },
+    {
+      "case": "air--1_0_1",
+      "passed": true,
+      "positionDerivativeRmsPeakMPerS": 0.0027761659761024967,
+      "positionDerivativeRmsMeanMPerS": 0.0008423525228995449,
+      "lateParticleVelocityMinusEndpointRimRmsMeanMPerS": 0.5437816887182252,
+      "recordingSHA256": "f102398901822d5fca351669e0cd71c85cc028506a1080239506842ac0141dad"
+    },
+    {
+      "case": "air-0_-1_-1",
+      "passed": true,
+      "positionDerivativeRmsPeakMPerS": 0.0043628211999682835,
+      "positionDerivativeRmsMeanMPerS": 0.0014279239655095872,
+      "lateParticleVelocityMinusEndpointRimRmsMeanMPerS": 0.8459479309208718,
+      "recordingSHA256": "943d0e6e42c9fa8f7e2f0ccddd1ad0b96f0629b8989ccf2f2d416f08e632ace7"
+    },
+    {
+      "case": "air-0_0_1",
+      "passed": true,
+      "positionDerivativeRmsPeakMPerS": 0.001181739043361539,
+      "positionDerivativeRmsMeanMPerS": 0.0007295675664999828,
+      "lateParticleVelocityMinusEndpointRimRmsMeanMPerS": 0.863023120230155,
+      "recordingSHA256": "937e6211880c5020aa0fa4ab7424ec7d4dc29cd34cda2c33aeaf5538f8435408"
+    },
+    {
+      "case": "air-1_-1_-1",
+      "passed": true,
+      "positionDerivativeRmsPeakMPerS": 0.005234365904808706,
+      "positionDerivativeRmsMeanMPerS": 0.0010475617733542969,
+      "lateParticleVelocityMinusEndpointRimRmsMeanMPerS": 0.6543195223202591,
+      "recordingSHA256": "6c8120d1bd9525730f34635cf99843b40622c0312d226e4905991b93a71cd1c2"
+    },
+    {
+      "case": "air-1_0_0",
+      "passed": true,
+      "positionDerivativeRmsPeakMPerS": 0.0023534239597550735,
+      "positionDerivativeRmsMeanMPerS": 0.001148891331426969,
+      "lateParticleVelocityMinusEndpointRimRmsMeanMPerS": 0.18276512349845508,
+      "recordingSHA256": "069009de10782ea98eb808a2eeee858a6a52907d878eef83a963d1d34ccdcb40"
+    },
+    {
+      "case": "air-1_1_1",
+      "passed": true,
+      "positionDerivativeRmsPeakMPerS": 0.004964715254124003,
+      "positionDerivativeRmsMeanMPerS": 0.001106848967064281,
+      "lateParticleVelocityMinusEndpointRimRmsMeanMPerS": 0.654510184765267,
+      "recordingSHA256": "015ced629426141406f1df15aac89b98232646366295c4ddb2a3508ace7f353f"
+    },
+    {
+      "case": "air--1_-1_1",
+      "passed": true,
+      "positionDerivativeRmsPeakMPerS": 0.0053423939677772715,
+      "positionDerivativeRmsMeanMPerS": 0.0011425275020951764,
+      "lateParticleVelocityMinusEndpointRimRmsMeanMPerS": 0.6544574816227289,
+      "recordingSHA256": "36aefc778db288f299385ca6ae0d34702af0b65e30135d6929bf78c904cfa665"
+    },
+    {
+      "case": "air--1_1_-1",
+      "passed": true,
+      "positionDerivativeRmsPeakMPerS": 0.004965967049444597,
+      "positionDerivativeRmsMeanMPerS": 0.0011769769118372545,
+      "lateParticleVelocityMinusEndpointRimRmsMeanMPerS": 0.6548934118185596,
+      "recordingSHA256": "cbf51ff473a12d3e67fdf80344f49879edc8133dfe7438fa8322203d83fc0a74"
+    },
+    {
+      "case": "air-0_-1_0",
+      "passed": true,
+      "positionDerivativeRmsPeakMPerS": 0.005287347872691948,
+      "positionDerivativeRmsMeanMPerS": 0.0016557676353076106,
+      "lateParticleVelocityMinusEndpointRimRmsMeanMPerS": 0.8857379402683967,
+      "recordingSHA256": "47bd81b2ea6b19a393545ef371125696b721197ea6ab86337efb837002c0bbcd"
+    },
+    {
+      "case": "air-0_1_-1",
+      "passed": true,
+      "positionDerivativeRmsPeakMPerS": 0.004815339236334067,
+      "positionDerivativeRmsMeanMPerS": 0.0016087779364279196,
+      "lateParticleVelocityMinusEndpointRimRmsMeanMPerS": 0.8463361859546407,
+      "recordingSHA256": "30b4d7bf8fe38d431fbaf34e8d9d44222f8fa858d3f29203ab7c5909b89236c0"
+    },
+    {
+      "case": "air-1_-1_0",
+      "passed": true,
+      "positionDerivativeRmsPeakMPerS": 0.003781518454713844,
+      "positionDerivativeRmsMeanMPerS": 0.0013685597701586871,
+      "lateParticleVelocityMinusEndpointRimRmsMeanMPerS": 0.5060496908832444,
+      "recordingSHA256": "5c844ea7cff57608c0d205630d1c5eb81a5f77d2fc9242910f1840f794a838c6"
+    },
+    {
+      "case": "air-1_0_1",
+      "passed": true,
+      "positionDerivativeRmsPeakMPerS": 0.0024372663155761646,
+      "positionDerivativeRmsMeanMPerS": 0.0009091571490719666,
+      "lateParticleVelocityMinusEndpointRimRmsMeanMPerS": 0.5436393044582484,
+      "recordingSHA256": "f54de24ee146bae0f2a5c98e1f8addeeebbae00bcca0299a87d3e83e48443a63"
+    },
+    {
+      "case": "air--1_0_-1",
+      "passed": true,
+      "positionDerivativeRmsPeakMPerS": 0.0024995730789170484,
+      "positionDerivativeRmsMeanMPerS": 0.0008975875203738141,
+      "lateParticleVelocityMinusEndpointRimRmsMeanMPerS": 0.5437576572028439,
+      "recordingSHA256": "faf82b3dc05e5fbbab40a41d36f0cb6eca104a9db82087f501149235b6341281"
+    },
+    {
+      "case": "air--1_1_0",
+      "passed": true,
+      "positionDerivativeRmsPeakMPerS": 0.0039664801110011715,
+      "positionDerivativeRmsMeanMPerS": 0.001346904075224016,
+      "lateParticleVelocityMinusEndpointRimRmsMeanMPerS": 0.5060213138947132,
+      "recordingSHA256": "981127b040188023138cb8fec036d901660ba4601ff108493d54e31ae1540d83"
+    },
+    {
+      "case": "air-0_-1_1",
+      "passed": true,
+      "positionDerivativeRmsPeakMPerS": 0.004645148009993439,
+      "positionDerivativeRmsMeanMPerS": 0.0016388826269740438,
+      "lateParticleVelocityMinusEndpointRimRmsMeanMPerS": 0.8460463941640362,
+      "recordingSHA256": "abd593ce99aa42bd3aa83e7da540303dc22defc8bbe2b531b8dc870f6df553da"
+    },
+    {
+      "case": "air-0_1_0",
+      "passed": true,
+      "positionDerivativeRmsPeakMPerS": 0.006006800853146406,
+      "positionDerivativeRmsMeanMPerS": 0.0016186337640205133,
+      "lateParticleVelocityMinusEndpointRimRmsMeanMPerS": 0.8872031444349071,
+      "recordingSHA256": "b7b14ba399f4616b7248f3be6a6099d4b3cc875b90f5c414fb49b26f2a81a576"
+    },
+    {
+      "case": "air-1_-1_1",
+      "passed": true,
+      "positionDerivativeRmsPeakMPerS": 0.005760225821450611,
+      "positionDerivativeRmsMeanMPerS": 0.0012043118185453368,
+      "lateParticleVelocityMinusEndpointRimRmsMeanMPerS": 0.6496813811346986,
+      "recordingSHA256": "2fe87d5feb9d348d1ed582358caf883d3ffe9ca3e08f64ca522b4922106b3d1d"
+    },
+    {
+      "case": "air-1_1_-1",
+      "passed": true,
+      "positionDerivativeRmsPeakMPerS": 0.005359126010477126,
+      "positionDerivativeRmsMeanMPerS": 0.0011297812068538913,
+      "lateParticleVelocityMinusEndpointRimRmsMeanMPerS": 0.6494524204186116,
+      "recordingSHA256": "4f462cb91e19c15e0ce2aebff74d56ec024d6059201598857cdefce5f94a957f"
+    }
+  ],
+  "cadenceHz": 20,
+  "equilibrationExcludedS": 1,
+  "shapeRateRmsLimitMPerS": 0.01,
+  "method": "Differentiate every recorded particle after removing its solved material pose; no interpolation or clipping.",
+  "limitations": [
+    "20 Hz derivatives cannot exclude above-Nyquist oscillation.",
+    "Raw particle/endpoint-rim velocity timing remains separate.",
+    "Small positional wobble does not establish exact conservation or universal stability."
+  ]
+}

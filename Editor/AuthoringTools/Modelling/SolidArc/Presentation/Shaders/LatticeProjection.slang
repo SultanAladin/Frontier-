@@ -1,9 +1,9 @@
 //============================================================================================================================================
-// 📦 Editor/EditorTools/ParametricSketcher/Presentation/Shaders/LatticeProjection.slang — Analytic infinite Z-up ground lattice with LOD fade and world axes
+// 📦 Editor/EditorTools/ParametricSketcher/Presentation/Shaders/LatticeProjection.slang — Analytic finite Z-up ground lattice with one-pixel lines, LOD and world axes
 //============================================================================================================================================
 // A full-screen triangle. Each fragment reconstructs its view ray, intersects the z = 0 plane analytically, and shades
-//    an anti-aliased two-level lattice (minor / major) whose minor cell doubles as the camera pulls back so line density
-//    stays roughly constant on screen. Radial fade dissolves it into the background instead of a hard horizon.
+//    a one-pixel anti-aliased two-level lattice (minor / major) whose cell steps up as the camera pulls back so line density
+//    stays roughly constant on screen. A square fade about the origin ends the pad instead of a hard horizon.
 //    Colours: X axis red, Y axis green (Z-up world, Blender / Plasticity convention).
 //
 // 📝 LatticeShade() is the whole shader. Its inputs are plain values so the software raster calls the identical body:
@@ -20,72 +20,82 @@ struct LatticeSample
     float  Depth;               // clip depth of the hit, 1.0 when the ray misses the plane
 };
 
-// Coverage of the nearest lattice line of spacing Cell, anti-aliased over one pixel. Extent is world units per pixel.
-float LatticeLineCoverage(float2 Position, float Cell, float Extent, float HalfWidthPixels)
+// Coverage of the nearest line of spacing Cell along ONE world coordinate. Foot is the world length one pixel spans along
+//    that coordinate on the ground, so Pixels is the true on-screen distance to the line: a line keeps one thin, crisp
+//    pixel width at every distance and every viewing angle. Coverage ramps over a single pixel; there is no smoothstep
+//    skirt to widen it. The line also thins out of existence once the cells packed into the pixels run too tight, rather
+//    than aliasing into a grey wash.
+float LatticeLineCoverage(float Coordinate, float Cell, float Foot, float HalfWidthPixels)
 {
-    float2 Scaled   = Position / Cell;
-    float2 ToLine   = abs(fract(Scaled + float2(0.5, 0.5)) - float2(0.5, 0.5)) * Cell;
-    float  Distance = min(ToLine.x, ToLine.y);
-    float  Pixels   = Distance / max(Extent, 1e-6);
-    return 1.0 - smoothstep(HalfWidthPixels - 0.5, HalfWidthPixels + 0.5, Pixels);
+    float ToLine  = abs(fract(Coordinate / Cell + 0.5f) - 0.5f) * Cell;
+    float Pixels  = ToLine / max(Foot, 1e-6f);
+    float Line    = saturate(HalfWidthPixels + 0.5f - Pixels);
+    float Spacing = Cell / max(Foot, 1e-6f);                         // pixels between neighbouring lines
+    return Line * saturate((Spacing - 3.0f) / 3.0f);
 }
 
-// Coverage of a single axis line (distance to the line x = 0 or y = 0), slightly bolder than lattice lines.
-float AxisCoverage(float Distance, float Extent, float HalfWidthPixels)
+// Coverage of a single axis line (distance to the line x = 0 or y = 0), same one-pixel ramp.
+float AxisCoverage(float Distance, float Foot, float HalfWidthPixels)
 {
-    float Pixels = abs(Distance) / max(Extent, 1e-6);
-    return 1.0 - smoothstep(HalfWidthPixels - 0.5, HalfWidthPixels + 0.5, Pixels);
+    float Pixels = abs(Distance) / max(Foot, 1e-6f);
+    return saturate(HalfWidthPixels + 0.5f - Pixels);
 }
 
 LatticeSample LatticeShade(ViewRecord View, float3 Origin, float3 Direction, float PixelAngle, float PixelWorld)
 {
     LatticeSample Result;
-    Result.Colour = float4(0.0, 0.0, 0.0, 0.0);
-    Result.Depth  = 1.0;
+    Result.Colour = float4(0.0f, 0.0f, 0.0f, 0.0f);
+    Result.Depth  = 1.0f;
 
-    if (abs(Direction.z) < 1e-7) return Result;
+    if (abs(Direction.z) < 1e-7f) return Result;
     float T = -Origin.z / Direction.z;
-    if (T <= 0.0) return Result;
+    if (T <= 0.0f) return Result;
     float3 Hit = Origin + Direction * T;
 
-    // World size of one pixel at the hit, stretched by the grazing angle so lines stay one pixel wide when seen flat.
-    float Grazing   = max(abs(Direction.z), 0.05);
-    float Extent = (PixelAngle > 0.0 ? T * PixelAngle : PixelWorld) / Grazing;
+    // One pixel on the ground is an ellipse: Lateral across the view direction, Radial along it (stretched by the
+    //    grazing angle). Each line family is measured against the ellipse's extent along ITS OWN normal, so only the
+    //    lines that really are foreshortened are treated as such; nothing is blown up wholesale by the angle.
+    float Grazing = max(abs(Direction.z), 0.05f);
+    float Lateral = PixelAngle > 0.0f ? T * PixelAngle : PixelWorld;
+    float Radial  = Lateral / Grazing;
+    float2 Out    = length(Direction.xy) > 1e-6f ? normalize(Direction.xy) : float2(1.0f, 0.0f);
+    float FootX   = sqrt(Out.x * Out.x * Radial * Radial + Out.y * Out.y * Lateral * Lateral);
+    float FootY   = sqrt(Out.y * Out.y * Radial * Radial + Out.x * Out.x * Lateral * Lateral);
 
-    // LOD: choose the power-of-ten minor cell such that a cell spans at least ~14 pixels; blend between levels.
-    float MinorCell   = View.LatticeStyle.x;
-    float TargetCell  = Extent * 14.0;
-    float LevelExact  = max(0.0, log(TargetCell / MinorCell) / log(10.0));
-    float Level       = floor(LevelExact);
-    float LevelMix  = LevelExact - Level;
-    float CellA       = MinorCell * pow(10.0, Level);
-    float CellB       = CellA * 10.0;
+    // LOD from the unstretched pixel, so the cell never jumps because the camera tilts: the minor cell is the smallest
+    //    power of Ratio (times the base cell) that spans about 14 pixels, blended into the next level.
+    float MinorCell  = View.LatticeStyle.x;
+    float Ratio      = View.LatticeStyle.y;
+    float LevelExact = max(0.0f, log(Lateral * 14.0f / MinorCell) / log(Ratio));
+    float Level      = floor(LevelExact);
+    float LevelMix   = LevelExact - Level;
+    float CellA      = MinorCell * pow(Ratio, Level);
+    float CellB      = CellA * Ratio;
 
-    float HalfWidth   = View.LatticeStyle.w;
-    float MinorA      = LatticeLineCoverage(Hit.xy, CellA, Extent, HalfWidth) * (1.0 - LevelMix);
-    float MinorB      = LatticeLineCoverage(Hit.xy, CellB, Extent, HalfWidth);
-    float MajorB      = LatticeLineCoverage(Hit.xy, CellB * View.LatticeStyle.y, Extent, HalfWidth + 0.25);
+    float HalfWidth = View.LatticeStyle.w;
+    float MinorA = max(LatticeLineCoverage(Hit.x, CellA, FootX, HalfWidth), LatticeLineCoverage(Hit.y, CellA, FootY, HalfWidth)) * (1.0f - LevelMix);
+    float MajorB = max(LatticeLineCoverage(Hit.x, CellB, FootX, HalfWidth), LatticeLineCoverage(Hit.y, CellB, FootY, HalfWidth));
 
-    float3 MinorTint  = float3(0.36, 0.38, 0.43);
-    float3 MajorTint  = float3(0.50, 0.53, 0.60);
-    float  Coverage   = max(MinorA * 0.55, max(MinorB * 0.75, MajorB));
-    float3 Tint       = lerp(MinorTint, MajorTint, saturate(MajorB));
+    float3 MinorTint = float3(0.36f, 0.38f, 0.43f);
+    float3 MajorTint = float3(0.50f, 0.53f, 0.60f);
+    float  Coverage  = max(MinorA * 0.6f, MajorB * 0.9f);
+    float3 Tint      = lerp(MinorTint, MajorTint, saturate(MajorB));
 
-    // World axes on top: X red, Y green. Drawn only where the other coordinate is near zero.
-    float AxisX = AxisCoverage(Hit.y, Extent, HalfWidth + 0.5);
-    float AxisY = AxisCoverage(Hit.x, Extent, HalfWidth + 0.5);
-    Tint     = lerp(Tint, float3(0.86, 0.24, 0.24), AxisX);
-    Tint     = lerp(Tint, float3(0.30, 0.78, 0.30), AxisY);
+    // World axes on top: X red, Y green. Drawn only where the other coordinate is near zero; a touch bolder.
+    float AxisX = AxisCoverage(Hit.y, FootY, HalfWidth + 0.15f);
+    float AxisY = AxisCoverage(Hit.x, FootX, HalfWidth + 0.15f);
+    Tint     = lerp(Tint, float3(0.86f, 0.24f, 0.24f), AxisX);
+    Tint     = lerp(Tint, float3(0.30f, 0.78f, 0.30f), AxisY);
     Coverage = max(Coverage, max(AxisX, AxisY));
 
-    // Radial fade around the eye's ground foot, plus a horizon fade from the grazing angle.
-    float FadeRadius  = View.LatticeStyle.z;
-    float Radial      = length(Hit.xy - Origin.xy);
-    float Fade        = 1.0 - smoothstep(FadeRadius * 0.35, FadeRadius, Radial);
-    float Horizon     = smoothstep(0.0, 0.18, abs(Direction.z));
-    Coverage         *= Fade * Horizon;
+    // A finite pad, not an endless plane: square about the world origin, dissolving over its outer 40 percent.
+    float Half    = View.LatticeStyle.z;
+    float Reach   = max(abs(Hit.x), abs(Hit.y));
+    float Fade    = 1.0f - smoothstep(Half * 0.6f, Half, Reach);
+    float Horizon = smoothstep(0.0f, 0.06f, abs(Direction.z));
+    Coverage     *= Fade * Horizon;
 
-    float4 Clip   = mul(View.ViewClip, float4(Hit, 1.0));
+    float4 Clip   = mul(View.ViewClip, float4(Hit, 1.0f));
     Result.Depth  = Clip.z / Clip.w;
     Result.Colour = float4(Tint, saturate(Coverage));
     return Result;

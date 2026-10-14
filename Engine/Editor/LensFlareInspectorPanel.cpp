@@ -126,13 +126,17 @@ void RecordLensFlareInspector(ControlPanel& Controls,EditorInstance& Row,EditorS
     const float HeaderShift=W<360?44:0;
     U.Text(0,0,"Inspector / Environment / Optics",10,Muted);U.Text(0,44,"Lens Flare",32);
     if(U.Button(W-94,44+HeaderShift,94,"##flare-enabled",Find(Sheet,"Enabled")->On?"Enabled":"Disabled",Find(Sheet,"Enabled")->On))Find(Sheet,"Enabled")->On=!Find(Sheet,"Enabled")->On;
+    auto RecordBaking=[&](float AtY) {
+        const ImVec2 Saved=U.O;U.O.y+=AtY-98-HeaderShift;
     U.Text(0,98+HeaderShift,"BAKING",10,Muted);
     U.Card(0,121+HeaderShift,W,162,"Lens flare image");
     U.D->AddImageRounded(Cache.Texture.GetTexRef(),U.At(24,185+HeaderShift),U.At(132,232.25f+HeaderShift),{0,0},{1,1},IM_COL32_WHITE,12);
     U.Button(148,174+HeaderShift,Wide?170:W-172,"##use-baked",W<360?"Use image":"Use baked image",false,true);
     if(Wide){if(U.Button(330,174+HeaderShift,158,"##bake-flare","Bake / export HDR"))ExportLensFlarePreview("Exports/LensFlare.pfm");U.Wrap(148,222+HeaderShift,W-172,"One cached image feeds this thumbnail and the composite. Scene baked-image playback is not wired yet.");}
     else {if(U.Button(148,214+HeaderShift,W-172,"##bake-flare","Export HDR"))ExportLensFlarePreview("Exports/LensFlare.pfm");}
-    float CY=299+HeaderShift,CH=141+(W-48)*280/640+14+44+(Wide?72:140)+50;
+        U.O=Saved;
+    };
+    float CY=110+HeaderShift,CH=141+(W-48)*280/640+14+44+(Wide?72:140)+50;
     U.Card(0,CY,W,CH,"Flare composite");char Text[96];std::snprintf(Text,sizeof(Text),"%.2f ×",double(Find(Sheet,"Intensity")->Figure));U.Text(24,CY+64,Text,40);
     U.Text(24,CY+111,"Layered light · additive linear radiance",11,Muted);
     float ImageY=CY+141,ImageH=(W-48)*280/640;
@@ -207,8 +211,10 @@ void RecordLensFlareInspector(ControlPanel& Controls,EditorInstance& Row,EditorS
     U.Slider(HX,HY+62+HO,Wide?(W-72)/2:W-48,"Halo brightness",true);U.Slider(HX,HY+143+HO,Wide?(W-72)/2:W-48,"Streak gain");
     float End=HY+(Wide?264:481),LegacyH=W<360?178:146;U.Card(0,End,W,LegacyH,"Legacy preset settings");
     U.Slider(24,End+57,W-48,"Aperture Blades");U.Wrap(24,End+119,W-48,"Aperture blades affect legacy presets; Custom layers uses Ray pairs.");
+    const float BakeY=End+LegacyH+22;
+    RecordBaking(BakeY);
     Update(Cache,Sheet); // image command references the same texture, including edits made below it this frame.
-    ImGui::SetCursorScreenPos(U.At(0,End+LegacyH+22));ImGui::TextDisabled("Preview pose is authoring-only. Scene flare follows the camera and Sun visibility.");ImGui::Dummy({0,20});ImGui::PopFont();
+    ImGui::SetCursorScreenPos(U.At(0,BakeY+205));ImGui::TextDisabled("Preview pose is authoring-only. Scene flare follows the camera and Sun visibility.");ImGui::Dummy({0,20});ImGui::PopFont();
     (void)Row;
 }
 }

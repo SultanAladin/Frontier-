@@ -22,6 +22,7 @@
 #include "../DeviceExchange/InputExchange.h"
 #include "../DeviceExchange/VisibilityExchange.h"
 #include <cstdint>
+#include <vector>
 
 namespace Frontier {
 
@@ -40,6 +41,9 @@ public:
     void SeedPatchErrorPixels(float Pixels) noexcept { PatchErrorPixels_ = NormalisePatchError(Pixels); }
 
     // Edge-detects F3 / Shift+F3 / F4 / F5 / Escape. Returns true when something changed (caller persists + restarts accumulation).
+    void RecordDurations(float Seconds, const VisibilityTelemetry& Telemetry) noexcept;
+    bool QueryPointerCaptured() const noexcept { return Open_ && PointerCaptured_; }
+    bool* AccessOpen() noexcept { return &Open_; }
     bool AdvanceInteraction(const InputExchange& Input) noexcept;
 
     // Mirrors the integrator's live flag (the scheduler's Alias-pick checkbox writes it directly). Called every
@@ -49,7 +53,7 @@ public:
     void ConstructInspectorLayout(PixelSpace& Surface, float TopInset, float DisplayWidth, const VisibilityTelemetry& Telemetry,
                                   uint32_t ClusterTotal, bool DrawIndirectCount, const ReSTIRIntegratorConfiguration& ReSTIR,
                                   const MaterialIndexMetrics& MaterialStats, const TextureIndexMetrics& TextureStats,
-                                  uint32_t MaxTextureLevels, const char* MaterialSummary = nullptr) const noexcept;
+                                  uint32_t MaxTextureLevels, const char* MaterialSummary = nullptr) noexcept;
 
     [[nodiscard]] DebugViewCategory QueryView()      const noexcept { return View_; }
     [[nodiscard]] bool              QueryOcclusion() const noexcept { return Occlusion_; }
@@ -62,6 +66,13 @@ public:
     [[nodiscard]] bool              IsOpen()         const noexcept { return Open_; }
 
 private:
+    struct DurationSample { float Fps = 0, Milliseconds = 0, Gpu = -1; };
+    std::vector<DurationSample> Durations_;
+    uint32_t DurationCursor_ = 0, DurationCount_ = 0, IntervalCount_ = 0;
+    float IntervalSeconds_ = 0;
+    int Metric_ = 0, Presentation_ = 0, Period_ = 1;
+    bool Paused_ = false;
+    bool PointerCaptured_ = false;
     DebugViewCategory View_       = DebugViewCategory::Off;
     bool              Occlusion_  = true;
     bool              AliasPick_  = true;    // R6 row 3: Walker-alias light pick (F5; false = uniform R0 identity)

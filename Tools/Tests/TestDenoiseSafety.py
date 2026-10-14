@@ -4,7 +4,7 @@ from pathlib import Path
 import csv, itertools, random, re, subprocess
 R=Path(__file__).resolve().parents[2]
 B=R/'build/denoise-safety'; B.mkdir(parents=True,exist_ok=True)
-s=(R/'Engine/Shaders/ReSTIRViewport.slang').read_text()
+s=(R/'Engine/Shaders/ViewportIntegrator.slang').read_text()
 h=(R/'Engine/DeviceExchange/SwapchainExchange.cpp').read_text()
 expr=re.search(r'vec3\s+demodAlbedo\s*=\s*(.*);',s).group(1)
 cpp=r'''
@@ -80,9 +80,9 @@ assert 'VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT' in h
 record=h[h.index('void SwapchainExchange::RecordComputeCommands'):]
 assert record.index('vkCmdCopyImage(')<record.index('vkCmdDispatch(')
 assert 'if(LiveDispatch.AccumulationIndex > 0u)' in record
-assert 'Vulkan->HistoryWidth!=RenderWidth || Vulkan->HistoryHeight!=RenderHeight' in record
-assert 'ShadowStageRecorded) Vulkan->HistoryContentsValid=false' in record
-for shader in ['ReSTIRViewport','AtrousDenoise','ShadowResolve']:
+assert 'Vulkan->HistoryWidth != RenderWidth || Vulkan->HistoryHeight != RenderHeight' in record
+assert 'ShadowStageRecorded || NonRaytracedGIRecorded) Vulkan->HistoryContentsValid=false' in record
+for shader in ['ViewportIntegrator','AtrousDenoise','ShadowResolve']:
  text=(R/f'Engine/Shaders/{shader}.slang').read_text()
  assert '#include "PresentationDither.slang"' in text
  assert 'PresentationDither(' in text

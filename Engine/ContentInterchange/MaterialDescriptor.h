@@ -177,6 +177,12 @@ struct MaterialDescriptor
     float                               AlphaCutoff = 0.5f;
     float                               VolumeThickness = 0.0f;   // [m] M6: KHR_materials_volume thickness_factor, carried for
                                                                  // interchange fidelity (0 = unknown / authored slab). CPU-side only.
+    float                               EmissionTextureMean[3] = { 1.0f, 1.0f, 1.0f };
+                                                                 // [-] mean linear value of the bound emission texture. The material
+                                                                 //    header's radiance (what light sampling and the luminaire power table
+                                                                 //    treat as the emitter) is slab emission × this mean, so a mostly dark
+                                                                 //    screen lights the room as a mostly dark screen, not as a white panel.
+                                                                 //    Shading still samples the texture per hit; 1 = untextured / unknown.
 
     [[nodiscard]] bool operator==(const MaterialDescriptor&) const noexcept = default;
 };

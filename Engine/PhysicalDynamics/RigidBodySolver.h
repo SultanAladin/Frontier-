@@ -38,7 +38,8 @@ enum class CollisionShapeCategory : uint8_t
     Box                                 = 1,                    // axis-aligned half extents
     Sphere                              = 2,                    // radius
     Capsule                             = 3,                    // half height + radius along local Z
-    Cylinder                            = 4                     // half height + radius along local Z
+    Cylinder                            = 4,                    // half height + radius along local Z
+    Heightfield                         = 5                     // static terrain grid — see HeightfieldDescription / CreateHeightfieldBody
 };
 
 //------------------------------------------------------------------------------------------------------------------------
@@ -54,6 +55,30 @@ struct CollisionShapeDescription
     Vector3                 PlaneNormal     { 0.0f, 0.0f, 1.0f };   // [-]   Plane: unit normal
     float                   PlaneOffset     = 0.0f;                 // [m]   Plane: signed distance along the normal
     float                   PlaneHalfExtent = 500.0f;               // [m]   Plane: broad-phase bounds — a body beyond them falls past the plane
+};
+
+//------------------------------------------------------------------------------------------------------------------------
+//                                             HEIGHTFIELD DESCRIPTION  (Phase 0 — vehicle terrain)
+//------------------------------------------------------------------------------------------------------------------------
+// A regular grid of height samples for the drivable ground. Jolt's HeightFieldShape stores height along its local +Y,
+//    so CreateHeightfieldBody() wraps it in a +90°-about-X rotation that maps the height axis onto Frontier's world +Z
+//    (this engine is +Z up). Samples are indexed [row * SampleCount + col] (row-major, `col` is the fast axis). After the
+//    wrap the grid lands in the world as: `col` advances along world +X (step SpacingX), `row` advances along world −Y
+//    (step SpacingY), and each sample value (× HeightScale) is the world-Z height. So Origin is the world position of
+//    sample [row=0, col=0], and increasing `row` walks toward −Y. SampleCount must be a non-zero multiple of 8 (Jolt block
+//    constraint). The body is always Static.
+
+struct HeightfieldDescription
+{
+    std::string             Name;                                   // [-]   diagnostic label
+    const float*            Samples         = nullptr;              // [m]   SampleCount×SampleCount grid, row-major [row*n+col]; not copied until Create()
+    uint32_t                SampleCount     = 0u;                   // [-]   samples per side; MUST be a non-zero multiple of 8
+    Vector3                 Origin          { 0.0f, 0.0f, 0.0f };   // [m]   world position of sample [row=0, col=0]
+    float                   SpacingX        = 1.0f;                 // [m]   world +X step between adjacent columns
+    float                   SpacingY        = 1.0f;                 // [m]   world −Y step between adjacent rows
+    float                   HeightScale     = 1.0f;                 // [-]   multiplies each sample before it becomes world-Z
+    float                   Friction        = 0.9f;                 // [-]
+    float                   Restitution     = 0.0f;                 // [-]
 };
 
 struct RigidBodyDescription
@@ -81,6 +106,26 @@ struct RigidBodyDescription
 
 using RigidBodyIdentity = uint32_t;                                 // opaque; 0xFFFFFFFF = invalid
 constexpr RigidBodyIdentity InvalidRigidBody = 0xFFFFFFFFu;
+
+using ConstraintIdentity = uint32_t;                                // opaque; 0xFFFFFFFF = invalid
+constexpr ConstraintIdentity InvalidConstraint = 0xFFFFFFFFu;
+
+//------------------------------------------------------------------------------------------------------------------------
+//                                        SCENE QUERY RESULTS  (Phase 0 — vehicle)
+//------------------------------------------------------------------------------------------------------------------------
+// Result of a closest-hit ray or shape cast. `Hit == false` leaves every other field untouched. `Fraction` is along the
+//    cast's [0..1] length; Position/Normal are world space; Body is the identity that was struck (InvalidRigidBody if the
+//    hit belongs to a body this solver did not create, e.g. an internal sub-body).
+
+struct SceneCastResult
+{
+    bool                    Hit             = false;                // [-]
+    Vector3                 Position        { 0.0f, 0.0f, 0.0f };   // [m]   world-space contact point
+    Vector3                 Normal          { 0.0f, 0.0f, 1.0f };   // [-]   world-space surface normal at the hit
+    float                   Fraction        = 1.0f;                 // [0..1] distance along the cast
+    float                   Distance        = 0.0f;                 // [m]   Fraction × cast length
+    RigidBodyIdentity       Body            = InvalidRigidBody;     // [-]   which body was hit
+};
 
 struct RigidBodyPose
 {
@@ -161,12 +206,63 @@ public:
     // Tick — call once per main-loop iteration with the frame's Δτ. Steps the world zero or more times at the fixed rate.
     void                    Advance(float Δτ) noexcept;
 
+    // Vehicle physics thread drives stepping explicitly: StepOnce() runs EXACTLY one fixed step (no accumulator, no
+    //    spiral-of-death guard), so a dedicated physics thread can interleave per-step force application (suspension +
+    //    tyre) and sub-step its own solvers at a higher rate between calls. Returns false if the solver is not ready.
+    bool                    StepOnce() noexcept;
+
     // Interaction (dynamic bodies only)
     void                    ApplyImpulse(RigidBodyIdentity Identity, const Vector3& ImpulseNewtonSeconds) noexcept;
     void                    AssignLinearVelocity(RigidBodyIdentity Identity, const Vector3& Velocity) noexcept;
     void                    Teleport(RigidBodyIdentity Identity, const Vector3& Position, const Quaternion& Orientation) noexcept;
     void                    MoveKinematic(RigidBodyIdentity Identity, const Vector3& Position, const Quaternion& Orientation, float Δτ) noexcept;
     void                    Activate(RigidBodyIdentity Identity) noexcept;
+
+    //--------------------------------------------------------------------------------------------------------------------
+    //  Vehicle forces (Phase 0). Forces/torques accumulate on the body and are consumed by the NEXT step, then cleared —
+    //     so a vehicle solver re-applies them every fixed step. All world-space, SI (N, N·m). No-ops on non-dynamic bodies.
+    //--------------------------------------------------------------------------------------------------------------------
+    void                    ApplyForce(RigidBodyIdentity Identity, const Vector3& ForceNewtons) noexcept;
+    void                    ApplyForceAtPoint(RigidBodyIdentity Identity, const Vector3& ForceNewtons, const Vector3& WorldPoint) noexcept;
+    void                    ApplyTorque(RigidBodyIdentity Identity, const Vector3& TorqueNewtonMetres) noexcept;
+    void                    ApplyAngularImpulse(RigidBodyIdentity Identity, const Vector3& AngularImpulse) noexcept;
+
+    //--------------------------------------------------------------------------------------------------------------------
+    //  Body queries the vehicle model needs each step (mass for load, CoM for moment arms, point velocity for slip/damping).
+    //--------------------------------------------------------------------------------------------------------------------
+    [[nodiscard]] float     QueryBodyMass(RigidBodyIdentity Identity) const noexcept;              // [kg] 0 for static/invalid
+    [[nodiscard]] Vector3   QueryCenterOfMass(RigidBodyIdentity Identity) const noexcept;          // [m]  world space
+    [[nodiscard]] Vector3   QueryPointVelocity(RigidBodyIdentity Identity, const Vector3& WorldPoint) const noexcept; // [m/s]
+
+    //--------------------------------------------------------------------------------------------------------------------
+    //  Scene queries (closest hit). CastRay traces a line (suspension probe / soft-tyre ground sample); CastSphere and
+    //     CastCylinder sweep a shape (the wheel footprint) so a curb or edge the ray would miss still registers.
+    //     `Ignore` excludes one body (usually the vehicle's own chassis). All world space, metres.
+    //--------------------------------------------------------------------------------------------------------------------
+    [[nodiscard]] SceneCastResult CastRay     (const Vector3& Origin, const Vector3& Direction, float MaxDistance,
+                                               RigidBodyIdentity Ignore = InvalidRigidBody) const noexcept;
+    [[nodiscard]] SceneCastResult CastSphere  (float Radius, const Vector3& From, const Vector3& Sweep,
+                                               RigidBodyIdentity Ignore = InvalidRigidBody) const noexcept;
+    [[nodiscard]] SceneCastResult CastCylinder(float Radius, float HalfHeight, const Quaternion& Orientation,
+                                               const Vector3& From, const Vector3& Sweep,
+                                               RigidBodyIdentity Ignore = InvalidRigidBody) const noexcept;
+
+    //--------------------------------------------------------------------------------------------------------------------
+    //  Terrain. A static heightfield the wheels / soft-tyre nodes contact. See HeightfieldDescription for the layout and
+    //     the +Z-up wrap. Returns a normal RigidBodyIdentity (Shape reads back as Heightfield).
+    //--------------------------------------------------------------------------------------------------------------------
+    [[nodiscard]] RigidBodyIdentity CreateHeightfieldBody(const HeightfieldDescription& Description) noexcept;
+
+    //--------------------------------------------------------------------------------------------------------------------
+    //  Constraints. Phase 0 ships the one the suspension strut needs: a spring/damper distance link between two bodies
+    //     (typically chassis ↔ wheel hub) defined by natural frequency + damping ratio, with travel limits. The rest
+    //     position is the current distance between the two world anchor points at creation. Frequency 0 = rigid rod.
+    //--------------------------------------------------------------------------------------------------------------------
+    [[nodiscard]] ConstraintIdentity CreateDistanceSpring(RigidBodyIdentity BodyA, const Vector3& WorldAnchorA,
+                                                          RigidBodyIdentity BodyB, const Vector3& WorldAnchorB,
+                                                          float MinDistance, float MaxDistance,
+                                                          float FrequencyHz, float DampingRatio) noexcept;
+    void                    DestroyConstraint(ConstraintIdentity Identity) noexcept;
 
     // Readback
     [[nodiscard]] bool      QueryPose(RigidBodyIdentity Identity, RigidBodyPose& Pose) const noexcept;
@@ -185,6 +281,11 @@ public:
 private:
     struct JoltWorld;                                               // Jolt-owning implementation, defined in the .cpp only
     std::unique_ptr<JoltWorld> World;
+
+    // Shared sweep for CastSphere/CastCylinder. Pointers are opaque (JPH::Shape*, JPH::Quat*) so no Jolt type leaks into
+    //    this header; IgnoreRaw is a JPH::BodyID's raw uint32. Defined in the .cpp beside the Jolt code.
+    [[nodiscard]] SceneCastResult SweepShapeImpl(const void* ShapePtr, const void* OrientationPtr,
+                                                 const Vector3& From, const Vector3& Sweep, uint32_t IgnoreRaw) const noexcept;
 
     RigidBodyConfiguration  Config;                                 // [config] applied at Bring()
     RigidBodyMetrics        Metrics;                                // [metrics] refreshed by Advance()

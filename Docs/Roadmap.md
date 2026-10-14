@@ -86,3 +86,62 @@ See `Docs/ProjectFormat.md` for the plan, the divergences and the measured sizes
 3. 🧭 Pick the next CPU-measurable build: **replay + shift mapping** (indirect 16 % → 100 % — §14.3's biggest named
    residual and the only item that moves the headline), the sun-coin/occluded-weight study (#6), or the sky probe bake
    (#26, the smallest version that pays).
+
+## E. Render finishing pass — owner's list (2026-09-28) — 4 items advanced + 2 diagnostics answered
+
+> **Progress 2026-09-28:** #30 (flakes on non-RT paths) and #29 (materials through the multi-slab layered path) are
+> CPU-proven with rendered evidence; #27 (sky as a reflection reservoir candidate) is prototyped and measured at
+> ≈ 2.53× lower error; #31 (hardware RT-core traversal) is researched and fully authored as the `VK_KHR_ray_query`
+> path (shader + host + clean patch), pending a GPU run. Two direct questions were also answered with evidence:
+> emissive lights work in Surfel GI (yes), and the geometry-cluster feature is culling-only / not full Nanite LOD
+> (new row #39). All land in `RaytraceToggle/`; the GPU-dependent parts are device-run away from shipped.
+
+> Captured verbatim from the owner's pre-games hand-off: the renderer is judged feature-complete for building actual
+> games *except* the items below. The owner's standing assessment is that, beyond these, the pipeline "cannot be
+> improved any further (maybe minimal changes) without adding third-party libraries." These rows are the queue that
+> keeps that claim honest. Grounded against the tree at this commit so the "what's left" column names real code, not
+> intentions.
+
+| # | Item | | % | What's left → next step |
+|---|---|---|:--:|---|
+| 29 | **Materials verified through the multi-slab (layered) path** | ⚠️ | 60 % | **CPU-proven this session.** A layered-slab evaluator (`shadeStack`, `--slabs`) was built in the mirror `RaytraceToggle/CpuMirror/ModeMatrix.cpp`: a material is now an ORDERED STACK OF SLABS (coat → flake → conductor/pigment) composited top→bottom with energy throughput, not one flat lobe-sum. The full 15-family showcase grid renders through it and **every family still resolves** (RMSE vs the flat path ≈ 1.6 %, the delta being energy conservation — the coat no longer double-counts). Evidence `RaytraceToggle/MaterialGrid/MultiSlab_Compare.png`. Note slabs already existed as the single 304 B slab (`MaterialIndex.{h,cpp}`); this is the Tier-B **multi**-slab half of #10. Left: wire the stack into `MaterialCodec`/`MaterialIndex` on the device + one GPU run. |
+| 30 | **Flakes on the non-raytraced paths** | ⚠️ | 70 % | **DONE on the CPU mirror this session.** Root cause: on the non-RT paths a flake was a mirror aligned with the surface normal, so a cluster reflected the same smooth sky and read flat. Fixed with (1) a **sun disc** in `skyColor` (a sharp feature to catch) and (2) **per-flake facet normals** (`flakeFacetNormal`) — each fired flake is a randomly-tilted micro-mirror sampling the env in its own direction. Flakes now sparkle at Standard fidelity on **plain raster and surfel GI** (RT keeps the highest contrast). Evidence `RaytraceToggle/MaterialGrid/GlintSheet_Modes.png` (3-mode sheet). Left: mirror the facet-normal model into the GPU shader + one GPU run. |
+| 31 | **Wire the hardware-RT traversal paths (RT cores)** | ⚠️ | 55 % | **Authored this session** (`RaytraceToggle/HardwareRT/`, research doc `RayQueryHardwarePath.md`). Decision from research: inline **`VK_KHR_ray_query`** (trace on RT cores from the existing compute shader), NOT a ray-tracing pipeline/SBT — the kernel is one dispatch, ray query is a drop-in and the fastest option for this megakernel; SBT is a later high tier. Delivered: `Shaders/ReSTIRTraversal_RayQuery.slang` (RayQuery `TraceTraversal`/`TraceTraversalOccluded` written to the exact existing seam — ray query returns the same `(t, instance, local-primitive)` the kernel already consumes, so nothing downstream changes); `Patches/ReSTIRViewport_RayQuery.patch` (**`git apply --check` clean**); `HostWiring/RayQueryAccel.{h,cpp}` (BLAS-per-instance + TLAS build with `instanceCustomIndex`=top-level row, set-1 AS descriptor, device-requirement + tier gating). Left: build the `-DFRONTIER_RAYQUERY` SPIR-V variant on an RT-core card and A/B vs the software walk (must match within traversal precision). Needs a device — §B GPU verification. |
+| 32 | **Sky + cloud bake** | ❌ | 25 % | Stage A partly exists: `SkyRecords.slang` already has a **baked dome** slot (`SkyControl.w`, one bilinear fetch stands in for the march, sun cone inpainted from its boundary; proof `Exhibits/Workbench/Sky/SkyProbeProof.cpp`) — this is roadmap **#26**. Step: bake the **cloud** layer too (currently always marched via `WeatherMedia.slang`), decide the refresh cadence (per weather-change, not per frame), and wire the dome/cloud bake to invalidate on sun/weather edits. |
+| 33 | **Sun bake** | ❌ | 20 % | Tied to #32/#26: the sun disc is inpainted OUT of the baked dome today so its energy never smears. Step: bake the sun's direct contribution (transmittance + disc) into a small resident table so sun-lit shading and the sky reservoir candidate (#27) read a baked value instead of re-integrating the disc each frame. |
+| 34 | **Clamp maximum star size (no big-circle stars)** | ❌ | 30 % | Root cause found: both the shader (`PostRecords.slang` `StarAlong`) and its CPU twin (`VisibilityRaster.cpp`) size a star as `Radius = max(StarSize * 0.0002, PixelAngle * 0.5)` — there is a **lower** floor (never smaller than half a pixel) but **no upper clamp**, so a bright/large `StarSize` renders as a visible disc. Step: add an upper bound (e.g. cap radius at ~1.0–1.5 px and push extra magnitude into brightness/bloom, not diameter) in BOTH twins, keep them byte-identical (gate `Tools/CheckPostKernel.sh`), and re-shoot `StarFix/Stars_Compare.png`. Small, self-contained — a good first pick. |
+| 35 | **Fix the fog** | ❌ | 10 % | `FogModel.h` + `WeatherMedia.slang` integrate fog with the cloud slab (`Docs/CloudFogViewportRepair.md`). Symptom not yet pinned by the owner. Step: reproduce in the cloud/fog viewport, identify the defect (banding, extinction/altitude coupling, or the height-fog falloff), fix in `WeatherMedia.slang` + `FogModel`, add a before/after to the CloudFog evidence. |
+| 36 | **Scale / quality tiers verified** | ❌ | 40 % | The ladder exists — `FidelityClassifier` has 5 tiers (Minimal → Reference) driving render scale, candidate count, spatial passes, GI and AA; the Control Centre tile cycles them. Step: verify each tier actually applies its render-scale + dials end-to-end (resolution scale especially), confirm the tile wrap, and document the measured cost per tier so "Standard" is a real balanced baseline. |
+| 37 | **Fix wind (clouds look wrong under wind)** | ❌ | 10 % | Wind is bound through the outliner (`Docs/OutlinerWindBindings.md`, `WindBindingEvidence`) and drives cloud advection. Symptom: wind makes the clouds "look weird" — likely the advection offset feeds the noise domain wrongly (stretching/tearing the cloud field instead of translating it). Step: audit the wind→cloud-noise coupling in `WeatherMedia.slang`, make wind translate the sampling domain coherently across octaves, verify against a time-lapse in the cloud viewport. |
+| 38 | **Cross-target verification ("test it works on both")** | ❌ | 5 % | Owner scope to confirm — read as: prove the pipeline runs on **both hardware-RT paths** (software CWBVH walk *and* the RayQuery path from #31), and ideally on the owner's card vs a GTX-class card. Overlaps §B (#11) GPU verification. Needs a device. |
+| 39 | **Full Nanite-style cluster LOD across all render paths** | ❌ | 15 % | Diagnostic finding (`RaytraceToggle/Diagnostics/`): Frontier has GPU **cluster culling** (frustum→cone→HiZ, `ClusterCull.slang`, raster/indirect-draw path) but NOT a virtual-geometry **simplification hierarchy** — no QEM simplifier, cluster-group DAG, streaming, certified error bounds (stated in `Docs/ClusterLodLab.md`). Cluster culling is raster-only; the ray paths traverse the BVH and ignore clusters. Step (large, separate from #31): offline cluster-group build with parent alternatives + geometric error + locked boundaries, runtime projected-error selection, and — to cover reflection/shadow rays — a cluster-group-over-BLAS so RT sees the same LOD. |
+
+**Diagnostics answered this session (no deferred work):**
+- **Emissive lights in Surfel GI — YES** (`RaytraceToggle/Diagnostics/Emissive_SurfelGI.png`): an emissive-sphere-only-lit scene shows warm GI bleed onto floor/wall/spheres in surfel GI while plain raster lights nothing. In the real engine, emissive triangles are also `Luminaires[]` (NEE) + emission-on-hit on the ReSTIR path.
+- **Geometry clusters — see #39**: cluster culling works (raster path only); full Nanite LOD is unbuilt.
+
+### Open decision — ReSTIR for the surfel GI (reflections / denoiser)?
+
+**Question (owner):** should ReSTIR be added on top of the surfel GI, for reflections and/or as a denoiser input — and is it cheap?
+
+**Recommendation:** *Reflections — yes, and it is the cheap, high-value half. Denoiser — no, that is not what ReSTIR is.*
+
+- **For reflections / the sky as a candidate — do it.** This is already the tree's own **roadmap #27** ("sky as a reservoir candidate"), which §14.5/§14.6 named as the largest measured residual class (sky 4.45× excess; glass/specular sky variance). Reusing reservoirs for the glossy/reflection lobe is the natural extension of the existing spatial/temporal reuse and is *incremental*, not a new system — the reservoir machinery, the shift-mapping and the merge gates all already exist. Cost is a second small reservoir per pixel plus one reuse pass; on the CPU mirror the reuse passes are cheap relative to candidate generation, so on GPU it is well under a millisecond at Standard. This is the cheap win.
+- **As a "denoiser" — no.** ReSTIR is variance *reduction at the sampling stage*, not a spatial denoiser; it feeds fewer-but-better samples INTO the denoiser, it does not replace it. The denoiser question is already answered separately (`DenoiserResearch.md`: the SVGF-family "smart" denoiser with albedo demodulation, Control Centre plumbing at `f8a62e6`). So: add ReSTIR reuse for reflections (#27), keep feeding its output into the existing denoiser — do **not** try to make ReSTIR be the denoiser.
+- **Cheap?** The reflection-reuse pass: yes (sub-ms class on GPU, reuses existing code). A *full* indirect coverage rebuild (replay + shift mapping, #5) is the expensive cousin and §14.6 says do NOT build it on this scene — revive only on a lamp-dominated interior. Keep #27 (reflections) and #5 (full coverage) separate: do the first, defer the second.
+
+**Prototyped & measured this session (2026-09-28):** a CPU reflection-reservoir prototype
+(`RaytraceToggle/ReflectionReservoir/ReflectReSTIR.cpp`) implements exactly this — RIS with the **sun/sky as an
+explicit candidate** + bounded spatial reuse over a glossy floor under a sun-disc sky (the specular-sky variance
+class). Result: **RMSE 0.236 → 0.093 vs a 512-spp reference, ≈ 2.53× lower error at ~1 effective sample**; visually
+the 1-spp baseline is a firefly storm and the reservoir image is smooth. Evidence
+`RaytraceToggle/ReflectionReservoir/ReflectReSTIR_Compare.png`. This confirms #27 pays and is cheap; the remaining
+work is porting the reuse pass into the device ReSTIR kernel.
+
+### Adjacent renderer items already tracked (so the list stays complete)
+
+Not in the owner's note but open and renderer-relevant — cross-referenced, not duplicated:
+- **#11 GPU render-verification** — the single biggest open item; gates confidence on #31/#38 and everything ⚠️.
+- **#5 indirect GI coverage** (16 % → 100 %, replay + shift) — measured twice, deferred by measurement; revive on a lamp interior.
+- **#26 / #27 environment lighting bake** — the sky-probe bake and sky-as-candidate; #32/#33 above are the cloud/sun extensions of these.
+- **#10 remainder** — M4c spectral **dispersion** (glass colour fringing) and **displacement / ch20 tessellation** are still deferred alongside multi-slab (#29).

@@ -41,7 +41,7 @@ if grep -q 'PassthruCentralNode' "$EditorHost" || grep -q 'ImGuiWindowFlags_NoBa
 else
     Pass "viewport is an opaque docked window, not a fullscreen backing plate"
 fi
-if grep -q 'AssignSceneBackdrop(false)' Projects/Project-Zero/Source/GameExecution.cpp \
+if grep -q 'AssignSceneBackdrop(false)' Engine/Host/FrontierRuntime.cpp \
    && grep -q 'SceneBackdrop' Engine/DeviceExchange/SwapchainExchange.h \
    && grep -q 'if (SceneBackdrop)' Engine/DeviceExchange/SwapchainExchange.cpp; then
     Pass "development editor disables the fullscreen scene backdrop, so the render appears only inside the viewport panel"
@@ -106,14 +106,34 @@ if grep -q 'Engine/Editor/EditorInstance.h' Editor/AuthoringTools/Modelling/Soli
 else
     FailOne "SolidArc outliner adapter does not use the shared feed/writeback"
 fi
-if grep -q '"Sketches"' "$Adapter" \
+if grep -q '"Lines"' "$Adapter" \
+   && grep -q '"Profiles"' "$Adapter" \
    && grep -q '"Bodies"' "$Adapter" \
    && grep -q '"Surfaces"' "$Adapter" \
    && grep -q '"Construction"' "$Adapter" \
-   && grep -q '"Dimensions"' "$Adapter"; then
-    Pass "SolidArc outliner exposes CAD folders from the HTML panel instead of game-engine categories"
+   && grep -q '"Dimensions"' "$Adapter" \
+   && grep -q '"Constraints"' "$Adapter" \
+   && grep -q 'EditorSymbol' Engine/Editor/EditorInstance.h \
+   && grep -q 'Symbol' "$Adapter" \
+   && ! grep -q 'FolderGeneric\|IconSymbol' "$Adapter"; then
+    Pass "SolidArc outliner exposes its own colour-coded CAD folders (Lines, Profiles, Bodies, Surfaces, Construction, Dimensions, Constraints) instead of game-engine categories"
 else
     FailOne "SolidArc outliner CAD folder labels are missing"
+fi
+if ! grep -q 'DrawTriad' Editor/AuthoringTools/Modelling/SolidArc/Console/ConsoleHost.cpp \
+   && grep -q 'CullBackFaces' Editor/AuthoringTools/Modelling/SolidArc/Interaction/TransformGizmo.cpp; then
+    Pass "SolidArc draws no world-origin triad, and the transform gizmo culls back faces instead of painting winding faults"
+else
+    FailOne "SolidArc still draws the origin triad or the gizmo paints back faces"
+fi
+if grep -q 'EditorSheetAppearance::SolidArc' "$Adapter" \
+   && grep -q 'RecordSolidArcInspector' Engine/Editor/InspectorPanel.cpp \
+   && grep -q 'AssignGlassCards(true)' "$SolidHost" \
+   && grep -q '"Position"' "$Adapter" && grep -q '"Rotation"' "$Adapter" && grep -q '"Scale"' "$Adapter" \
+   && grep -q 'bool Open' Engine/Editor/OutlinerPanel.cpp; then
+    Pass "SolidArc inspector uses its own glass cards with Position/Rotation/Scale XYZ rows and sliders, and the outliner draws flat two-tone folders; the game editor keeps its own"
+else
+    FailOne "SolidArc inspector glass cards, XYZ transform rows or flat folders are missing"
 fi
 if grep -q 'AssignFilterCatalog' "$SolidHost" \
    && grep -q '"Lines"' "$SolidHost" \
@@ -121,7 +141,8 @@ if grep -q 'AssignFilterCatalog' "$SolidHost" \
    && grep -q '"Bodies"' "$SolidHost" \
    && grep -q '"Surfaces"' "$SolidHost" \
    && grep -q '"Construction"' "$SolidHost" \
-   && grep -q '"Dimensions"' "$SolidHost"; then
+   && grep -q '"Dimensions"' "$SolidHost" \
+   && grep -q '"Constraints"' "$SolidHost"; then
     Pass "SolidArc uses a CAD-specific filter catalogue instead of the game editor's Lights/Sky/Geometry/Camera vocabulary"
 else
     FailOne "SolidArc CAD filter labels are missing"
@@ -143,7 +164,7 @@ else
     FailOne "SolidArc outliner category colour coding is missing"
 fi
 if grep -q 'BuildSolidArcInspectorSheet' "$Adapter" \
-   && grep -q '"CAD geometry"' "$Adapter" \
+   && grep -q 'Hero.Active' "$Adapter" \
    && grep -q '"Bounds"' "$Adapter" \
    && grep -q '"Parameters"' "$Adapter"; then
     Pass "SolidArc inspector sheet exposes CAD identity, geometry, bounds and parameter groups"
@@ -153,15 +174,11 @@ fi
 if grep -q 'AssignChrome(ViewportPanelChrome::SolidArcCad)' "$SolidHost" \
    && grep -q 'RecordSolidArcBar' Engine/Editor/ViewportPanel.cpp \
    && grep -q 'Construct' Engine/Editor/ViewportPanel.cpp \
-   && grep -q 'Body 1' Engine/Editor/ViewportPanel.cpp \
-   && grep -q 'Face 2' Engine/Editor/ViewportPanel.cpp \
-   && grep -q 'Edge 3' Engine/Editor/ViewportPanel.cpp \
-   && grep -q 'Vertex 4' Engine/Editor/ViewportPanel.cpp \
-   && grep -q 'Matcap' Engine/Editor/ViewportPanel.cpp \
-   && grep -q 'Move G' Engine/Editor/ViewportPanel.cpp \
-   && grep -q 'Rotate ⇧R' Engine/Editor/ViewportPanel.cpp \
-   && grep -q 'Scale S' Engine/Editor/ViewportPanel.cpp; then
-    Pass "SolidArc viewport top toolbar matches the live HTML controls: Construct, sub-selection, Matcap and transform gizmos"
+   && ! grep -q 'Body 1' Engine/Editor/ViewportPanel.cpp \
+   && ! grep -q 'Ortho 5' Engine/Editor/ViewportPanel.cpp \
+   && ! grep -q 'Move G' Engine/Editor/ViewportPanel.cpp \
+   && grep -q 'Chrome_ != ViewportPanelChrome::SolidArcCad' Engine/Editor/ViewportPanel.cpp; then
+    Pass "SolidArc viewport top rail carries the Construct chip only, and the corner orbit compass is not drawn"
 else
     FailOne "SolidArc viewport toolbar controls are missing"
 fi
@@ -176,9 +193,10 @@ if [ -n "$ImguiRoot" ]; then
         Compiler="${CXX:-g++}"
         if "$Compiler" -std=c++20 -Wall -Wextra -Wpedantic -Wno-unused-function -DFRONTIER_DEVELOPMENT \
             -I"$ImguiRoot" -I. -IEditor/AuthoringTools/Modelling/SolidArc -IEngine/Editor \
+            -IExternalPackages/tomlpp/include -IExternalPackages/thorvg/inc \
             -fsyntax-only \
             Editor/AuthoringTools/Modelling/SolidArc/Editor/SolidArcEditorHost.cpp \
-            Engine/Editor/ControlPanel.cpp Engine/Editor/OutlinerPanel.cpp Engine/Editor/ViewportPanel.cpp Engine/Editor/InspectorPanel.cpp \
+            Engine/Editor/ControlPanel.cpp Engine/Editor/OutlinerPanel.cpp Engine/Editor/ViewportPanel.cpp Engine/Editor/InspectorPanel.cpp Engine/Editor/SolidArcInspectorPanel.cpp \
             >/tmp/EditorDockingSolidArc.syntax 2>&1; then
             Pass "SolidArc optional ImGui editor shell syntax-compiles against $ImguiRoot"
         else

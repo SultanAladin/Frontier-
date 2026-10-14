@@ -49,6 +49,12 @@ struct ShadowLightTap
     float Radiance[3] = { 0.0f, 0.0f, 0.0f };   // [nit] emitted radiance
     float Weight      = 0.0f;                   // [m²]  the emitter area this tap integrates
     float Normal[3]   = { 0.0f, 0.0f, 1.0f };   // [-]   the emitter's unit normal (the LdotL term)
+    // Per-tap frustum. Zero means "use the frame's" (Centre / HalfAngle / NearPlane / FarPlane below): the mesh
+    //    emitters keep the scene-wide frustum; a directional tap is given a tight one around the camera's focus.
+    float Aim[3]      = { 0.0f, 0.0f, 0.0f };   // [m]   the point this tap's frustum looks at (0,0,0 ⇒ frame Centre)
+    float HalfAngle   = 0.0f;                   // [deg] this tap's frustum half-angle (0 ⇒ frame HalfAngle)
+    float Near        = 0.0f;                   // [m]   this tap's near plane (0 ⇒ frame NearPlane)
+    float Far         = 0.0f;                   // [m]   this tap's far plane  (0 ⇒ frame FarPlane)
     float TangentHalf = 0.0f;                   // [-]   tan(HalfAngle) of this tap's frustum — PCSS's texels-per-metre
                                                 //       term. Filled in by the exchange from HalfAngle, not by the
                                                 //       caller. It is carried explicitly because the shader used to
@@ -103,6 +109,15 @@ struct ShadowFrameConfiguration
     float                DepthBias  = 0.015f;                        // [m]   plus a slope term from NdotL
     float                HalfAngle  = 65.0f;                         // [deg] frustum half-angle about tap→centre
     float                Centre[3]  = { 0.0f, 0.0f, 0.0f };          // [m]   scene centre each tap aims at
+
+    // ── Where the directional maps look ──────────────────────────────────────────────────────────────────────
+    // ⚠️ A sun map framed on the WHOLE scene is a map of nothing. Project-Drive's pad is 120 m across: a 65°
+    //    frustum two scene radii out covers ~730 m, which is 1.4 m per texel at 512 px — a 4.5 m car is three
+    //    texels wide and its shadow vanishes under the bias and the PCSS search. The sun and moon frusta are
+    //    therefore framed on the camera's region of interest: Focus (the host sets it ahead of the camera each
+    //    frame) and FocusRadius. FocusRadius 0 keeps the old whole-scene framing (proofs without a camera).
+    float                Focus[3]    = { 0.0f, 0.0f, 0.0f };        // [m]   centre of the directional frusta
+    float                FocusRadius = 0.0f;                        // [m]   half-extent they must cover (0 ⇒ scene)
 
     // Which tap slots are directional (bit K = tap K). Mirrors ShadowControl.w in ShadowRecords.slang.
     uint32_t             DirectionalMask = 0u;

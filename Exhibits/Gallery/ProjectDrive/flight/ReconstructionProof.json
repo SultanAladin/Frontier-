@@ -1,0 +1,16 @@
+{
+  "branch": "arena/561c913e-frontier",
+  "approvedRevision": "1784c866a700bfe7a5d208fadf1ac2c5dfc625dc",
+  "sourceArchiveCheckpoint": "9417727b36d9a542ea274bcfc1eea5434016520c",
+  "verifiedRemoteCheckpointBeforeMedia": "c7e2c3145b70442d4eeeb9bfd3fab9b0acf8afe6",
+  "sourcePatchSHA256": "70c4d3f9364236d19cc1b6ec4d18b7de0b75cbc61081bee358ef38f8c1103719",
+  "reconstructionAttempt": 3,
+  "freshCurrentCases": 68,
+  "necessaryScreenPasses": 58,
+  "necessaryScreenFailures": 10,
+  "actualMotionGifs": 43,
+  "mp4Videos": 2,
+  "historicalMissingDataReused": false,
+  "pushed": true,
+  "gpuValidation": false
+}
