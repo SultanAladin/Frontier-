@@ -115,3 +115,20 @@ Cost: ~2 days — record + interchange (½), shader + Jacobian normals (1), CPU 
 - Keep the authored tyre at the current 9×128 tessellation or let the asset decide (the shader does not care).
 - Whether the record carries tread temperature/pressure for tint (the thermal path already produces both).
 - Whether the GI SDF should ever follow deflection (recommendation: no; it is a 1–4 cm effect under a 20 cm voxel).
+
+## 7. Status — option B implemented (14 Oct 2026, commits `0d61cd1`, `b07d386`)
+
+| Piece | Where | State |
+|---|---|---|
+| Record + shader | `Engine/Shaders/TyreDeformation.slang` (128 B record, `DeformTyrePoint`), CPU mirror `Engine/GeometricRaster/TyreDeformation.h`, host struct `TyreDeformationRecord.h` | ✅ compiles as GLSL (glslang, `CheckShaders.sh` 34/34) and C++ |
+| Publisher | `Engine/PhysicalDynamics/Vehicle/TyreDeformationPublisher.h` — `ComposeTyreDeformation(RigidWheel, WheelTelemetry, TyreSpecification)` | ✅ |
+| C interchange | `Engine/ProjectInterchange/TyreDeformationInterchange.h` (`ProjectTyreDeformationInterchange`, interchange 1), `CodeInterchange.{h,cpp}` | ✅ exported by Project-Drive and Project-Zero |
+| Host | `Engine/Host/TyreDeformationSequence.h` wired into `FrontierRuntime.cpp` (Construct at play, Advance per frame, Reclaim at stop); stamps `InstanceFlagTyreDeform \| slot << 16` | ✅ |
+| Device | `VisibilityExchange` SSBO of 64 × [current, previous] records; raster set binding 4, resolve binding 16; `vkCmdUpdateBuffer` on revision change | ✅ |
+| Consumers | `VisibilityRaster.vert` (current + previous → motion vectors), `ShadowRaster.vert`, `SurfaceResolve` (A/B/C rebuilt) | ✅ |
+| Not bent | ray-query/BLAS placements, rest SDF, cluster bounds (≤ 2 cm, conservative) | ⏳ listed, cheap to add if GI contact shadows show it |
+| Proof | `Exhibits/Workbench/Automotive/DriveTyreDeformationProof.cpp`, `Tools/Tests/RunDriveTyreDeformationExhibit.py` → `Exhibits/Gallery/ProjectDrive/tyre-deformation.html` | ✅ 240 frames, all per-frame assertions pass |
+
+Measured (front-left, flat ground): static 3.0–4.0 kN → 12–16 mm δ; brake from 25 m/s 4.5 kN, Fx −4.7 kN → 18 mm δ and rearward tread lead; corner 18 m/s 4.2 kN, Fy 4.8 kN → 17 mm δ and 30 mm carcass walk. The bent tread's lowest point stays within +0.1 mm of the road on every frame; the rigid shell sinks by exactly δ.
+
+The dormant per-vertex `GeometryInterchange`/`GeometrySequence` path is generic (not XPBD) and was left in place; no project exports it any more.
