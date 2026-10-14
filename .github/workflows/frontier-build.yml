@@ -192,7 +192,8 @@ jobs:
           mkdir -p Exhibits/Gallery/ProjectDrive/live
           export VK_ICD_FILENAMES=/usr/share/vulkan/icd.d/lvp_icd.x86_64.json
           export VK_DRIVER_FILES=/usr/share/vulkan/icd.d/lvp_icd.x86_64.json
-          xvfb-run -a -s "-screen 0 1600x900x24" vulkaninfo --summary 2>/dev/null | sed -n '1,40p' || true
+          xvfb-run -a -s "-screen 0 1600x900x24" vulkaninfo --summary > Exhibits/Gallery/ProjectDrive/live/vulkaninfo.log 2>&1 || true
+          sed -n '1,60p' Exhibits/Gallery/ProjectDrive/live/vulkaninfo.log
           Capture() {   # <name> <frames> <args…>
             local Name="$1" Frames="$2"; shift 2
             echo "::group::capture $Name"
@@ -223,13 +224,33 @@ jobs:
       #    pushes never start another workflow run, so this cannot loop.
       - name: Commit the live captures to the branch
         if: github.event_name == 'push'
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
-          git config user.name  "frontier-ci"
-          git config user.email "frontier-ci@users.noreply.github.com"
-          git add -f Exhibits/Gallery/ProjectDrive/live/*.png Exhibits/Gallery/ProjectDrive/live/*.log || true
-          git commit -q -m "CI: Project-Drive live captures for ${GITHUB_SHA::9} (lavapipe) [skip ci]" || { echo "nothing to commit"; exit 0; }
-          git pull -q --rebase origin "${GITHUB_REF_NAME}" || true
-          git push origin "HEAD:${GITHUB_REF_NAME}" || echo "push refused (branch moved); the artifact still carries the captures"
+          python3 - <<'PY'
+          import base64, json, os, subprocess, urllib.request
+          from pathlib import Path
+          Repo, Branch, Sha, Token = os.environ['GITHUB_REPOSITORY'], os.environ['GITHUB_REF_NAME'], os.environ['GITHUB_SHA'][:9], os.environ['GH_TOKEN']
+          def Api(Method, Url, Body=None):
+              Request = urllib.request.Request(Url, method=Method, data=json.dumps(Body).encode() if Body else None,
+                                               headers={'Authorization': f'Bearer {Token}', 'Accept': 'application/vnd.github+json',
+                                                        'X-GitHub-Api-Version': '2022-11-28', 'Content-Type': 'application/json'})
+              try:
+                  with urllib.request.urlopen(Request) as Response: return json.loads(Response.read() or b'{}')
+              except urllib.error.HTTPError as Error:
+                  if Error.code == 404: return None
+                  print('API', Method, Url, Error.code, Error.read()[:300]); return None
+          Files = sorted(Path('Exhibits/Gallery/ProjectDrive/live').glob('*'))
+          print('publishing', [F.name for F in Files])
+          for File in Files:
+              Url = f'https://api.github.com/repos/{Repo}/contents/{File.as_posix()}'
+              Existing = Api('GET', Url + f'?ref={Branch}')
+              Body = {'message': f'CI: Project-Drive live capture {File.name} for {Sha} (lavapipe) [skip ci]',
+                      'content': base64.b64encode(File.read_bytes()).decode(), 'branch': Branch}
+              if Existing and 'sha' in Existing: Body['sha'] = Existing['sha']
+              Result = Api('PUT', Url, Body)
+              print(File.name, 'ok' if Result else 'FAILED', File.stat().st_size, 'bytes')
+          PY
 
       - name: Publish the live captures
         if: always()
