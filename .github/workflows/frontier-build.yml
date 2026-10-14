@@ -216,6 +216,9 @@ jobs:
           #    the play capture leaves the camera to the project.
           Capture sdf-gi-exterior    90 --render-preset 2 --transport 2 --camera -7.0 -6.0 2.0 0.0 0.0 0.7
           Capture sdf-gi-cockpit     90 --render-preset 2 --transport 2 --camera -0.2 0.42 1.12 2.8 0.42 0.47
+          # Power-on: the display time base advances at most 0.25 s per cycle, so frame 7 is ~1.5 s into the tablet's
+          #    2.8 s startup sequence (ring closing, wordmark up) and the cluster's needle sweep.
+          Capture sdf-gi-cockpit-boot 7 --render-preset 2 --transport 2 --camera -0.2 0.42 1.12 2.8 0.42 0.47
           # The same cockpit view with a synthetic finger on the tablet's first launcher icon (view fractions from the
           #    cockpit capture): press at frame 40, release at 41; the launcher must have opened an app by frame 90.
           Capture sdf-gi-cockpit-tap 90 --render-preset 2 --transport 2 --camera -0.2 0.42 1.12 2.8 0.42 0.47 --tap 0.639 0.36 40 40
