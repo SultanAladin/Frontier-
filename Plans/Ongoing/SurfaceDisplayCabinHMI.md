@@ -115,7 +115,7 @@ tap while paused or stationary there.
 
 ## Deferred / known limits
 
-- Per-car tablet specifications beyond ControlVehicle. (The startup particle sequence landed 14 Oct 2026: `Engine/SurfaceDisplay/DisplayStartupSequence.{h,cpp}`, composed by both screen sequences, proof frames `VisualProof/SurfaceDisplay/Tablet_Startup_*.png`.)
+- Per-car tablet specifications beyond ControlVehicle. (The startup particle sequence landed 14 Oct 2026: `Engine/SurfaceDisplay/DisplayStartupSequence.{h,cpp}`, composed by both screen sequences, proof frames `VisualProof/SurfaceDisplay/Tablet_Startup_*.png`; in-engine on the field route `Exhibits/Gallery/ProjectDrive/live/sdf-gi-cockpit-boot.png`, frame 7 ≈ 1.5 s, both panels mid-swarm.)
 - The single-slot refresh waits on the graphics queue for the frame in flight; a fenced staging ring is the
   follow-up once measured on hardware.
 - Shape-mask edge anti-aliasing uses the sheet alpha; the quad outline itself is the hard clip.
