@@ -24,7 +24,8 @@ namespace {
 // sRGB ⇄ linear tables so the mip filter averages light, not code values (a 50 % grey checker must stay 50 % grey).
 struct SrgbTables
 {
-    float ToLinear[256];
+    float   ToLinear[256];
+    uint8_t Encode[4097];      // linear (12-bit + the top sample) -> sRGB8; a per-texel pow made display refresh mips cost ~20 ms
     SrgbTables()
     {
         for (int I = 0; I < 256; ++I)
@@ -32,12 +33,20 @@ struct SrgbTables
             const float C = I / 255.0f;
             ToLinear[I] = C <= 0.04045f ? C / 12.92f : std::pow((C + 0.055f) / 1.055f, 2.4f);
         }
+        for (int I = 0; I <= 4096; ++I) Encode[I] = FromLinearExact(I / 4096.0f);
     }
-    static uint8_t FromLinear(float L)
+    static uint8_t FromLinearExact(float L)
     {
         L = std::clamp(L, 0.0f, 1.0f);
         const float C = L <= 0.0031308f ? L * 12.92f : 1.055f * std::pow(L, 1.0f / 2.4f) - 0.055f;
         return static_cast<uint8_t>(C * 255.0f + 0.5f);
+    }
+    uint8_t FromLinear(float L) const
+    {
+        // Darks are where a 12-bit linear table is coarse (sRGB 1..8 span the first ~30 entries), so take the exact
+        // curve there; everything above has more table entries per output code than the 8-bit result can show.
+        if (L < 0.01f) return FromLinearExact(L);
+        return Encode[static_cast<int>(std::clamp(L, 0.0f, 1.0f) * 4096.0f + 0.5f)];
     }
 };
 const SrgbTables& Tables() { static SrgbTables T; return T; }
@@ -95,7 +104,7 @@ void Downsample(const uint8_t* Src, uint32_t W, uint32_t H, uint8_t* Dst, uint32
             else
             {
                 uint8_t* Q = Dst + (Y * DW + X) * 4u;
-                for (int C = 0; C < 3; ++C) Q[C] = Encoding == TextureEncoding::Srgb8 ? SrgbTables::FromLinear(Sum[C]) : static_cast<uint8_t>(std::clamp(Sum[C], 0.0f, 1.0f) * 255.0f + 0.5f);
+                for (int C = 0; C < 3; ++C) Q[C] = Encoding == TextureEncoding::Srgb8 ? T.FromLinear(Sum[C]) : static_cast<uint8_t>(std::clamp(Sum[C], 0.0f, 1.0f) * 255.0f + 0.5f);
                 Q[3] = static_cast<uint8_t>(std::clamp(Sum[3], 0.0f, 1.0f) * 255.0f + 0.5f);
             }
         }
@@ -192,8 +201,26 @@ uint32_t TextureIndex::RegisterTexels(const std::string& Name, const uint8_t* Rg
     T.Texels.assign(Rgba, Rgba + static_cast<size_t>(Width) * Height * 4u);
     ConstructLevels(T);
     Sources[Slot].Decoded = true;
+    Sources[Slot].LevelsStale = false;
     Metrics.Count = static_cast<uint32_t>(Textures.size());
     return Slot;
+}
+
+bool TextureIndex::RefreshTexels(uint32_t Slot, const uint8_t* Rgba, uint32_t Width, uint32_t Height) noexcept
+{
+    if (Rgba == nullptr || Slot >= Textures.size() || Slot >= Sources.size()) return false;
+    TextureDescriptor& T = Textures[Slot];
+    const size_t Bytes = static_cast<size_t>(Width) * Height * 4u;
+    if (!T.Path.empty() || T.Width != Width || T.Height != Height || T.TexelBytes() != 4u || T.Texels.size() < Bytes) return false;
+    std::memcpy(T.Texels.data(), Rgba, Bytes);
+    Sources[Slot].LevelsStale = T.LevelCount > 1u;
+    return true;
+}
+
+void TextureIndex::ReconstructStaleLevels() noexcept
+{
+    for (uint32_t I = 0u; I < Textures.size() && I < Sources.size(); ++I)
+        if (Sources[I].LevelsStale) { ConstructLevels(Textures[I]); Sources[I].LevelsStale = false; }
 }
 
 //------------------------------------------------------------------------------------------------------------------------

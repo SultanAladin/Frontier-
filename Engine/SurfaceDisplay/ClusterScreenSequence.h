@@ -50,7 +50,7 @@ class ClusterScreenSequence
 public:
     ClusterScreenSequence() noexcept;
 
-    void AssignTypefaces(TypefaceSheetCodec* Light, TypefaceSheetCodec* Regular) noexcept { Faces[0] = Light; Faces[1] = Regular; Dirty = true; }
+    void AssignTypefaces(TypefaceSheetCodec* Light, TypefaceSheetCodec* Regular) noexcept { Faces[0] = Light; Faces[1] = Regular; Dirty = true; BackdropValid = false; }
     // The housing (outline + physical size) decides the design height and the sheet size; Scale = sheet pixels per design unit.
     bool PresentSurface(const DisplaySurfaceStructure& Surface, float Scale) noexcept;
     // Marks dirty only when a displayed quantity actually changed (speed to the km/h, rpm beyond 40, gear, lamps).
@@ -64,10 +64,13 @@ public:
     [[nodiscard]] float                        QueryDesignHeight() const noexcept { return DesignHeight; }
 
 private:
-    void RasterGauge(float CentreX, float CentreY, float Radius, float Fraction, float Start, float Sweep, const char* Colour,
-                     const char* Label, const char* Value, const char* Unit, float Redline) noexcept;
+    void RasterGaugeBackdrop(float CentreX, float CentreY, float Radius, float Start, float Sweep, const char* Label, const char* Unit, float Redline) noexcept;
+    void RasterGauge(float CentreX, float CentreY, float Radius, float Fraction, float Start, float Sweep, const char* Colour, const char* Value) noexcept;
 
     DisplaySheetStructure    Sheet;
+    DisplaySheetStructure    Backdrop;                 // static layer (gradient, tracks, ticks, captions, rim), rebuilt only when the housing/text changes
+    std::string              BackdropName, BackdropCaption;
+    bool                     BackdropValid = false;
     DisplayRasterProjection  Raster_;
     TypefaceSheetCodec*      Faces[2] = { nullptr, nullptr };
     DisplayOutlineCategory   Outline = DisplayOutlineCategory::Hexagon;

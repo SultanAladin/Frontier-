@@ -109,23 +109,24 @@ float DisplayRasterProjection::ClipCoverage(float PixelX, float PixelY) const no
 void DisplayRasterProjection::Blend(uint32_t X, uint32_t Y, DisplayColour Colour, float Coverage) noexcept
 {
     if (!Target || X >= Target->QueryWidth() || Y >= Target->QueryHeight()) return;
-    float Alpha = Coverage * (Colour.Alpha / 255.0f);
+    float Alpha = Coverage * (Colour.Alpha * (1.0f / 255.0f));
     if (!Clips.empty()) Alpha *= ClipCoverage(X + 0.5f, Y + 0.5f);
     if (ShapeMask && ShapeMask->size() == static_cast<size_t>(Target->QueryWidth()) * Target->QueryHeight())
-        Alpha *= (*ShapeMask)[static_cast<size_t>(Y) * Target->QueryWidth() + X] / 255.0f;
-    if (Alpha <= 0.0f) return;
-    if (Alpha > 1.0f) Alpha = 1.0f;
+        Alpha *= (*ShapeMask)[static_cast<size_t>(Y) * Target->QueryWidth() + X] * (1.0f / 255.0f);
+    // Integer source-over. A cluster or tablet raster blends a few million texels per frame, so this path is
+    // branch-light: fully covered opaque texels are a plain store, everything else is one integer divide per channel.
+    const int A = Alpha >= 1.0f ? 255 : static_cast<int>(Alpha * 255.0f + 0.5f);
+    if (A <= 0) return;
     uint8_t* T = Target->AccessTexels() + (static_cast<size_t>(Y) * Target->QueryWidth() + X) * 4u;
-    const float DestinationAlpha = T[3] / 255.0f;
-    const float OutAlpha = Alpha + DestinationAlpha * (1.0f - Alpha);
-    if (OutAlpha <= 0.0f) { T[0] = T[1] = T[2] = T[3] = 0u; return; }
-    const uint8_t Source[3] = { Colour.Red, Colour.Green, Colour.Blue };
-    for (int C = 0; C < 3; ++C)
-    {
-        const float Value = (Source[C] * Alpha + T[C] * DestinationAlpha * (1.0f - Alpha)) / OutAlpha;
-        T[C] = static_cast<uint8_t>(std::lround(std::min(255.0f, std::max(0.0f, Value))));
-    }
-    T[3] = static_cast<uint8_t>(std::lround(OutAlpha * 255.0f));
+    if (A >= 255) { T[0] = Colour.Red; T[1] = Colour.Green; T[2] = Colour.Blue; T[3] = 255u; return; }
+    const int DestinationWeight = T[3] * (255 - A);              // destination alpha x (1 - alpha), 255² scale
+    const int OutWeight = A * 255 + DestinationWeight;           // out alpha, 255² scale
+    if (OutWeight <= 0) { T[0] = T[1] = T[2] = T[3] = 0u; return; }
+    const int Half = OutWeight / 2;
+    T[0] = static_cast<uint8_t>((Colour.Red   * A * 255 + T[0] * DestinationWeight + Half) / OutWeight);
+    T[1] = static_cast<uint8_t>((Colour.Green * A * 255 + T[1] * DestinationWeight + Half) / OutWeight);
+    T[2] = static_cast<uint8_t>((Colour.Blue  * A * 255 + T[2] * DestinationWeight + Half) / OutWeight);
+    T[3] = static_cast<uint8_t>((OutWeight + 127) / 255);
 }
 
 void DisplayRasterProjection::PushClip(float Left, float Top, float Width, float Height, float Radius) noexcept
@@ -146,6 +147,7 @@ void DisplayRasterProjection::FillRectangle(float Left, float Top, float Width, 
     const int X1 = std::min(static_cast<int>(Target->QueryWidth()) - 1, static_cast<int>(std::ceil(L + W)) + 1);
     const int Y1 = std::min(static_cast<int>(Target->QueryHeight()) - 1, static_cast<int>(std::ceil(T + H)) + 1);
     const float CX = L + 0.5f * W, CY = T + 0.5f * H;
+    const bool Solid = Paint.Category == DisplayPaintCategory::Solid;
     for (int Y = Y0; Y <= Y1; ++Y)
         for (int X = X0; X <= X1; ++X)
         {
@@ -159,7 +161,7 @@ void DisplayRasterProjection::FillRectangle(float Left, float Top, float Width, 
                 Coverage = std::max(0.0f, OX) * std::max(0.0f, OY);
             }
             else Coverage = Clamp01(0.5f - RoundedRectangleDistance(PX, PY, CX, CY, 0.5f * W, 0.5f * H, R));
-            if (Coverage > 0.0f) Blend(static_cast<uint32_t>(X), static_cast<uint32_t>(Y), Sample(Paint, PX, PY), Coverage);
+            if (Coverage > 0.0f) Blend(static_cast<uint32_t>(X), static_cast<uint32_t>(Y), Solid ? Paint.Start : Sample(Paint, PX, PY), Coverage);
         }
 }
 
@@ -189,13 +191,14 @@ void DisplayRasterProjection::FillCircle(float CentreX, float CentreY, float Rad
     const int X0 = std::max(0, static_cast<int>(std::floor(CX - R)) - 1), Y0 = std::max(0, static_cast<int>(std::floor(CY - R)) - 1);
     const int X1 = std::min(static_cast<int>(Target->QueryWidth()) - 1, static_cast<int>(std::ceil(CX + R)) + 1);
     const int Y1 = std::min(static_cast<int>(Target->QueryHeight()) - 1, static_cast<int>(std::ceil(CY + R)) + 1);
+    const bool Solid = Paint.Category == DisplayPaintCategory::Solid;
     for (int Y = Y0; Y <= Y1; ++Y)
         for (int X = X0; X <= X1; ++X)
         {
             const float PX = X + 0.5f, PY = Y + 0.5f;
             const float D = std::sqrt((PX - CX) * (PX - CX) + (PY - CY) * (PY - CY)) - R;
             const float Coverage = Clamp01(0.5f - D);
-            if (Coverage > 0.0f) Blend(static_cast<uint32_t>(X), static_cast<uint32_t>(Y), Sample(Paint, PX, PY), Coverage);
+            if (Coverage > 0.0f) Blend(static_cast<uint32_t>(X), static_cast<uint32_t>(Y), Solid ? Paint.Start : Sample(Paint, PX, PY), Coverage);
         }
 }
 
@@ -381,6 +384,7 @@ void DisplayRasterProjection::StrokeArc(float CentreX, float CentreY, float Radi
             const float DX = PX - CX, DY = PY - CY;
             const float Distance = std::sqrt(DX * DX + DY * DY);
             float D = std::fabs(Distance - R);
+            if (D > Half + 1.0f) continue;                       // off the ring: no coverage, no atan2
             if (!Full)
             {
                 float Angle = std::atan2(DY, DX) - StartAngle;
@@ -533,9 +537,23 @@ void DisplayRasterProjection::BlitSheet(const DisplaySheetStructure& Source, flo
 void DisplayRasterProjection::Veil(float Opacity) noexcept
 {
     if (!Target || Opacity <= 0.0f) return;
-    const DisplayColour Black{ 0u, 0u, 0u, 255u };
-    for (uint32_t Y = 0u; Y < Target->QueryHeight(); ++Y)
-        for (uint32_t X = 0u; X < Target->QueryWidth(); ++X) Blend(X, Y, Black, Opacity);
+    // A black veil over an opaque texel is a plain darkening (colour x (1 - opacity), alpha unchanged); a transparent
+    //    texel gains the veil's alpha. Direct integer pass — the general Blend made this whole-sheet step ~6 ms.
+    const int Keep = 256 - static_cast<int>(std::min(Opacity, 1.0f) * 256.0f + 0.5f);
+    const int Gain = 256 - Keep;
+    uint8_t* T = Target->AccessTexels();
+    const size_t Count = static_cast<size_t>(Target->QueryWidth()) * Target->QueryHeight();
+    for (size_t I = 0u; I < Count; ++I, T += 4)
+    {
+        if (T[3] == 255u) { T[0] = static_cast<uint8_t>((T[0] * Keep) >> 8); T[1] = static_cast<uint8_t>((T[1] * Keep) >> 8); T[2] = static_cast<uint8_t>((T[2] * Keep) >> 8); continue; }
+        const int DestinationWeight = T[3] * Keep;                 // 255 x 256 scale
+        const int OutWeight = Gain * 255 + DestinationWeight;
+        if (OutWeight <= 0) { T[0] = T[1] = T[2] = T[3] = 0u; continue; }
+        T[0] = static_cast<uint8_t>(T[0] * DestinationWeight / OutWeight);
+        T[1] = static_cast<uint8_t>(T[1] * DestinationWeight / OutWeight);
+        T[2] = static_cast<uint8_t>(T[2] * DestinationWeight / OutWeight);
+        T[3] = static_cast<uint8_t>((OutWeight + 128) >> 8);
+    }
 }
 
 //------------------------------------------------------------------------------------------------------------------------ geometry helpers

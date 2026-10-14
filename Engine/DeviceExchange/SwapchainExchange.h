@@ -273,7 +273,8 @@ public:
     void                        DestroyTextures() noexcept;
     // Live refresh of one resident slot's texels (same shape/format/levels) — queued on the CPU, copied at the head
     //    of the next frame's command buffer through per-cycle staging. SurfaceDisplay sheets (tablet, cluster) use it.
-    [[nodiscard]] bool          QueueTextureRefresh(uint32_t Slot, const TextureDescriptor& Texture) noexcept;
+    //    LevelZeroOnly copies just the base level and rebuilds the mip chain on the device by blit (TextureIndex::RefreshTexels).
+    [[nodiscard]] bool          QueueTextureRefresh(uint32_t Slot, const TextureDescriptor& Texture, bool LevelZeroOnly = false) noexcept;
     void                        UploadShadingTables(const float* Energy, const float* Sheen, uint32_t Resolution) noexcept;   // R4b: two RGBA32F Resolution² planes (ShadingTableCodec bake) → bindings 13 / 14, once
     void                        UploadTraversal(const TraversalIndex& Traversal) noexcept;   // R3 CWBVH blobs → bindings 8-9
 

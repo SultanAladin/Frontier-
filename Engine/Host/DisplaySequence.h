@@ -107,6 +107,13 @@ public:
             if (Project.ProjectDisplay(Reading) != 1u) continue;
             D.Revision = Reading.Revision;
             D.Width = Reading.Width; D.Height = Reading.Height;
+            // Same shape: overwrite level 0 in place and let the device blit the mip chain (the CPU chain plus a
+            //    full re-register cost 15-20 ms per sheet — at a 30 Hz cluster that was the throttle-time stutter).
+            if (!Resized && D.Slot < Textures.QueryCount() && Textures.RefreshTexels(D.Slot, Scratch.data(), D.Width, D.Height))
+            {
+                if (!Surface.QueueTextureRefresh(D.Slot, Textures.QueryTextures()[D.Slot], /*LevelZeroOnly=*/true)) Reupload = true;   // device shape mismatch: full path
+                continue;
+            }
             D.Slot = Textures.RegisterTexels("Display:" + D.SubjectName, Scratch.data(), D.Width, D.Height, false);
             if (Resized || D.Slot >= Textures.QueryCount()) { Bind(Scene, D, Reading.Luminance); Reupload = true; continue; }
             if (!Surface.QueueTextureRefresh(D.Slot, Textures.QueryTextures()[D.Slot])) Reupload = true;   // shape mismatch on the device: fall back to the full path

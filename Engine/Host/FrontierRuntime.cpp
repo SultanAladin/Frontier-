@@ -1725,7 +1725,7 @@ int Frontier::RunFrontierRuntime(
                 // Apply previously only derived CPU records. This authoring-time, idle upload is
                 // deliberately conservative (not a per-frame fast path); it also refreshes emitters.
                 Level.Finalise(std::max(1u, Level.QueryMaterials().QueryMetrics().SlabLimit));
-                Surface.UploadScene(Level, Traversal, &Textures, true); // retain rest-shape fields, including during Play
+                Textures.ReconstructStaleLevels(); Surface.UploadScene(Level, Traversal, &Textures, true); // retain rest-shape fields, including during Play
                 Integrator.ResetAccumulation("material apply");   // committed constants change the shading - restart like any look change
                 if (ControlCentre.QueryNotifications().QueryApplied().RenderFinished)
                 {
@@ -2322,7 +2322,7 @@ int Frontier::RunFrontierRuntime(
                 if (DisplayReupload)
                 {
                     Level.Finalise(std::max(1u, Level.QueryMaterials().QueryMetrics().SlabLimit));
-                    Surface.UploadScene(Level, Traversal, &Textures, true);
+                    Textures.ReconstructStaleLevels(); Surface.UploadScene(Level, Traversal, &Textures, true);
                     Integrator.ResetAccumulation("display resized");
                 }
             }
@@ -2873,7 +2873,7 @@ int Frontier::RunFrontierRuntime(
                                                                   Frontier::kSkyDomeSide, Frontier::kSkyDomeSide * 2u);
                 if (DomeSlot != 0xFFFFFFFFu)
                 {
-                    Surface.UploadTextures(Textures);
+                    Textures.ReconstructStaleLevels(); Surface.UploadTextures(Textures);
                     Celestial.AssignSkyDomeSlot(DomeSlot);
                     Logger.RecordMessage(Frontier::DiagnosticSeverity::Information, "Sky",
                                          FromFile ? "Baked dome resident from SkyDome.environment - the bake was skipped; escaped rays fetch, the sun/stars/moons/horizon stay analytic."

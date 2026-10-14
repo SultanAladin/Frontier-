@@ -170,6 +170,8 @@ private:
     [[nodiscard]] static int ValueIndex(const char* Identifier) noexcept;
 
     DisplaySheetStructure    Sheet;
+    DisplaySheetStructure    Background;               // cached wallpaper gradients (see RasterBackground)
+    bool                     BackgroundValid = false, BackgroundLight = false;
     DisplayRasterProjection  Raster_;
     TypefaceSheetCodec*      Faces[3] = { nullptr, nullptr, nullptr };
     TabletPreviewSource*     Preview = nullptr;

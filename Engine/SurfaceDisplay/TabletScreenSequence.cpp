@@ -264,10 +264,21 @@ void TabletScreenSequence::RasterButton(const char* Identifier, const char* Text
 
 void TabletScreenSequence::RasterBackground(bool Light) noexcept
 {
-    RasterRectangle(-OffsetAcross, -OffsetDown, PanelWidth, PanelHeight, 0.0f,
-                    DisplayPaint::Linear(0.0f, 0.0f, kTabletDesignWidth, kTabletDesignHeight, C(Light ? "#f1f1e7" : "#17262c"), C(Light ? "#dfe8db" : "#121a22")));
-    RasterRectangle(-OffsetAcross, -OffsetDown, PanelWidth, PanelHeight, 0.0f,
-                    DisplayPaint::Radial(1010.0f, 70.0f, 20.0f, 670.0f, C(Light ? "#ffffff85" : "#8eb29b26"), C("#8eb29b00")));
+    // Two whole-sheet gradient fills are most of a tablet raster, and they change only with the panel shape or the
+    //    light/dark scheme: they are kept as a sheet and copied under every frame (one memcpy instead of ~2 M blends).
+    if (!BackgroundValid || BackgroundLight != Light || Background.QueryWidth() != Sheet.QueryWidth() || Background.QueryHeight() != Sheet.QueryHeight())
+    {
+        (void)Background.Resize(Sheet.QueryWidth(), Sheet.QueryHeight());
+        Background.Clear(DisplayColour{ 0u, 0u, 0u, 0u });
+        Raster_.Begin(Background, Scale, OffsetAcross, OffsetDown, Faces[0], Faces[1], Faces[2]);
+        RasterRectangle(-OffsetAcross, -OffsetDown, PanelWidth, PanelHeight, 0.0f,
+                        DisplayPaint::Linear(0.0f, 0.0f, kTabletDesignWidth, kTabletDesignHeight, C(Light ? "#f1f1e7" : "#17262c"), C(Light ? "#dfe8db" : "#121a22")));
+        RasterRectangle(-OffsetAcross, -OffsetDown, PanelWidth, PanelHeight, 0.0f,
+                        DisplayPaint::Radial(1010.0f, 70.0f, 20.0f, 670.0f, C(Light ? "#ffffff85" : "#8eb29b26"), C("#8eb29b00")));
+        Raster_.Begin(Sheet, Scale, OffsetAcross, OffsetDown, Faces[0], Faces[1], Faces[2]);
+        BackgroundValid = true; BackgroundLight = Light;
+    }
+    std::memcpy(Sheet.AccessTexels(), Background.QueryTexels(), static_cast<size_t>(Sheet.QueryByteCount()));
 }
 
 void TabletScreenSequence::RasterStatus(bool Light) noexcept

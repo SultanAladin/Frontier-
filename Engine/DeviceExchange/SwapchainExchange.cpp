@@ -178,7 +178,7 @@ struct SwapchainExchange::VulkanRecord
     //    staging buffer and recorded as buffer→image copies at the head of the frame's command buffer — the slot's
     //    fence has already been waited, so the staging memory is free, and the image barrier orders the copy
     //    against the previous frame's samples. No device idle, no descriptor rewrite: the slot keeps its view.
-    struct TextureRefresh { uint32_t Slot; uint32_t Width, Height, LevelCount; std::vector<uint8_t> Texels; std::vector<uint32_t> LevelOffsets; };
+    struct TextureRefresh { uint32_t Slot; uint32_t Width, Height, LevelCount; std::vector<uint8_t> Texels; std::vector<uint32_t> LevelOffsets; bool DeviceLevels = false; };
     std::vector<TextureRefresh> PendingTextureRefresh;
     struct RefreshStaging { VkBuffer Buffer = VK_NULL_HANDLE; VkDeviceMemory Memory = VK_NULL_HANDLE; void* Mapped = nullptr; VkDeviceSize Bytes = 0u; };
     std::array<RefreshStaging, kCycleSlotCount> TextureRefreshStaging = {};
@@ -2589,7 +2589,7 @@ void SwapchainExchange::DestroyTextures() noexcept
     }
 }
 
-bool SwapchainExchange::QueueTextureRefresh(uint32_t Slot, const TextureDescriptor& Texture) noexcept
+bool SwapchainExchange::QueueTextureRefresh(uint32_t Slot, const TextureDescriptor& Texture, bool LevelZeroOnly) noexcept
 {
     if (!Vulkan || !Vulkan->Device || Slot >= Vulkan->Textures.size()) return false;
     const VulkanRecord::ResidentTexture& R = Vulkan->Textures[Slot];
@@ -2597,9 +2597,20 @@ bool SwapchainExchange::QueueTextureRefresh(uint32_t Slot, const TextureDescript
     // A refresh never resizes: a changed shape is a re-upload (the no-squash rule lives one layer up).
     if (!R.Image || R.Width != Texture.Width || R.Height != Texture.Height || R.LevelCount != Texture.LevelCount || R.Format != Format ||
         Texture.LevelOffsets.size() != Texture.LevelCount || Texture.Texels.empty()) return false;
+    const size_t BaseBytes = static_cast<size_t>(Texture.Width) * Texture.Height * Texture.TexelBytes();
+    if (Texture.Texels.size() < BaseBytes) return false;
+    const bool DeviceLevels = LevelZeroOnly && Texture.LevelCount > 1u;
+    auto Payload = [&](VulkanRecord::TextureRefresh& P)
+    {
+        P.DeviceLevels = DeviceLevels;
+        if (DeviceLevels) { P.Texels.assign(Texture.Texels.begin(), Texture.Texels.begin() + static_cast<ptrdiff_t>(BaseBytes)); P.LevelOffsets.assign(1u, 0u); }
+        else { P.Texels = Texture.Texels; P.LevelOffsets = Texture.LevelOffsets; }
+    };
     for (VulkanRecord::TextureRefresh& Pending : Vulkan->PendingTextureRefresh)
-        if (Pending.Slot == Slot) { Pending.Texels = Texture.Texels; Pending.LevelOffsets = Texture.LevelOffsets; return true; }   // latest wins
-    Vulkan->PendingTextureRefresh.push_back({ Slot, Texture.Width, Texture.Height, Texture.LevelCount, Texture.Texels, Texture.LevelOffsets });
+        if (Pending.Slot == Slot) { Payload(Pending); return true; }   // latest wins
+    VulkanRecord::TextureRefresh P{ Slot, Texture.Width, Texture.Height, Texture.LevelCount, {}, {}, false };
+    Payload(P);
+    Vulkan->PendingTextureRefresh.push_back(std::move(P));
     return true;
 }
 
@@ -2635,14 +2646,45 @@ void SwapchainExchange::RecordTextureRefresh(VkCommandBuffer Command, uint32_t C
         ToTransfer.image = R.Image; ToTransfer.subresourceRange = { VK_IMAGE_ASPECT_COLOR_BIT, 0u, P.LevelCount, 0u, 1u };
         vkCmdPipelineBarrier(Command, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT | VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT, 0u, 0u, nullptr, 0u, nullptr, 1u, &ToTransfer);
         std::vector<VkBufferImageCopy> Copies(P.LevelCount);
-        for (uint32_t L = 0u; L < P.LevelCount; ++L)
+        for (uint32_t L = 0u; L < P.LevelCount && L < P.LevelOffsets.size(); ++L)
         {
             VkBufferImageCopy& C = Copies[L];
             C.bufferOffset = Cursor + P.LevelOffsets[L];
             C.imageSubresource = { VK_IMAGE_ASPECT_COLOR_BIT, L, 0u, 1u };
             C.imageExtent = { std::max(1u, P.Width >> L), std::max(1u, P.Height >> L), 1u };
         }
-        vkCmdCopyBufferToImage(Command, Staging.Buffer, R.Image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, P.LevelCount, Copies.data());
+        const uint32_t CopiedLevels = P.DeviceLevels ? 1u : P.LevelCount;
+        vkCmdCopyBufferToImage(Command, Staging.Buffer, R.Image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, CopiedLevels, Copies.data());
+        if (P.DeviceLevels)
+        {
+            // Mip chain by linear blit, level by level: source level → TRANSFER_SRC, blit, and it is finished.
+            int32_t W = static_cast<int32_t>(P.Width), H = static_cast<int32_t>(P.Height);
+            for (uint32_t L = 1u; L < P.LevelCount; ++L)
+            {
+                VkImageMemoryBarrier ToSource = ToTransfer;
+                ToSource.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT; ToSource.dstAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
+                ToSource.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL; ToSource.newLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
+                ToSource.subresourceRange = { VK_IMAGE_ASPECT_COLOR_BIT, L - 1u, 1u, 0u, 1u };
+                vkCmdPipelineBarrier(Command, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT, 0u, 0u, nullptr, 0u, nullptr, 1u, &ToSource);
+                const int32_t NW = std::max(1, W / 2), NH = std::max(1, H / 2);
+                VkImageBlit Blit{};
+                Blit.srcSubresource = { VK_IMAGE_ASPECT_COLOR_BIT, L - 1u, 0u, 1u }; Blit.srcOffsets[1] = { W, H, 1 };
+                Blit.dstSubresource = { VK_IMAGE_ASPECT_COLOR_BIT, L, 0u, 1u };      Blit.dstOffsets[1] = { NW, NH, 1 };
+                vkCmdBlitImage(Command, R.Image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, R.Image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1u, &Blit, VK_FILTER_LINEAR);
+                W = NW; H = NH;
+            }
+            // Levels 0..N-2 sit in TRANSFER_SRC, the last in TRANSFER_DST: hand them all back to the shaders.
+            VkImageMemoryBarrier Finished[2] = { ToTransfer, ToTransfer };
+            Finished[0].srcAccessMask = VK_ACCESS_TRANSFER_READ_BIT;  Finished[0].dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+            Finished[0].oldLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL; Finished[0].newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+            Finished[0].subresourceRange = { VK_IMAGE_ASPECT_COLOR_BIT, 0u, P.LevelCount - 1u, 0u, 1u };
+            Finished[1].srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT; Finished[1].dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+            Finished[1].oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL; Finished[1].newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+            Finished[1].subresourceRange = { VK_IMAGE_ASPECT_COLOR_BIT, P.LevelCount - 1u, 1u, 0u, 1u };
+            vkCmdPipelineBarrier(Command, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT | VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, 0u, 0u, nullptr, 0u, nullptr, 2u, Finished);
+            Cursor += P.Texels.size();
+            continue;
+        }
         VkImageMemoryBarrier ToShader = ToTransfer;
         ToShader.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT; ToShader.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
         ToShader.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL; ToShader.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
@@ -2709,7 +2751,7 @@ void SwapchainExchange::UploadTextures(const TextureIndex& Textures) noexcept
         ImageInfo.imageType = VK_IMAGE_TYPE_2D; ImageInfo.format = Format;
         ImageInfo.extent = { T.Width, T.Height, 1u }; ImageInfo.mipLevels = T.LevelCount; ImageInfo.arrayLayers = 1u;
         ImageInfo.samples = VK_SAMPLE_COUNT_1_BIT; ImageInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
-        ImageInfo.usage = VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
+        ImageInfo.usage = VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;   // SRC: refresh mips by blit
         ImageInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE; ImageInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
         if (vkCreateImage(Vulkan->Device, &ImageInfo, nullptr, &R.Image) != VK_SUCCESS) { R.Image = VK_NULL_HANDLE; continue; }
         R.Width = T.Width; R.Height = T.Height; R.LevelCount = T.LevelCount; R.Format = Format;
