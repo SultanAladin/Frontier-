@@ -75,12 +75,12 @@ vec3 ReconstructIrradiance(ivec2 Pixel, vec3 Position, vec3 Normal, uint Visibil
 vec3 Fresnel(vec3 f0, float cosTheta){ float m = clamp(1.0 - cosTheta, 0.0, 1.0); float m2 = m*m; return f0 + (vec3(1.0) - f0) * (m2*m2*m); }
 
 // What a reflected direction sees: the distance fields' surface where the sphere-march reaches one, the sky dome
-//    past them. The hit is shaded from its own material at the hit point (so a checker reads as a checker in the
-//    paint, not as the card's 4x4 mean), with the sun through the same shadow maps as the primary surface and a
-//    bounded hemisphere fill for its indirect term; the card radiance is deliberately not re-gathered here. Rough
-//    lobes above the threshold see the dome alone — their reflection is the irradiance the gather already
-//    integrates, and a 20 m march per sample bought nothing visible there. This is the software (field) tier of
-//    reflections; mesh-exact reflections stay on the raytraced route.
+//    past them. The hit is shaded from its facet (below) at the hit point — so a checker reads as a checker in the
+//    paint, not as the card's 4x4 mean — with the sun through the same shadow maps as the primary surface and the
+//    card's gathered indirect irradiance for its indirect term; that irradiance is deliberately not re-gathered
+//    here. Rough lobes above the threshold see the dome alone — their reflection is the irradiance the gather
+//    already integrates, and a 20 m march per sample bought nothing visible there. This is the software (field)
+//    tier of reflections; mesh-exact reflections stay on the raytraced route.
 // The surface a field hit lands on, from its facet: albedo and emission at the hit's own texel (so a checker reads
 //    as a checker in the paint) and the face normal. Deliberately NOT a second ResolveMaterial: that inlines the
 //    whole OpenPBR slab decode a second time into this kernel, and on lavapipe (shader on a CPU thread stack) the
@@ -125,8 +125,8 @@ vec3 ReflectedRadiance(vec3 Position, vec3 GeometricNormal, vec3 Direction, floa
     float Cosine = max(dot(Normal, SunDirection), 0.0);
     float Visibility = PC.SunDirectionRadiance.w > 0.0 && Cosine > 0.0 ? DistanceShadow(HitPosition, Normal) : 1.0;
     vec3 Direct = PC.SunColour.xyz * PC.SunDirectionRadiance.w * Cosine * Visibility / 3.14159265359;
-    // Hemisphere fill at the hit: the dome about its normal, attenuated for the half the receiver itself hides.
-    vec3 Indirect = SkyAlongApprox(Normal, 1.0) * (0.5 + 0.5 * max(Normal.z, 0.0));
+    // Indirect at the hit: the card's gathered irradiance (the same cache the diffuse transport reads).
+    vec3 Indirect = SampleCachedRadiance(Hit.Facet, HitPosition, true);
     return max(Emission, vec3(0.0)) + Albedo * (Direct + Indirect);
 }
 
