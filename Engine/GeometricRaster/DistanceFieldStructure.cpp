@@ -403,7 +403,11 @@ bool DistanceFieldStructure::ProjectPlacement(uint32_t Slot, const InstanceRecor
     for (uint32_t Axis = 0u; Axis < 3u; ++Axis)
         MinimumCell = std::min(MinimumCell, (Placement.Maximum[Axis] - Placement.Minimum[Axis]) /
                                           float(Placement.Resolution[Axis] - 1u));
-    Placement.Maximum[3] = std::max(0.002f, MinimumCell * Placement.Minimum[3] * 0.35f);
+    // The march's surface tolerance, world metres. A third of the finest cell, bounded above: a 480 m ground slab
+    //    at the 64-cell cap has 0.6 m cells, and a 0.21 m tolerance lifted every gather ray's origin 0.63 m off the
+    //    ground — above the underside of a car — so the sky leaked under everything (CI capture
+    //    sdf-gi-exterior-skyfrac, before). Capped, the ground's own trilinear plane is still exact.
+    Placement.Maximum[3] = std::clamp(MinimumCell * Placement.Minimum[3] * 0.35f, 0.002f, 0.04f);
     for (uint32_t Axis = 0u; Axis < 3u; ++Axis)
     {
         Placement.WorldMinimum[Axis] = std::numeric_limits<float>::max();

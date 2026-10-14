@@ -83,6 +83,40 @@ vec3 ReconstructIrradiance(ivec2 Pixel, vec3 Position, vec3 Normal, uint Visibil
 // Schlick Fresnel for the specular/reflection weight.
 vec3 Fresnel(vec3 f0, float cosTheta){ float m = clamp(1.0 - cosTheta, 0.0, 1.0); float m2 = m*m; return f0 + (vec3(1.0) - f0) * (m2*m2*m); }
 
+// What a reflected direction sees: the distance fields' surface where the sphere-march reaches one, the sky dome
+//    past them. The hit is shaded from its own material at the hit point (so a checker reads as a checker in the
+//    paint, not as the card's 4x4 mean), with the sun through the same shadow maps as the primary surface and a
+//    bounded hemisphere fill for its indirect term; the card radiance is deliberately not re-gathered here. Rough
+//    lobes above the threshold see the dome alone — their reflection is the irradiance the gather already
+//    integrates, and a 20 m march per sample bought nothing visible there. This is the software (field) tier of
+//    reflections; mesh-exact reflections stay on the raytraced route.
+vec3 ReflectedRadiance(vec3 Position, vec3 GeometricNormal, vec3 Direction, float Roughness)
+{
+    if (Roughness > 0.55) return SkyAlongApprox(Direction, Roughness);
+    float Tolerance; uint Receiver;
+    SampleSceneDistance(Position, Tolerance, Receiver);
+    vec3 Origin = Position + GeometricNormal * max(Tolerance * 3.0, 0.003);
+    DistanceRayHit Hit = TraceDistanceField(Origin, Direction, 20.0);
+    if (Hit.Facet == 0xFFFFFFFFu) return SkyAlongApprox(Direction, Roughness);
+    vec3 HitPosition = Origin + Direction * Hit.Travel;
+    uint Slot = floatBitsToUint(Facets[Hit.Facet].Alpha.w);
+    GpuInstance Placement = Instances[Slot];
+    GpuMaterial HitMaterial = Materials[Placement.MaterialIndex];
+    SurfaceFrame HitSurface;
+    ShadingRecord Reflectance = ResolveMaterial(HitMaterial, Placement, floatBitsToUint(Facets[Hit.Facet].Beta.w),
+                                                HitPosition, -Direction, Hit.Travel * 0.004 + 0.002, HitSurface);
+    vec3 Normal = HitSurface.Normal;
+    if (dot(Normal, Direction) > 0.0) Normal = -Normal;
+    vec3 Diffuse = Reflectance.BaseColor * (1.0 - Reflectance.Metalness) * (1.0 - Reflectance.TransmissionWeight);
+    vec3 SunDirection = normalize(PC.SunDirectionRadiance.xyz);
+    float Cosine = max(dot(Normal, SunDirection), 0.0);
+    float Visibility = PC.SunDirectionRadiance.w > 0.0 && Cosine > 0.0 ? DistanceShadow(HitPosition, CardNormal(Hit.Facet, Facets[Hit.Facet].Normal.xyz)) : 1.0;
+    vec3 Direct = PC.SunColour.xyz * PC.SunDirectionRadiance.w * Cosine * Visibility / 3.14159265359;
+    // Hemisphere fill at the hit: the dome about its normal, attenuated for the half the receiver itself hides.
+    vec3 Indirect = SkyAlongApprox(Normal, 1.0) * (0.5 + 0.5 * max(Normal.z, 0.0));
+    return max(HitSurface.Emission, vec3(0.0)) + Diffuse * (Direct + Indirect);
+}
+
 vec3 Reflection(vec3 Position, SurfaceFrame Surface, vec3 View, ShadingRecord Material, ResolvedLayers Layers, uint Mode)
 {
     if (Mode==kReflectOff || Material.SpecularWeight<=0.0) return vec3(0.0);
@@ -102,14 +136,14 @@ vec3 Reflection(vec3 Position, SurfaceFrame Surface, vec3 View, ShadingRecord Ma
             GgxVndfPdf(OutgoingAnisotropic,HalfDirection,Layers.HazeAlpha),Material.HazinessWeight) /
             (4.0*max(dot(OutgoingAnisotropic,HalfDirection),1e-6));
         vec3 Direction=Surface.Tangent*Incoming.x+Surface.Bitangent*Incoming.y+Surface.Normal*Incoming.z;
-        vec3 Incident=SkyAlongApprox(Direction,Material.SpecularRoughness);
+        vec3 Incident=ReflectedRadiance(Position,Surface.Geometric,Direction,Material.SpecularRoughness);
         Result+=Incident*EvaluateBaseSpecular(Material,Layers,Outgoing,Incoming)*Incoming.z/max(Density,1e-8);
     }
     return Result/float(Samples);
 }
 
 
-// RT is off on this route. Do not turn SDF into a hidden triangle-ray reflection/refraction renderer.
+// RT is off on this route: transmission sees the dome; no triangle rays on the field tier.
 vec3 Transmission(vec3 Position, vec3 Normal, vec3 View, ShadingRecord Material, bool ThinWalled)
 {
     vec3 Direction=ThinWalled ? -View : refract(-View,Normal,1.0/max(Material.SpecularIor,1.01));
