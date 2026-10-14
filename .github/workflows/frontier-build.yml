@@ -204,7 +204,7 @@ jobs:
             echo "::group::capture $Name"
             # Under gdb so a crash leaves its backtrace in the log (lavapipe runs the shaders on the CPU: a shader
             #    fault is a host fault here).
-            xvfb-run -a -s "-screen 0 1600x900x24" timeout 1500 gdb -q -batch -ex run -ex "bt 25" -ex "info threads" \
+            xvfb-run -a -s "-screen 0 1600x900x24" timeout 1500 gdb -q -batch -ex "set pagination off" -ex run -ex "bt 25" -ex "thread apply all bt 12" -ex "info threads" \
               --args .cache/cmake/Frontier Projects/Project-Drive/ProjectDrive.frontier \
               --render-scale 0.5 --capture-frame "$Frames" --capture "Exhibits/Gallery/ProjectDrive/live/$Name.png" "$@" \
               > "Exhibits/Gallery/ProjectDrive/live/$Name.log" 2>&1 || echo "capture $Name: exit $?"
@@ -214,6 +214,11 @@ jobs:
           # Project-Drive runs the Distance Field GI path (preset 2). Same scene, same settings; the camera is pinned
           #    for the exterior and cockpit views (the car spawns at the origin facing +X; eye from DriveCabinLayout.h),
           #    the play capture leaves the camera to the project.
+          # Temporary crash diagnostics (the transport 1/2 captures fault on lavapipe before writing a frame):
+          #    preset 3 runs the same simulation with no GI at all, and the 5/40-frame SDF captures time the fault.
+          Capture diag-raster-sim    40 --render-preset 3 --transport 2 --camera -7.0 -6.0 2.0 0.0 0.0 0.7
+          Capture diag-sdf-sim-5      5 --render-preset 2 --transport 2 --camera -7.0 -6.0 2.0 0.0 0.0 0.7
+          Capture diag-sdf-sim-40    40 --render-preset 2 --transport 2 --camera -7.0 -6.0 2.0 0.0 0.0 0.7
           Capture sdf-gi-exterior    90 --render-preset 2 --transport 2 --camera -7.0 -6.0 2.0 0.0 0.0 0.7
           Capture sdf-gi-cockpit     90 --render-preset 2 --transport 2 --camera -0.2 0.42 1.12 2.8 0.42 0.47
           Capture sdf-gi-play        90 --render-preset 2 --transport 1
@@ -234,7 +239,7 @@ jobs:
               Image.open(Png).convert('RGB').save(Png, optimize=True)
           for Log in Path('Exhibits/Gallery/ProjectDrive/live').glob('*.log'):
               Lines = Log.read_text(errors='replace').splitlines()
-              Log.write_text('\n'.join(Lines[-250:]) + '\n')
+              Log.write_text('\n'.join(Lines[-900:]) + '\n')
           PY
           ls -la Exhibits/Gallery/ProjectDrive/live
 
