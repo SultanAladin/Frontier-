@@ -34,7 +34,7 @@ jobs:
   # ── Everything that needs no GPU SDK and no window ───────────────────────────────────────────────
   proofs:
     name: Native proofs and UI captures
-    if: ${{ !inputs.sdf_gi_only }}
+    if: ${{ !inputs.sdf_gi_only && !contains(github.event.head_commit.message, '[sdf-gi-proof]') }}
     runs-on: ubuntu-24.04
     timeout-minutes: 40
     steps:
@@ -221,7 +221,7 @@ jobs:
           # Project-Drive runs the Distance Field GI path (preset 2). Same scene, same settings; the camera is pinned
           #    for the exterior and cockpit views (the car spawns at the origin facing +X; eye from DriveCabinLayout.h),
           #    the play capture leaves the camera to the project.
-          if [ "${{ inputs.sdf_gi_only }}" = "true" ]; then
+          if [ "${{ inputs.sdf_gi_only || contains(github.event.head_commit.message, '[sdf-gi-proof]') }}" = "true" ]; then
             rm -f Exhibits/Gallery/ProjectDrive/live/sdf-gi-{exterior,edit}.{png,log}
             Capture sdf-gi-exterior 60 --render-preset 2 --transport 2 --camera -7.0 -6.0 2.0 0.0 0.0 0.7
             Capture sdf-gi-edit     30 --render-preset 2 --transport 0
@@ -267,7 +267,7 @@ jobs:
       # The artifact store is not reachable from everywhere the captures are reviewed; the branch is. GITHUB_TOKEN
       #    pushes never start another workflow run, so this cannot loop.
       - name: Commit the live captures to the branch
-        if: github.event_name == 'push'
+        if: ${{ github.event_name == 'push' && !contains(github.event.head_commit.message, '[sdf-gi-proof]') }}
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
@@ -306,14 +306,14 @@ jobs:
           retention-days: 14
 
       - name: SolidArc component-selection and gizmo regression
-        if: ${{ !inputs.sdf_gi_only }}
+        if: ${{ !inputs.sdf_gi_only && !contains(github.event.head_commit.message, '[sdf-gi-proof]') }}
         run: |
           cmake -S Editor/AuthoringTools/Modelling/SolidArc -B .cache/solidarc-mode -G Ninja -DCMAKE_BUILD_TYPE=Release -DSOLIDARC_BUILD_MODE_TESTS=ON
           cmake --build .cache/solidarc-mode --target SolidArcModeTransformVerification SolidArcConstructionWorkflowVerification --parallel 2
           ctest --test-dir .cache/solidarc-mode --output-on-failure
 
       - name: Publish the binaries
-        if: ${{ always() && !inputs.sdf_gi_only }}
+        if: ${{ always() && !inputs.sdf_gi_only && !contains(github.event.head_commit.message, '[sdf-gi-proof]') }}
         uses: actions/upload-artifact@v7
         with:
           name: frontier-linux-binaries
@@ -329,7 +329,7 @@ jobs:
   # ── Replication, which needs no SDK at all ───────────────────────────────────────────────────────
   replication:
     name: Project-Networking replication
-    if: ${{ !inputs.sdf_gi_only }}
+    if: ${{ !inputs.sdf_gi_only && !contains(github.event.head_commit.message, '[sdf-gi-proof]') }}
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     steps:
@@ -358,7 +358,7 @@ jobs:
   # ── One Windows desktop bundle: host, project images, shaders and windowed SolidArc ──
   windows-frontier:
     name: Frontier and SolidArc Windows desktop bundle
-    if: ${{ !inputs.sdf_gi_only }}
+    if: ${{ !inputs.sdf_gi_only && !contains(github.event.head_commit.message, '[sdf-gi-proof]') }}
     runs-on: windows-2022
     timeout-minutes: 120
     steps:
