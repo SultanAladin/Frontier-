@@ -179,6 +179,8 @@ void main()
 
     // Direct-light visibility comes from the same raster maps as plain raster; no SDF shadow or hidden mesh rays.
     vec3 col = vec3(0.0);
+    vec3 directOnly = vec3(0.0);
+    float sunVisibility = 1.0;
     for (uint Tap=0u; Tap<min(ShadowControl.z,kShadowMaximumTaps); ++Tap)
     {
         bool Directional=(ShadowControl.w&(1u<<Tap))!=0u;
@@ -192,14 +194,29 @@ void main()
         float Geometry=Directional ? Incoming.z*Visibility :
                        Incoming.z*Facing*ShadowTapRadiance[Tap].w*Visibility/(Distance*Distance);
         col+=EvaluateBsdf(m,layers,woLoc,Incoming)*ShadowTapRadiance[Tap].xyz*Geometry;
+        if (Directional) sunVisibility = Visibility;
     }
+    directOnly = col;
 
     // --- indirect diffuse: an irradiance through this material's hemispherical response ---
     vec3 response = AmbientResponse(m, layers, woLoc);
-    if ((flags & kFeatureGlobalIllumination) != 0u)
-        col += response * ReconstructIrradiance(pixel,P,F.Normal,visibility) * PC.Tuning.y;        // distance-field diffuse transport
-    else
-        col += response * PC.SkyAmbient.xyz;                   // plain raster: sky ambient fill (never black)
+    vec3 irradiance = (flags & kFeatureGlobalIllumination) != 0u
+        ? ReconstructIrradiance(pixel,P,F.Normal,visibility) * PC.Tuning.y      // distance-field diffuse transport
+        : PC.SkyAmbient.xyz;                                                    // plain raster: sky ambient fill (never black)
+    col += response * irradiance;
+
+    // Diagnostic views (DistanceFieldFrame::DebugView), each through the same display transfer as the final image.
+    uint debugView = uint(PC.Tuning.w + 0.5);
+    if (debugView != 0u)
+    {
+        vec3 shown = debugView == 1u ? irradiance * 0.5 :
+                     debugView == 2u ? directOnly :
+                     debugView == 3u ? vec3(sunVisibility) / max(PC.SkyAmbient.w, 1e-4) :
+                                       vec3(dot(irradiance, vec3(1.0 / 3.0)) / max(dot(PC.SkyAmbient.xyz, vec3(1.0 / 3.0)), 1e-6)) / max(PC.SkyAmbient.w, 1e-4);
+        imageStore(LinearRadiance, pixel, vec4(shown, 1.0));
+        imageStore(OutputImage, pixel, vec4(DisplayTransfer(shown), 1.0));
+        return;
+    }
 
     // Use the authored specular lobe and its GGX PDF, not an unconditional 4% perfect mirror.
     col += Reflection(P,F,V,m,layers,reflMode);

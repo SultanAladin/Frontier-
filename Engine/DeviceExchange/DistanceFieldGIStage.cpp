@@ -441,7 +441,7 @@ bool DistanceFieldGIStage::RecordFrame(VkCommandBuffer Command, const DistanceFi
     //    texture read on the SDF path fell back: card capture and final resolve shaded flat material constants,
     //    and a cabin display was its emissive colour, a blank white panel, instead of the UI drawn into its sheet.
     Push.Eye[3] = static_cast<float>(Initialization.TextureCapacity ? Initialization.TextureCount : 0u);
-    Push.Tuning[0] = Frame.ShadowSoftness; Push.Tuning[1] = Frame.GiBoost;
+    Push.Tuning[0] = Frame.ShadowSoftness; Push.Tuning[1] = Frame.GiBoost; Push.Tuning[3] = static_cast<float>(Frame.DebugView);
     Push.Counts[0] = static_cast<uint32_t>(Geometry.QueryFacets().size());
     Push.Counts[1] = FrameNumber; Push.Counts[2] = Frame.FeatureFlags; Push.Counts[3] = std::min(Frame.ReflectionMode, 1u);
     Push.RenderExtent[0] = Frame.RenderWidth; Push.RenderExtent[1] = Frame.RenderHeight;

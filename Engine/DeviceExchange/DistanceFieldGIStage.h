@@ -55,6 +55,10 @@ struct DistanceFieldFrameParams
     float    ShadowSoftness   = 0.22f;
     float    CameraEye[3]     = {0.0f, -5.0f, 2.0f};
     float    GiBoost          = 1.0f;
+    // Diagnostic view of the resolve (DistanceFieldGIResolveBody.slang DebugView): 0 final, 1 the gathered
+    //    irradiance alone, 2 direct light alone, 3 sun visibility as grey, 4 the gather's sky fraction. Driven by
+    //    FRONTIER_GI_DEBUG for the CI captures; never set by the editor.
+    uint32_t DebugView        = 0u;
     uint64_t MaterialRevision = 0u;
     uint32_t FrameIndex       = 0u;
     uint32_t FeatureFlags     = 0u;
