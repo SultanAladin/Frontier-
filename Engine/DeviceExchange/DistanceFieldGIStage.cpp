@@ -7,6 +7,7 @@
 #include "DriverProgress.h"
 #include <algorithm>
 #include <cmath>
+#include <cstdlib>
 #include <cstring>
 #include <fstream>
 #include <iostream>
