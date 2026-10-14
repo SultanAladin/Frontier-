@@ -576,8 +576,11 @@ void TabletScreenSequence::RasterApplicationContent(const char* Identifier) noex
             RasterRectangle(Left, 286.0f + Row * 65.0f, 650.0f, 52.0f, 15.0f, C(Own ? "#abc1a726" : "#edf8ef0a"));
             RasterText(M.Text.substr(0, 62).c_str(), Left + 19.0f, 319.0f + Row * 65.0f, 18.0f, Own ? "#cee6bd" : "#c1d8c8");
         }
+        const bool Composing = TextTarget == "message";
         RasterRectangle(83.0f, 575.0f, 800.0f, 44.0f, 12.0f, C("#12221c"));
+        if (Composing) RasterRectangle(83.0f, 575.0f, 800.0f, 44.0f, 12.0f, C("#a6c79518"));                   // focus ring
         RasterText(MessageDraft.empty() ? "Write a message…" : MessageDraft.c_str(), 102.0f, 604.0f, 18.0f, MessageDraft.empty() ? "#78917b" : "#d9ead0");
+        if (Composing) RasterRectangle(104.0f + (MessageDraft.empty() ? 0.0f : Raster_.MeasureText(MessageDraft.c_str(), 18.0f)), 585.0f, 2.0f, 24.0f, 1.0f, C("#d9ead0"));   // caret
         (void)AdmitRegion("message-input", 83.0f, 575.0f, 800.0f, 44.0f, ActionCategory::ReceiveText, "message");
         RasterButton("send-message", "Send", 904.0f, 575.0f, 181.0f, 44.0f, ActionCategory::SendMessage, "", "#a6c795", "#34512e");
     }
@@ -602,7 +605,9 @@ void TabletScreenSequence::RasterApplicationContent(const char* Identifier) noex
         RasterButton("rename", "Edit display name", 269.0f, 407.0f, 270.0f, 55.0f, ActionCategory::ReceiveText, "nickname");
         RasterText("Display name", 269.0f, 526.0f, 17.0f, "#85997d");
         RasterRectangle(267.0f, 546.0f, 560.0f, 47.0f, 12.0f, C("#12221c"));
+        if (TextTarget == "nickname") RasterRectangle(267.0f, 546.0f, 560.0f, 47.0f, 12.0f, C("#a6c79518"));
         RasterText(Nickname.c_str(), 287.0f, 577.0f, 20.0f, "#d1e7c2");
+        if (TextTarget == "nickname") RasterRectangle(289.0f + Raster_.MeasureText(Nickname.c_str(), 20.0f), 556.0f, 2.0f, 27.0f, 1.0f, C("#d1e7c2"));
         (void)AdmitRegion("nickname-input", 267.0f, 546.0f, 560.0f, 47.0f, ActionCategory::ReceiveText, "nickname");
         RasterButton("save-name", "Done", 850.0f, 546.0f, 236.0f, 47.0f, ActionCategory::SaveName, "");
     }
@@ -801,6 +806,42 @@ void TabletScreenSequence::AdmitText(const char* Text) noexcept
     if (!Text) return;
     if (TextTarget == "message") MessageDraft = std::string(Text).substr(0, 100);
     else if (TextTarget == "nickname") Nickname = std::string(Text).substr(0, 22);
+    Dirty = true;
+}
+
+void TabletScreenSequence::TypeCharacter(uint32_t Codepoint) noexcept
+{
+    std::string* Field = TextTarget == "message" ? &MessageDraft : TextTarget == "nickname" ? &Nickname : nullptr;
+    if (!Field) return;
+    const size_t Limit = TextTarget == "message" ? 100u : 22u;
+    if (Codepoint == 0x0Au || Codepoint == 0x0Du)
+    {
+        if (TextTarget == "message") DeliverMessage();
+        else { TextTarget.clear(); Notice = "Display name saved locally for this visit."; }
+        Dirty = true;
+        return;
+    }
+    if (Codepoint == 0x08u)
+    {
+        while (!Field->empty())
+        {
+            const unsigned char Tail = static_cast<unsigned char>(Field->back());
+            Field->pop_back();
+            if ((Tail & 0xC0u) != 0x80u) break;                       // stopped at the lead byte: one code point gone
+        }
+        Dirty = true;
+        return;
+    }
+    if (Codepoint < 0x20u || Codepoint > 0x10FFFFu) return;
+    char Encoded[4]; uint32_t Count = 0u;
+    if (Codepoint < 0x80u) { Encoded[Count++] = static_cast<char>(Codepoint); }
+    else if (Codepoint < 0x800u) { Encoded[Count++] = static_cast<char>(0xC0u | (Codepoint >> 6)); Encoded[Count++] = static_cast<char>(0x80u | (Codepoint & 0x3Fu)); }
+    else if (Codepoint < 0x10000u) { Encoded[Count++] = static_cast<char>(0xE0u | (Codepoint >> 12)); Encoded[Count++] = static_cast<char>(0x80u | ((Codepoint >> 6) & 0x3Fu)); Encoded[Count++] = static_cast<char>(0x80u | (Codepoint & 0x3Fu)); }
+    else { Encoded[Count++] = static_cast<char>(0xF0u | (Codepoint >> 18)); Encoded[Count++] = static_cast<char>(0x80u | ((Codepoint >> 12) & 0x3Fu)); Encoded[Count++] = static_cast<char>(0x80u | ((Codepoint >> 6) & 0x3Fu)); Encoded[Count++] = static_cast<char>(0x80u | (Codepoint & 0x3Fu)); }
+    size_t Points = 0u;
+    for (unsigned char C : *Field) Points += (C & 0xC0u) != 0x80u;
+    if (Points >= Limit) return;
+    Field->append(Encoded, Count);
     Dirty = true;
 }
 

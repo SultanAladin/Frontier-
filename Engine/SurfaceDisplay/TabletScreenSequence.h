@@ -107,6 +107,10 @@ public:
     void ForwardTouch(const DisplayTouchReading& Touch) noexcept;
     // Text entry from whatever keyboard the host offers (TextTarget decides where it lands).
     void AdmitText(const char* Text) noexcept;
+    // One keystroke into the focused field: UTF-8 appended, U+0008 deletes the last code point, U+000A commits
+    //    (sends the message / saves the name). Ignored when no field has focus.
+    void TypeCharacter(uint32_t Codepoint) noexcept;
+    [[nodiscard]] bool WantsText() const noexcept { return !TextTarget.empty(); }
 
     [[nodiscard]] TabletScreenReading QueryReading() const noexcept;
     [[nodiscard]] const char* QueryTextTarget() const noexcept { return TextTarget.c_str(); }

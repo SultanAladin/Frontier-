@@ -173,12 +173,12 @@ int main()
         Reception = {}; Input = {}; Input.StructureSize = sizeof(Input); Record = nullptr;
         assert(Project.ConstructProject(&Launch, &Host, &Record, &Refusal));
         FrontierProjectDisplayReading Display{};
-        Display.StructureSize = sizeof(Display); Display.InterchangeNumber = 1u;
+        Display.StructureSize = sizeof(Display); Display.InterchangeNumber = 2u;
         Display.Ordinal = 7u;
         assert(ProjectDisplayInterchange(Record, &Display) == 0u);          // past the last display
         Display.InterchangeNumber = 9u; Display.Ordinal = 0u;
         assert(ProjectDisplayInterchange(Record, &Display) == 2u);          // malformed record
-        Display.InterchangeNumber = 1u;
+        Display.InterchangeNumber = 2u;
         const char* Subjects[2] = { "Display:CabinTablet", "Display:DriverCluster" };
         uint64_t Revisions[2] = {};
         uint32_t Sizes[2][2] = {};
@@ -294,6 +294,39 @@ int main()
                 }
             assert(Taps > 0u && Opened == 1u);
             std::puts("PASS tablet tap: press + release through the C interchange opens a launcher application from the driver's eye");
+
+            // Typing: back to the launcher, open Messages, tap the message field (the sheet now asks for text), type a
+            //    line through TypedText and send it with enter; the sheet re-rasters with the message in it.
+            const auto Tap = [&](float Across, float Down)
+            {
+                AimAt(Across, Down); Display.Pressed = 0u; Display.Capacity = 0u; Display.Texels = nullptr; Display.TypedText = nullptr;
+                assert(ProjectDisplayInterchange(Record, &Display) == 1u && Display.ContactHit == 1u);
+                Display.Pressed = 1u; assert(ProjectDisplayInterchange(Record, &Display) == 1u);
+                Advance(2u);
+                Display.Pressed = 0u; assert(ProjectDisplayInterchange(Record, &Display) == 1u);
+                Advance(6u);
+            };
+            Tap(0.085f, 0.167f);                                   // "‹ Apps"
+            assert(Display.TextWanted == 0u);
+            Tap(0.375f, 0.500f);                                   // Messages tile
+            assert(Display.TextWanted == 0u);
+            Tap(0.4025f, 0.785f);                                  // the message field
+            assert(Display.TextWanted == 1u);
+            std::vector<uint8_t> Composing, Sent;
+            const uint64_t ComposingRevision = Capture(Composing);
+            Display.Capacity = 0u; Display.Texels = nullptr; Display.Pressed = 0u;
+            Display.TypedText = "Hi from the host \xC3\xA9\x08\n";    // UTF-8, a backspace, enter
+            assert(ProjectDisplayInterchange(Record, &Display) == 1u);
+            Display.TypedText = nullptr;
+            Advance(6u);
+            const uint64_t SentRevision = Capture(Sent);
+            size_t Different = 0u;
+            for (size_t Texel = 0u; Texel + 3u < Sent.size() && Texel + 3u < Composing.size(); Texel += 4u)
+                Different += std::abs(int(Sent[Texel]) - int(Composing[Texel])) > 48;
+            assert(SentRevision > ComposingRevision && Different > 500u);
+            std::printf("Typed a line into Messages through TypedText: revision %llu -> %llu, %zu texels changed\n",
+                        static_cast<unsigned long long>(ComposingRevision), static_cast<unsigned long long>(SentRevision), Different);
+            std::puts("PASS tablet text: a focused field reports TextWanted and the host's UTF-8 lands in it, enter sends");
         }
         Project.RetireProject(Record);
     }

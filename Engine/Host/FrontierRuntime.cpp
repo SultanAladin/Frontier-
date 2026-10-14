@@ -1809,10 +1809,29 @@ int Frontier::RunFrontierRuntime(
             }
         }
 
-        // ①c Text-queue drain. No text consumer remains — the development editor reads keystrokes
-        //    through ImGui itself — so the queue is drained every tick and Escape still closes the window.
+        // ①c Text-queue drain. The development editor reads its own keystrokes through ImGui; the one consumer here
+        //    is a project display with a focused text field (the cabin tablet's message / name fields), which
+        //    receives the frame's characters as UTF-8 with backspace as U+0008 and enter as U+000A. Escape still
+        //    closes the window; while a display wants text, typed letters do not reach the game keys.
+        std::string TypedThisFrame;
+        const bool DisplayTyping = ProjectDisplays.TextWanted() && !(ImGui::GetCurrentContext() && ImGui::GetIO().WantTextInput);
         for (uint32_t I = 0u; I < Input.QueryEditKeyCount(); ++I)
-            if (Input.QueryEditKey(I) == 256u) Surface.RequestClose();
+        {
+            const uint32_t Key = Input.QueryEditKey(I);
+            if (Key == 256u) Surface.RequestClose();
+            if (!DisplayTyping) continue;
+            if (Key == 259u) TypedThisFrame.push_back('\b');                              // GLFW_KEY_BACKSPACE
+            if (Key == 257u || Key == 335u) TypedThisFrame.push_back('\n');               // GLFW_KEY_ENTER / KP_ENTER
+        }
+        if (DisplayTyping)
+            for (uint32_t I = 0u; I < Input.QueryCharacterCount(); ++I)
+            {
+                const uint32_t C = Input.QueryCharacter(I);
+                if (C < 0x80u) TypedThisFrame.push_back(static_cast<char>(C));
+                else if (C < 0x800u) { TypedThisFrame.push_back(static_cast<char>(0xC0u | (C >> 6))); TypedThisFrame.push_back(static_cast<char>(0x80u | (C & 0x3Fu))); }
+                else if (C < 0x10000u) { TypedThisFrame.push_back(static_cast<char>(0xE0u | (C >> 12))); TypedThisFrame.push_back(static_cast<char>(0x80u | ((C >> 6) & 0x3Fu))); TypedThisFrame.push_back(static_cast<char>(0x80u | (C & 0x3Fu))); }
+                else { TypedThisFrame.push_back(static_cast<char>(0xF0u | (C >> 18))); TypedThisFrame.push_back(static_cast<char>(0x80u | ((C >> 12) & 0x3Fu))); TypedThisFrame.push_back(static_cast<char>(0x80u | ((C >> 6) & 0x3Fu))); TypedThisFrame.push_back(static_cast<char>(0x80u | (C & 0x3Fu))); }
+            }
         Input.ClearTextQueue();
 
         // ② Advance camera kinematics: WASD flight and RMB steering.
@@ -1838,7 +1857,7 @@ int Frontier::RunFrontierRuntime(
         ProjectInput.HandbrakePressed = Input.IsKeyPressed(Frontier::VirtualKeyCategory::KeySpace) ? 1u : 0u;
         ProjectInput.ResetPressed = Input.IsKeyPressed(Frontier::VirtualKeyCategory::KeyR) ? 1u : 0u;
         ProjectInput.ViewTogglePressed = Input.IsKeyPressed(Frontier::VirtualKeyCategory::KeyC) ? 1u : 0u;
-        const bool KeyboardCaptured = TypingText || ControlCentre.CoversPointer() || Diagnostics.QueryPointerCaptured();
+        const bool KeyboardCaptured = TypingText || DisplayTyping || ControlCentre.CoversPointer() || Diagnostics.QueryPointerCaptured();
         const bool PreviouslyEjected = CameraPossession.IsEjected();
         const bool CameraEjected = CameraPossession.Advance(Transport,
             Input.IsKeyPressed(Frontier::VirtualKeyCategory::KeyF8), KeyboardCaptured);
@@ -2298,7 +2317,8 @@ int Frontier::RunFrontierRuntime(
                 bool DisplayReupload = false;
                 (void)ProjectDisplays.Advance(Level, Textures, Surface, ActiveInterchange,
                                               Aiming ? AimOrigin : nullptr, Aiming ? AimToward : nullptr,
-                                              Aiming && Input.IsMouseButtonPressed(Frontier::MouseButtonCategory::ButtonLeft), DisplayReupload);
+                                              Aiming && Input.IsMouseButtonPressed(Frontier::MouseButtonCategory::ButtonLeft), DisplayReupload,
+                                              TypedThisFrame.empty() ? nullptr : TypedThisFrame.c_str());
                 if (DisplayReupload)
                 {
                     Level.Finalise(std::max(1u, Level.QueryMaterials().QueryMetrics().SlabLimit));

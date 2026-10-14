@@ -98,6 +98,11 @@ invariants, revision monotonicity, interchange refusals), writing PNGs + `Surfac
      screens were white. `MaterialDescriptor::EmissionTextureMean` (measured from the bound sheet in
      `DisplaySequence::Bind`) now scales the header, so a launcher that is 90 % dark lights the room as a dark
      screen; per-hit shading still samples the texture. The sheets themselves are dark (mean 46/255 sRGB).
+10. ✅ Keyboard into the glass. `DisplayInterchange` revision 2 appends `TypedText` (in, UTF-8 for the frame; U+0008
+    backspace, U+000A enter) and `TextWanted` (out). `TabletScreenSequence::TypeCharacter` edits the focused field
+    per code point (with focus ring + caret); `FrontierRuntime` drains the character/edit-key queues into the display
+    while it wants text and holds the game keys quiet meanwhile. Checked end to end in `DriveInterchangeChecks`
+    (focus → type → enter → message rastered).
 
 ## Harness note
 

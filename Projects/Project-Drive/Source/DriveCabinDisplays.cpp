@@ -166,7 +166,7 @@ void DriveCabinDisplays::Advance(const Frontier::Vehicle::ChassisState* Chassis,
 
 uint32_t DriveCabinDisplays::Deliver(FrontierProjectDisplayReading& Reading) noexcept
 {
-    if (Reading.StructureSize != sizeof(FrontierProjectDisplayReading) || Reading.InterchangeNumber != 1u) return 2u;
+    if (Reading.StructureSize != sizeof(FrontierProjectDisplayReading) || Reading.InterchangeNumber != 2u) return 2u;
     if (!Constructed || Reading.Ordinal >= Screens.size()) return 0u;
     Screen& S = Screens[Reading.Ordinal];
     const DisplaySheetStructure& Sheet = Reading.Ordinal == 0u ? Tablet.QuerySheet() : Cluster.QuerySheet();
@@ -184,6 +184,23 @@ uint32_t DriveCabinDisplays::Deliver(FrontierProjectDisplayReading& Reading) noe
     if (Reading.Ordinal == 0u) Tablet.ForwardTouch(Touch);
     Reading.ContactHit = Contact.Hit ? 1u : 0u;
     Reading.ContactAcross = Contact.Across; Reading.ContactDown = Contact.Down;
+
+    // Typing: the host's UTF-8 for this frame goes to the focused field, one code point at a time.
+    if (Reading.Ordinal == 0u && Reading.TypedText && Tablet.WantsText())
+    {
+        const unsigned char* Byte = reinterpret_cast<const unsigned char*>(Reading.TypedText);
+        while (*Byte)
+        {
+            uint32_t Codepoint = *Byte, Continuations = 0u;
+            if (*Byte >= 0xF0u) { Codepoint = *Byte & 0x07u; Continuations = 3u; }
+            else if (*Byte >= 0xE0u) { Codepoint = *Byte & 0x0Fu; Continuations = 2u; }
+            else if (*Byte >= 0xC0u) { Codepoint = *Byte & 0x1Fu; Continuations = 1u; }
+            ++Byte;
+            for (; Continuations > 0u && (*Byte & 0xC0u) == 0x80u; --Continuations, ++Byte) Codepoint = (Codepoint << 6) | (*Byte & 0x3Fu);
+            Tablet.TypeCharacter(Codepoint);
+        }
+    }
+    Reading.TextWanted = (Reading.Ordinal == 0u && Tablet.WantsText()) ? 1u : 0u;
 
     if (Reading.Capacity == 0u) return 1u;
     if (!Reading.Texels || Reading.Capacity < Sheet.QueryByteCount()) return 2u;

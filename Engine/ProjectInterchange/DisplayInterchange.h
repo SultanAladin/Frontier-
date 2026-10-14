@@ -12,7 +12,10 @@
 //
 //    Touch: the host passes the pointer ray (world metres) and whether the primary button is held; a zero direction
 //    means no pointer. The project resolves it against its own display pose and reports the sheet-pixel contact.
+//    Text: when a display reports TextWanted (a field on the sheet has focus) the host routes the frame's typed
+//    characters to it as UTF-8 in TypedText — backspace as U+0008, enter as U+000A — instead of to game keys.
 //    ABI3 remains unchanged — this is a separate exported entry, probed by name like the smoke extension.
+//    Revision 2 appended TypedText / TextWanted; the project refuses any other revision.
 
 #pragma once
 
@@ -27,7 +30,7 @@ extern "C"
 typedef struct FrontierProjectDisplayReading
 {
     uint32_t    StructureSize;      // [B]  - exact layout size
-    uint32_t    InterchangeNumber;  // [-]  - extension revision, currently one
+    uint32_t    InterchangeNumber;  // [-]  - extension revision, currently two
     uint32_t    Ordinal;            // [-]  - in: which display, zero-based
     const char* SubjectName;        // [-]  - out: material name the sheet binds to (project storage, valid until the next call)
     uint32_t    Width;              // [px] - out: sheet width
@@ -42,6 +45,8 @@ typedef struct FrontierProjectDisplayReading
     float       ContactDown;        // [px] - out
     uint32_t    ContactHit;         // [-]  - out: the ray meets the glass inside the outline
     float       Luminance;          // [nit]- out: emission the host assigns to the bound material (0 = leave authored)
+    const char* TypedText;          // [-]  - in: UTF-8 typed this frame for the focused field (null = nothing); U+0008 backspace, U+000A enter
+    uint32_t    TextWanted;         // [-]  - out: a text field on the sheet has focus; the host should route typing here
 } FrontierProjectDisplayReading;
 
 typedef uint32_t (FRONTIER_CODE_IMAGE_CALL* FrontierProjectDisplay)(void*, FrontierProjectDisplayReading*);

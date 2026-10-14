@@ -35,12 +35,15 @@ public:
         uint32_t    Width = 0u, Height = 0u;
         uint64_t    Revision = 0u;
         bool        ContactHit = false;
+        bool        TextWanted = false;
         float       ContactAcross = 0.0f, ContactDown = 0.0f;
     };
 
     [[nodiscard]] bool Active() const noexcept { return !Displays.empty(); }
     [[nodiscard]] const std::vector<Display>& QueryDisplays() const noexcept { return Displays; }
     [[nodiscard]] bool PointerCaptured() const noexcept { for (const Display& D : Displays) if (D.ContactHit) return true; return false; }
+    /// 📦 True while a display has a focused text field — the host then routes typing to the display, not to game keys.
+    [[nodiscard]] bool TextWanted() const noexcept { for (const Display& D : Displays) if (D.TextWanted) return true; return false; }
 
     /// 📦 Enumerates the project's displays and binds each sheet to its named material (emission channel).
     /// out   Refusal [-] names the display whose material is missing; such a display is skipped, not fatal
@@ -52,7 +55,7 @@ public:
         for (uint32_t Ordinal = 0u; Ordinal < 16u; ++Ordinal)
         {
             FrontierProjectDisplayReading Reading{};
-            Reading.StructureSize = sizeof(Reading); Reading.InterchangeNumber = 1u; Reading.Ordinal = Ordinal;
+            Reading.StructureSize = sizeof(Reading); Reading.InterchangeNumber = 2u; Reading.Ordinal = Ordinal;
             const uint32_t Status = Project.ProjectDisplay(Reading);
             if (Status == 0u) break;
             if (Status != 1u || !Reading.SubjectName || Reading.Width == 0u || Reading.Height == 0u) { Refusal = "project display record refused"; continue; }
@@ -75,24 +78,27 @@ public:
 
     /// 📦 Polls every display; copies a moved revision into its slot and queues the GPU refresh.
     /// in    Ray     [m,-] pointer ray in world (null = no pointer); Pressed primary button
+    /// in    TypedText UTF-8 typed this frame (null = none); delivered only to displays that asked for text last tick
     /// out   Reupload true when a sheet changed size and the caller must Finalise + UploadScene again
     bool Advance(SceneStructure& Scene, TextureIndex& Textures, SwapchainExchange& Surface, const CodeInterchange& Project,
-                 const float* RayOrigin, const float* RayDirection, bool Pressed, bool& Reupload)
+                 const float* RayOrigin, const float* RayDirection, bool Pressed, bool& Reupload, const char* TypedText = nullptr)
     {
         Reupload = false;
         for (uint32_t Ordinal = 0u; Ordinal < Displays.size(); ++Ordinal)
         {
             Display& D = Displays[Ordinal];
             FrontierProjectDisplayReading Reading{};
-            Reading.StructureSize = sizeof(Reading); Reading.InterchangeNumber = 1u; Reading.Ordinal = Ordinal;
+            Reading.StructureSize = sizeof(Reading); Reading.InterchangeNumber = 2u; Reading.Ordinal = Ordinal;
             if (RayOrigin && RayDirection)
             {
                 std::memcpy(Reading.RayOrigin, RayOrigin, sizeof(Reading.RayOrigin));
                 std::memcpy(Reading.RayDirection, RayDirection, sizeof(Reading.RayDirection));
             }
             Reading.Pressed = Pressed ? 1u : 0u;
+            Reading.TypedText = D.TextWanted ? TypedText : nullptr;
             if (Project.ProjectDisplay(Reading) != 1u) continue;
             D.ContactHit = Reading.ContactHit != 0u; D.ContactAcross = Reading.ContactAcross; D.ContactDown = Reading.ContactDown;
+            D.TextWanted = Reading.TextWanted != 0u;
             if (Reading.Width == 0u || Reading.Height == 0u) continue;
             const bool Resized = Reading.Width != D.Width || Reading.Height != D.Height;
             if (!Resized && Reading.Revision == D.Revision) continue;
