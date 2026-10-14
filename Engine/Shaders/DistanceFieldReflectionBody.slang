@@ -67,5 +67,7 @@ void main()
     if (woLoc.z <= 0.0) { imageStore(ReflectionImage, pixel, vec4(0.0)); return; }
     ResolvedLayers layers = ResolveLayers(m, woLoc);
     vec3 specular = Reflection(P, F, V, m, layers, reflMode);
-    imageStore(ReflectionImage, pixel, vec4(clamp(specular, vec3(0.0), vec3(65504.0)), 1.0));
+    // .w: the fraction of the lobe's samples that reached a field rather than the dome (debug view 6).
+    uint samples = m.SpecularRoughness < 0.05 ? 1u : 4u;
+    imageStore(ReflectionImage, pixel, vec4(clamp(specular, vec3(0.0), vec3(65504.0)), float(ReflectionFieldHits) / float(samples)));
 }

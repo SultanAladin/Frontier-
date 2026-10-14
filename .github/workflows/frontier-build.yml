@@ -225,6 +225,8 @@ jobs:
           FRONTIER_GI_DEBUG=2 Capture sdf-gi-exterior-direct     60 --render-preset 2 --transport 2 --camera -7.0 -6.0 2.0 0.0 0.0 0.7
           FRONTIER_GI_DEBUG=3 Capture sdf-gi-exterior-sunvis     60 --render-preset 2 --transport 2 --camera -7.0 -6.0 2.0 0.0 0.0 0.7
           FRONTIER_GI_DEBUG=4 Capture sdf-gi-exterior-skyfrac    60 --render-preset 2 --transport 2 --camera -7.0 -6.0 2.0 0.0 0.0 0.7
+          FRONTIER_GI_DEBUG=5 Capture sdf-gi-exterior-reflect    60 --render-preset 2 --transport 2 --camera -7.0 -6.0 2.0 0.0 0.0 0.7
+          FRONTIER_GI_DEBUG=6 Capture sdf-gi-exterior-reflhits   60 --render-preset 2 --transport 2 --camera -7.0 -6.0 2.0 0.0 0.0 0.7
           rm -f Exhibits/Gallery/ProjectDrive/live/{sdf-gi-simulate,raster-simulate,restir-simulate}.*
           # Proper deflate (the host's writer stores raw scanlines) and a short log tail, so the branch commit stays small.
           python3 -m pip install --quiet pillow

@@ -82,6 +82,7 @@ void FacetSurface(uint Facet, vec3 Position, out vec3 Albedo, out vec3 Emission,
 //    hemisphere fill; the card radiance is deliberately not re-gathered here. Rough lobes above the threshold see
 //    the dome alone — their reflection is the irradiance the gather already integrates. This is the software
 //    (field) tier of reflections; mesh-exact reflections stay on the raytraced route.
+uint ReflectionFieldHits = 0u;   // diagnostic: how many reflected directions reached a field (debug view 6)
 vec3 ReflectedRadiance(vec3 Position, vec3 GeometricNormal, vec3 Direction, float Roughness)
 {
     if (Roughness > 0.55 || (uint(PC.Tuning.w + 0.5) & 0x100u) != 0u) return SkyDome(Direction);
@@ -90,6 +91,7 @@ vec3 ReflectedRadiance(vec3 Position, vec3 GeometricNormal, vec3 Direction, floa
     vec3 Origin = Position + GeometricNormal * max(Tolerance * 3.0, 0.003);
     DistanceRayHit Hit = TraceDistanceField(Origin, Direction, 20.0);
     if (Hit.Facet == 0xFFFFFFFFu) return SkyDome(Direction);
+    ++ReflectionFieldHits;
     vec3 HitPosition = Origin + Direction * Hit.Travel;
     vec3 Albedo, Emission, Normal;
     FacetSurface(Hit.Facet, HitPosition, Albedo, Emission, Normal);

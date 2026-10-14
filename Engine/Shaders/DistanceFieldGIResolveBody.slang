@@ -156,6 +156,8 @@ void main()
         vec3 shown = debugView == 1u ? irradiance * 0.5 :
                      debugView == 2u ? directOnly :
                      debugView == 3u ? vec3(sunVisibility) / max(PC.SkyAmbient.w, 1e-4) :
+                     debugView == 5u ? reflection.xyz :
+                     debugView == 6u ? vec3(reflection.w) / max(PC.SkyAmbient.w, 1e-4) :
                                        vec3(dot(irradiance, vec3(1.0 / 3.0)) / max(dot(PC.SkyAmbient.xyz, vec3(1.0 / 3.0)), 1e-6)) / max(PC.SkyAmbient.w, 1e-4);
         imageStore(LinearRadiance, pixel, vec4(shown, 1.0));
         imageStore(OutputImage, pixel, vec4(DisplayTransfer(shown), 1.0));
@@ -165,7 +167,8 @@ void main()
     // The specular term comes from its own pass (DistanceFieldReflectionBody.slang): the authored lobe, GGX-sampled,
     //    traced through the fields. Kept out of this kernel deliberately — inlined here it faulted lavapipe's lowering
     //    of the resolve on the simulate transport (CI runs 38553319530..38566169735) even when never executed.
-    col += imageLoad(ReflectionImage, pixel).xyz;
+    vec4 reflection = imageLoad(ReflectionImage, pixel);
+    col += reflection.xyz;
 
     if (m.TransmissionWeight>0.0)
     {
