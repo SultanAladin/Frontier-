@@ -187,7 +187,7 @@ jobs:
       #    path — not a CPU stand-in of it. Slow (software), so few frames and a half-size render.
       - name: Project-Drive live captures (software Vulkan)
         run: |
-          sudo apt-get install -y --no-install-recommends mesa-vulkan-drivers vulkan-tools xvfb
+          sudo apt-get install -y --no-install-recommends mesa-vulkan-drivers vulkan-tools xvfb gdb
           python3 Tools/Build/BuildDriveContent.py
           mkdir -p Exhibits/Gallery/ProjectDrive/live
           echo "ICDs on the runner:"; ls -la /usr/share/vulkan/icd.d/ /etc/vulkan/icd.d/ 2>/dev/null || true
@@ -202,7 +202,10 @@ jobs:
           Capture() {   # <name> <frames> <args…>
             local Name="$1" Frames="$2"; shift 2
             echo "::group::capture $Name"
-            xvfb-run -a -s "-screen 0 1600x900x24" timeout 1200 .cache/cmake/Frontier Projects/Project-Drive/ProjectDrive.frontier \
+            # Under gdb so a crash leaves its backtrace in the log (lavapipe runs the shaders on the CPU: a shader
+            #    fault is a host fault here).
+            xvfb-run -a -s "-screen 0 1600x900x24" timeout 1500 gdb -q -batch -ex run -ex "bt 25" -ex "info threads" \
+              --args .cache/cmake/Frontier Projects/Project-Drive/ProjectDrive.frontier \
               --render-scale 0.5 --capture-frame "$Frames" --capture "Exhibits/Gallery/ProjectDrive/live/$Name.png" "$@" \
               > "Exhibits/Gallery/ProjectDrive/live/$Name.log" 2>&1 || echo "capture $Name: exit $?"
             grep -E "PASS capture|FAIL capture|RenderPath|Shadow path|Capture|refused|Refusal|Fatal" "Exhibits/Gallery/ProjectDrive/live/$Name.log" | tail -20
