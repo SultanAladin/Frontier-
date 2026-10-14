@@ -230,6 +230,7 @@ jobs:
           FRONTIER_GI_DEBUG=17       Capture diag-afterdir 12 --render-preset 2 --transport 2 --camera -7.0 -6.0 2.0 0.0 0.0 0.7
           FRONTIER_GI_DEBUG=18       Capture diag-beforedir 12 --render-preset 2 --transport 2 --camera -7.0 -6.0 2.0 0.0 0.0 0.7
           FRONTIER_GI_DEBUG=19       Capture diag-noshadow 12 --render-preset 2 --transport 2 --camera -7.0 -6.0 2.0 0.0 0.0 0.7
+          VK_LOADER_LAYERS_ENABLE=VK_LAYER_KHRONOS_validation FRONTIER_GI_DEBUG=19 Capture diag-noshadow-validated 12 --render-preset 2 --transport 2 --camera -7.0 -6.0 2.0 0.0 0.0 0.7
           Capture sdf-gi-exterior    90 --render-preset 2 --transport 2 --camera -7.0 -6.0 2.0 0.0 0.0 0.7
           Capture sdf-gi-cockpit     90 --render-preset 2 --transport 2 --camera -0.2 0.42 1.12 2.8 0.42 0.47
           Capture sdf-gi-play        90 --render-preset 2 --transport 1

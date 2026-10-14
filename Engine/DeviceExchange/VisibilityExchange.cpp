@@ -1786,7 +1786,9 @@ bool VisibilityExchange::RecordShadowFrame(void* CommandHandle, uint32_t Slot, c
 
         VkImageMemoryBarrier Initialise{ VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER };
         Initialise.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-        Initialise.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+        // 📝 Every tap layer belongs to one depth image view; inactive layers still have to match the sampled
+        //    descriptor's depth-read layout. Active render-pass layers finish in the same layout below.
+        Initialise.newLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL;
         Initialise.srcQueueFamilyIndex = Initialise.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
         Initialise.image = Maps.Image;
         Initialise.subresourceRange = { VK_IMAGE_ASPECT_DEPTH_BIT, 0u, 1u, 0u, ShadowFrameConfiguration::MaximumTaps };
