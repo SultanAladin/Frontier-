@@ -148,6 +148,7 @@ void main()
         ? ReconstructIrradiance(pixel,P,F.Normal,visibility) * PC.Tuning.y      // distance-field diffuse transport
         : PC.SkyAmbient.xyz;                                                    // plain raster: sky ambient fill (never black)
     col += response * irradiance;
+    vec4 reflection = imageLoad(ReflectionImage, pixel);   // the specular pass's term (.w: field-hit fraction)
 
     // Diagnostic views (DistanceFieldFrame::DebugView), each through the same display transfer as the final image.
     uint debugView = uint(PC.Tuning.w + 0.5) & 0xFFu;
@@ -167,7 +168,6 @@ void main()
     // The specular term comes from its own pass (DistanceFieldReflectionBody.slang): the authored lobe, GGX-sampled,
     //    traced through the fields. Kept out of this kernel deliberately — inlined here it faulted lavapipe's lowering
     //    of the resolve on the simulate transport (CI runs 38553319530..38566169735) even when never executed.
-    vec4 reflection = imageLoad(ReflectionImage, pixel);
     col += reflection.xyz;
 
     if (m.TransmissionWeight>0.0)
