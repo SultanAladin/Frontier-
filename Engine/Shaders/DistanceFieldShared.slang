@@ -20,6 +20,19 @@ const uint kReflectOff = 0u, kReflectSky = 1u;
 
 // Horizon → zenith gradient about the sky ambient, plus a broad solar aureole. Roughness widens the lobe, which
 //    is what a prefiltered cube would have done for a glossy reflection.
+// The dome alone (no solar disc): what a reflected or transmitted direction sees. The sun's specular term is the
+//    direct-light evaluation of the BSDF with the sun tap in the resolve, shadowed; a second, unshadowed aureole
+//    here double-counted it and bleached every glossy floor around the car (CI run 38568373910).
+vec3 SkyDome(vec3 Direction)
+{
+    const vec3  up      = vec3(0.0, 0.0, 1.0);                       // world is RH Z-up, metres
+    const float height  = clamp(dot(Direction, up) * 0.5 + 0.5, 0.0, 1.0);
+    const vec3  zenith  = PC.SkyAmbient.xyz * 0.30;
+    const vec3  horizon = PC.SkyAmbient.xyz * vec3(0.75, 0.62, 0.48);
+    return mix(horizon, zenith, height * height);
+}
+
+// The dome with the solar aureole: only for the primary sky miss, where the camera itself looks at the sun.
 vec3 SkyAlongApprox(vec3 Direction, float Roughness)
 {
     const vec3  up      = vec3(0.0, 0.0, 1.0);                       // world is RH Z-up, metres
@@ -71,12 +84,12 @@ void FacetSurface(uint Facet, vec3 Position, out vec3 Albedo, out vec3 Emission,
 //    (field) tier of reflections; mesh-exact reflections stay on the raytraced route.
 vec3 ReflectedRadiance(vec3 Position, vec3 GeometricNormal, vec3 Direction, float Roughness)
 {
-    if (Roughness > 0.55 || (uint(PC.Tuning.w + 0.5) & 0x100u) != 0u) return SkyAlongApprox(Direction, Roughness);
+    if (Roughness > 0.55 || (uint(PC.Tuning.w + 0.5) & 0x100u) != 0u) return SkyDome(Direction);
     float Tolerance; uint Receiver;
     SampleSceneDistance(Position, Tolerance, Receiver);
     vec3 Origin = Position + GeometricNormal * max(Tolerance * 3.0, 0.003);
     DistanceRayHit Hit = TraceDistanceField(Origin, Direction, 20.0);
-    if (Hit.Facet == 0xFFFFFFFFu) return SkyAlongApprox(Direction, Roughness);
+    if (Hit.Facet == 0xFFFFFFFFu) return SkyDome(Direction);
     vec3 HitPosition = Origin + Direction * Hit.Travel;
     vec3 Albedo, Emission, Normal;
     FacetSurface(Hit.Facet, HitPosition, Albedo, Emission, Normal);

@@ -54,13 +54,6 @@ vec3 ReconstructIrradiance(ivec2 Pixel, vec3 Position, vec3 Normal, uint Visibil
 // Schlick Fresnel for the specular/reflection weight.
 vec3 Fresnel(vec3 f0, float cosTheta){ float m = clamp(1.0 - cosTheta, 0.0, 1.0); float m2 = m*m; return f0 + (vec3(1.0) - f0) * (m2*m2*m); }
 
-// What a reflected direction sees: the distance fields' surface where the sphere-march reaches one, the sky dome
-//    past them. The hit is shaded from its own material at the hit point (so a checker reads as a checker in the
-//    paint, not as the card's 4x4 mean), with the sun through the same shadow maps as the primary surface and a
-//    bounded hemisphere fill for its indirect term; the card radiance is deliberately not re-gathered here. Rough
-//    lobes above the threshold see the dome alone — their reflection is the irradiance the gather already
-//    integrates, and a 20 m march per sample bought nothing visible there. This is the software (field) tier of
-//    reflections; mesh-exact reflections stay on the raytraced route.
 // RT is off on this route: transmission sees the dome; no triangle rays on the field tier.
 vec3 Transmission(vec3 Position, vec3 Normal, vec3 View, ShadingRecord Material, bool ThinWalled)
 {
@@ -70,7 +63,7 @@ vec3 Transmission(vec3 Position, vec3 Normal, vec3 View, ShadingRecord Material,
     if (Material.TransmissionDepth>0.0 && Material.TransmissionThickness>0.0)
         Attenuation=exp(log(max(Material.TransmissionColor,vec3(1e-5)))*Material.TransmissionThickness/
                         (Material.TransmissionDepth*max(abs(dot(View,Normal)),1e-4)));
-    return Attenuation*SkyAlongApprox(Direction,Material.SpecularRoughness);
+    return Attenuation*SkyDome(Direction);
 }
 
 // The same display transfer as the raytraced kernel (ViewportIntegrator.slang ToneMap): exposure, ACES filmic, gamma 2.2.
