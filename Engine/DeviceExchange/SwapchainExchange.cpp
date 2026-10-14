@@ -4057,12 +4057,7 @@ bool SwapchainExchange::RecordComputeCommands(uint32_t ImageOrdinal, const Dispa
         vkCmdDispatch(Command, (TapsX + 7u) / 8u, (TapsY + 7u) / 8u, 1u);
     }
 
-    // The history survives only a frame that wrote it under the temporal protocol: the raytraced kernel or the
-    //    Distance Field GI resolve. A debug view or the plain raster path (shadow stage without SDF GI) breaks it.
-    //    ⚠️ The shadow stage ALSO runs under SDF GI; invalidating on it alone restarted every pixel at n = 1 each
-    //    frame, whose single-sample variance (luma²) leaves the à-trous filter maximally permissive — the smeared
-    //    bodywork seen the first time the denoiser followed the SDF path.
-    if(Frame.DebugView != DebugViewCategory::Off || (ShadowStageRecorded && !NonRaytracedGIRecorded)) Vulkan->HistoryContentsValid=false;
+    if(Frame.DebugView != DebugViewCategory::Off || ShadowStageRecorded) Vulkan->HistoryContentsValid=false;
     Visibility.RecordKernelEnd(Command, Vulkan->ActiveSlot);
 
     if (TyreSmoke.Resident() && Frame.DebugView == DebugViewCategory::Off)
