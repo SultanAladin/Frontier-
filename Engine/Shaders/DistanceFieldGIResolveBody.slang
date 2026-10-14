@@ -92,7 +92,7 @@ vec3 Fresnel(vec3 f0, float cosTheta){ float m = clamp(1.0 - cosTheta, 0.0, 1.0)
 //    reflections; mesh-exact reflections stay on the raytraced route.
 vec3 ReflectedRadiance(vec3 Position, vec3 GeometricNormal, vec3 Direction, float Roughness)
 {
-    if (Roughness > 0.55) return SkyAlongApprox(Direction, Roughness);
+    if (Roughness > 0.55 || (uint(PC.Tuning.w + 0.5) & 0x100u) != 0u) return SkyAlongApprox(Direction, Roughness);
     float Tolerance; uint Receiver;
     SampleSceneDistance(Position, Tolerance, Receiver);
     vec3 Origin = Position + GeometricNormal * max(Tolerance * 3.0, 0.003);
@@ -240,7 +240,7 @@ void main()
     col += response * irradiance;
 
     // Diagnostic views (DistanceFieldFrame::DebugView), each through the same display transfer as the final image.
-    uint debugView = uint(PC.Tuning.w + 0.5);
+    uint debugView = uint(PC.Tuning.w + 0.5) & 0xFFu;
     if (debugView != 0u)
     {
         vec3 shown = debugView == 1u ? irradiance * 0.5 :

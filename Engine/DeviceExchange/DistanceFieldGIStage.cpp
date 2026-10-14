@@ -8,6 +8,7 @@
 #include <algorithm>
 #include <cmath>
 #include <cstring>
+#include <cstdlib>
 #include <fstream>
 #include <iostream>
 #include <vector>
@@ -432,7 +433,7 @@ bool DistanceFieldGIStage::RecordFrame(VkCommandBuffer Command, const DistanceFi
     };
     // Card texels relit per frame. 22 k facets x 4x4 cards is 355 k texels: at 16 k a full pass took 22 frames and,
     //    through the 0.25 blend, ~110 frames to settle after a light change. 64 k settles in ~30.
-    constexpr uint32_t kRadianceBudget = 65536u;
+    static const uint32_t kRadianceBudget = []{ const char* Value = std::getenv("FRONTIER_GI_BUDGET"); return Value ? static_cast<uint32_t>(std::atoi(Value)) : 65536u; }();   // CI bisect hook
     DistanceFieldPush Push{};
     std::memcpy(Push.Sun, Frame.SunDirection, 12u); Push.Sun[3] = Frame.SunRadiance;
     std::memcpy(Push.SunColour, Frame.SunColour, 12u);

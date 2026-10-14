@@ -214,6 +214,10 @@ jobs:
           # Project-Drive runs the Distance Field GI path (preset 2). Same scene, same settings; the camera is pinned
           #    for the exterior and cockpit views (the car spawns at the origin facing +X; eye from DriveCabinLayout.h),
           #    the play capture leaves the camera to the project.
+          # Bisect of the simulate-transport fault (each a single change off the production configuration).
+          FRONTIER_GI_REFLECT=0 Capture bisect-noreflect 20 --render-preset 2 --transport 2 --camera -7.0 -6.0 2.0 0.0 0.0 0.7
+          FRONTIER_GI_BUDGET=16384 Capture bisect-budget16k 20 --render-preset 2 --transport 2 --camera -7.0 -6.0 2.0 0.0 0.0 0.7
+          FRONTIER_SDF_TOLERANCE_CAP=10 Capture bisect-tolerance 20 --render-preset 2 --transport 2 --camera -7.0 -6.0 2.0 0.0 0.0 0.7
           Capture sdf-gi-exterior    90 --render-preset 2 --transport 2 --camera -7.0 -6.0 2.0 0.0 0.0 0.7
           Capture sdf-gi-cockpit     90 --render-preset 2 --transport 2 --camera -0.2 0.42 1.12 2.8 0.42 0.47
           Capture sdf-gi-play        90 --render-preset 2 --transport 1

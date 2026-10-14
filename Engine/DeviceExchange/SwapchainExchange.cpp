@@ -3865,7 +3865,8 @@ bool SwapchainExchange::RecordComputeCommands(uint32_t ImageOrdinal, const Dispa
         }
         DfParams.CycleSlot = Vulkan->ActiveSlot;
         DfParams.ShadowDescriptors = static_cast<VkDescriptorSet>(Visibility.QueryShadowDescriptors(Vulkan->ActiveSlot));
-        static const uint32_t GiDebugView = []{ const char* Value = std::getenv("FRONTIER_GI_DEBUG"); return Value ? static_cast<uint32_t>(std::atoi(Value)) : 0u; }();
+        static const uint32_t GiDebugView = []{ const char* Value = std::getenv("FRONTIER_GI_DEBUG"); const char* Reflect = std::getenv("FRONTIER_GI_REFLECT");
+            return (Value ? static_cast<uint32_t>(std::atoi(Value)) : 0u) | ((Reflect && std::atoi(Reflect) == 0) ? 0x100u : 0u); }();
         DfParams.DebugView      = GiDebugView;
         DfParams.CameraEye[0]   = Dispatch.CameraOriginX;
         DfParams.CameraEye[1]   = Dispatch.CameraOriginY;
