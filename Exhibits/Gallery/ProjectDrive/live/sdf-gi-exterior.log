@@ -1,63 +1,63 @@
 Python Exception <class 'ModuleNotFoundError'>: No module named 'math'
 [Thread debugging using libthread_db enabled]
 Using host libthread_db library "/lib/x86_64-linux-gnu/libthread_db.so.1".
-[Startup] CSV: Build/Diagnostics/startup-1791986867143.csv
-[Startup] main t=0.07822ms phase=-1ms rss=23.6914MiB peak=23.6914MiB private_bytes=-1 payload=0B pid=6061
+[Startup] CSV: Build/Diagnostics/startup-1791988597645.csv
+[Startup] main t=0.107342ms phase=-1ms rss=23.5703MiB peak=23.5703MiB private_bytes=-1 payload=0B pid=6655
 [INFO] [Bootstrap] ProjectDrive windowed Frontier renderer starting.
-[Startup] BuiltInSceneReady t=2.41794ms phase=-1ms rss=24.6953MiB peak=24.7344MiB private_bytes=-1 payload=0B pid=6061
-[Startup] SceneDecode:begin t=2.47209ms phase=-1ms rss=24.8203MiB peak=24.8203MiB private_bytes=-1 payload=0B pid=6061
+[Startup] BuiltInSceneReady t=2.66919ms phase=-1ms rss=24.5742MiB peak=24.5742MiB private_bytes=-1 payload=0B pid=6655
+[Startup] SceneDecode:begin t=2.74577ms phase=-1ms rss=24.6992MiB peak=24.6992MiB private_bytes=-1 payload=0B pid=6655
 [INFO] [Scene] DriveCourse.r7: 22168 triangles, 26 instances, 193 clusters, 21 materials, 1692 luminaires, bounds [-240.00 -240.00 -0.02]..[240.00 240.00 1.79] m
-[Startup] SceneDecode:end t=48.4027ms phase=45.8997ms rss=36.5039MiB peak=47.3945MiB private_bytes=-1 payload=0B pid=6061
-[New Thread 0x7ffff5af56c0 (LWP 6064)]
+[Startup] SceneDecode:end t=54.3081ms phase=51.4978ms rss=36.3828MiB peak=47.3359MiB private_bytes=-1 payload=0B pid=6655
+[New Thread 0x7ffff5af56c0 (LWP 6658)]
 [INFO] [Materials] Materials: 21 descriptors -> 21 records, 21 slabs (limit 1, 0 folded), 6 placements, 0 cameras, 0 punctual lights
-[Startup] TextureDecode:begin t=48.6916ms phase=-1ms rss=36.5195MiB peak=47.3945MiB private_bytes=-1 payload=0B pid=6061
-[New Thread 0x7fffeffff6c0 (LWP 6065)]
-[Startup] CwbvhBuild:begin t=48.9769ms phase=-1ms rss=37.043MiB peak=47.3945MiB private_bytes=-1 payload=0B pid=6061
-[Startup] VulkanBringUp:begin t=49.0401ms phase=-1ms rss=37.1211MiB peak=47.3945MiB private_bytes=-1 payload=0B pid=6061
-[New Thread 0x7fffeebff6c0 (LWP 6066)]
-[New Thread 0x7fffe7fff6c0 (LWP 6067)]
-[New Thread 0x7fffe6ffe6c0 (LWP 6068)]
-[New Thread 0x7fffe5ffd6c0 (LWP 6069)]
-[Startup] CwbvhBuild:end t=87.0508ms phase=38.0172ms rss=64.4961MiB peak=82.3281MiB private_bytes=-1 payload=0B pid=6061
-[New Thread 0x7fffdffff6c0 (LWP 6070)]
-[Thread 0x7fffe5ffd6c0 (LWP 6069) exited]
-[Thread 0x7fffdffff6c0 (LWP 6070) exited]
-[Thread 0x7fffe6ffe6c0 (LWP 6068) exited]
-[Thread 0x7fffe7fff6c0 (LWP 6067) exited]
-[Thread 0x7fffeebff6c0 (LWP 6066) exited]
-[Thread 0x7fffeffff6c0 (LWP 6065) exited]
-[Startup] TextureDecode:end t=212.008ms phase=163.257ms rss=145.199MiB peak=171.77MiB private_bytes=-1 payload=0B pid=6061
-[Thread 0x7ffff5af56c0 (LWP 6064) exited]
+[Startup] TextureDecode:begin t=54.8376ms phase=-1ms rss=36.4648MiB peak=47.3359MiB private_bytes=-1 payload=0B pid=6655
+[New Thread 0x7ffff43816c0 (LWP 6659)]
+[Startup] CwbvhBuild:begin t=55.0298ms phase=-1ms rss=36.8711MiB peak=47.3359MiB private_bytes=-1 payload=0B pid=6655
+[Startup] VulkanBringUp:begin t=55.1128ms phase=-1ms rss=36.9023MiB peak=47.3359MiB private_bytes=-1 payload=0B pid=6655
+[Startup] TextureDecode:end t=214.932ms phase=159.973ms rss=143.496MiB peak=170.301MiB private_bytes=-1 payload=0B pid=6655
+[Thread 0x7ffff5af56c0 (LWP 6658) exited]
+[New Thread 0x7fffd85fc6c0 (LWP 6660)]
+[New Thread 0x7fffd75fb6c0 (LWP 6661)]
+[New Thread 0x7fffd65fa6c0 (LWP 6662)]
+[New Thread 0x7fffd55f96c0 (LWP 6663)]
 [SwapchainExchange] Window created: 1280x720
 [GPU startup] Driver preparation may run on the CPU. Stage counts are milestones, not a compilation percentage.
 [GPU startup] STAGE 1/18 BEGIN BringInstance
 [GPU startup] Application-requested validation=OFF (externally injected layers are not audited here)
-[GPU startup] STAGE 1 DONE BringInstance elapsed=0.00131942s
+[Startup] CwbvhBuild:end t=254.327ms phase=199.213ms rss=166.758MiB peak=170.301MiB private_bytes=-1 payload=0B pid=6655
+[New Thread 0x7fffc7fff6c0 (LWP 6664)]
+[Thread 0x7fffd55f96c0 (LWP 6663) exited]
+[Thread 0x7fffd75fb6c0 (LWP 6661) exited]
+[Thread 0x7fffd85fc6c0 (LWP 6660) exited]
+[GPU startup] STAGE 1 DONE BringInstance elapsed=0.00206486s
 [GPU startup] STAGE 2/18 BEGIN BringSurface
-[GPU startup] STAGE 2 DONE BringSurface elapsed=6.9156e-05s
+[GPU startup] STAGE 2 DONE BringSurface elapsed=9.4939e-05s
 [GPU startup] STAGE 3/18 BEGIN BringPhysicalDevice
+[Thread 0x7fffd65fa6c0 (LWP 6662) exited]
+[Thread 0x7fffc7fff6c0 (LWP 6664) exited]
+[Thread 0x7ffff43816c0 (LWP 6659) exited]
 [SwapchainExchange] Using GPU: llvmpipe (LLVM 20.1.2, 256 bits) (queue family 0)
 [SwapchainExchange] Ray tracing: supported = Ray Pipeline, requested = Software, selected capability = Software BVH; actual traversal is reported after scene upload  [AS ext 1 feat 1 | RQ ext 1 feat 1 | RP ext 1 | BDA 1 | bindless 1 | subgroup 8]  driver: llvmpipe Mesa 25.2.8-0ubuntu0.24.04.4 (LLVM 20.1.2)
-[GPU startup] STAGE 3 DONE BringPhysicalDevice elapsed=0.000889183s
+[GPU startup] STAGE 3 DONE BringPhysicalDevice elapsed=0.00171757s
 [GPU startup] STAGE 4/18 BEGIN BringLogicalDevice
-[New Thread 0x7fffdffff6c0 (LWP 6071)]
-[New Thread 0x7fffe5ffd6c0 (LWP 6072)]
-[New Thread 0x7fffc45fc6c0 (LWP 6073)]
-[New Thread 0x7fffc35fb6c0 (LWP 6074)]
-[New Thread 0x7fffc25fa6c0 (LWP 6075)]
-[New Thread 0x7fffc15f96c0 (LWP 6076)]
-[New Thread 0x7fffc05f86c0 (LWP 6077)]
-[New Thread 0x7fffb73ff6c0 (LWP 6078)]
-[New Thread 0x7fffbf5f76c0 (LWP 6079)]
-[New Thread 0x7fffbe5f66c0 (LWP 6080)]
+[New Thread 0x7fffc7fff6c0 (LWP 6665)]
+[New Thread 0x7fffd55f96c0 (LWP 6666)]
+[New Thread 0x7fffd85fc6c0 (LWP 6667)]
+[New Thread 0x7fffd75fb6c0 (LWP 6668)]
+[New Thread 0x7fffd65fa6c0 (LWP 6669)]
+[New Thread 0x7fffc6ffe6c0 (LWP 6670)]
+[New Thread 0x7fffc5ffd6c0 (LWP 6671)]
+[New Thread 0x7fffb7fff6c0 (LWP 6672)]
+[New Thread 0x7fffb6ffe6c0 (LWP 6673)]
+[New Thread 0x7fffb5ffd6c0 (LWP 6674)]
 [GPU startup] Pipeline test: disable_restir_optimization=0 ignore_application_cache_input=0 (does not disable NVIDIA's own shader cache)
 [GPU startup] Pipeline cache path=/home/runner/work/Frontier-/Frontier-/ShaderCache.bin read_bytes=32 fingerprint_fnv1a64=2446675581624642679 input=compatible (compatible input does not guarantee a shader cache hit)
 [GPU startup] vkCreatePipelineCache VkResult=0
-[GPU startup] STAGE 4 DONE BringLogicalDevice elapsed=0.0123179s
+[GPU startup] STAGE 4 DONE BringLogicalDevice elapsed=0.0188841s
 [GPU startup] STAGE 5/18 BEGIN BringSwapchain
-[New Thread 0x7fffbd5f56c0 (LWP 6081)]
-[New Thread 0x7fffb63fe6c0 (LWP 6082)]
-[GPU startup] STAGE 5 DONE BringSwapchain elapsed=0.000509846s
+[New Thread 0x7fffaffff6c0 (LWP 6675)]
+[New Thread 0x7fffaeffe6c0 (LWP 6676)]
+[GPU startup] STAGE 5 DONE BringSwapchain elapsed=0.000887778s
 [GPU startup] STAGE 6/18 BEGIN BringStorageImage
 [Allocation] image=storage image extent=1280x720 allocated=3686400 memory_flags=15
 [Allocation] image=history image extent=1280x720 allocated=14745600 memory_flags=15
@@ -74,190 +74,191 @@ Using host libthread_db library "/lib/x86_64-linux-gnu/libthread_db.so.1".
 [Allocation] buffer requested=73728000 allocated=73728000 memory_flags=15 (request, not live total)
 [Allocation] buffer requested=73728000 allocated=73728000 memory_flags=15 (request, not live total)
 [SwapchainExchange] Indirect pool: 2 x 70 MB (80 B/px first-bounce-vertex state, kFeatureGiReuse; D10 identity included).
-[GPU startup] STAGE 6 DONE BringStorageImage elapsed=0.000131361s
+[GPU startup] STAGE 6 DONE BringStorageImage elapsed=0.000332064s
 [GPU startup] STAGE 7/18 BEGIN BringCommandRecording
-[GPU startup] STAGE 7 DONE BringCommandRecording elapsed=1.0237e-05s
+[GPU startup] STAGE 7 DONE BringCommandRecording elapsed=2.136e-05s
 [GPU startup] STAGE 8/18 BEGIN BringComputePipeline
 [SwapchainExchange] Loaded SPIR-V: Engine/Shaders/ReSTIRViewport.spv
 [GPU startup] ReSTIR input bytes=526904 fingerprint_fnv1a64=17938601548462901737 disable_optimization=0 (diagnostic mode may reduce rendering performance)
-[GPU startup] BEGIN #1 shader module: ReSTIRViewport elapsed=0.00s pid=6061 rss=183.24MiB peak_rss=183.24MiB private_commit=N/A 
-[New Thread 0x7fff8a7776c0 (LWP 6083)]
-[GPU startup] DONE #1 shader module: ReSTIRViewport elapsed=0.00s pid=6061 rss=183.75MiB peak_rss=183.75MiB private_commit=N/A VkResult=0
-[Thread 0x7fff8a7776c0 (LWP 6083) exited]
-[GPU startup] BEGIN #2 compute pipeline (driver compile/cache lookup): ReSTIRViewport elapsed=0.00s pid=6061 rss=183.75MiB peak_rss=183.75MiB private_commit=N/A 
-[New Thread 0x7fff8a7776c0 (LWP 6084)]
-[GPU startup] WAIT #2 compute pipeline (driver compile/cache lookup): ReSTIRViewport elapsed=5.00s pid=6061 rss=965.69MiB peak_rss=965.69MiB private_commit=N/A driver call has not returned; percent/ETA unavailable (not proof of compiler progress)
-[GPU startup] WAIT #2 compute pipeline (driver compile/cache lookup): ReSTIRViewport elapsed=10.00s pid=6061 rss=965.70MiB peak_rss=965.70MiB private_commit=N/A driver call has not returned; percent/ETA unavailable (not proof of compiler progress)
-[GPU startup] DONE #2 compute pipeline (driver compile/cache lookup): ReSTIRViewport elapsed=10.29s pid=6061 rss=966.24MiB peak_rss=966.24MiB private_commit=N/A VkResult=0
-[Thread 0x7fff8a7776c0 (LWP 6084) exited]
-[GPU startup] BEGIN #3 pipeline cache: query size elapsed=0.00s pid=6061 rss=966.24MiB peak_rss=966.24MiB private_commit=N/A 
-[New Thread 0x7fff8a7776c0 (LWP 6085)]
-[GPU startup] DONE #3 pipeline cache: query size elapsed=0.00s pid=6061 rss=966.24MiB peak_rss=966.24MiB private_commit=N/A VkResult=0
-[Thread 0x7fff8a7776c0 (LWP 6085) exited]
-[GPU startup] BEGIN #4 pipeline cache: export elapsed=0.00s pid=6061 rss=966.24MiB peak_rss=966.24MiB private_commit=N/A 
-[New Thread 0x7fff8a7776c0 (LWP 6086)]
-[GPU startup] DONE #4 pipeline cache: export elapsed=0.00s pid=6061 rss=966.24MiB peak_rss=966.24MiB private_commit=N/A VkResult=0
-[Thread 0x7fff8a7776c0 (LWP 6086) exited]
+[GPU startup] BEGIN #1 shader module: ReSTIRViewport elapsed=0.00s pid=6655 rss=181.72MiB peak_rss=181.72MiB private_commit=N/A 
+[New Thread 0x7fff8a6bf6c0 (LWP 6677)]
+[GPU startup] DONE #1 shader module: ReSTIRViewport elapsed=0.00s pid=6655 rss=182.23MiB peak_rss=182.23MiB private_commit=N/A VkResult=0
+[Thread 0x7fff8a6bf6c0 (LWP 6677) exited]
+[GPU startup] BEGIN #2 compute pipeline (driver compile/cache lookup): ReSTIRViewport elapsed=0.00s pid=6655 rss=182.23MiB peak_rss=182.23MiB private_commit=N/A 
+[New Thread 0x7fff8a6bf6c0 (LWP 6678)]
+[GPU startup] WAIT #2 compute pipeline (driver compile/cache lookup): ReSTIRViewport elapsed=5.00s pid=6655 rss=964.17MiB peak_rss=964.17MiB private_commit=N/A driver call has not returned; percent/ETA unavailable (not proof of compiler progress)
+[GPU startup] WAIT #2 compute pipeline (driver compile/cache lookup): ReSTIRViewport elapsed=10.00s pid=6655 rss=964.18MiB peak_rss=964.18MiB private_commit=N/A driver call has not returned; percent/ETA unavailable (not proof of compiler progress)
+[GPU startup] WAIT #2 compute pipeline (driver compile/cache lookup): ReSTIRViewport elapsed=15.00s pid=6655 rss=964.18MiB peak_rss=964.18MiB private_commit=N/A driver call has not returned; percent/ETA unavailable (not proof of compiler progress)
+[GPU startup] DONE #2 compute pipeline (driver compile/cache lookup): ReSTIRViewport elapsed=18.36s pid=6655 rss=964.75MiB peak_rss=964.75MiB private_commit=N/A VkResult=0
+[GPU startup] BEGIN #3 pipeline cache: query size elapsed=0.00s pid=6655 rss=964.75MiB peak_rss=964.75MiB private_commit=N/A 
+[Thread 0x7fff8a6bf6c0 (LWP 6678) exited]
+[New Thread 0x7fff8a6bf6c0 (LWP 6679)]
+[GPU startup] DONE #3 pipeline cache: query size elapsed=0.00s pid=6655 rss=964.75MiB peak_rss=964.75MiB private_commit=N/A VkResult=0
+[GPU startup] BEGIN #4 pipeline cache: export elapsed=0.00s pid=6655 rss=964.75MiB peak_rss=964.75MiB private_commit=N/A 
+[Thread 0x7fff8a6bf6c0 (LWP 6679) exited]
+[New Thread 0x7fff8a6bf6c0 (LWP 6680)]
+[GPU startup] DONE #4 pipeline cache: export elapsed=0.00s pid=6655 rss=964.75MiB peak_rss=964.75MiB private_commit=N/A VkResult=0
+[Thread 0x7fff8a6bf6c0 (LWP 6680) exited]
 [GPU startup] Cache checkpoint saved reason=ReSTIR ready file=ShaderCache.bin bytes=32 fingerprint_fnv1a64=2446675581624642679
-[GPU startup] STAGE 8 DONE BringComputePipeline elapsed=10.289s
+[GPU startup] STAGE 8 DONE BringComputePipeline elapsed=18.3643s
 [GPU startup] STAGE 9/18 BEGIN BringDenoisePipeline
 [SwapchainExchange] Loaded SPIR-V: Engine/Shaders/AtrousDenoise.spv
-[GPU startup] BEGIN #5 shader module: AtrousDenoise elapsed=0.00s pid=6061 rss=966.26MiB peak_rss=966.26MiB private_commit=N/A 
-[New Thread 0x7fff8a7776c0 (LWP 6087)]
-[GPU startup] DONE #5 shader module: AtrousDenoise elapsed=0.00s pid=6061 rss=966.26MiB peak_rss=966.26MiB private_commit=N/A VkResult=0
-[GPU startup] BEGIN #6 compute pipeline (driver compile/cache lookup): AtrousDenoise elapsed=0.00s pid=6061 rss=966.26MiB peak_rss=966.26MiB private_commit=N/A 
-[Thread 0x7fff8a7776c0 (LWP 6087) exited]
-[New Thread 0x7fff8a7776c0 (LWP 6088)]
-[GPU startup] DONE #6 compute pipeline (driver compile/cache lookup): AtrousDenoise elapsed=0.01s pid=6061 rss=966.26MiB peak_rss=966.26MiB private_commit=N/A VkResult=0
-[GPU startup] BEGIN #7 pipeline cache: query size elapsed=0.00s pid=6061 rss=966.26MiB peak_rss=966.26MiB private_commit=N/A 
-[Thread 0x7fff8a7776c0 (LWP 6088) exited]
-[New Thread 0x7fff8a7776c0 (LWP 6089)]
-[GPU startup] DONE #7 pipeline cache: query size elapsed=0.00s pid=6061 rss=966.26MiB peak_rss=966.26MiB private_commit=N/A VkResult=0
-[Thread 0x7fff8a7776c0 (LWP 6089) exited]
-[GPU startup] BEGIN #8 pipeline cache: export elapsed=0.00s pid=6061 rss=966.26MiB peak_rss=966.26MiB private_commit=N/A 
-[New Thread 0x7fff8a7776c0 (LWP 6090)]
-[GPU startup] DONE #8 pipeline cache: export elapsed=0.00s pid=6061 rss=966.26MiB peak_rss=966.26MiB private_commit=N/A VkResult=0
-[Thread 0x7fff8a7776c0 (LWP 6090) exited]
+[GPU startup] BEGIN #5 shader module: AtrousDenoise elapsed=0.00s pid=6655 rss=964.77MiB peak_rss=964.77MiB private_commit=N/A 
+[New Thread 0x7fff8a6bf6c0 (LWP 6681)]
+[GPU startup] DONE #5 shader module: AtrousDenoise elapsed=0.00s pid=6655 rss=964.77MiB peak_rss=964.77MiB private_commit=N/A VkResult=0
+[GPU startup] BEGIN #6 compute pipeline (driver compile/cache lookup): AtrousDenoise elapsed=0.00s pid=6655 rss=964.77MiB peak_rss=964.77MiB private_commit=N/A 
+[Thread 0x7fff8a6bf6c0 (LWP 6681) exited]
+[New Thread 0x7fff8a6bf6c0 (LWP 6682)]
+[GPU startup] DONE #6 compute pipeline (driver compile/cache lookup): AtrousDenoise elapsed=0.01s pid=6655 rss=964.77MiB peak_rss=964.77MiB private_commit=N/A VkResult=0
+[Thread 0x7fff8a6bf6c0 (LWP 6682) exited]
+[GPU startup] BEGIN #7 pipeline cache: query size elapsed=0.00s pid=6655 rss=964.77MiB peak_rss=964.77MiB private_commit=N/A 
+[New Thread 0x7fff8a6bf6c0 (LWP 6683)]
+[GPU startup] DONE #7 pipeline cache: query size elapsed=0.00s pid=6655 rss=964.77MiB peak_rss=964.77MiB private_commit=N/A VkResult=0
+[Thread 0x7fff8a6bf6c0 (LWP 6683) exited]
+[GPU startup] BEGIN #8 pipeline cache: export elapsed=0.00s pid=6655 rss=964.77MiB peak_rss=964.77MiB private_commit=N/A 
+[New Thread 0x7fff8a6bf6c0 (LWP 6684)]
+[GPU startup] DONE #8 pipeline cache: export elapsed=0.00s pid=6655 rss=964.77MiB peak_rss=964.77MiB private_commit=N/A VkResult=0
+[Thread 0x7fff8a6bf6c0 (LWP 6684) exited]
 [GPU startup] Cache checkpoint saved reason=Denoiser ready file=ShaderCache.bin bytes=32 fingerprint_fnv1a64=2446675581624642679
 [SwapchainExchange] Denoiser: 5 a-trous levels.
-[GPU startup] STAGE 9 DONE BringDenoisePipeline elapsed=0.0108254s
+[GPU startup] STAGE 9 DONE BringDenoisePipeline elapsed=0.0125184s
 [GPU startup] STAGE 10/18 BEGIN BringLuminanceReduction
 [Allocation] buffer requested=1024 allocated=1024 memory_flags=15 (request, not live total)
 [Allocation] buffer requested=1024 allocated=1024 memory_flags=15 (request, not live total)
 [SwapchainExchange] Loaded SPIR-V: Engine/Shaders/LuminanceReduce.spv
-[GPU startup] BEGIN #9 shader module: LuminanceReduce elapsed=0.00s pid=6061 rss=966.29MiB peak_rss=966.29MiB private_commit=N/A 
-[New Thread 0x7fff8a7776c0 (LWP 6091)]
-[GPU startup] DONE #9 shader module: LuminanceReduce elapsed=0.00s pid=6061 rss=966.29MiB peak_rss=966.29MiB private_commit=N/A VkResult=0
-[Thread 0x7fff8a7776c0 (LWP 6091) exited]
-[GPU startup] BEGIN #10 compute pipeline (driver compile/cache lookup): LuminanceReduce elapsed=0.00s pid=6061 rss=966.29MiB peak_rss=966.29MiB private_commit=N/A 
-[New Thread 0x7fff8a7776c0 (LWP 6092)]
-[GPU startup] DONE #10 compute pipeline (driver compile/cache lookup): LuminanceReduce elapsed=0.00s pid=6061 rss=966.29MiB peak_rss=966.29MiB private_commit=N/A VkResult=0
-[Thread 0x7fff8a7776c0 (LWP 6092) exited]
-[GPU startup] BEGIN #11 pipeline cache: query size elapsed=0.00s pid=6061 rss=966.29MiB peak_rss=966.29MiB private_commit=N/A 
-[New Thread 0x7fff8a7776c0 (LWP 6093)]
-[GPU startup] DONE #11 pipeline cache: query size elapsed=0.00s pid=6061 rss=966.29MiB peak_rss=966.29MiB private_commit=N/A VkResult=0
-[Thread 0x7fff8a7776c0 (LWP 6093) exited]
-[GPU startup] BEGIN #12 pipeline cache: export elapsed=0.00s pid=6061 rss=966.29MiB peak_rss=966.29MiB private_commit=N/A 
-[New Thread 0x7fff8a7776c0 (LWP 6094)]
-[GPU startup] DONE #12 pipeline cache: export elapsed=0.00s pid=6061 rss=966.29MiB peak_rss=966.29MiB private_commit=N/A VkResult=0
-[Thread 0x7fff8a7776c0 (LWP 6094) exited]
+[GPU startup] BEGIN #9 shader module: LuminanceReduce elapsed=0.00s pid=6655 rss=964.79MiB peak_rss=964.79MiB private_commit=N/A 
+[New Thread 0x7fff8a6bf6c0 (LWP 6685)]
+[GPU startup] DONE #9 shader module: LuminanceReduce elapsed=0.00s pid=6655 rss=964.79MiB peak_rss=964.79MiB private_commit=N/A VkResult=0
+[GPU startup] BEGIN #10 compute pipeline (driver compile/cache lookup): LuminanceReduce elapsed=0.00s pid=6655 rss=964.79MiB peak_rss=964.79MiB private_commit=N/A 
+[Thread 0x7fff8a6bf6c0 (LWP 6685) exited]
+[New Thread 0x7fff8a6bf6c0 (LWP 6686)]
+[GPU startup] DONE #10 compute pipeline (driver compile/cache lookup): LuminanceReduce elapsed=0.00s pid=6655 rss=964.79MiB peak_rss=964.79MiB private_commit=N/A VkResult=0
+[Thread 0x7fff8a6bf6c0 (LWP 6686) exited]
+[GPU startup] BEGIN #11 pipeline cache: query size elapsed=0.00s pid=6655 rss=964.79MiB peak_rss=964.79MiB private_commit=N/A 
+[New Thread 0x7fff8a6bf6c0 (LWP 6687)]
+[GPU startup] DONE #11 pipeline cache: query size elapsed=0.00s pid=6655 rss=964.79MiB peak_rss=964.79MiB private_commit=N/A VkResult=0
+[GPU startup] BEGIN #12 pipeline cache: export elapsed=0.00s pid=6655 rss=964.79MiB peak_rss=964.79MiB private_commit=N/A 
+[Thread 0x7fff8a6bf6c0 (LWP 6687) exited]
+[New Thread 0x7fff8a6bf6c0 (LWP 6688)]
+[GPU startup] DONE #12 pipeline cache: export elapsed=0.00s pid=6655 rss=964.79MiB peak_rss=964.79MiB private_commit=N/A VkResult=0
+[Thread 0x7fff8a6bf6c0 (LWP 6688) exited]
 [GPU startup] Cache checkpoint saved reason=Luminance ready file=ShaderCache.bin bytes=32 fingerprint_fnv1a64=2446675581624642679
-[GPU startup] STAGE 10 DONE BringLuminanceReduction elapsed=0.00157355s
+[GPU startup] STAGE 10 DONE BringLuminanceReduction elapsed=0.00193329s
 [GPU startup] STAGE 11/18 BEGIN BringSkyRecord
 [Allocation] buffer requested=144 allocated=144 memory_flags=15 (request, not live total)
-[GPU startup] STAGE 11 DONE BringSkyRecord elapsed=3.4474e-05s
+[GPU startup] STAGE 11 DONE BringSkyRecord elapsed=5.4792e-05s
 [GPU startup] STAGE 12/18 BEGIN BringMoonRecord
 [Allocation] buffer requested=288 allocated=288 memory_flags=15 (request, not live total)
-[GPU startup] STAGE 12 DONE BringMoonRecord elapsed=1.4777e-05s
+[GPU startup] STAGE 12 DONE BringMoonRecord elapsed=3.9294e-05s
 [GPU startup] STAGE 13/18 BEGIN BringPostRecord
 [Allocation] buffer requested=544 allocated=544 memory_flags=15 (request, not live total)
-[GPU startup] STAGE 13 DONE BringPostRecord elapsed=1.3532e-05s
+[GPU startup] STAGE 13 DONE BringPostRecord elapsed=3.0437e-05s
 [GPU startup] STAGE 14/18 BEGIN BringStarTables
 [Allocation] buffer requested=8192 allocated=8192 memory_flags=15 (request, not live total)
-[GPU startup] STAGE 14 DONE BringStarTables elapsed=1.5235e-05s
+[GPU startup] STAGE 14 DONE BringStarTables elapsed=4.0226e-05s
 [GPU startup] STAGE 15/18 BEGIN BringDescriptorSet
-[GPU startup] STAGE 15 DONE BringDescriptorSet elapsed=8.9137e-05s
+[GPU startup] STAGE 15 DONE BringDescriptorSet elapsed=0.000123733s
 [GPU startup] STAGE 16/18 BEGIN BringCycleSlots
-[GPU startup] STAGE 16 DONE BringCycleSlots elapsed=8.161e-06s
+[GPU startup] STAGE 16 DONE BringCycleSlots elapsed=1.6401e-05s
 [GPU startup] STAGE 17/18 BEGIN BringImGui
-[GPU startup] STAGE 17 DONE BringImGui elapsed=0.00428768s
+[GPU startup] STAGE 17 DONE BringImGui elapsed=0.00554489s
 [GPU startup] STAGE 18/18 BEGIN BringVisibility
-[GPU startup] BEGIN #13 shader module: Engine/Shaders/ClusterCull.spv elapsed=0.00s pid=6061 rss=967.18MiB peak_rss=967.18MiB private_commit=N/A 
-[New Thread 0x7fff8a7776c0 (LWP 6095)]
-[GPU startup] DONE #13 shader module: Engine/Shaders/ClusterCull.spv elapsed=0.00s pid=6061 rss=967.18MiB peak_rss=967.18MiB private_commit=N/A VkResult=0
+[GPU startup] BEGIN #13 shader module: Engine/Shaders/ClusterCull.spv elapsed=0.00s pid=6655 rss=965.68MiB peak_rss=965.68MiB private_commit=N/A 
+[New Thread 0x7fff8a6bf6c0 (LWP 6689)]
+[GPU startup] DONE #13 shader module: Engine/Shaders/ClusterCull.spv elapsed=0.00s pid=6655 rss=965.68MiB peak_rss=965.68MiB private_commit=N/A VkResult=0
 [VisibilityExchange] Loaded SPIR-V: Engine/Shaders/ClusterCull.spv
-[Thread 0x7fff8a7776c0 (LWP 6095) exited]
-[GPU startup] BEGIN #14 compute pipeline (driver compile/cache lookup): Engine/Shaders/ClusterCull.spv elapsed=0.00s pid=6061 rss=967.18MiB peak_rss=967.18MiB private_commit=N/A 
-[New Thread 0x7fff8a7776c0 (LWP 6096)]
-[GPU startup] DONE #14 compute pipeline (driver compile/cache lookup): Engine/Shaders/ClusterCull.spv elapsed=0.01s pid=6061 rss=967.18MiB peak_rss=967.18MiB private_commit=N/A VkResult=0
-[Thread 0x7fff8a7776c0 (LWP 6096) exited]
-[GPU startup] BEGIN #15 shader module: Engine/Shaders/HiZReduce.spv elapsed=0.00s pid=6061 rss=967.18MiB peak_rss=967.18MiB private_commit=N/A 
-[New Thread 0x7fff8a7776c0 (LWP 6097)]
-[GPU startup] DONE #15 shader module: Engine/Shaders/HiZReduce.spv elapsed=0.00s pid=6061 rss=967.18MiB peak_rss=967.18MiB private_commit=N/A VkResult=0
+[GPU startup] BEGIN #14 compute pipeline (driver compile/cache lookup): Engine/Shaders/ClusterCull.spv elapsed=0.00s pid=6655 rss=965.68MiB peak_rss=965.68MiB private_commit=N/A 
+[Thread 0x7fff8a6bf6c0 (LWP 6689) exited]
+[New Thread 0x7fff8a6bf6c0 (LWP 6690)]
+[GPU startup] DONE #14 compute pipeline (driver compile/cache lookup): Engine/Shaders/ClusterCull.spv elapsed=0.01s pid=6655 rss=965.69MiB peak_rss=965.69MiB private_commit=N/A VkResult=0
+[Thread 0x7fff8a6bf6c0 (LWP 6690) exited]
+[GPU startup] BEGIN #15 shader module: Engine/Shaders/HiZReduce.spv elapsed=0.00s pid=6655 rss=965.69MiB peak_rss=965.69MiB private_commit=N/A 
+[New Thread 0x7fff8a6bf6c0 (LWP 6691)]
+[GPU startup] DONE #15 shader module: Engine/Shaders/HiZReduce.spv elapsed=0.00s pid=6655 rss=965.69MiB peak_rss=965.69MiB private_commit=N/A VkResult=0
 [VisibilityExchange] Loaded SPIR-V: Engine/Shaders/HiZReduce.spv
-[Thread 0x7fff8a7776c0 (LWP 6097) exited]
-[GPU startup] BEGIN #16 compute pipeline (driver compile/cache lookup): Engine/Shaders/HiZReduce.spv elapsed=0.00s pid=6061 rss=967.18MiB peak_rss=967.18MiB private_commit=N/A 
-[New Thread 0x7fff8a7776c0 (LWP 6098)]
-[GPU startup] DONE #16 compute pipeline (driver compile/cache lookup): Engine/Shaders/HiZReduce.spv elapsed=0.00s pid=6061 rss=967.18MiB peak_rss=967.18MiB private_commit=N/A VkResult=0
-[Thread 0x7fff8a7776c0 (LWP 6098) exited]
-[GPU startup] BEGIN #17 shader module: Engine/Shaders/SurfaceResolve.spv elapsed=0.00s pid=6061 rss=967.18MiB peak_rss=967.18MiB private_commit=N/A 
-[New Thread 0x7fff8a7776c0 (LWP 6099)]
-[GPU startup] DONE #17 shader module: Engine/Shaders/SurfaceResolve.spv elapsed=0.00s pid=6061 rss=967.18MiB peak_rss=967.18MiB private_commit=N/A VkResult=0
+[Thread 0x7fff8a6bf6c0 (LWP 6691) exited]
+[GPU startup] BEGIN #16 compute pipeline (driver compile/cache lookup): Engine/Shaders/HiZReduce.spv elapsed=0.00s pid=6655 rss=965.69MiB peak_rss=965.69MiB private_commit=N/A 
+[New Thread 0x7fff8a6bf6c0 (LWP 6692)]
+[GPU startup] DONE #16 compute pipeline (driver compile/cache lookup): Engine/Shaders/HiZReduce.spv elapsed=0.00s pid=6655 rss=965.69MiB peak_rss=965.69MiB private_commit=N/A VkResult=0
+[Thread 0x7fff8a6bf6c0 (LWP 6692) exited]
+[GPU startup] BEGIN #17 shader module: Engine/Shaders/SurfaceResolve.spv elapsed=0.00s pid=6655 rss=965.69MiB peak_rss=965.69MiB private_commit=N/A 
+[New Thread 0x7fff8a6bf6c0 (LWP 6693)]
+[GPU startup] DONE #17 shader module: Engine/Shaders/SurfaceResolve.spv elapsed=0.00s pid=6655 rss=965.69MiB peak_rss=965.69MiB private_commit=N/A VkResult=0
 [VisibilityExchange] Loaded SPIR-V: Engine/Shaders/SurfaceResolve.spv
-[Thread 0x7fff8a7776c0 (LWP 6099) exited]
-[GPU startup] BEGIN #18 compute pipeline (driver compile/cache lookup): Engine/Shaders/SurfaceResolve.spv elapsed=0.00s pid=6061 rss=967.18MiB peak_rss=967.18MiB private_commit=N/A 
-[New Thread 0x7fff8a7776c0 (LWP 6100)]
-[GPU startup] DONE #18 compute pipeline (driver compile/cache lookup): Engine/Shaders/SurfaceResolve.spv elapsed=0.01s pid=6061 rss=967.25MiB peak_rss=967.25MiB private_commit=N/A VkResult=0
-[Thread 0x7fff8a7776c0 (LWP 6100) exited]
-[GPU startup] BEGIN #19 shader module: Engine/Shaders/SelectionOutline.spv elapsed=0.00s pid=6061 rss=967.25MiB peak_rss=967.25MiB private_commit=N/A 
-[New Thread 0x7fff8a7776c0 (LWP 6101)]
-[GPU startup] DONE #19 shader module: Engine/Shaders/SelectionOutline.spv elapsed=0.00s pid=6061 rss=967.25MiB peak_rss=967.25MiB private_commit=N/A VkResult=0
-[VisibilityExchange] Loaded SPIR-V: [Thread 0x7fff8a7776c0 (LWP 6101) exited]
-Engine/Shaders/SelectionOutline.spv
-[GPU startup] BEGIN #20 compute pipeline (driver compile/cache lookup): Engine/Shaders/SelectionOutline.spv elapsed=0.00s pid=6061 rss=967.25MiB peak_rss=967.25MiB private_commit=N/A 
-[New Thread 0x7fff8a7776c0 (LWP 6102)]
-[GPU startup] DONE #20 compute pipeline (driver compile/cache lookup): Engine/Shaders/SelectionOutline.spv elapsed=0.00s pid=6061 rss=967.25MiB peak_rss=967.25MiB private_commit=N/A VkResult=0
-[Thread 0x7fff8a7776c0 (LWP 6102) exited]
-[GPU startup] BEGIN #21 shader module: Engine/Shaders/VisibilityRaster.vert.spv elapsed=0.00s pid=6061 rss=967.25MiB peak_rss=967.25MiB private_commit=N/A 
-[New Thread 0x7fff8a7776c0 (LWP 6103)]
-[GPU startup] DONE #21 shader module: Engine/Shaders/VisibilityRaster.vert.spv elapsed=0.00s pid=6061 rss=967.25MiB peak_rss=967.25MiB private_commit=N/A VkResult=0
+[GPU startup] BEGIN #18 compute pipeline (driver compile/cache lookup): Engine/Shaders/SurfaceResolve.spv elapsed=0.00s pid=6655 rss=965.69MiB peak_rss=965.69MiB private_commit=N/A 
+[Thread 0x7fff8a6bf6c0 (LWP 6693) exited]
+[New Thread 0x7fff8a6bf6c0 (LWP 6694)]
+[GPU startup] DONE #18 compute pipeline (driver compile/cache lookup): Engine/Shaders/SurfaceResolve.spv elapsed=0.01s pid=6655 rss=965.75MiB peak_rss=965.75MiB private_commit=N/A VkResult=0
+[Thread 0x7fff8a6bf6c0 (LWP 6694) exited]
+[GPU startup] BEGIN #19 shader module: Engine/Shaders/SelectionOutline.spv elapsed=0.00s pid=6655 rss=965.75MiB peak_rss=965.75MiB private_commit=N/A 
+[New Thread 0x7fff8a6bf6c0 (LWP 6695)]
+[GPU startup] DONE #19 shader module: Engine/Shaders/SelectionOutline.spv elapsed=0.00s pid=6655 rss=965.75MiB peak_rss=965.75MiB private_commit=N/A VkResult=0
+[VisibilityExchange] Loaded SPIR-V: Engine/Shaders/SelectionOutline.spv
+[Thread 0x7fff8a6bf6c0 (LWP 6695) exited]
+[GPU startup] BEGIN #20 compute pipeline (driver compile/cache lookup): Engine/Shaders/SelectionOutline.spv elapsed=0.00s pid=6655 rss=965.75MiB peak_rss=965.75MiB private_commit=N/A 
+[New Thread 0x7fff8a6bf6c0 (LWP 6696)]
+[GPU startup] DONE #20 compute pipeline (driver compile/cache lookup): Engine/Shaders/SelectionOutline.spv elapsed=0.00s pid=6655 rss=965.75MiB peak_rss=965.75MiB private_commit=N/A VkResult=0
+[Thread 0x7fff8a6bf6c0 (LWP 6696) exited]
+[GPU startup] BEGIN #21 shader module: Engine/Shaders/VisibilityRaster.vert.spv elapsed=0.00s pid=6655 rss=965.75MiB peak_rss=965.75MiB private_commit=N/A 
+[New Thread 0x7fff8a6bf6c0 (LWP 6697)]
+[GPU startup] DONE #21 shader module: Engine/Shaders/VisibilityRaster.vert.spv elapsed=0.00s pid=6655 rss=965.75MiB peak_rss=965.75MiB private_commit=N/A VkResult=0
 [VisibilityExchange] Loaded SPIR-V: Engine/Shaders/VisibilityRaster.vert.spv
-[Thread 0x7fff8a7776c0 (LWP 6103) exited]
-[GPU startup] BEGIN #22 shader module: Engine/Shaders/VisibilityRaster.frag.spv elapsed=0.00s pid=6061 rss=967.25MiB peak_rss=967.25MiB private_commit=N/A 
-[New Thread 0x7fff8a7776c0 (LWP 6104)]
-[GPU startup] DONE #22 shader module: Engine/Shaders/VisibilityRaster.frag.spv elapsed=0.00s pid=6061 rss=967.25MiB peak_rss=967.25MiB private_commit=N/A VkResult=0
+[Thread 0x7fff8a6bf6c0 (LWP 6697) exited]
+[GPU startup] BEGIN #22 shader module: Engine/Shaders/VisibilityRaster.frag.spv elapsed=0.00s pid=6655 rss=965.75MiB peak_rss=965.75MiB private_commit=N/A 
+[New Thread 0x7fff8a6bf6c0 (LWP 6698)]
+[GPU startup] DONE #22 shader module: Engine/Shaders/VisibilityRaster.frag.spv elapsed=0.00s pid=6655 rss=965.75MiB peak_rss=965.75MiB private_commit=N/A VkResult=0
 [VisibilityExchange] Loaded SPIR-V: Engine/Shaders/VisibilityRaster.frag.spv
-[Thread 0x7fff8a7776c0 (LWP 6104) exited]
-[GPU startup] BEGIN #23 graphics pipeline (driver compile/cache lookup): VisibilityRaster clear elapsed=0.00s pid=6061 rss=967.25MiB peak_rss=967.25MiB private_commit=N/A 
-[New Thread 0x7fff8a7776c0 (LWP 6105)]
-[GPU startup] DONE #23 graphics pipeline (driver compile/cache lookup): VisibilityRaster clear elapsed=0.01s pid=6061 rss=967.25MiB peak_rss=967.25MiB private_commit=N/A VkResult=0
-[Thread 0x7fff8a7776c0 (LWP 6105) exited]
-[GPU startup] BEGIN #24 graphics pipeline (driver compile/cache lookup): VisibilityRaster load elapsed=0.00s pid=6061 rss=967.25MiB peak_rss=967.25MiB private_commit=N/A 
-[New Thread 0x7fff8a7776c0 (LWP 6106)]
-[GPU startup] DONE #24 graphics pipeline (driver compile/cache lookup): VisibilityRaster load elapsed=0.01s pid=6061 rss=967.25MiB peak_rss=967.25MiB private_commit=N/A VkResult=0
-[Thread 0x7fff8a7776c0 (LWP 6106) exited]
-[GPU startup] BEGIN #25 shader module: Engine/Shaders/ShadowRaster.vert.spv elapsed=0.00s pid=6061 rss=967.25MiB peak_rss=967.25MiB private_commit=N/A 
-[New Thread 0x7fff8a7776c0 (LWP 6107)]
-[GPU startup] DONE #25 shader module: Engine/Shaders/ShadowRaster.vert.spv elapsed=0.00s pid=6061 rss=967.25MiB peak_rss=967.25MiB private_commit=N/A VkResult=0
+[Thread 0x7fff8a6bf6c0 (LWP 6698) exited]
+[GPU startup] BEGIN #23 graphics pipeline (driver compile/cache lookup): VisibilityRaster clear elapsed=0.00s pid=6655 rss=965.75MiB peak_rss=965.75MiB private_commit=N/A 
+[New Thread 0x7fff8a6bf6c0 (LWP 6699)]
+[GPU startup] DONE #23 graphics pipeline (driver compile/cache lookup): VisibilityRaster clear elapsed=0.01s pid=6655 rss=965.75MiB peak_rss=965.75MiB private_commit=N/A VkResult=0
+[Thread 0x7fff8a6bf6c0 (LWP 6699) exited]
+[GPU startup] BEGIN #24 graphics pipeline (driver compile/cache lookup): VisibilityRaster load elapsed=0.00s pid=6655 rss=965.75MiB peak_rss=965.75MiB private_commit=N/A 
+[New Thread 0x7fff8a6bf6c0 (LWP 6700)]
+[GPU startup] DONE #24 graphics pipeline (driver compile/cache lookup): VisibilityRaster load elapsed=0.01s pid=6655 rss=965.75MiB peak_rss=965.75MiB private_commit=N/A VkResult=0
+[Thread 0x7fff8a6bf6c0 (LWP 6700) exited]
+[GPU startup] BEGIN #25 shader module: Engine/Shaders/ShadowRaster.vert.spv elapsed=0.00s pid=6655 rss=965.75MiB peak_rss=965.75MiB private_commit=N/A 
+[New Thread 0x7fff8a6bf6c0 (LWP 6701)]
+[GPU startup] DONE #25 shader module: Engine/Shaders/ShadowRaster.vert.spv elapsed=0.00s pid=6655 rss=965.75MiB peak_rss=965.75MiB private_commit=N/A VkResult=0
 [VisibilityExchange] Loaded SPIR-V: Engine/Shaders/ShadowRaster.vert.spv
-[Thread 0x7fff8a7776c0 (LWP 6107) exited]
-[GPU startup] BEGIN #26 shader module: Engine/Shaders/ShadowRaster.frag.spv elapsed=0.00s pid=6061 rss=967.25MiB peak_rss=967.25MiB private_commit=N/A 
-[New Thread 0x7fff8a7776c0 (LWP 6108)]
-[GPU startup] DONE #26 shader module: Engine/Shaders/ShadowRaster.frag.spv elapsed=0.00s pid=6061 rss=967.25MiB peak_rss=967.25MiB private_commit=N/A VkResult=0
+[Thread 0x7fff8a6bf6c0 (LWP 6701) exited]
+[GPU startup] BEGIN #26 shader module: Engine/Shaders/ShadowRaster.frag.spv elapsed=0.00s pid=6655 rss=965.75MiB peak_rss=965.75MiB private_commit=N/A 
+[New Thread 0x7fff8a6bf6c0 (LWP 6702)]
+[GPU startup] DONE #26 shader module: Engine/Shaders/ShadowRaster.frag.spv elapsed=0.00s pid=6655 rss=965.75MiB peak_rss=965.75MiB private_commit=N/A VkResult=0
 [VisibilityExchange] Loaded SPIR-V: Engine/Shaders/ShadowRaster.frag.spv
-[Thread 0x7fff8a7776c0 (LWP 6108) exited]
-[GPU startup] BEGIN #27 graphics pipeline (driver compile/cache lookup): ShadowRaster elapsed=0.00s pid=6061 rss=967.25MiB peak_rss=967.25MiB private_commit=N/A 
-[New Thread 0x7fff8a7776c0 (LWP 6109)]
-[GPU startup] DONE #27 graphics pipeline (driver compile/cache lookup): ShadowRaster elapsed=0.00s pid=6061 rss=967.25MiB peak_rss=967.25MiB private_commit=N/A VkResult=0
-[Thread 0x7fff8a7776c0 (LWP 6109) exited]
-[GPU startup] BEGIN #28 shader module: Engine/Shaders/ShadowResolve.spv elapsed=0.00s pid=6061 rss=967.25MiB peak_rss=967.25MiB private_commit=N/A 
-[New Thread 0x7fff8a7776c0 (LWP 6110)]
-[GPU startup] DONE #28 shader module: Engine/Shaders/ShadowResolve.spv elapsed=0.00s pid=6061 rss=967.25MiB peak_rss=967.25MiB private_commit=N/A VkResult=0
-[VisibilityExchange] Loaded SPIR-V: [Thread 0x7fff8a7776c0 (LWP 6110) exited]
-Engine/Shaders/ShadowResolve.spv
-[GPU startup] BEGIN #29 compute pipeline (driver compile/cache lookup): Engine/Shaders/ShadowResolve.spv elapsed=0.00s pid=6061 rss=967.25MiB peak_rss=967.25MiB private_commit=N/A 
-[New Thread 0x7fff8a7776c0 (LWP 6111)]
-[GPU startup] DONE #29 compute pipeline (driver compile/cache lookup): Engine/Shaders/ShadowResolve.spv elapsed=0.01s pid=6061 rss=967.25MiB peak_rss=967.25MiB private_commit=N/A VkResult=0
-[Thread 0x7fff8a7776c0 (LWP 6111) exited]
+[Thread 0x7fff8a6bf6c0 (LWP 6702) exited]
+[GPU startup] BEGIN #27 graphics pipeline (driver compile/cache lookup): ShadowRaster elapsed=0.00s pid=6655 rss=965.75MiB peak_rss=965.75MiB private_commit=N/A 
+[New Thread 0x7fff8a6bf6c0 (LWP 6703)]
+[GPU startup] DONE #27 graphics pipeline (driver compile/cache lookup): ShadowRaster elapsed=0.00s pid=6655 rss=965.75MiB peak_rss=965.75MiB private_commit=N/A VkResult=0
+[Thread 0x7fff8a6bf6c0 (LWP 6703) exited]
+[GPU startup] BEGIN #28 shader module: Engine/Shaders/ShadowResolve.spv elapsed=0.00s pid=6655 rss=965.75MiB peak_rss=965.75MiB private_commit=N/A 
+[New Thread 0x7fff8a6bf6c0 (LWP 6704)]
+[GPU startup] DONE #28 shader module: Engine/Shaders/ShadowResolve.spv elapsed=0.00s pid=6655 rss=965.75MiB peak_rss=965.75MiB private_commit=N/A VkResult=0
+[VisibilityExchange] Loaded SPIR-V: Engine/Shaders/ShadowResolve.spv
+[Thread 0x7fff8a6bf6c0 (LWP 6704) exited]
+[GPU startup] BEGIN #29 compute pipeline (driver compile/cache lookup): Engine/Shaders/ShadowResolve.spv elapsed=0.00s pid=6655 rss=965.75MiB peak_rss=965.75MiB private_commit=N/A 
+[New Thread 0x7fff8a6bf6c0 (LWP 6705)]
+[GPU startup] DONE #29 compute pipeline (driver compile/cache lookup): Engine/Shaders/ShadowResolve.spv elapsed=0.01s pid=6655 rss=965.75MiB peak_rss=965.75MiB private_commit=N/A VkResult=0
+[Thread 0x7fff8a6bf6c0 (LWP 6705) exited]
 [SwapchainExchange] Loaded SPIR-V: Engine/Shaders/RasterViewport.spv
-[GPU startup] STAGE 18 DONE BringVisibility elapsed=0.933645s
+[GPU startup] STAGE 18 DONE BringVisibility elapsed=0.931158s
 [SwapchainExchange] Bring-up complete.
-[Startup] VulkanBringUp:end t=11478ms phase=11428.9ms rss=967.742MiB peak=967.742MiB private_bytes=-1 payload=0B pid=6061
+[Startup] VulkanBringUp:end t=19594ms phase=19538.8ms rss=966.199MiB peak=966.199MiB private_bytes=-1 payload=0B pid=6655
 [INFO] [Bootstrap] Window and Vulkan swapchain ready.
-[Startup] ShadingTableBake:begin t=11478.1ms phase=-1ms rss=967.742MiB peak=967.742MiB private_bytes=-1 payload=0B pid=6061
-[Startup] ShadingLutPayload t=11664.9ms phase=-1ms rss=967.742MiB peak=967.742MiB private_bytes=-1 payload=32768B pid=6061
+[Startup] ShadingTableBake:begin t=19594.1ms phase=-1ms rss=966.199MiB peak=966.199MiB private_bytes=-1 payload=0B pid=6655
+[Startup] ShadingLutPayload t=19821.9ms phase=-1ms rss=966.199MiB peak=966.199MiB private_bytes=-1 payload=32768B pid=6655
 [Allocation] buffer requested=32768 allocated=32768 memory_flags=15 (request, not live total)
 [SwapchainExchange] Shading tables: GGX energy + LTC sheen, 2 x 32x32 RGBA32F resident (bindings 13/14).
-[Startup] ShadingTableBake:end t=11665.2ms phase=187.083ms rss=967.84MiB peak=967.84MiB private_bytes=-1 payload=0B pid=6061
-[INFO] [Traversal] CWBVH: 22168 triangles → 3546 nodes, 277.0 KB nodes + 1558.7 KB leaves (84.8 B/tri), SAH 5.73, built in 37.3 ms (spatial splits)
+[Startup] ShadingTableBake:end t=19822.4ms phase=228.195ms rss=966.297MiB peak=966.297MiB private_bytes=-1 payload=0B pid=6655
+[INFO] [Traversal] CWBVH: 22168 triangles → 3546 nodes, 277.0 KB nodes + 1558.7 KB leaves (84.8 B/tri), SAH 5.73, built in 67.0 ms (spatial splits)
 [INFO] [Startup] CWBVH build worker joined before scene upload.
-[INFO] [Textures] Textures: 6 resident (0 placeholder), 64.0 MB with mips, decoded in 163 ms
+[INFO] [Textures] Textures: 6 resident (0 placeholder), 64.0 MB with mips, decoded in 160 ms
 [INFO] [Startup] Texture decode worker joined before scene upload.
 [INFO] [Project displays] 2 project display(s) bound as emissive textures (Display:CabinTablet, ...).
-[Startup] SceneUpload:begin t=11689.9ms phase=-1ms rss=967.891MiB peak=967.891MiB private_bytes=-1 payload=0B pid=6061
-[Startup] DecodedTexturePayload t=11689.9ms phase=-1ms rss=967.891MiB peak=967.891MiB private_bytes=-1 payload=78680344B pid=6061
-[Startup] DecodedTextureCapacity t=11689.9ms phase=-1ms rss=967.891MiB peak=967.891MiB private_bytes=-1 payload=118027296B pid=6061
-[Startup] CpuGeometryPayload t=11690ms phase=-1ms rss=967.891MiB peak=967.891MiB private_bytes=-1 payload=5941024B pid=6061
+[Startup] SceneUpload:begin t=19848.4ms phase=-1ms rss=966.348MiB peak=966.348MiB private_bytes=-1 payload=0B pid=6655
+[Startup] DecodedTexturePayload t=19848.5ms phase=-1ms rss=966.348MiB peak=966.348MiB private_bytes=-1 payload=78680344B pid=6655
+[Startup] DecodedTextureCapacity t=19848.6ms phase=-1ms rss=966.348MiB peak=966.348MiB private_bytes=-1 payload=118027296B pid=6655
+[Startup] CpuGeometryPayload t=19848.6ms phase=-1ms rss=966.348MiB peak=966.348MiB private_bytes=-1 payload=5941024B pid=6655
 [VisibilityExchange] Scene resident: 22168 triangles, 66504 vertices, 26 instances, 193 clusters, 1662 luminaires.
 [Allocation] texture_staging_payload=78680344 (CPU texels retained separately)
 [Allocation] buffer requested=78680344 allocated=78680344 memory_flags=15 (request, not live total)
@@ -267,12 +268,12 @@ Engine/Shaders/ShadowResolve.spv
 [Allocation] buffer requested=6384 allocated=6384 memory_flags=15 (request, not live total)
 [Allocation] buffer requested=283680 allocated=283680 memory_flags=15 (request, not live total)
 [Allocation] buffer requested=1596096 allocated=1596096 memory_flags=15 (request, not live total)
-[Startup] SceneUpload:end t=11801.7ms phase=111.723ms rss=1051.93MiB peak=1123.42MiB private_bytes=-1 payload=0B pid=6061
-[Startup] CpuAnimationMirrorCapacity t=11801.9ms phase=-1ms rss=1051.93MiB peak=1123.42MiB private_bytes=-1 payload=1422912B pid=6061
-[New Thread 0x7ffff5af56c0 (LWP 6112)]
-[New Thread 0x7fffeffff6c0 (LWP 6113)]
-[New Thread 0x7fff835736c0 (LWP 6114)]
-[New Thread 0x7fff825726c0 (LWP 6115)]
+[Startup] SceneUpload:end t=19988.9ms phase=140.372ms rss=1050.39MiB peak=1121.85MiB private_bytes=-1 payload=0B pid=6655
+[Startup] CpuAnimationMirrorCapacity t=19989.1ms phase=-1ms rss=1050.39MiB peak=1121.85MiB private_bytes=-1 payload=1422912B pid=6655
+[New Thread 0x7ffff5af56c0 (LWP 6707)]
+[New Thread 0x7ffff43816c0 (LWP 6708)]
+[New Thread 0x7fff838f76c0 (LWP 6709)]
+[New Thread 0x7fff828f66c0 (LWP 6710)]
 [Allocation] buffer requested=263440 allocated=263440 memory_flags=15 (request, not live total)
 [Allocation] buffer requested=1064064 allocated=1064064 memory_flags=15 (request, not live total)
 [Allocation] buffer requested=896 allocated=896 memory_flags=15 (request, not live total)
@@ -280,51 +281,51 @@ Engine/Shaders/ShadowResolve.spv
 [Allocation] buffer requested=2912 allocated=2912 memory_flags=15 (request, not live total)
 [Allocation] buffer requested=416 allocated=416 memory_flags=15 (request, not live total)
 [SwapchainExchange] Instances: 26 rows, 26 BLASes, 28 top-level nodes (BLAS bindings 8-9, TLAS bindings 27-30)
-[INFO] [Traversal] Two-level: 26 instances -> 26 BLASes over 22168 triangles, top level 28 nodes, shared blobs 257.3 KB + 1039.1 KB, built in 18.8 ms
+[INFO] [Traversal] Two-level: 26 instances -> 26 BLASes over 22168 triangles, top level 28 nodes, shared blobs 257.3 KB + 1039.1 KB, built in 10.9 ms
 [INFO] [Moons] 8 textures resident, moon slots 0..5.
 [Allocation] buffer requested=318048 allocated=318048 memory_flags=15 (request, not live total)
 [INFO] [Stars] 9683 stars in 1024 cells uploaded to binding 23.
-[Startup] Fonts:begin t=11823.2ms phase=-1ms rss=1052.63MiB peak=1123.42MiB private_bytes=-1 payload=0B pid=6061
-[Startup] Fonts:end t=11829.7ms phase=6.37294ms rss=1052.69MiB peak=1123.42MiB private_bytes=-1 payload=0B pid=6061
-[Startup] ControlCentre:begin t=11829.7ms phase=-1ms rss=1052.69MiB peak=1123.42MiB private_bytes=-1 payload=0B pid=6061
-[Startup] ControlCentre:end t=11829.7ms phase=0.000334ms rss=1052.69MiB peak=1123.42MiB private_bytes=-1 payload=0B pid=6061
+[Startup] Fonts:begin t=20002.7ms phase=-1ms rss=1051.09MiB peak=1121.85MiB private_bytes=-1 payload=0B pid=6655
+[Startup] Fonts:end t=20008.8ms phase=6.02155ms rss=1051.15MiB peak=1121.85MiB private_bytes=-1 payload=0B pid=6655
+[Startup] ControlCentre:begin t=20008.9ms phase=-1ms rss=1051.15MiB peak=1121.85MiB private_bytes=-1 payload=0B pid=6655
+[Startup] ControlCentre:end t=20008.9ms phase=0.000391ms rss=1051.15MiB peak=1121.85MiB private_bytes=-1 payload=0B pid=6655
 [INFO] [Bootstrap] Entering render loop.
-[Startup] InterfaceBringUp:begin t=11829.8ms phase=-1ms rss=1052.75MiB peak=1123.42MiB private_bytes=-1 payload=0B pid=6061
+[Startup] InterfaceBringUp:begin t=20009ms phase=-1ms rss=1051.21MiB peak=1121.85MiB private_bytes=-1 payload=0B pid=6655
 [InterfaceExchange] Loaded SPIR-V: /home/runner/work/Frontier-/Frontier-/Engine/Shaders/InterfaceRaster.vert.spv
 [InterfaceExchange] Loaded SPIR-V: /home/runner/work/Frontier-/Frontier-/Engine/Shaders/InterfaceRaster.frag.spv
 [InterfaceExchange] Ready: capacity 1024 figures, 2 cycle slots, depth test off.
-[New Thread 0x7fff815716c0 (LWP 6116)]
-[Thread 0x7fff815716c0 (LWP 6116) exited]
-[New Thread 0x7fff815716c0 (LWP 6117)]
-[New Thread 0x7fff805706c0 (LWP 6118)]
-[Thread 0x7fff805706c0 (LWP 6118) exited]
-[New Thread 0x7fff805706c0 (LWP 6119)]
+[New Thread 0x7fff818f56c0 (LWP 6711)]
+[Thread 0x7fff818f56c0 (LWP 6711) exited]
+[New Thread 0x7fff818f56c0 (LWP 6712)]
+[New Thread 0x7fff808f46c0 (LWP 6713)]
+[Thread 0x7fff808f46c0 (LWP 6713) exited]
+[New Thread 0x7fff808f46c0 (LWP 6714)]
 [INFO] [Interface] Director ready: TAB switches screens. The card carries 2 converted vector segments.
 [INFO] [Audio] Audio disabled (null driver). Pass --audio to open the sound device.
 [INFO] [Interface] Spatial interface ready: 14 figures, depth test off.
-[Startup] InterfaceBringUp:end t=11874.8ms phase=44.8832ms rss=1053.12MiB peak=1123.42MiB private_bytes=-1 payload=0B pid=6061
+[Startup] InterfaceBringUp:end t=20060.3ms phase=51.2392ms rss=1051.59MiB peak=1121.85MiB private_bytes=-1 payload=0B pid=6655
 [GizmoExchange] Loaded SPIR-V: /home/runner/work/Frontier-/Frontier-/Engine/Shaders/GizmoRaster.vert.spv
 [GizmoExchange] Loaded SPIR-V: /home/runner/work/Frontier-/Frontier-/Engine/Shaders/GizmoRaster.frag.spv
 [GizmoExchange] Ready: capacity 4864 vertices, 2 cycle slots.
 [INFO] [Gizmo] Transform gizmo ready: G/R/S over a picked object, exactly the reference's pieces.
-[Startup] FrameLoopReady t=11876.2ms phase=-1ms rss=1053.13MiB peak=1123.42MiB private_bytes=-1 payload=0B pid=6061
-[GPU startup] BEGIN #30 distance-field GI pipeline: DistanceFieldCapture.spv elapsed=0.00s pid=6061 rss=1053.20MiB peak_rss=1123.42MiB private_commit=N/A 
-[New Thread 0x7fff79c506c0 (LWP 6120)]
-[GPU startup] DONE #30 distance-field GI pipeline: DistanceFieldCapture.spv elapsed=0.02s pid=6061 rss=1053.21MiB peak_rss=1123.42MiB private_commit=N/A VkResult=0
-[Thread 0x7fff79c506c0 (LWP 6120) exited]
-[GPU startup] BEGIN #31 distance-field GI pipeline: DistanceFieldRadiance.spv elapsed=0.00s pid=6061 rss=1053.21MiB peak_rss=1123.42MiB private_commit=N/A 
-[New Thread 0x7fff79c506c0 (LWP 6121)]
-[GPU startup] DONE #31 distance-field GI pipeline: DistanceFieldRadiance.spv elapsed=0.02s pid=6061 rss=1053.21MiB peak_rss=1123.42MiB private_commit=N/A VkResult=0
-[Thread 0x7fff79c506c0 (LWP 6121) exited]
-[GPU startup] BEGIN #32 distance-field GI pipeline: DistanceFieldGather.spv elapsed=0.00s pid=6061 rss=1053.21MiB peak_rss=1123.42MiB private_commit=N/A 
-[New Thread 0x7fff79c506c0 (LWP 6122)]
-[GPU startup] DONE #32 distance-field GI pipeline: DistanceFieldGather.spv elapsed=0.03s pid=6061 rss=1053.27MiB peak_rss=1123.42MiB private_commit=N/A VkResult=0
-[Thread 0x7fff79c506c0 (LWP 6122) exited]
-[GPU startup] BEGIN #33 distance-field GI pipeline: DistanceFieldGIResolve.spv elapsed=0.00s pid=6061 rss=1053.27MiB peak_rss=1123.42MiB private_commit=N/A 
-[New Thread 0x7fff79c506c0 (LWP 6123)]
-[GPU startup] DONE #33 distance-field GI pipeline: DistanceFieldGIResolve.spv elapsed=0.30s pid=6061 rss=1053.27MiB peak_rss=1123.42MiB private_commit=N/A VkResult=0
-[Thread 0x7fff79c506c0 (LWP 6123) exited]
-[SdfGI] mesh-local fields: constructed=0, file hits=26, shared placements=0, samples=1265474; no runtime distance-field construction pipeline
+[Startup] FrameLoopReady t=20062ms phase=-1ms rss=1051.59MiB peak=1121.85MiB private_bytes=-1 payload=0B pid=6655
+[GPU startup] BEGIN #30 distance-field GI pipeline: DistanceFieldCapture.spv elapsed=0.00s pid=6655 rss=1051.66MiB peak_rss=1121.85MiB private_commit=N/A 
+[New Thread 0x7fff79fd46c0 (LWP 6715)]
+[GPU startup] DONE #30 distance-field GI pipeline: DistanceFieldCapture.spv elapsed=0.02s pid=6655 rss=1051.67MiB peak_rss=1121.85MiB private_commit=N/A VkResult=0
+[Thread 0x7fff79fd46c0 (LWP 6715) exited]
+[GPU startup] BEGIN #31 distance-field GI pipeline: DistanceFieldRadiance.spv elapsed=0.00s pid=6655 rss=1051.67MiB peak_rss=1121.85MiB private_commit=N/A 
+[New Thread 0x7fff79fd46c0 (LWP 6716)]
+[GPU startup] DONE #31 distance-field GI pipeline: DistanceFieldRadiance.spv elapsed=0.03s pid=6655 rss=1051.67MiB peak_rss=1121.85MiB private_commit=N/A VkResult=0
+[Thread 0x7fff79fd46c0 (LWP 6716) exited]
+[GPU startup] BEGIN #32 distance-field GI pipeline: DistanceFieldGather.spv elapsed=0.00s pid=6655 rss=1051.67MiB peak_rss=1121.85MiB private_commit=N/A 
+[New Thread 0x7fff79fd46c0 (LWP 6717)]
+[GPU startup] DONE #32 distance-field GI pipeline: DistanceFieldGather.spv elapsed=0.03s pid=6655 rss=1051.73MiB peak_rss=1121.85MiB private_commit=N/A VkResult=0
+[Thread 0x7fff79fd46c0 (LWP 6717) exited]
+[GPU startup] BEGIN #33 distance-field GI pipeline: DistanceFieldGIResolve.spv elapsed=0.00s pid=6655 rss=1051.73MiB peak_rss=1121.85MiB private_commit=N/A 
+[New Thread 0x7fff79fd46c0 (LWP 6718)]
+[GPU startup] DONE #33 distance-field GI pipeline: DistanceFieldGIResolve.spv elapsed=0.29s pid=6655 rss=1051.73MiB peak_rss=1121.85MiB private_commit=N/A VkResult=0
+[SdfGI] mesh-local fields: constructed=0, file hits=26, shared placements=0, samples=1265474[Thread 0x7fff79fd46c0 (LWP 6718) exited]
+; no runtime distance-field construction pipeline
 [INFO] [RenderPath] Render path: Distance Field GI | reflections: off. (Raytracing tile off, GI on.)
 [INFO] [SdfGI] Distance Field GI ready: disk-cached mesh-local samples, transform-only placement updates, bounded indirect-light transport. Direct shadows are rasterized; RT-off reflections are sky-only.
 [INFO] [Shadows] Shadow path: Distance Field GI direct-light visibility; mesh reflections off.
@@ -332,13 +333,38 @@ Engine/Shaders/ShadowResolve.spv
 [SdfGI] no bake; placements=26, card budget=65536, gather=half-resolution/8 samples, GPU timing pending or unsupported
 
 Thread 15 "Frontier" received signal SIGSEGV, Segmentation fault.
-[Switching to Thread 0x7fffc05f86c0 (LWP 6077)]
-0x00007fffec023eb9 in ?? ()
-A syntax error in expression, near `._sifields._sigfault.si_addr'.
-#0  0x00007fffec023eb9 in ?? ()
+[Switching to Thread 0x7fffc5ffd6c0 (LWP 6671)]
+0x00007fffa00b9624 in ?? ()
+rax            0x0                 0
+rbx            0x7fffe800d000      140737085755392
+rcx            0x0                 0
+rdx            0x0                 0
+rsi            0x2                 2
+rdi            0x7fffebe1d000      140737150832640
+rbp            0x7fffc5ffcd50      0x7fffc5ffcd50
+rsp            0x7fffc5ff1700      0x7fffc5ff1700
+r8             0x57                87
+r9             0x54                84
+r10            0x210               528
+r11            0x1580              5504
+r12            0x80000000          2147483648
+r13            0x0                 0
+r14            0x7fffe800d300      140737085756160
+r15            0xc01cbb58          3223108440
+rip            0x7fffa00b9624      0x7fffa00b9624
+eflags         0x10246             [ PF ZF IF RF ]
+cs             0x33                51
+ss             0x2b                43
+ds             0x0                 0
+es             0x0                 0
+fs             0x0                 0
+gs             0x0                 0
+fs_base        0x7fffc5ffd6c0      140736515266240
+gs_base        0x0                 0
+#0  0x00007fffa00b9624 in ?? ()
 #1  0x0000000000000000 in ?? ()
 
-Thread 57 (Thread 0x7fff805706c0 (LWP 6119) "Frontier"):
+Thread 57 (Thread 0x7fff808f46c0 (LWP 6714) "Frontier"):
 #0  0x00007ffff78ecbdf in clock_nanosleep () from /lib/x86_64-linux-gnu/libc.so.6
 #1  0x00007ffff78f9b27 in nanosleep () from /lib/x86_64-linux-gnu/libc.so.6
 #2  0x000055555598983e in ma_device_write__null(ma_device*, void const*, unsigned int, unsigned int*) ()
@@ -347,14 +373,14 @@ Thread 57 (Thread 0x7fff805706c0 (LWP 6119) "Frontier"):
 #5  0x00007ffff789cb84 in ?? () from /lib/x86_64-linux-gnu/libc.so.6
 #6  0x00007ffff7929ecc in ?? () from /lib/x86_64-linux-gnu/libc.so.6
 
-Thread 55 (Thread 0x7fff815716c0 (LWP 6117) "Frontier"):
+Thread 55 (Thread 0x7fff818f56c0 (LWP 6712) "Frontier"):
 #0  0x00007ffff7898e51 in ?? () from /lib/x86_64-linux-gnu/libc.so.6
 #1  0x00007ffff789b8cd in pthread_cond_wait () from /lib/x86_64-linux-gnu/libc.so.6
 #2  0x00005555559890bb in ma_device_thread__null(void*) ()
 #3  0x00007ffff789cb84 in ?? () from /lib/x86_64-linux-gnu/libc.so.6
 #4  0x00007ffff7929ecc in ?? () from /lib/x86_64-linux-gnu/libc.so.6
 
-Thread 53 (Thread 0x7fff825726c0 (LWP 6115) "Frontier"):
+Thread 53 (Thread 0x7fff828f66c0 (LWP 6710) "Frontier"):
 #0  0x00007ffff7898e51 in ?? () from /lib/x86_64-linux-gnu/libc.so.6
 #1  0x00007ffff789b8cd in pthread_cond_wait () from /lib/x86_64-linux-gnu/libc.so.6
 #2  0x000055555563c822 in std::thread::_State_impl<std::thread::_Invoker<std::tuple<tinybvh::JobSystem::Initialize()::{lambda()#1}> > >::_M_run() ()
@@ -362,7 +388,7 @@ Thread 53 (Thread 0x7fff825726c0 (LWP 6115) "Frontier"):
 #4  0x00007ffff789cb84 in ?? () from /lib/x86_64-linux-gnu/libc.so.6
 #5  0x00007ffff7929ecc in ?? () from /lib/x86_64-linux-gnu/libc.so.6
 
-Thread 52 (Thread 0x7fff835736c0 (LWP 6114) "Frontier"):
+Thread 52 (Thread 0x7fff838f76c0 (LWP 6709) "Frontier"):
 #0  0x00007ffff7898e51 in ?? () from /lib/x86_64-linux-gnu/libc.so.6
 #1  0x00007ffff789b8cd in pthread_cond_wait () from /lib/x86_64-linux-gnu/libc.so.6
 #2  0x000055555563c822 in std::thread::_State_impl<std::thread::_Invoker<std::tuple<tinybvh::JobSystem::Initialize()::{lambda()#1}> > >::_M_run() ()
@@ -370,7 +396,7 @@ Thread 52 (Thread 0x7fff835736c0 (LWP 6114) "Frontier"):
 #4  0x00007ffff789cb84 in ?? () from /lib/x86_64-linux-gnu/libc.so.6
 #5  0x00007ffff7929ecc in ?? () from /lib/x86_64-linux-gnu/libc.so.6
 
-Thread 51 (Thread 0x7fffeffff6c0 (LWP 6113) "Frontier"):
+Thread 51 (Thread 0x7ffff43816c0 (LWP 6708) "Frontier"):
 #0  0x00007ffff7898e51 in ?? () from /lib/x86_64-linux-gnu/libc.so.6
 #1  0x00007ffff789b8cd in pthread_cond_wait () from /lib/x86_64-linux-gnu/libc.so.6
 #2  0x000055555563c822 in std::thread::_State_impl<std::thread::_Invoker<std::tuple<tinybvh::JobSystem::Initialize()::{lambda()#1}> > >::_M_run() ()
@@ -378,7 +404,7 @@ Thread 51 (Thread 0x7fffeffff6c0 (LWP 6113) "Frontier"):
 #4  0x00007ffff789cb84 in ?? () from /lib/x86_64-linux-gnu/libc.so.6
 #5  0x00007ffff7929ecc in ?? () from /lib/x86_64-linux-gnu/libc.so.6
 
-Thread 50 (Thread 0x7ffff5af56c0 (LWP 6112) "Frontier"):
+Thread 50 (Thread 0x7ffff5af56c0 (LWP 6707) "Frontier"):
 #0  0x00007ffff7898e51 in ?? () from /lib/x86_64-linux-gnu/libc.so.6
 #1  0x00007ffff789b8cd in pthread_cond_wait () from /lib/x86_64-linux-gnu/libc.so.6
 #2  0x000055555563c822 in std::thread::_State_impl<std::thread::_Invoker<std::tuple<tinybvh::JobSystem::Initialize()::{lambda()#1}> > >::_M_run() ()
@@ -386,139 +412,134 @@ Thread 50 (Thread 0x7ffff5af56c0 (LWP 6112) "Frontier"):
 #4  0x00007ffff789cb84 in ?? () from /lib/x86_64-linux-gnu/libc.so.6
 #5  0x00007ffff7929ecc in ?? () from /lib/x86_64-linux-gnu/libc.so.6
 
-Thread 20 (Thread 0x7fffb63fe6c0 (LWP 6082) "WSI swapchain e"):
+Thread 20 (Thread 0x7fffaeffe6c0 (LWP 6676) "WSI swapchain e"):
 #0  0x00007ffff7898e51 in ?? () from /lib/x86_64-linux-gnu/libc.so.6
 #1  0x00007ffff789b8cd in pthread_cond_wait () from /lib/x86_64-linux-gnu/libc.so.6
-#2  0x00007fffee14155d in ?? () from /lib/x86_64-linux-gnu/libvulkan_lvp.so
-#3  0x00007fffee069d79 in ?? () from /lib/x86_64-linux-gnu/libvulkan_lvp.so
-#4  0x00007fffee17eb0c in ?? () from /lib/x86_64-linux-gnu/libvulkan_lvp.so
+#2  0x00007ffff034155d in ?? () from /lib/x86_64-linux-gnu/libvulkan_lvp.so
+#3  0x00007ffff0269d79 in ?? () from /lib/x86_64-linux-gnu/libvulkan_lvp.so
+#4  0x00007ffff037eb0c in ?? () from /lib/x86_64-linux-gnu/libvulkan_lvp.so
 #5  0x00007ffff789cb84 in ?? () from /lib/x86_64-linux-gnu/libc.so.6
 #6  0x00007ffff7929ecc in ?? () from /lib/x86_64-linux-gnu/libc.so.6
 
-Thread 19 (Thread 0x7fffbd5f56c0 (LWP 6081) "WSI swapchain q"):
+Thread 19 (Thread 0x7fffaffff6c0 (LWP 6675) "WSI swapchain q"):
 #0  0x00007ffff7898e51 in ?? () from /lib/x86_64-linux-gnu/libc.so.6
 #1  0x00007ffff789bd6e in pthread_cond_timedwait () from /lib/x86_64-linux-gnu/libc.so.6
-#2  0x00007fffee14152d in ?? () from /lib/x86_64-linux-gnu/libvulkan_lvp.so
-#3  0x00007fffee06934a in ?? () from /lib/x86_64-linux-gnu/libvulkan_lvp.so
-#4  0x00007fffee17eb0c in ?? () from /lib/x86_64-linux-gnu/libvulkan_lvp.so
+#2  0x00007ffff034152d in ?? () from /lib/x86_64-linux-gnu/libvulkan_lvp.so
+#3  0x00007ffff026934a in ?? () from /lib/x86_64-linux-gnu/libvulkan_lvp.so
+#4  0x00007ffff037eb0c in ?? () from /lib/x86_64-linux-gnu/libvulkan_lvp.so
 #5  0x00007ffff789cb84 in ?? () from /lib/x86_64-linux-gnu/libc.so.6
 #6  0x00007ffff7929ecc in ?? () from /lib/x86_64-linux-gnu/libc.so.6
 
-Thread 18 (Thread 0x7fffbe5f66c0 (LWP 6080) "Frontie:disk$0"):
+Thread 18 (Thread 0x7fffb5ffd6c0 (LWP 6674) "Frontie:disk$0"):
 #0  0x00007ffff7898e51 in ?? () from /lib/x86_64-linux-gnu/libc.so.6
 #1  0x00007ffff789b8cd in pthread_cond_wait () from /lib/x86_64-linux-gnu/libc.so.6
-#2  0x00007fffee17ebdd in ?? () from /lib/x86_64-linux-gnu/libvulkan_lvp.so
-#3  0x00007fffee14e50b in ?? () from /lib/x86_64-linux-gnu/libvulkan_lvp.so
-#4  0x00007fffee17eb0c in ?? () from /lib/x86_64-linux-gnu/libvulkan_lvp.so
+#2  0x00007ffff037ebdd in ?? () from /lib/x86_64-linux-gnu/libvulkan_lvp.so
+#3  0x00007ffff034e50b in ?? () from /lib/x86_64-linux-gnu/libvulkan_lvp.so
+#4  0x00007ffff037eb0c in ?? () from /lib/x86_64-linux-gnu/libvulkan_lvp.so
 #5  0x00007ffff789cb84 in ?? () from /lib/x86_64-linux-gnu/libc.so.6
 #6  0x00007ffff7929ecc in ?? () from /lib/x86_64-linux-gnu/libc.so.6
 
-Thread 17 (Thread 0x7fffbf5f76c0 (LWP 6079) "Frontier"):
-#0  0x00007fffec03c9e8 in ?? ()
+Thread 17 (Thread 0x7fffb6ffe6c0 (LWP 6673) "Frontier"):
+#0  0x00007fffa00a7fd6 in ?? ()
 #1  0x0000000000000000 in ?? ()
 
-Thread 16 (Thread 0x7fffb73ff6c0 (LWP 6078) "Frontier"):
-#0  0x00007fffec026a04 in ?? ()
+Thread 16 (Thread 0x7fffb7fff6c0 (LWP 6672) "Frontier"):
+#0  0x00007ffff7898e51 in ?? () from /lib/x86_64-linux-gnu/libc.so.6
+#1  0x00007ffff789b8cd in pthread_cond_wait () from /lib/x86_64-linux-gnu/libc.so.6
+#2  0x00007ffff037ebdd in ?? () from /lib/x86_64-linux-gnu/libvulkan_lvp.so
+#3  0x00007ffff059043b in ?? () from /lib/x86_64-linux-gnu/libvulkan_lvp.so
+#4  0x00007ffff037eb0c in ?? () from /lib/x86_64-linux-gnu/libvulkan_lvp.so
+#5  0x00007ffff789cb84 in ?? () from /lib/x86_64-linux-gnu/libc.so.6
+#6  0x00007ffff7929ecc in ?? () from /lib/x86_64-linux-gnu/libc.so.6
+
+Thread 15 (Thread 0x7fffc5ffd6c0 (LWP 6671) "Frontier"):
+#0  0x00007fffa00b9624 in ?? ()
 #1  0x0000000000000000 in ?? ()
 
-Thread 15 (Thread 0x7fffc05f86c0 (LWP 6077) "Frontier"):
-#0  0x00007fffec023eb9 in ?? ()
+Thread 14 (Thread 0x7fffc6ffe6c0 (LWP 6670) "Frontier"):
+#0  0x00007fffa00bc2c4 in ?? ()
 #1  0x0000000000000000 in ?? ()
 
-Thread 14 (Thread 0x7fffc15f96c0 (LWP 6076) "Frontier"):
-#0  0x00007ffff403015d in ?? ()
-#1  0x00007fff9d04400c in ?? ()
-#2  0x00007fff9d04401c in ?? ()
-#3  0x00007fff9d04402c in ?? ()
-#4  0x00007fff9d04403c in ?? ()
-#5  0x00007fff9d04404c in ?? ()
-#6  0x00007fff9d04405c in ?? ()
-#7  0xffffffffffffffff in ?? ()
-#8  0xffffffffffffffff in ?? ()
-#9  0x470000b7470000b7 in ?? ()
-#10 0x470000b7470000b7 in ?? ()
-#11 0x470000b7470000b7 in ?? ()
-
-Thread 13 (Thread 0x7fffc25fa6c0 (LWP 6075) "llvmpipe-3"):
+Thread 13 (Thread 0x7fffd65fa6c0 (LWP 6669) "llvmpipe-3"):
 #0  0x00007ffff7898e51 in ?? () from /lib/x86_64-linux-gnu/libc.so.6
 #1  0x00007ffff789b8cd in pthread_cond_wait () from /lib/x86_64-linux-gnu/libc.so.6
-#2  0x00007fffee17ebdd in ?? () from /lib/x86_64-linux-gnu/libvulkan_lvp.so
-#3  0x00007fffee393a53 in ?? () from /lib/x86_64-linux-gnu/libvulkan_lvp.so
-#4  0x00007fffee17eb0c in ?? () from /lib/x86_64-linux-gnu/libvulkan_lvp.so
+#2  0x00007ffff037ebdd in ?? () from /lib/x86_64-linux-gnu/libvulkan_lvp.so
+#3  0x00007ffff0593a53 in ?? () from /lib/x86_64-linux-gnu/libvulkan_lvp.so
+#4  0x00007ffff037eb0c in ?? () from /lib/x86_64-linux-gnu/libvulkan_lvp.so
 #5  0x00007ffff789cb84 in ?? () from /lib/x86_64-linux-gnu/libc.so.6
 #6  0x00007ffff7929ecc in ?? () from /lib/x86_64-linux-gnu/libc.so.6
 
-Thread 12 (Thread 0x7fffc35fb6c0 (LWP 6074) "llvmpipe-2"):
+Thread 12 (Thread 0x7fffd75fb6c0 (LWP 6668) "llvmpipe-2"):
 #0  0x00007ffff7898e51 in ?? () from /lib/x86_64-linux-gnu/libc.so.6
 #1  0x00007ffff789b8cd in pthread_cond_wait () from /lib/x86_64-linux-gnu/libc.so.6
-#2  0x00007fffee17ebdd in ?? () from /lib/x86_64-linux-gnu/libvulkan_lvp.so
-#3  0x00007fffee393a53 in ?? () from /lib/x86_64-linux-gnu/libvulkan_lvp.so
-#4  0x00007fffee17eb0c in ?? () from /lib/x86_64-linux-gnu/libvulkan_lvp.so
+#2  0x00007ffff037ebdd in ?? () from /lib/x86_64-linux-gnu/libvulkan_lvp.so
+#3  0x00007ffff0593a53 in ?? () from /lib/x86_64-linux-gnu/libvulkan_lvp.so
+#4  0x00007ffff037eb0c in ?? () from /lib/x86_64-linux-gnu/libvulkan_lvp.so
 #5  0x00007ffff789cb84 in ?? () from /lib/x86_64-linux-gnu/libc.so.6
 #6  0x00007ffff7929ecc in ?? () from /lib/x86_64-linux-gnu/libc.so.6
 
-Thread 11 (Thread 0x7fffc45fc6c0 (LWP 6073) "llvmpipe-1"):
+Thread 11 (Thread 0x7fffd85fc6c0 (LWP 6667) "llvmpipe-1"):
 #0  0x00007ffff7898e51 in ?? () from /lib/x86_64-linux-gnu/libc.so.6
 #1  0x00007ffff789b8cd in pthread_cond_wait () from /lib/x86_64-linux-gnu/libc.so.6
-#2  0x00007fffee17ebdd in ?? () from /lib/x86_64-linux-gnu/libvulkan_lvp.so
-#3  0x00007fffee393a53 in ?? () from /lib/x86_64-linux-gnu/libvulkan_lvp.so
-#4  0x00007fffee17eb0c in ?? () from /lib/x86_64-linux-gnu/libvulkan_lvp.so
+#2  0x00007ffff037ebdd in ?? () from /lib/x86_64-linux-gnu/libvulkan_lvp.so
+#3  0x00007ffff0593a53 in ?? () from /lib/x86_64-linux-gnu/libvulkan_lvp.so
+#4  0x00007ffff037eb0c in ?? () from /lib/x86_64-linux-gnu/libvulkan_lvp.so
 #5  0x00007ffff789cb84 in ?? () from /lib/x86_64-linux-gnu/libc.so.6
 #6  0x00007ffff7929ecc in ?? () from /lib/x86_64-linux-gnu/libc.so.6
 
-Thread 10 (Thread 0x7fffe5ffd6c0 (LWP 6072) "llvmpipe-0"):
+Thread 10 (Thread 0x7fffd55f96c0 (LWP 6666) "llvmpipe-0"):
 #0  0x00007ffff7898e51 in ?? () from /lib/x86_64-linux-gnu/libc.so.6
 #1  0x00007ffff789b8cd in pthread_cond_wait () from /lib/x86_64-linux-gnu/libc.so.6
-#2  0x00007fffee17ebdd in ?? () from /lib/x86_64-linux-gnu/libvulkan_lvp.so
-#3  0x00007fffee393a53 in ?? () from /lib/x86_64-linux-gnu/libvulkan_lvp.so
-#4  0x00007fffee17eb0c in ?? () from /lib/x86_64-linux-gnu/libvulkan_lvp.so
+#2  0x00007ffff037ebdd in ?? () from /lib/x86_64-linux-gnu/libvulkan_lvp.so
+#3  0x00007ffff0593a53 in ?? () from /lib/x86_64-linux-gnu/libvulkan_lvp.so
+#4  0x00007ffff037eb0c in ?? () from /lib/x86_64-linux-gnu/libvulkan_lvp.so
 #5  0x00007ffff789cb84 in ?? () from /lib/x86_64-linux-gnu/libc.so.6
 #6  0x00007ffff7929ecc in ?? () from /lib/x86_64-linux-gnu/libc.so.6
 
-Thread 9 (Thread 0x7fffdffff6c0 (LWP 6071) "Frontier"):
+Thread 9 (Thread 0x7fffc7fff6c0 (LWP 6665) "Frontier"):
 #0  0x00007ffff7898e51 in ?? () from /lib/x86_64-linux-gnu/libc.so.6
 #1  0x00007ffff789b8cd in pthread_cond_wait () from /lib/x86_64-linux-gnu/libc.so.6
-#2  0x00007fffee17ebdd in ?? () from /lib/x86_64-linux-gnu/libvulkan_lvp.so
-#3  0x00007fffee390893 in ?? () from /lib/x86_64-linux-gnu/libvulkan_lvp.so
-#4  0x00007fffee3b3d30 in ?? () from /lib/x86_64-linux-gnu/libvulkan_lvp.so
-#5  0x00007fffee0f6cc0 in ?? () from /lib/x86_64-linux-gnu/libvulkan_lvp.so
-#6  0x00007fffee0f808a in ?? () from /lib/x86_64-linux-gnu/libvulkan_lvp.so
-#7  0x00007fffee0e4c4c in ?? () from /lib/x86_64-linux-gnu/libvulkan_lvp.so
-#8  0x00007fffee086da6 in ?? () from /lib/x86_64-linux-gnu/libvulkan_lvp.so
-#9  0x00007fffee08705e in ?? () from /lib/x86_64-linux-gnu/libvulkan_lvp.so
-#10 0x00007fffee17eb0c in ?? () from /lib/x86_64-linux-gnu/libvulkan_lvp.so
+#2  0x00007ffff037ebdd in ?? () from /lib/x86_64-linux-gnu/libvulkan_lvp.so
+#3  0x00007ffff0590893 in ?? () from /lib/x86_64-linux-gnu/libvulkan_lvp.so
+#4  0x00007ffff05b3d30 in ?? () from /lib/x86_64-linux-gnu/libvulkan_lvp.so
+#5  0x00007ffff02f6cc0 in ?? () from /lib/x86_64-linux-gnu/libvulkan_lvp.so
+#6  0x00007ffff02f808a in ?? () from /lib/x86_64-linux-gnu/libvulkan_lvp.so
+#7  0x00007ffff02e4c4c in ?? () from /lib/x86_64-linux-gnu/libvulkan_lvp.so
+#8  0x00007ffff0286da6 in ?? () from /lib/x86_64-linux-gnu/libvulkan_lvp.so
+#9  0x00007ffff028705e in ?? () from /lib/x86_64-linux-gnu/libvulkan_lvp.so
+#10 0x00007ffff037eb0c in ?? () from /lib/x86_64-linux-gnu/libvulkan_lvp.so
 #11 0x00007ffff789cb84 in ?? () from /lib/x86_64-linux-gnu/libc.so.6
 
-Thread 1 (Thread 0x7ffff7eff780 (LWP 6061) "Frontier"):
+Thread 1 (Thread 0x7ffff7eff780 (LWP 6655) "Frontier"):
 #0  0x00007ffff7898e51 in ?? () from /lib/x86_64-linux-gnu/libc.so.6
 #1  0x00007ffff789b8cd in pthread_cond_wait () from /lib/x86_64-linux-gnu/libc.so.6
-#2  0x00007fffee17ebdd in ?? () from /lib/x86_64-linux-gnu/libvulkan_lvp.so
-#3  0x00007fffee0fc790 in ?? () from /lib/x86_64-linux-gnu/libvulkan_lvp.so
-#4  0x00007fffee085fa5 in ?? () from /lib/x86_64-linux-gnu/libvulkan_lvp.so
-#5  0x00007fffee0873a1 in ?? () from /lib/x86_64-linux-gnu/libvulkan_lvp.so
-#6  0x00007fffee0905c2 in ?? () from /lib/x86_64-linux-gnu/libvulkan_lvp.so
-#7  0x00007fffee063cad in ?? () from /lib/x86_64-linux-gnu/libvulkan_lvp.so
+#2  0x00007ffff037ebdd in ?? () from /lib/x86_64-linux-gnu/libvulkan_lvp.so
+#3  0x00007ffff02fc790 in ?? () from /lib/x86_64-linux-gnu/libvulkan_lvp.so
+#4  0x00007ffff0285fa5 in ?? () from /lib/x86_64-linux-gnu/libvulkan_lvp.so
+#5  0x00007ffff02873a1 in ?? () from /lib/x86_64-linux-gnu/libvulkan_lvp.so
+#6  0x00007ffff02905c2 in ?? () from /lib/x86_64-linux-gnu/libvulkan_lvp.so
+#7  0x00007ffff0263cad in ?? () from /lib/x86_64-linux-gnu/libvulkan_lvp.so
 #8  0x000055555594355d in Frontier::SwapchainExchange::RecordAndPresent(Frontier::DispatchConfiguration const&) ()
 #9  0x00005555558ca587 in Frontier::RunFrontierRuntime(int, char**, Frontier::ProjectSpecification const&, Frontier::CodeInterchange&, Frontier::ProjectReception&) ()
 #10 0x00005555558b5e34 in Frontier::RunFrontierHost(int, char**) ()
 #11 0x00007ffff782a1ca in ?? () from /lib/x86_64-linux-gnu/libc.so.6
   Id   Target Id                                          Frame 
-  1    Thread 0x7ffff7eff780 (LWP 6061) "Frontier"        0x00007ffff7898e51 in ?? () from /lib/x86_64-linux-gnu/libc.so.6
-  9    Thread 0x7fffdffff6c0 (LWP 6071) "Frontier"        0x00007ffff7898e51 in ?? () from /lib/x86_64-linux-gnu/libc.so.6
-  10   Thread 0x7fffe5ffd6c0 (LWP 6072) "llvmpipe-0"      0x00007ffff7898e51 in ?? () from /lib/x86_64-linux-gnu/libc.so.6
-  11   Thread 0x7fffc45fc6c0 (LWP 6073) "llvmpipe-1"      0x00007ffff7898e51 in ?? () from /lib/x86_64-linux-gnu/libc.so.6
-  12   Thread 0x7fffc35fb6c0 (LWP 6074) "llvmpipe-2"      0x00007ffff7898e51 in ?? () from /lib/x86_64-linux-gnu/libc.so.6
-  13   Thread 0x7fffc25fa6c0 (LWP 6075) "llvmpipe-3"      0x00007ffff7898e51 in ?? () from /lib/x86_64-linux-gnu/libc.so.6
-  14   Thread 0x7fffc15f96c0 (LWP 6076) "Frontier"        0x00007ffff403015d in ?? ()
-* 15   Thread 0x7fffc05f86c0 (LWP 6077) "Frontier"        0x00007fffec023eb9 in ?? ()
-  16   Thread 0x7fffb73ff6c0 (LWP 6078) "Frontier"        0x00007fffec026a04 in ?? ()
-  17   Thread 0x7fffbf5f76c0 (LWP 6079) "Frontier"        0x00007fffec03c9e8 in ?? ()
-  18   Thread 0x7fffbe5f66c0 (LWP 6080) "Frontie:disk$0"  0x00007ffff7898e51 in ?? () from /lib/x86_64-linux-gnu/libc.so.6
-  19   Thread 0x7fffbd5f56c0 (LWP 6081) "WSI swapchain q" 0x00007ffff7898e51 in ?? () from /lib/x86_64-linux-gnu/libc.so.6
-  20   Thread 0x7fffb63fe6c0 (LWP 6082) "WSI swapchain e" 0x00007ffff7898e51 in ?? () from /lib/x86_64-linux-gnu/libc.so.6
-  50   Thread 0x7ffff5af56c0 (LWP 6112) "Frontier"        0x00007ffff7898e51 in ?? () from /lib/x86_64-linux-gnu/libc.so.6
-  51   Thread 0x7fffeffff6c0 (LWP 6113) "Frontier"        0x00007ffff7898e51 in ?? () from /lib/x86_64-linux-gnu/libc.so.6
-  52   Thread 0x7fff835736c0 (LWP 6114) "Frontier"        0x00007ffff7898e51 in ?? () from /lib/x86_64-linux-gnu/libc.so.6
-  53   Thread 0x7fff825726c0 (LWP 6115) "Frontier"        0x00007ffff7898e51 in ?? () from /lib/x86_64-linux-gnu/libc.so.6
-  55   Thread 0x7fff815716c0 (LWP 6117) "Frontier"        0x00007ffff7898e51 in ?? () from /lib/x86_64-linux-gnu/libc.so.6
-  57   Thread 0x7fff805706c0 (LWP 6119) "Frontier"        0x00007ffff78ecbdf in clock_nanosleep () from /lib/x86_64-linux-gnu/libc.so.6
+  1    Thread 0x7ffff7eff780 (LWP 6655) "Frontier"        0x00007ffff7898e51 in ?? () from /lib/x86_64-linux-gnu/libc.so.6
+  9    Thread 0x7fffc7fff6c0 (LWP 6665) "Frontier"        0x00007ffff7898e51 in ?? () from /lib/x86_64-linux-gnu/libc.so.6
+  10   Thread 0x7fffd55f96c0 (LWP 6666) "llvmpipe-0"      0x00007ffff7898e51 in ?? () from /lib/x86_64-linux-gnu/libc.so.6
+  11   Thread 0x7fffd85fc6c0 (LWP 6667) "llvmpipe-1"      0x00007ffff7898e51 in ?? () from /lib/x86_64-linux-gnu/libc.so.6
+  12   Thread 0x7fffd75fb6c0 (LWP 6668) "llvmpipe-2"      0x00007ffff7898e51 in ?? () from /lib/x86_64-linux-gnu/libc.so.6
+  13   Thread 0x7fffd65fa6c0 (LWP 6669) "llvmpipe-3"      0x00007ffff7898e51 in ?? () from /lib/x86_64-linux-gnu/libc.so.6
+  14   Thread 0x7fffc6ffe6c0 (LWP 6670) "Frontier"        0x00007fffa00bc2c4 in ?? ()
+* 15   Thread 0x7fffc5ffd6c0 (LWP 6671) "Frontier"        0x00007fffa00b9624 in ?? ()
+  16   Thread 0x7fffb7fff6c0 (LWP 6672) "Frontier"        0x00007ffff7898e51 in ?? () from /lib/x86_64-linux-gnu/libc.so.6
+  17   Thread 0x7fffb6ffe6c0 (LWP 6673) "Frontier"        0x00007fffa00a7fd6 in ?? ()
+  18   Thread 0x7fffb5ffd6c0 (LWP 6674) "Frontie:disk$0"  0x00007ffff7898e51 in ?? () from /lib/x86_64-linux-gnu/libc.so.6
+  19   Thread 0x7fffaffff6c0 (LWP 6675) "WSI swapchain q" 0x00007ffff7898e51 in ?? () from /lib/x86_64-linux-gnu/libc.so.6
+  20   Thread 0x7fffaeffe6c0 (LWP 6676) "WSI swapchain e" 0x00007ffff7898e51 in ?? () from /lib/x86_64-linux-gnu/libc.so.6
+  50   Thread 0x7ffff5af56c0 (LWP 6707) "Frontier"        0x00007ffff7898e51 in ?? () from /lib/x86_64-linux-gnu/libc.so.6
+  51   Thread 0x7ffff43816c0 (LWP 6708) "Frontier"        0x00007ffff7898e51 in ?? () from /lib/x86_64-linux-gnu/libc.so.6
+  52   Thread 0x7fff838f76c0 (LWP 6709) "Frontier"        0x00007ffff7898e51 in ?? () from /lib/x86_64-linux-gnu/libc.so.6
+  53   Thread 0x7fff828f66c0 (LWP 6710) "Frontier"        0x00007ffff7898e51 in ?? () from /lib/x86_64-linux-gnu/libc.so.6
+  55   Thread 0x7fff818f56c0 (LWP 6712) "Frontier"        0x00007ffff7898e51 in ?? () from /lib/x86_64-linux-gnu/libc.so.6
+  57   Thread 0x7fff808f46c0 (LWP 6714) "Frontier"        0x00007ffff78ecbdf in clock_nanosleep () from /lib/x86_64-linux-gnu/libc.so.6
