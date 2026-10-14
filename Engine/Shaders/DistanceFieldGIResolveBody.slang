@@ -201,6 +201,9 @@ void main()
     if ((uint(PC.Tuning.w + 0.5) & 0xFFu) == 16u)
     { imageStore(LinearRadiance, pixel, vec4(1.0, 0.0, 0.0, 1.0)); imageStore(OutputImage, pixel, vec4(1.0, 0.0, 0.0, 1.0)); return; }
 
+    if ((uint(PC.Tuning.w + 0.5) & 0xFFu) == 18u)
+    { imageStore(LinearRadiance, pixel, vec4(0.0, 0.0, 1.0, 1.0)); imageStore(OutputImage, pixel, vec4(0.0, 0.0, 1.0, 1.0)); return; }
+
     // Direct-light visibility comes from the same raster maps as plain raster; no SDF shadow or hidden mesh rays.
     vec3 col = vec3(0.0);
     vec3 directOnly = vec3(0.0);
@@ -214,7 +217,7 @@ void main()
         vec3 Incoming=ToLocal(F,Direction);
         float Facing=Directional ? 1.0 : max(-dot(ShadowTapNormal[Tap].xyz,Direction),0.0);
         if (Incoming.z<=0.0 || Facing<=0.0) continue;
-        float Visibility=ShadowLitFraction(P,F.Geometric,Incoming.z,Tap);
+        float Visibility=(uint(PC.Tuning.w + 0.5) & 0xFFu) == 19u ? 1.0 : ShadowLitFraction(P,F.Geometric,Incoming.z,Tap);
         float Geometry=Directional ? Incoming.z*Visibility :
                        Incoming.z*Facing*ShadowTapRadiance[Tap].w*Visibility/(Distance*Distance);
         col+=EvaluateBsdf(m,layers,woLoc,Incoming)*ShadowTapRadiance[Tap].xyz*Geometry;

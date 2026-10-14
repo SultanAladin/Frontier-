@@ -204,7 +204,7 @@ jobs:
             echo "::group::capture $Name"
             # Under gdb so a crash leaves its backtrace in the log (lavapipe runs the shaders on the CPU: a shader
             #    fault is a host fault here).
-            xvfb-run -a -s "-screen 0 1600x900x24" timeout 1500 gdb -q -batch -ex "set pagination off" -ex run -ex "info registers" -ex "bt 25" -ex "thread apply all bt 12" -ex "info threads" \
+            xvfb-run -a -s "-screen 0 1600x900x24" timeout 1500 gdb -q -batch -ex "set pagination off" -ex run -ex "info registers" -ex "x/3i $pc" -ex "bt 25" -ex "thread apply all bt 12" -ex "info threads" \
               --args .cache/cmake/Frontier Projects/Project-Drive/ProjectDrive.frontier \
               --render-scale 0.5 --capture-frame "$Frames" --capture "Exhibits/Gallery/ProjectDrive/live/$Name.png" "$@" \
               > "Exhibits/Gallery/ProjectDrive/live/$Name.log" 2>&1 || echo "capture $Name: exit $?"
@@ -228,6 +228,8 @@ jobs:
           VK_LOADER_LAYERS_ENABLE=VK_LAYER_KHRONOS_validation Capture diag-validated 12 --render-preset 2 --transport 2 --camera -7.0 -6.0 2.0 0.0 0.0 0.7
           FRONTIER_GI_DEBUG=16       Capture diag-aftermat 12 --render-preset 2 --transport 2 --camera -7.0 -6.0 2.0 0.0 0.0 0.7
           FRONTIER_GI_DEBUG=17       Capture diag-afterdir 12 --render-preset 2 --transport 2 --camera -7.0 -6.0 2.0 0.0 0.0 0.7
+          FRONTIER_GI_DEBUG=18       Capture diag-beforedir 12 --render-preset 2 --transport 2 --camera -7.0 -6.0 2.0 0.0 0.0 0.7
+          FRONTIER_GI_DEBUG=19       Capture diag-noshadow 12 --render-preset 2 --transport 2 --camera -7.0 -6.0 2.0 0.0 0.0 0.7
           Capture sdf-gi-exterior    90 --render-preset 2 --transport 2 --camera -7.0 -6.0 2.0 0.0 0.0 0.7
           Capture sdf-gi-cockpit     90 --render-preset 2 --transport 2 --camera -0.2 0.42 1.12 2.8 0.42 0.47
           Capture sdf-gi-play        90 --render-preset 2 --transport 1
