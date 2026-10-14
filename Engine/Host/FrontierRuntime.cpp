@@ -188,6 +188,12 @@ int Frontier::RunFrontierRuntime(
     //    editor's and the project's cameras. For captures of a known view; Z-up metres.
     bool        CameraPinned = false;
     float       CameraPin[6] = { 0.0f, -3.3f, 1.55f, 0.0f, 0.0f, 0.55f };
+    // --tap u v first last: a synthetic finger on the view at fractions (u,v) — the pointer ray aims there from
+    //    frame `first`, the primary button is held through frame `last` and released after. For captures proving
+    //    a project display answers a touch along the real path (pointer ray → interchange → sheet → texture).
+    bool        TapRequested = false;
+    float       TapView[2]   = { 0.5f, 0.5f };
+    uint32_t    TapFrames[2] = { 0u, 0u };
     for (int I = 1; I < argc; ++I)
     {
         if (std::strcmp(argv[I], "--verify-opening-scene") == 0)
@@ -205,6 +211,13 @@ int Frontier::RunFrontierRuntime(
         if (std::strcmp(argv[I], "--capture") == 0)       CapturePath      = argv[++I];
         if (std::strcmp(argv[I], "--capture-frame") == 0) CaptureFrame     = static_cast<uint32_t>(std::max(1, std::atoi(argv[++I])));
         if (std::strcmp(argv[I], "--transport") == 0)     CaptureTransport = std::clamp(std::atoi(argv[++I]), 0, 2);
+        if (std::strcmp(argv[I], "--tap") == 0 && I + 4 < argc)
+        {
+            TapRequested = true;
+            TapView[0]   = static_cast<float>(std::atof(argv[++I])); TapView[1] = static_cast<float>(std::atof(argv[++I]));
+            TapFrames[0] = static_cast<uint32_t>(std::max(1, std::atoi(argv[++I])));
+            TapFrames[1] = static_cast<uint32_t>(std::max(static_cast<int>(TapFrames[0]), std::atoi(argv[++I])));
+        }
         if (std::strcmp(argv[I], "--camera") == 0 && I + 6 < argc)
         {
             for (float& Component : CameraPin) Component = static_cast<float>(std::atof(argv[++I]));
@@ -2334,7 +2347,18 @@ int Frontier::RunFrontierRuntime(
 
             // The pointer over the view, as a world ray (view fractions → render pixels → pinhole ray).
             float AimU = 0.0f, AimV = 0.0f;
-            const bool Aiming = Panel.QueryEditorViewAim(&AimU, &AimV);
+            bool Aiming = Panel.QueryEditorViewAim(&AimU, &AimV);
+            bool AimPressed = Aiming && Input.IsMouseButtonPressed(Frontier::MouseButtonCategory::ButtonLeft);
+            // The synthetic finger (--tap): aimed from its first frame on, held through its last frame.
+            const bool TapAiming = TapRequested && StartupFrames + 3u >= TapFrames[0];   // hovers two frames first
+            if (TapAiming)
+            {
+                Aiming = true; AimU = TapView[0]; AimV = TapView[1];
+                AimPressed = StartupFrames + 1u >= TapFrames[0] && StartupFrames + 1u <= TapFrames[1];
+                if (StartupFrames + 1u == TapFrames[0])
+                    std::cerr << "[Tap] finger down at view (" << TapView[0] << ", " << TapView[1] << "), frame " << StartupFrames + 1u
+                              << ", held through frame " << TapFrames[1] << "\n";
+            }
             Frontier::PointerRay AimRay{};
             if (Aiming)
                 AimRay = Frontier::InterfacePointerProjection::ConstructViewportRay(
@@ -2351,7 +2375,7 @@ int Frontier::RunFrontierRuntime(
                 bool DisplayReupload = false;
                 (void)ProjectDisplays.Advance(Level, Textures, Surface, ActiveInterchange,
                                               Aiming ? AimOrigin : nullptr, Aiming ? AimToward : nullptr,
-                                              Aiming && Input.IsMouseButtonPressed(Frontier::MouseButtonCategory::ButtonLeft), DisplayReupload,
+                                              AimPressed, DisplayReupload,
                                               TypedThisFrame.empty() ? nullptr : TypedThisFrame.c_str());
                 if (DisplayReupload)
                 {
