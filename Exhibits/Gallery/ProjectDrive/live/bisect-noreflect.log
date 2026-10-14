@@ -79,6 +79,47 @@
 [GPU startup] STAGE 11/18 BEGIN BringSkyRecord
 [Allocation] buffer requested=144 allocated=144 memory_flags=15 (request, not live total)
 [GPU startup] STAGE 11 DONE BringSkyRecord elapsed=4.4688e-05s
+…
+[Thread 0x7fff926bf6c0 (LWP 5303) exited]
+[New Thread 0x7fff926bf6c0 (LWP 5304)]
+[Thread 0x7fff926bf6c0 (LWP 5304) exited]
+[GPU startup] DONE #6 compute pipeline (driver compile/cache lookup): AtrousDenoise elapsed=0.01s pid=5254 rss=966.30MiB peak_rss=966.30MiB private_commit=N/A VkResult=0
+[GPU startup] BEGIN #7 pipeline cache: query size elapsed=0.00s pid=5254 rss=966.30MiB peak_rss=966.30MiB private_commit=N/A 
+[New Thread 0x7fff926bf6c0 (LWP 5305)]
+[GPU startup] DONE #7 pipeline cache: query size elapsed=0.00s pid=5254 rss=966.30MiB peak_rss=966.30MiB private_commit=N/A VkResult=0
+[GPU startup] BEGIN #8 pipeline cache: export elapsed=0.00s pid=5254 rss=966.30MiB peak_rss=966.30MiB private_commit=N/A 
+[Thread 0x7fff926bf6c0 (LWP 5305) exited]
+[New Thread 0x7fff926bf6c0 (LWP 5306)]
+[GPU startup] DONE #8 pipeline cache: export elapsed=0.00s pid=5254 rss=966.30MiB peak_rss=966.30MiB private_commit=N/A VkResult=0
+[Thread 0x7fff926bf6c0 (LWP 5306) exited]
+[GPU startup] Cache checkpoint saved reason=Denoiser ready file=ShaderCache.bin bytes=32 fingerprint_fnv1a64=2446675581624642679
+[SwapchainExchange] Denoiser: 5 a-trous levels.
+[GPU startup] STAGE 9 DONE BringDenoisePipeline elapsed=0.010975s
+[GPU startup] STAGE 10/18 BEGIN BringLuminanceReduction
+[Allocation] buffer requested=1024 allocated=1024 memory_flags=15 (request, not live total)
+[Allocation] buffer requested=1024 allocated=1024 memory_flags=15 (request, not live total)
+[SwapchainExchange] Loaded SPIR-V: Engine/Shaders/LuminanceReduce.spv
+[GPU startup] BEGIN #9 shader module: LuminanceReduce elapsed=0.00s pid=5254 rss=966.32MiB peak_rss=966.32MiB private_commit=N/A 
+[New Thread 0x7fff926bf6c0 (LWP 5307)]
+[GPU startup] DONE #9 shader module: LuminanceReduce elapsed=0.00s pid=5254 rss=966.32MiB peak_rss=966.32MiB private_commit=N/A VkResult=0
+[Thread 0x7fff926bf6c0 (LWP 5307) exited]
+[GPU startup] BEGIN #10 compute pipeline (driver compile/cache lookup): LuminanceReduce elapsed=0.00s pid=5254 rss=966.32MiB peak_rss=966.32MiB private_commit=N/A 
+[New Thread 0x7fff926bf6c0 (LWP 5308)]
+[GPU startup] DONE #10 compute pipeline (driver compile/cache lookup): LuminanceReduce elapsed=0.00s pid=5254 rss=966.32MiB peak_rss=966.32MiB private_commit=N/A VkResult=0
+[Thread 0x7fff926bf6c0 (LWP 5308) exited]
+[GPU startup] BEGIN #11 pipeline cache: query size elapsed=0.00s pid=5254 rss=966.32MiB peak_rss=966.32MiB private_commit=N/A 
+[New Thread 0x7fff926bf6c0 (LWP 5309)]
+[GPU startup] DONE #11 pipeline cache: query size elapsed=0.00s pid=5254 rss=966.32MiB peak_rss=966.32MiB private_commit=N/A VkResult=0
+[GPU startup] BEGIN #12 pipeline cache: export elapsed=0.00s pid=5254 rss=966.32MiB peak_rss=966.32MiB private_commit=N/A 
+[Thread 0x7fff926bf6c0 (LWP 5309) exited]
+[New Thread 0x7fff926bf6c0 (LWP 5310)]
+[GPU startup] DONE #12 pipeline cache: export elapsed=0.00s pid=5254 rss=966.32MiB peak_rss=966.32MiB private_commit=N/A VkResult=0
+[Thread 0x7fff926bf6c0 (LWP 5310) exited]
+[GPU startup] Cache checkpoint saved reason=Luminance ready file=ShaderCache.bin bytes=32 fingerprint_fnv1a64=2446675581624642679
+[GPU startup] STAGE 10 DONE BringLuminanceReduction elapsed=0.00143199s
+[GPU startup] STAGE 11/18 BEGIN BringSkyRecord
+[Allocation] buffer requested=144 allocated=144 memory_flags=15 (request, not live total)
+[GPU startup] STAGE 11 DONE BringSkyRecord elapsed=4.4688e-05s
 [GPU startup] STAGE 12/18 BEGIN BringMoonRecord
 [Allocation] buffer requested=288 allocated=288 memory_flags=15 (request, not live total)
 [GPU startup] STAGE 12 DONE BringMoonRecord elapsed=1.5113e-05s
