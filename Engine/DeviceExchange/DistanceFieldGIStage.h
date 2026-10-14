@@ -24,6 +24,14 @@ struct DistanceFieldStageInit
     VkImageView                      OutputImageView        = VK_NULL_HANDLE;
     VkImageView                      SurfaceImageView       = VK_NULL_HANDLE;
     VkImageView                      NormalImageView        = VK_NULL_HANDLE;
+    // Temporal chain, shared with the raytraced kernel so the same à-trous denoiser runs after this stage:
+    //    the current history (mean + count), history surface (normal + depth), moments (+ identity), last frame's
+    //    snapshots of the three, and the raster motion vectors (texelFetch only).
+    VkImageView                      HistoryImageView         = VK_NULL_HANDLE;
+    VkImageView                      HistorySurfaceImageView  = VK_NULL_HANDLE;
+    VkImageView                      MomentImageView          = VK_NULL_HANDLE;
+    VkImageView                      PreviousHistoryViews[3]  = { VK_NULL_HANDLE, VK_NULL_HANDLE, VK_NULL_HANDLE };
+    VkImageView                      MotionImageView          = VK_NULL_HANDLE;
     VkBuffer                         TriangleBuffer         = VK_NULL_HANDLE;
     VkBuffer                         MaterialBuffer         = VK_NULL_HANDLE;
     VkBuffer                         InstanceBuffer         = VK_NULL_HANDLE;
@@ -57,6 +65,7 @@ struct DistanceFieldFrameParams
     float    GiBoost          = 1.0f;
     uint64_t MaterialRevision = 0u;
     uint32_t FrameIndex       = 0u;
+    uint32_t AccumulationIndex = 0u;   // 0 = no valid history (first frame, resize, path switch): no reprojection this frame
     uint32_t FeatureFlags     = 0u;
     uint32_t ReflectionMode   = 1u; // 0 = Off, 1 = Sky; hardware/software RT belongs to the RT route
     uint32_t CycleSlot        = 0u;

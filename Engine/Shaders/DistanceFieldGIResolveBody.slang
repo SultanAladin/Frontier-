@@ -17,7 +17,17 @@ layout(rgba16f, binding=2) uniform readonly image2D NormalImage;
 #include "DistanceFieldMaterial.slang"
 layout(rgba16f, binding=21) uniform readonly image2D GatherIrradiance;
 layout(rgba16f, binding=22) uniform readonly image2D GatherNormal;
-layout(rgba32f, binding=23) uniform writeonly image2D LinearRadiance;
+layout(rgba32f, binding=23) uniform writeonly image2D LinearRadiance;   // the à-trous input: xyz demodulated mean, w variance
+// Temporal chain — the same images, the same protocol as ReSTIRViewport.slang's ResolveSurface, so the à-trous
+//    denoiser that follows the raytraced kernel follows this stage unchanged (same edge stops, same remodulation).
+layout(rgba32f, binding=24) uniform writeonly image2D HistoryImage;             // xyz = running mean, w = sample count
+layout(rgba16f, binding=25) uniform writeonly image2D HistorySurfaceImage;      // xyz = normal, w = depth (≤ 0 = no surface)
+layout(rgba32f, binding=26) uniform writeonly image2D MomentImage;              // xy = E[luma], E[luma²]; zw = identity
+layout(rgba32f, binding=27) uniform readonly  image2D PreviousHistoryImage;
+layout(rgba16f, binding=28) uniform readonly  image2D PreviousHistorySurfaceImage;
+layout(rgba32f, binding=29) uniform readonly  image2D PreviousMomentImage;
+layout(binding=30) uniform sampler2D MotionImage;                                // CurrentUv − PreviousUv, texelFetch only
+#include "PresentationDither.slang"
 
 // The visibility id packing SurfaceResolve.slang writes into SurfaceImage.w — identical to ReSTIRViewport's.
 const uint kVisibilityInvalid = 0xFFFFFFFFu;
@@ -29,6 +39,13 @@ uint VisibilityPrimitive(uint Packed) { return Packed & 0x3FFFu; }
 //------------------------------------------------------------------------------------------------------------------------
 // Feature flags — MUST match Engine/Shaders/ReSTIRViewport.slang so a single ControlCentreSettings drives both paths.
 const uint kFeatureGlobalIllumination = 1u;    // bit 0: distance-field diffuse gather runs
+const uint kFeatureTemporalReprojection = 64u; // bit 6: back-project the history through the motion vectors (ReSTIRViewport.slang bit)
+const uint kFeatureDenoise            = 128u;  // bit 7: the à-trous filter runs after this stage, so it owns the tone map
+const uint  kIdentityNone        = 0xFFFFFFFFu;
+const float kReprojectNormalCos  = 0.906308;   // cos 25°, the kernel's rule
+const float kReprojectDepthTol   = 0.10;       // 10 % relative
+const float kMovingHistoryBound  = 32.0;       // SVGF α clamp for a pixel that moved
+float Luminance(vec3 c) { return dot(c, vec3(0.2126, 0.7152, 0.0722)); }
 // Reflection mode (Counts.w): 0 = Off, 1 = Sky. RT modes never enter this route.
 const uint kReflectOff = 0u, kReflectSky = 1u;
 
@@ -128,6 +145,75 @@ vec3 DisplayTransfer(vec3 radiance)
     return pow(mapped, vec3(1.0 / 2.2));
 }
 
+// Temporal accumulation + denoiser hand-off, the kernel's ResolveSurface without the lens flare and weather.
+//    depth ≤ 0 marks a surface-less pixel (sky, emitter): it keeps a per-pixel running mean but is never a
+//    reprojection source, and the filter passes it through untouched.
+void ResolveTemporal(ivec2 pixel, vec3 radiance, vec3 normal, float depth, uint identity, vec3 albedo)
+{
+    const uint  flags      = PC.Counts.z;
+    const uint  frameIndex = PC.RenderExtent.z;          // the host's accumulation index: 0 = no valid history
+    const ivec2 extent     = ivec2(PC.RenderExtent.xy);
+    vec4  history  = vec4(0.0);
+    float count    = 0.0;
+    vec2  moments  = vec2(0.0);
+    bool  resolved = false;
+    if (frameIndex > 0u && depth > 0.0 && (flags & kFeatureTemporalReprojection) != 0u)
+    {
+        vec2  cuv    = (vec2(pixel) + 0.5) / vec2(extent);
+        vec2  motion = texelFetch(MotionImage, pixel, 0).rg;
+        ivec2 prevPx = ivec2(floor((cuv - motion) * vec2(extent)));
+        if (all(greaterThanEqual(prevPx, ivec2(0))) && all(lessThan(prevPx, extent)))
+        {
+            vec4 prevSurface = imageLoad(PreviousHistorySurfaceImage, prevPx);
+            vec4 prevMoments = imageLoad(PreviousMomentImage, prevPx);
+            uint prevIdentity = uint(prevMoments.z) | (uint(prevMoments.w) << 16u);
+            if (prevSurface.w > 0.0 && (prevIdentity >> 14u) == (identity >> 14u)
+                && dot(normal, prevSurface.xyz) > kReprojectNormalCos
+                && abs(depth - prevSurface.w) / max(depth, 1e-3) < kReprojectDepthTol)
+            {
+                history = imageLoad(PreviousHistoryImage, prevPx);
+                count   = history.a;
+                moments = prevMoments.xy;
+                if (prevPx != pixel) count = min(count, kMovingHistoryBound);
+            }
+        }
+        resolved = true;   // validated, disoccluded or off-screen: never fall back to the stationary read
+    }
+    if (frameIndex > 0u && !resolved)
+    {
+        history = imageLoad(PreviousHistoryImage, pixel);
+        count   = history.a;
+        moments = imageLoad(PreviousMomentImage, pixel).xy;
+    }
+    count += 1.0;
+    vec3  mean = history.rgb + (radiance - history.rgb) / count;
+    float luma = Luminance(radiance);
+    moments   += (vec2(luma, luma * luma) - moments) / count;
+    float variance = max(moments.y - moments.x * moments.x, 0.0) / count;
+    if (count < 4.0) variance = max(variance, luma * luma * (4.0 - count) * 0.125);
+    if (count < 2.0) variance = luma * luma;
+
+    imageStore(HistoryImage,        pixel, vec4(mean, count));
+    imageStore(HistorySurfaceImage, pixel, vec4(normal, depth));
+    imageStore(MomentImage,         pixel, vec4(moments, float(identity & 0xFFFFu), float(identity >> 16u)));
+
+    if ((flags & kFeatureDenoise) != 0u)
+    {
+        // Demodulate so the filter smooths irradiance, park the albedo in the presentation image for the final
+        //    level's remodulation — the kernel's exact contract (quantised here as the rgba8 store will quantise it).
+        vec3  demodAlbedo = floor(clamp(albedo, vec3(0.02), vec3(1.0)) * 255.0 + 0.5) / 255.0;
+        float demodLum    = Luminance(demodAlbedo);
+        imageStore(LinearRadiance, pixel, vec4(mean / demodAlbedo, variance / (demodLum * demodLum)));
+        imageStore(OutputImage, pixel, vec4(demodAlbedo, 1.0));
+    }
+    else
+    {
+        imageStore(LinearRadiance, pixel, vec4(mean, variance));
+        imageStore(OutputImage, pixel, vec4(DisplayTransfer(mean) + vec3(PresentationDither(pixel)), 1.0));
+    }
+}
+
+
 void main()
 {
     ivec2 pixel = ivec2(gl_GlobalInvocationID.xy);
@@ -142,8 +228,7 @@ void main()
     {
         vec3 V = normalize(P - PC.CameraEye.xyz);
         vec3 sky = SkyAlongApprox(V, 0.0);
-        imageStore(LinearRadiance, pixel, vec4(sky, 1.0));
-        imageStore(OutputImage, pixel, vec4(DisplayTransfer(sky), 1.0));
+        ResolveTemporal(pixel, sky, vec3(0.0, 0.0, 1.0), -1.0, kIdentityNone, vec3(1.0));
         return;
     }
 
@@ -165,13 +250,12 @@ void main()
     // An emitter is its own radiance, as in the raytraced kernel.
     if (dot(F.Emission, F.Emission) > 0.0)
     {
-        imageStore(LinearRadiance, pixel, vec4(F.Emission, 1.0));
-        imageStore(OutputImage, pixel, vec4(DisplayTransfer(F.Emission), 1.0));
+        ResolveTemporal(pixel, F.Emission, vec3(0.0, 0.0, 1.0), -1.0, kIdentityNone, vec3(1.0));
         return;
     }
 
     vec3 woLoc = ToLocal(F, V);
-    if (woLoc.z <= 0.0) { imageStore(LinearRadiance, pixel, vec4(0.0)); imageStore(OutputImage, pixel, vec4(0.0, 0.0, 0.0, 1.0)); return; }
+    if (woLoc.z <= 0.0) { ResolveTemporal(pixel, vec3(0.0), vec3(0.0, 0.0, 1.0), -1.0, kIdentityNone, vec3(1.0)); return; }
     ResolvedLayers layers = ResolveLayers(m, woLoc);
 
     // Direct-light visibility comes from the same raster maps as plain raster; no SDF shadow or hidden mesh rays.
@@ -207,6 +291,5 @@ void main()
         FresnelWeight+= (1.0-FresnelWeight)*pow(1.0-max(dot(N,V),0.0),5.0);
         col+=m.TransmissionWeight*(1.0-FresnelWeight)*Transmission(P,N,V,m,F.ThinWalled);
     }
-    imageStore(LinearRadiance, pixel, vec4(col, 1.0));
-    imageStore(OutputImage, pixel, vec4(DisplayTransfer(col), 1.0));
+    ResolveTemporal(pixel, col, F.Normal, length(P - PC.CameraEye.xyz), visibility, m.BaseColor);
 }

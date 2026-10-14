@@ -116,8 +116,11 @@ DispatchConfiguration ReSTIRIntegrator::BuildDispatch(
                                    //    indirect half unless something turns it off — the mirror's measured arm.
                                    | (ActiveConfiguration.RenderPath == 0u && ActiveConfiguration.GlobalIllumination && ActiveConfiguration.GlobalIlluminationReuse ? DispatchFeatureGiReuse        : 0u)
                                    | (ActiveConfiguration.RenderPath == 0u && ActiveConfiguration.AliasPick          ? DispatchFeatureAliasPick          : 0u)
-                                   | (ActiveConfiguration.RenderPath == 0u && ActiveConfiguration.TemporalReprojection ? DispatchFeatureTemporalReprojection : 0u)
-                                   | (ActiveConfiguration.RenderPath == 0u && ActiveConfiguration.Denoise            ? DispatchFeatureDenoise            : 0u)
+                                   // The temporal history and the à-trous denoiser serve BOTH lit paths: the raytraced kernel
+                                   //    and the Distance Field GI resolve write the same history/moment images under the same
+                                   //    protocol and hand the same demodulated radiance to the same filter chain.
+                                   | (ActiveConfiguration.RenderPath <= 1u && ActiveConfiguration.TemporalReprojection ? DispatchFeatureTemporalReprojection : 0u)
+                                   | (ActiveConfiguration.RenderPath <= 1u && ActiveConfiguration.Denoise            ? DispatchFeatureDenoise            : 0u)
                                    // #27B ON by default (the configuration's initialiser): the sky rides the reservoir
                                    //    unless something turns it off — off is the bit-for-bit pre-sky estimator.
                                    | (ActiveConfiguration.RenderPath == 0u && ActiveConfiguration.SkyReservoir       ? DispatchFeatureSkyReservoir       : 0u)

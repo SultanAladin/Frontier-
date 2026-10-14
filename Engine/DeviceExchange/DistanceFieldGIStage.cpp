@@ -22,6 +22,8 @@ bool DistanceFieldGIStage::Bring(const DistanceFieldStageInit& Input) noexcept
         !Input.SurfaceImageView || !Input.NormalImageView || !Input.TriangleBuffer || !Input.MaterialBuffer ||
         !Input.InstanceBuffer || !Input.SlabBuffer || !Input.VertexBuffer || !Input.IndexBuffer || !Input.TableSampler ||
         !Input.LinearImageView || !Input.EnergyLutView || !Input.SheenLutView || !Input.ShadowDescriptorLayout ||
+        !Input.HistoryImageView || !Input.HistorySurfaceImageView || !Input.MomentImageView || !Input.MotionImageView ||
+        !Input.PreviousHistoryViews[0] || !Input.PreviousHistoryViews[1] || !Input.PreviousHistoryViews[2] ||
         !Input.ImageWidth || !Input.ImageHeight || Input.CardResolution < 2u || Input.CardResolution > 32u ||
         Input.CycleSlotCount < 1u || Input.CycleSlotCount > 3u ||
         (Input.TextureCapacity && (!Input.TextureCount || !Input.TextureViews || !Input.TextureSampler ||
@@ -179,12 +181,13 @@ bool DistanceFieldGIStage::ConstructPipelines()
     std::vector<VkDescriptorSetLayoutBinding> Descriptors;
     auto                                      Append = [&](uint32_t Slot, VkDescriptorType Type, uint32_t Count = 1u)
     { Descriptors.push_back({Slot, Type, Count, VK_SHADER_STAGE_COMPUTE_BIT, nullptr}); };
-    for (uint32_t Slot : {0u, 1u, 2u, 4u, 8u, 9u, 10u, 11u, 21u, 22u, 23u})
+    for (uint32_t Slot : {0u, 1u, 2u, 4u, 8u, 9u, 10u, 11u, 21u, 22u, 23u, 24u, 25u, 26u, 27u, 28u, 29u})
         Append(Slot, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE);
     for (uint32_t Slot : {3u, 5u, 6u, 7u, 15u, 16u, 17u, 18u, 19u, 20u})
         Append(Slot, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER);
     Append(13u, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER);
     Append(14u, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER);
+    Append(30u, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER);   // motion vectors
     Append(31u, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, std::max(1u, Initialization.TextureCapacity));
     std::vector<VkDescriptorBindingFlags> Flags(Descriptors.size(), 0u);
     if (Initialization.TextureCapacity)
@@ -246,8 +249,8 @@ bool DistanceFieldGIStage::WriteDescriptors()
 {
     const uint32_t             Capacity = std::max(1u, Initialization.TextureCapacity);
     VkDescriptorPoolSize       Sizes[]  = {{VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 20u},
-                                           {VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 22u},
-                                           {VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 2u * (Capacity + 2u)}};
+                                           {VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 34u},
+                                           {VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 2u * (Capacity + 3u)}};
     VkDescriptorPoolCreateInfo Information{VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO};
     Information.maxSets       = 2u;
     Information.flags         = Initialization.TextureCapacity && Initialization.TextureUpdateAfterBind
@@ -300,7 +303,14 @@ bool DistanceFieldGIStage::WriteDescriptors()
             {VK_NULL_HANDLE, CardViews[6], VK_IMAGE_LAYOUT_GENERAL},
             {Initialization.TableSampler, Initialization.EnergyLutView, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL},
             {Initialization.TableSampler, Initialization.SheenLutView, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL},
-            {VK_NULL_HANDLE, Initialization.LinearImageView, VK_IMAGE_LAYOUT_GENERAL}};
+            {VK_NULL_HANDLE, Initialization.LinearImageView, VK_IMAGE_LAYOUT_GENERAL},
+            {VK_NULL_HANDLE, Initialization.HistoryImageView, VK_IMAGE_LAYOUT_GENERAL},
+            {VK_NULL_HANDLE, Initialization.HistorySurfaceImageView, VK_IMAGE_LAYOUT_GENERAL},
+            {VK_NULL_HANDLE, Initialization.MomentImageView, VK_IMAGE_LAYOUT_GENERAL},
+            {VK_NULL_HANDLE, Initialization.PreviousHistoryViews[0], VK_IMAGE_LAYOUT_GENERAL},
+            {VK_NULL_HANDLE, Initialization.PreviousHistoryViews[1], VK_IMAGE_LAYOUT_GENERAL},
+            {VK_NULL_HANDLE, Initialization.PreviousHistoryViews[2], VK_IMAGE_LAYOUT_GENERAL},
+            {Initialization.TableSampler, Initialization.MotionImageView, VK_IMAGE_LAYOUT_GENERAL}};
         std::vector<VkWriteDescriptorSet> Writes;
         for (uint32_t Index = 0u; Index < 10u; ++Index)
         {
@@ -313,14 +323,14 @@ bool DistanceFieldGIStage::WriteDescriptors()
             Write.pBufferInfo     = &BufferInformation[Index];
             Writes.push_back(Write);
         }
-        const uint32_t ImageSlots[] = {0u, 1u, 2u, 4u, 10u, 8u, 9u, 11u, 21u, 22u, 13u, 14u, 23u};
-        for (uint32_t Index = 0u; Index < 13u; ++Index)
+        const uint32_t ImageSlots[] = {0u, 1u, 2u, 4u, 10u, 8u, 9u, 11u, 21u, 22u, 13u, 14u, 23u, 24u, 25u, 26u, 27u, 28u, 29u, 30u};
+        for (uint32_t Index = 0u; Index < 20u; ++Index)
         {
             VkWriteDescriptorSet Write{VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET};
             Write.dstSet          = Sets[Cycle];
             Write.dstBinding      = ImageSlots[Index];
             Write.descriptorCount = 1u;
-            Write.descriptorType  = (Index < 10u || Index == 12u) ? VK_DESCRIPTOR_TYPE_STORAGE_IMAGE : VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+            Write.descriptorType  = (Index == 10u || Index == 11u || Index == 19u) ? VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER : VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
             Write.pImageInfo      = &Images[Index];
             Writes.push_back(Write);
         }
@@ -440,7 +450,7 @@ bool DistanceFieldGIStage::RecordFrame(VkCommandBuffer Command, const DistanceFi
     Push.Counts[0] = static_cast<uint32_t>(Geometry.QueryFacets().size());
     Push.Counts[1] = FrameNumber; Push.Counts[2] = Frame.FeatureFlags; Push.Counts[3] = std::min(Frame.ReflectionMode, 1u);
     Push.RenderExtent[0] = Frame.RenderWidth; Push.RenderExtent[1] = Frame.RenderHeight;
-    Push.RenderExtent[2] = 2u; Push.RenderExtent[3] = kRadianceBudget;
+    Push.RenderExtent[2] = Frame.AccumulationIndex; Push.RenderExtent[3] = kRadianceBudget;
     const VkDescriptorSet Descriptors[] = { Sets[FrameNumber & 1u], Frame.ShadowDescriptors };
     vkCmdBindDescriptorSets(Command, VK_PIPELINE_BIND_POINT_COMPUTE, PipelineLayout, 0u, 2u, Descriptors, 0u, nullptr);
     vkCmdPushConstants(Command, PipelineLayout, VK_SHADER_STAGE_COMPUTE_BIT, 0u, sizeof(Push), &Push);
