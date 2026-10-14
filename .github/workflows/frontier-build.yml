@@ -214,23 +214,15 @@ jobs:
           # Project-Drive runs the Distance Field GI path (preset 2). Same scene, same settings; the camera is pinned
           #    for the exterior and cockpit views (the car spawns at the origin facing +X; eye from DriveCabinLayout.h),
           #    the play capture leaves the camera to the project.
-          # Temporary crash diagnostics (the transport 1/2 captures fault on lavapipe before writing a frame):
-          #    preset 3 runs the same simulation with no GI at all, and the 5/40-frame SDF captures time the fault.
+          # Temporary crash diagnostics: raster simulation is the GI-off baseline; SDF stops at frame 5.
           Capture diag-raster-sim    40 --render-preset 3 --transport 2 --camera -7.0 -6.0 2.0 0.0 0.0 0.7
           Capture diag-sdf-sim-5      5 --render-preset 2 --transport 2 --camera -7.0 -6.0 2.0 0.0 0.0 0.7
-          Capture diag-sdf-sim-40    40 --render-preset 2 --transport 2 --camera -7.0 -6.0 2.0 0.0 0.0 0.7
-          FRONTIER_SDF_STAGE_MASK=1  Capture diag-nocapture 12 --render-preset 2 --transport 2 --camera -7.0 -6.0 2.0 0.0 0.0 0.7
-          FRONTIER_SDF_STAGE_MASK=2  Capture diag-noradiance 12 --render-preset 2 --transport 2 --camera -7.0 -6.0 2.0 0.0 0.0 0.7
-          FRONTIER_SDF_STAGE_MASK=4  Capture diag-nogather 12 --render-preset 2 --transport 2 --camera -7.0 -6.0 2.0 0.0 0.0 0.7
-          FRONTIER_SDF_STAGE_MASK=8  Capture diag-noresolve 12 --render-preset 2 --transport 2 --camera -7.0 -6.0 2.0 0.0 0.0 0.7
-          FRONTIER_GI_DEBUG=1        Capture diag-debugirr 12 --render-preset 2 --transport 2 --camera -7.0 -6.0 2.0 0.0 0.0 0.7
-          FRONTIER_GI_DEBUG=2        Capture diag-debugdir 12 --render-preset 2 --transport 2 --camera -7.0 -6.0 2.0 0.0 0.0 0.7
-          VK_LOADER_LAYERS_ENABLE=VK_LAYER_KHRONOS_validation Capture diag-validated 12 --render-preset 2 --transport 2 --camera -7.0 -6.0 2.0 0.0 0.0 0.7
-          FRONTIER_GI_DEBUG=16       Capture diag-aftermat 12 --render-preset 2 --transport 2 --camera -7.0 -6.0 2.0 0.0 0.0 0.7
-          FRONTIER_GI_DEBUG=17       Capture diag-afterdir 12 --render-preset 2 --transport 2 --camera -7.0 -6.0 2.0 0.0 0.0 0.7
-          FRONTIER_GI_DEBUG=18       Capture diag-beforedir 12 --render-preset 2 --transport 2 --camera -7.0 -6.0 2.0 0.0 0.0 0.7
-          FRONTIER_GI_DEBUG=19       Capture diag-noshadow 12 --render-preset 2 --transport 2 --camera -7.0 -6.0 2.0 0.0 0.0 0.7
           VK_LOADER_LAYERS_ENABLE=VK_LAYER_KHRONOS_validation FRONTIER_GI_DEBUG=19 Capture diag-noshadow-validated 12 --render-preset 2 --transport 2 --camera -7.0 -6.0 2.0 0.0 0.0 0.7
+          FRONTIER_GI_DEBUG=20 Capture diag-loop-entry 12 --render-preset 2 --transport 2 --camera -7.0 -6.0 2.0 0.0 0.0 0.7
+          FRONTIER_GI_DEBUG=21 Capture diag-loop-inputs 12 --render-preset 2 --transport 2 --camera -7.0 -6.0 2.0 0.0 0.0 0.7
+          FRONTIER_GI_DEBUG=22 Capture diag-loop-geometry 12 --render-preset 2 --transport 2 --camera -7.0 -6.0 2.0 0.0 0.0 0.7
+          FRONTIER_GI_DEBUG=23 Capture diag-bsdf 12 --render-preset 2 --transport 2 --camera -7.0 -6.0 2.0 0.0 0.0 0.7
+          FRONTIER_GI_DEBUG=24 Capture diag-loop-end 12 --render-preset 2 --transport 2 --camera -7.0 -6.0 2.0 0.0 0.0 0.7
           Capture sdf-gi-exterior    90 --render-preset 2 --transport 2 --camera -7.0 -6.0 2.0 0.0 0.0 0.7
           Capture sdf-gi-cockpit     90 --render-preset 2 --transport 2 --camera -0.2 0.42 1.12 2.8 0.42 0.47
           Capture sdf-gi-play        90 --render-preset 2 --transport 1
