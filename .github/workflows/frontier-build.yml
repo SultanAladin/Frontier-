@@ -201,6 +201,8 @@ jobs:
           sed -n '1,60p' Exhibits/Gallery/ProjectDrive/live/vulkaninfo.log
           Capture() {   # <name> <frames> <args…>
             local Name="$1" Frames="$2"; shift 2
+            # Never let a failed capture republish the previous run's PNG as if it were fresh.
+            rm -f "Exhibits/Gallery/ProjectDrive/live/$Name.png"
             echo "::group::capture $Name"
             # Under gdb so a crash leaves its backtrace in the log (lavapipe runs the shaders on the CPU: a shader
             #    fault is a host fault here).
@@ -214,19 +216,22 @@ jobs:
           # Project-Drive runs the Distance Field GI path (preset 2). Same scene, same settings; the camera is pinned
           #    for the exterior and cockpit views (the car spawns at the origin facing +X; eye from DriveCabinLayout.h),
           #    the play capture leaves the camera to the project.
-          # (The simulate-transport bisect that used to run here is concluded and its hooks are removed; these
-          #    are the production configuration, unmodified.)
-          Capture sdf-gi-exterior    90 --render-preset 2 --transport 2 --camera -7.0 -6.0 2.0 0.0 0.0 0.7
-          Capture sdf-gi-cockpit     90 --render-preset 2 --transport 2 --camera -0.2 0.42 1.12 2.8 0.42 0.47
+          # (The simulate-transport bisect that used to run here is concluded and its hooks are removed.)
+          # The GI views are captured at transport 0 with the camera pinned: the scene is the same parked car on
+          #    the same course through the same SDF pipeline, while the simulate transports (1/2) currently fault
+          #    on lavapipe before the first present — a pre-existing host fault, witnessed by sdf-gi-play below,
+          #    that kept every transport-2 PNG in this folder silently stale. sdf-gi-play stays as that witness.
+          Capture sdf-gi-exterior    90 --render-preset 2 --transport 0 --camera -7.0 -6.0 2.0 0.0 0.0 0.7
+          Capture sdf-gi-cockpit     90 --render-preset 2 --transport 0 --camera -0.2 0.42 1.12 2.8 0.42 0.47
           Capture sdf-gi-play        90 --render-preset 2 --transport 1
           Capture sdf-gi-edit        30 --render-preset 2 --transport 0
           Capture restir-exterior     8 --render-preset 0 --transport 2 --camera -7.0 -6.0 2.0 0.0 0.0 0.7
           # Diagnostic views of the SDF resolve (DistanceFieldFrame::DebugView): gathered irradiance, direct light,
           #    sun visibility, sky fraction of the gather. Same frame as sdf-gi-exterior.
-          FRONTIER_GI_DEBUG=1 Capture sdf-gi-exterior-irradiance 60 --render-preset 2 --transport 2 --camera -7.0 -6.0 2.0 0.0 0.0 0.7
-          FRONTIER_GI_DEBUG=2 Capture sdf-gi-exterior-direct     60 --render-preset 2 --transport 2 --camera -7.0 -6.0 2.0 0.0 0.0 0.7
-          FRONTIER_GI_DEBUG=3 Capture sdf-gi-exterior-sunvis     60 --render-preset 2 --transport 2 --camera -7.0 -6.0 2.0 0.0 0.0 0.7
-          FRONTIER_GI_DEBUG=4 Capture sdf-gi-exterior-skyfrac    60 --render-preset 2 --transport 2 --camera -7.0 -6.0 2.0 0.0 0.0 0.7
+          FRONTIER_GI_DEBUG=1 Capture sdf-gi-exterior-irradiance 60 --render-preset 2 --transport 0 --camera -7.0 -6.0 2.0 0.0 0.0 0.7
+          FRONTIER_GI_DEBUG=2 Capture sdf-gi-exterior-direct     60 --render-preset 2 --transport 0 --camera -7.0 -6.0 2.0 0.0 0.0 0.7
+          FRONTIER_GI_DEBUG=3 Capture sdf-gi-exterior-sunvis     60 --render-preset 2 --transport 0 --camera -7.0 -6.0 2.0 0.0 0.0 0.7
+          FRONTIER_GI_DEBUG=4 Capture sdf-gi-exterior-skyfrac    60 --render-preset 2 --transport 0 --camera -7.0 -6.0 2.0 0.0 0.0 0.7
           rm -f Exhibits/Gallery/ProjectDrive/live/{sdf-gi-simulate,raster-simulate,restir-simulate}.*
           # Proper deflate (the host's writer stores raw scanlines) and a short log tail, so the branch commit stays small.
           python3 -m pip install --quiet pillow
