@@ -105,7 +105,12 @@ jobs:
           python -u Tools/Bootstrap.py --package glfw --package imgui --package vulkan-headers *> $BootstrapLog
           $BootstrapExit = $LASTEXITCODE
           Get-Content $BootstrapLog
-          if ($BootstrapExit -ne 0) { exit $BootstrapExit }
+          if ($BootstrapExit -ne 0) {
+            $LogText = Get-Content $BootstrapLog -Raw
+            $LogText = $LogText.Replace('%', '%25').Replace("`r", '%0D').Replace("`n", '%0A')
+            Write-Output "::error file=.github/workflows/solidarc-binaries.yml,line=81::$LogText"
+            exit $BootstrapExit
+          }
 
       - name: Preserve Windows bootstrap diagnostics
         if: failure() && steps.bootstrap-windows.outcome == 'failure'
