@@ -143,7 +143,7 @@ jobs:
           $BuildExit = $LASTEXITCODE
           Get-Content $BuildLog
           if ($BuildExit -ne 0) {
-            $LogText = (Get-Content $BuildLog | Select-Object -Last 60) -join "`n"
+            $LogText = (Get-Content $BuildLog | Select-Object -Last 15) -join "`n"
             $LogText = $LogText.Replace('%', '%25').Replace("`r", '%0D').Replace("`n", '%0A')
             Write-Output "::error file=.github/workflows/solidarc-binaries.yml,line=110::$LogText"
             exit $BuildExit
