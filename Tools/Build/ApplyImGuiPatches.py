@@ -54,7 +54,13 @@ def WriteNoted(Message):   WriteReport('Patch',  Message)
 
 
 def NormalizePatchTargets(PatchPath):
-    """Normalize archive-extracted patch targets to LF so git apply behaves the same on Windows and POSIX."""
+    """Normalize patch files and archive-extracted targets so git apply behaves the same on Windows and POSIX."""
+    with open(PatchPath, 'rb') as PatchFile:
+        PatchContent = PatchFile.read()
+    NormalizedPatch = PatchContent.replace(b'\r\n', b'\n')
+    if NormalizedPatch != PatchContent:
+        with open(PatchPath, 'wb') as PatchFile:
+            PatchFile.write(NormalizedPatch)
     with open(PatchPath, 'r', encoding='utf-8', errors='replace') as PatchFile:
         for Line in PatchFile:
             if not Line.startswith('--- a/'):
