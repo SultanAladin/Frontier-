@@ -5,6 +5,12 @@ on:
     branches:
       - arena/0f8acff0-frontier
   workflow_dispatch:
+    inputs:
+      publish_release:
+        description: Publish the freshly built Linux and Windows archives as a public preview release
+        required: false
+        default: false
+        type: boolean
 
 permissions:
   contents: read
@@ -186,3 +192,31 @@ jobs:
           path: dist/SolidArc-windows-x64.zip
           if-no-files-found: error
           retention-days: 30
+
+  publish-release:
+    name: Publish public binary preview
+    if: github.event_name == 'workflow_dispatch' && inputs.publish_release
+    needs: [linux-x86_64, windows-x64]
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - name: Download platform archives
+        uses: actions/download-artifact@v4
+        with:
+          pattern: SolidArc-*
+          path: release-assets
+          merge-multiple: true
+
+      - name: Publish GitHub pre-release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: solidarc-preview-${{ github.run_number }}
+        run: |
+          gh release create "$RELEASE_TAG" \
+            release-assets/SolidArc-linux-x86_64.tar.gz \
+            release-assets/SolidArc-windows-x64.zip \
+            --target "${GITHUB_SHA}" \
+            --title "SolidArc preview ${GITHUB_RUN_NUMBER}" \
+            --notes "Standalone SolidArc console and Vulkan editor binaries from commit ${GITHUB_SHA}. Download the Linux tarball or Windows ZIP below; the package includes the baked MetalChrome matcap asset." \
+            --prerelease
