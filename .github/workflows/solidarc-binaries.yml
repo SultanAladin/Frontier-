@@ -135,7 +135,19 @@ jobs:
             -DSOLIDARC_BUILD_VERIFICATION=OFF
 
       - name: Build console and Vulkan editor
-        run: cmake --build build/solidarc-windows --config Release --target SolidArc SolidArcVulkan --parallel 2
+        id: build-windows
+        shell: pwsh
+        run: |
+          $BuildLog = Join-Path $env:RUNNER_TEMP 'solidarc-build.log'
+          cmake --build build/solidarc-windows --config Release --target SolidArc SolidArcVulkan --parallel 2 *> $BuildLog
+          $BuildExit = $LASTEXITCODE
+          Get-Content $BuildLog
+          if ($BuildExit -ne 0) {
+            $LogText = (Get-Content $BuildLog | Select-Object -Last 60) -join "`n"
+            $LogText = $LogText.Replace('%', '%25').Replace("`r", '%0D').Replace("`n", '%0A')
+            Write-Output "::error file=.github/workflows/solidarc-binaries.yml,line=110::$LogText"
+            exit $BuildExit
+          }
 
       - name: Package Windows binaries
         shell: pwsh
