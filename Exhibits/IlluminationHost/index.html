@@ -1,0 +1,295 @@
+<!DOCTYPE html>
+<!--
+==============================================================================================================================================
+                                                                  INDEX.HTML
+==============================================================================================================================================
+ 🧩 Distance-field global illumination exhibit: one scene distance field, surface cards, ReSTIR GI, the Project-Drive ControlVehicle.
+-->
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Slate · Distance-Field GI · Surface Cards · ReSTIR — ControlVehicle</title>
+<style>
+    :root
+    {
+        --ground:      #0b0d12;
+        --panel:       #12151d;
+        --panel-edge:  #252b3a;
+        --heading:     #f2a64a;
+        --text:        #e6ebf3;
+        --muted:       #8a94a8;
+        --accent:      #4fb3ff;
+        --failure:     #ff5f6d;
+    }
+    *
+    {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+    }
+    html, body
+    {
+        width: 100%;
+        height: 100%;
+        overflow: hidden;
+        background: var(--ground);
+        color: var(--text);
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    }
+    body
+    {
+        display: flex;
+    }
+    #stage
+    {
+        position: relative;
+        flex: 1;
+        min-width: 0;
+    }
+    #viewport
+    {
+        width: 100%;
+        height: 100%;
+        display: block;
+        cursor: grab;
+        touch-action: none;
+    }
+    .capture
+    {
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+        pointer-events: none;
+    }
+    .capture:not([width])
+    {
+        display: none;
+    }
+    #hud
+    {
+        position: absolute;
+        top: 12px;
+        left: 12px;
+        padding: 10px 14px;
+        background: rgba(12, 14, 20, 0.78);
+        border: 1px solid var(--panel-edge);
+        border-radius: 8px;
+        font: 12px/1.45 "JetBrains Mono", Consolas, "Courier New", monospace;
+        white-space: pre;
+        pointer-events: none;
+        max-width: calc(100% - 24px);
+    }
+    #inset-legend
+    {
+        position: absolute;
+        top: 16px;
+        right: 16px;
+        transform: translateY(calc(34vh + 6px));
+        padding: 4px 8px;
+        background: rgba(12, 14, 20, 0.78);
+        border-radius: 6px;
+        font: 11px/1.4 Consolas, monospace;
+        color: var(--muted);
+        pointer-events: none;
+    }
+    #panel
+    {
+        width: 340px;
+        height: 100%;
+        background: var(--panel);
+        border-left: 1px solid var(--panel-edge);
+        display: flex;
+        flex-direction: column;
+    }
+    #panel header
+    {
+        padding: 14px 16px 10px;
+        border-bottom: 1px solid var(--panel-edge);
+    }
+    #panel header h1
+    {
+        font-size: 14px;
+        font-weight: 700;
+        color: var(--heading);
+        letter-spacing: 0.3px;
+    }
+    #panel header p
+    {
+        margin-top: 4px;
+        font-size: 11px;
+        color: var(--muted);
+        line-height: 1.4;
+    }
+    #panel-body
+    {
+        flex: 1;
+        overflow-y: auto;
+        padding: 6px 14px 20px;
+    }
+    .panel-section
+    {
+        padding: 10px 0 8px;
+        border-bottom: 1px solid var(--panel-edge);
+    }
+    .panel-section h2
+    {
+        font-size: 11px;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.8px;
+        color: var(--accent);
+        margin-bottom: 8px;
+    }
+    .panel-row
+    {
+        display: grid;
+        grid-template-columns: 1fr auto auto;
+        align-items: center;
+        gap: 8px;
+        font-size: 12px;
+        padding: 3px 0;
+        color: var(--text);
+    }
+    .panel-row input[type="range"]
+    {
+        width: 120px;
+        accent-color: var(--heading);
+    }
+    .panel-row input[type="checkbox"]
+    {
+        accent-color: var(--heading);
+        width: 15px;
+        height: 15px;
+    }
+    .panel-row select
+    {
+        max-width: 190px;
+        background: #1b2030;
+        color: var(--text);
+        border: 1px solid var(--panel-edge);
+        border-radius: 4px;
+        padding: 3px 4px;
+        font-size: 11px;
+    }
+    .panel-row output
+    {
+        min-width: 38px;
+        text-align: right;
+        font: 11px Consolas, monospace;
+        color: var(--muted);
+    }
+    .panel-buttons
+    {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+        margin: 4px 0 8px;
+    }
+    .panel-buttons button
+    {
+        background: #1d2333;
+        color: var(--text);
+        border: 1px solid var(--panel-edge);
+        border-radius: 5px;
+        padding: 5px 9px;
+        font-size: 11px;
+        cursor: pointer;
+    }
+    .panel-buttons button:hover
+    {
+        border-color: var(--heading);
+    }
+    .panel-readout
+    {
+        font: 11px/1.45 Consolas, monospace;
+        color: var(--muted);
+        white-space: pre-wrap;
+        margin-top: 6px;
+    }
+    #bring-up
+    {
+        position: absolute;
+        inset: 0;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 12px;
+        background: rgba(8, 10, 14, 0.94);
+        z-index: 20;
+    }
+    #bring-up h2
+    {
+        font-size: 16px;
+        color: var(--heading);
+    }
+    .bring-up-caption
+    {
+        font-size: 12px;
+        color: var(--muted);
+    }
+    .bring-up-bar
+    {
+        width: 360px;
+        height: 4px;
+        background: #1d2333;
+        border-radius: 2px;
+        overflow: hidden;
+    }
+    .bring-up-bar > div
+    {
+        width: 0%;
+        height: 100%;
+        background: var(--heading);
+        transition: width 0.2s;
+    }
+    #failure
+    {
+        position: absolute;
+        left: 12px;
+        bottom: 12px;
+        max-width: 70%;
+        max-height: 40%;
+        overflow: auto;
+        padding: 10px 14px;
+        background: rgba(40, 10, 14, 0.92);
+        border: 1px solid var(--failure);
+        border-radius: 8px;
+        font: 12px/1.4 Consolas, monospace;
+        color: #ffd5d9;
+        z-index: 30;
+        white-space: pre-wrap;
+    }
+    .hidden
+    {
+        display: none !important;
+    }
+</style>
+</head>
+<body>
+    <div id="stage">
+        <canvas id="viewport"></canvas>
+        <canvas id="capture" class="capture"></canvas>
+        <div id="hud">Starting…</div>
+        <div id="inset-legend">GDF slice · blue inside · amber outside · magenta = rewritten by the moving car · teal = scrolled · green = cascade 0</div>
+        <div id="bring-up">
+            <h2>Distance-field GI · Surface cards · ReSTIR</h2>
+            <div class="bring-up-caption">Starting</div>
+            <div class="bring-up-bar"><div></div></div>
+        </div>
+        <div id="failure" class="hidden"></div>
+    </div>
+    <aside id="panel">
+        <header>
+            <h1>Scene Distance Field GI · ReSTIR</h1>
+            <p>One global distance field (4 toroidal cascades) · surface cards with radiosity · ReSTIR GI final gather ·
+               Project-Drive ControlVehicle</p>
+            <p id="adapter"></p>
+        </header>
+        <div id="panel-body"></div>
+    </aside>
+    <script type="module" src="Source/IlluminationHost.js"></script>
+</body>
+</html>
