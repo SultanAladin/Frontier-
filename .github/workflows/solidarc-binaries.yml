@@ -98,8 +98,23 @@ jobs:
           "VCPKG_ROOT=$VcpkgRoot" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
 
       - name: Bootstrap locked GLFW and ImGui sources
+        id: bootstrap-windows
         shell: pwsh
-        run: python Tools/Bootstrap.py --package glfw --package imgui --package vulkan-headers
+        run: |
+          $BootstrapLog = Join-Path $env:RUNNER_TEMP 'solidarc-bootstrap.log'
+          python -u Tools/Bootstrap.py --package glfw --package imgui --package vulkan-headers *> $BootstrapLog
+          $BootstrapExit = $LASTEXITCODE
+          Get-Content $BootstrapLog
+          if ($BootstrapExit -ne 0) { exit $BootstrapExit }
+
+      - name: Preserve Windows bootstrap diagnostics
+        if: failure() && steps.bootstrap-windows.outcome == 'failure'
+        uses: actions/upload-artifact@v4
+        with:
+          name: SolidArc-windows-bootstrap-log
+          path: ${{ runner.temp }}/solidarc-bootstrap.log
+          if-no-files-found: warn
+          retention-days: 7
 
       - name: Configure
         shell: pwsh
