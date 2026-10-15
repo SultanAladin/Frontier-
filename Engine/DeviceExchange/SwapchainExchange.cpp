@@ -3941,6 +3941,11 @@ void SwapchainExchange::OnKey(GLFWwindow* Window, int Key, int, int Action, int)
     MapKey(GLFW_KEY_LEFT_SHIFT,  VirtualKeyCategory::KeyLeftShift);
     MapKey(GLFW_KEY_RIGHT_SHIFT, VirtualKeyCategory::KeyRightShift);
     MapKey(GLFW_KEY_ESCAPE,      VirtualKeyCategory::KeyEscape);
+    MapKey(GLFW_KEY_F3,          VirtualKeyCategory::KeyF3);
+    MapKey(GLFW_KEY_F4,          VirtualKeyCategory::KeyF4);
+    MapKey(GLFW_KEY_F5,          VirtualKeyCategory::KeyF5);
+    MapKey(GLFW_KEY_F6,          VirtualKeyCategory::KeyF6);
+    MapKey(GLFW_KEY_F7,          VirtualKeyCategory::KeyF7);
     // The editor's transform-mode letters and the snap modifier. G and R reach InputExchange ONLY here — the
     //    WASD map above happens to carry S, which is why Scale once locked forever: the first S switched the
     //    mode and no other letter could ever arrive to switch it back.

@@ -62,7 +62,7 @@ public:
     [[nodiscard]] bool              IsOpen()         const noexcept { return Open_; }
 
 private:
-    DebugViewCategory View_       = DebugViewCategory::Off;
+    DebugViewCategory View_       = DebugViewCategory::Matcap;
     bool              Occlusion_  = true;
     bool              AliasPick_  = true;    // R6 row 3: Walker-alias light pick (F5; false = uniform R0 identity)
     bool              Open_       = false;
@@ -70,6 +70,7 @@ private:
     bool              F4Held_     = false;
     bool              F5Held_     = false;
     bool              F6Held_     = false;
+    bool              F7Held_     = false;
     float             PatchErrorPixels_ = 1.0f;   // [px] patch-preview screen-error tolerance (F6)
 
     static float NormalisePatchError(float Pixels) noexcept

@@ -45,8 +45,10 @@ public:
     bool RunScript(const std::string& Path, bool ContinueOnRefusal) noexcept;
     int  RunInteractive(std::FILE* In) noexcept;
 
-    [[nodiscard]] SceneDocument&    Document() noexcept { return Scene; }
-    [[nodiscard]] CameraProjection& Camera() noexcept { return View; }
+    [[nodiscard]] SceneDocument&          Document() noexcept { return Scene; }
+    [[nodiscard]] const SceneDocument&    Document() const noexcept { return Scene; }
+    [[nodiscard]] CameraProjection&       Camera() noexcept { return View; }
+    [[nodiscard]] const CameraProjection& Camera() const noexcept { return View; }
     [[nodiscard]] int               RefusalCount() const noexcept { return Refusals; }
     [[nodiscard]] const TransformGizmo& Gizmo() const noexcept { return GizmoRig; }
     [[nodiscard]] const UndoSequence&  Timeline() const noexcept { return Undo; }
@@ -98,6 +100,12 @@ public:
 
     // Renders the current document into the raster (no file); public so verification can inspect pixels.
     void Render() noexcept;
+    void ResizeViewport(uint32_t Width, uint32_t Height) noexcept;
+    void AssignLatticeCell(double CellSize) noexcept;
+    [[nodiscard]] double LatticeCell() const noexcept { return GridCell; }
+    void AssignShading(SurfaceShading Mode) noexcept;
+    [[nodiscard]] SurfaceShading QueryShading() const noexcept { return Shading; }
+    bool ClickSelectAtPixel(double X, double Y, bool Toggle) noexcept;
     [[nodiscard]] const RasterExchange& Raster() const noexcept { return *Surface; }
     [[nodiscard]] const Workplane&     WorkPlane() const noexcept { return Plane; }
 
@@ -216,6 +224,7 @@ private:
     int32_t                              EditDimensionId   = 0;                         // [-] dim awaiting a new value (numeric input in REPL)
 
     std::unique_ptr<SoftwareRaster>      Surface;
+    double                               GridCell = 1.0;                            // [m] workplane lattice spacing used by the presentation
     std::map<std::string, Command>       Commands;
     std::map<std::string, std::string>   Usage;
     int                                  Refusals = 0;

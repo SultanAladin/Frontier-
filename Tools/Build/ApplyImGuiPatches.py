@@ -53,6 +53,30 @@ def WriteRejected(Message): WriteReport('FAILED', Message)
 def WriteNoted(Message):   WriteReport('Patch',  Message)
 
 
+def NormalizePatchTargets(PatchPath):
+    """Normalize patch files and archive-extracted targets so git apply behaves the same on Windows and POSIX."""
+    with open(PatchPath, 'rb') as PatchFile:
+        PatchContent = PatchFile.read()
+    NormalizedPatch = PatchContent.replace(b'\r\n', b'\n')
+    if NormalizedPatch != PatchContent:
+        with open(PatchPath, 'wb') as PatchFile:
+            PatchFile.write(NormalizedPatch)
+    with open(PatchPath, 'r', encoding='utf-8', errors='replace') as PatchFile:
+        for Line in PatchFile:
+            if not Line.startswith('--- a/'):
+                continue
+            Relative = Line[6:].split('\t', 1)[0].strip().replace('\\', '/')
+            Target = os.path.join(ImGuiRoot, *Relative.split('/'))
+            if not os.path.isfile(Target):
+                continue
+            with open(Target, 'rb') as Source:
+                Content = Source.read()
+            Normalized = Content.replace(b'\r\n', b'\n')
+            if Normalized != Content:
+                with open(Target, 'wb') as Source:
+                    Source.write(Normalized)
+
+
 def Git(Arguments):
     """Runs one git command inside the vendored tree and returns (ExitCode, Output)."""
     Finished = subprocess.run(['git'] + Arguments, cwd=ImGuiRoot,
@@ -91,6 +115,7 @@ def Main(Arguments):
             WriteRejected("declared patch {0} is absent from {1}".format(PatchName, PatchRoot))
             return 1
 
+        NormalizePatchTargets(PatchPath)
         WitnessPath = os.path.join(ImGuiRoot, Entry['Witness'])
 
         with open(WitnessPath, 'r', encoding='utf-8', errors='replace') as Reader:

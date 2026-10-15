@@ -8,6 +8,7 @@
 
 #include "ShadingRecords.slang"
 #include "MatcapStudio.slang"
+#include "BakedMatcapSampling.slang"
 
 struct SurfaceVarying
 {
@@ -48,11 +49,10 @@ float4 SurfaceFragment(ViewRecord View, DrawRecord Draw, SurfaceVarying In, bool
         // Column-major camera→world: column 0 = right, column 1 = up, column 2 = back (toward the viewer).
         float3 Right = normalize(float3(View.ViewWorld.m[0], View.ViewWorld.m[1], View.ViewWorld.m[2]));
         float3 Up    = normalize(float3(View.ViewWorld.m[4], View.ViewWorld.m[5], View.ViewWorld.m[6]));
-        float3 Vn    = float3(dot(N, Right), dot(N, Up), saturate(dot(N, V)));
-        Vn = normalize(Vn);
+        float3 Back  = normalize(float3(View.ViewWorld.m[8], View.ViewWorld.m[9], View.ViewWorld.m[10]));
+        float3 Vn    = normalize(float3(dot(N, Right), dot(N, Up), dot(N, Back)));
         Colour = MatcapLookup(uint(Draw.Surface.x + 0.5), Vn);
-        // Tint modulates only the dielectric/neutral studios lightly so per-figure colour still reads.
-        Colour = Colour * lerp(float3(1.0, 1.0, 1.0), Albedo / max(max(Albedo.x, Albedo.y), max(Albedo.z, 1e-3)), 0.20);
+        Colour = ViewportMatcapTint(Colour, Albedo);
     }
     else if (Mode == 1u)
     {
@@ -68,9 +68,7 @@ float4 SurfaceFragment(ViewRecord View, DrawRecord Draw, SurfaceVarying In, bool
     }
     else
     {
-        float3 Key     = normalize(View.Illumination.xyz);
-        float  Hemi    = 0.5 + 0.5 * N.z;
-        Colour = Albedo * (View.Illumination.w * Hemi + saturate(dot(N, Key)) * 0.85);
+        Colour = ViewportFlatColour(Albedo);
     }
 
     if (!FrontFacing) Colour = lerp(Colour, float3(0.85, 0.30, 0.25), 0.6);   // 🔴 back face → winding fault visible

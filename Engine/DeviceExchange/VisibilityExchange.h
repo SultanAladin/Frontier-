@@ -57,7 +57,9 @@ enum class DebugViewCategory : uint32_t
     ReservoirAge = 13,  // R6 row 3: reservoir age in frames (ramp, saturates at 16)
     PatchTiles   = 14,
     PatchWire    = 15,
-    Count        = 16
+    Flat         = 16,
+    Matcap       = 17,
+    Count        = 18
 };
 
 [[nodiscard]] const char* DebugViewName(DebugViewCategory View) noexcept;

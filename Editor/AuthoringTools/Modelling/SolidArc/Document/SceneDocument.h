@@ -7,6 +7,7 @@
 #include "Kernel/TopologySpecification.h"
 #include "Kernel/ProfileSolver.h"
 #include "Document/FigureRecipe.h"
+#include "../../../../../Engine/DisplayPresentation/ViewportShading.h"
 #include <string>
 #include <vector>
 
@@ -44,7 +45,7 @@ struct SceneFigure
     bool         Construction = false;                                                  // [-] drawn dashed, never rendered as solid
     bool         Hidden = false;                                                        // [-]
     bool         Selected = false;                                                      // [-]
-    uint8_t      Matcap = 0;                                                            // [-] studio layer (Plasticity: one per whole)
+    uint8_t      Matcap = kDefaultMetalMatcapLayer;                                    // [-] baked chrome by default; studio layer remains per whole
     float        Tint[3] = { 0.62f, 0.66f, 0.72f };                                     // [-] body colour
     std::vector<int> SelectedPoles;                                                     // [-] control-point selection (mode 1), pole indices
     std::vector<int> SelectedFaces;                                                     // [-] face selection (mode 3), body face indices

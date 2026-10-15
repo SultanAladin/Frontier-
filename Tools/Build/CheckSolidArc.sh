@@ -3,7 +3,8 @@
 #
 # SolidArc intentionally lives under Editor/AuthoringTools/Modelling instead of the Project-Zero runtime source batch.
 # This gate proves the C++ side still compiles without CMake or external packages: kernel, document, console,
-# interaction, software-raster presentation, shared outliner adapter, console executable, and every C++ verification TU.
+# interaction, software-raster presentation, shared outliner adapter, console executable, Construct catalogue placement,
+# and every C++ verification TU.
 set -euo pipefail
 cd "$(dirname "${BASH_SOURCE[0]}")/../.." || exit 1
 
@@ -130,6 +131,15 @@ ProofObj="$Work/obj/SolidArcOutlinerProof.o"
 "$Compiler" "${Flags[@]}" -I. -c "$Work/SolidArcOutlinerProof.cpp" -o "$ProofObj"
 "$Compiler" "${Objects[@]}" "$ProofObj" -o "$Work/SolidArcOutlinerProof"
 "$Work/SolidArcOutlinerProof"
+
+ConstructObj="$Work/obj/SolidArcConstructVerification.o"
+"$Compiler" "${Flags[@]}" -c "$Root/Verification/SolidArcConstructVerification.cpp" -o "$ConstructObj"
+"$Compiler" "${Objects[@]}" "$ConstructObj" -o "$Work/SolidArcConstructVerification"
+if ! "$Work/SolidArcConstructVerification" > "$Work/construct.log" 2>&1; then
+    cat "$Work/construct.log"
+    exit 1
+fi
+tail -n 1 "$Work/construct.log"
 
 cat > "$Work/Makefile" <<EOF
 CXX ?= g++

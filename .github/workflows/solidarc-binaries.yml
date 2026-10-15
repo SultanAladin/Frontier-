@@ -1,0 +1,188 @@
+name: SolidArc binaries
+
+on:
+  push:
+    branches:
+      - arena/0f8acff0-frontier
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: solidarc-binaries-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  linux-x86_64:
+    name: Linux x86_64
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Install build and Vulkan dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            cmake ninja-build g++ python3 git pkg-config glslc \
+            libvulkan-dev mesa-vulkan-drivers \
+            libx11-dev libxrandr-dev libxinerama-dev libxcursor-dev libxi-dev
+
+      - name: Compile shared Frontier viewport shaders
+        run: bash Tools/Build/CheckShaders.sh
+
+      - name: Bootstrap locked GLFW and ImGui sources
+        run: python3 Tools/Bootstrap.py --package glfw --package imgui --package vulkan-headers
+
+      - name: Configure
+        run: >-
+          cmake -S Editor/AuthoringTools/Modelling/SolidArc
+          -B build/solidarc-linux -G Ninja
+          -DCMAKE_BUILD_TYPE=Release
+          -DSOLIDARC_BUILD_VULKAN_APP=ON
+          -DSOLIDARC_BUILD_VERIFICATION=OFF
+          -DGLFW_BUILD_WAYLAND=OFF
+
+      - name: Build console and Vulkan editor
+        run: cmake --build build/solidarc-linux --target SolidArc SolidArcVulkan SolidArcEditorUi --parallel 2
+
+      - name: Package Linux binaries
+        run: |
+          mkdir -p dist/solidarc-linux-x86_64
+          cp build/solidarc-linux/SolidArc dist/solidarc-linux-x86_64/
+          cp build/solidarc-linux/SolidArcVulkan dist/solidarc-linux-x86_64/
+          mkdir -p dist/solidarc-linux-x86_64/EngineContent/Matcaps
+          cp EngineContent/Matcaps/MetalChrome.ppm dist/solidarc-linux-x86_64/EngineContent/Matcaps/
+          cat > dist/solidarc-linux-x86_64/README.txt <<'EOF'
+          SolidArc Linux x86_64 binaries
+
+          SolidArc is the dependency-light console executable.
+          SolidArcVulkan is the GLFW + Vulkan editor. It requires a Vulkan-capable graphics driver and the Vulkan loader at runtime.
+          The viewport defaults to the shared baked shiny Chrome Matcap; use Flat/Matcap controls to switch.
+          EngineContent/Matcaps/MetalChrome.ppm is the baked 128x128 source asset.
+          Source and local build instructions are in Editor/AuthoringTools/Modelling/SolidArc/README.md.
+          EOF
+          tar -C dist -czf dist/SolidArc-linux-x86_64.tar.gz solidarc-linux-x86_64
+
+      - name: Upload Linux binaries
+        uses: actions/upload-artifact@v4
+        with:
+          name: SolidArc-linux-x86_64
+          path: dist/SolidArc-linux-x86_64.tar.gz
+          if-no-files-found: error
+          retention-days: 30
+
+  windows-x64:
+    name: Windows x64
+    runs-on: windows-2022
+    timeout-minutes: 45
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Set up MSVC
+        uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x64
+
+      - name: Install Vulkan headers and loader
+        shell: pwsh
+        run: |
+          $VcpkgRoot = $env:VCPKG_INSTALLATION_ROOT
+          if (-not $VcpkgRoot -or -not (Test-Path (Join-Path $VcpkgRoot 'vcpkg.exe'))) {
+            $VcpkgRoot = Join-Path $env:RUNNER_TEMP 'vcpkg'
+            git clone --depth 1 https://github.com/microsoft/vcpkg $VcpkgRoot
+            & (Join-Path $VcpkgRoot 'bootstrap-vcpkg.bat') -disableMetrics
+          }
+          & (Join-Path $VcpkgRoot 'vcpkg.exe') install vulkan-headers vulkan-loader --triplet x64-windows
+          "VCPKG_ROOT=$VcpkgRoot" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+
+      - name: Bootstrap locked GLFW and ImGui sources
+        id: bootstrap-windows
+        shell: pwsh
+        run: |
+          $BootstrapLog = Join-Path $env:RUNNER_TEMP 'solidarc-bootstrap.log'
+          python -u Tools/Bootstrap.py --package glfw --package imgui --package vulkan-headers *> $BootstrapLog
+          $BootstrapExit = $LASTEXITCODE
+          Get-Content $BootstrapLog
+          if ($BootstrapExit -ne 0) {
+            $LogText = Get-Content $BootstrapLog -Raw
+            $LogText = $LogText.Replace('%', '%25').Replace("`r", '%0D').Replace("`n", '%0A')
+            Write-Output "::error file=.github/workflows/solidarc-binaries.yml,line=81::$LogText"
+            exit $BootstrapExit
+          }
+
+      - name: Preserve Windows bootstrap diagnostics
+        if: failure() && steps.bootstrap-windows.outcome == 'failure'
+        uses: actions/upload-artifact@v4
+        with:
+          name: SolidArc-windows-bootstrap-log
+          path: ${{ runner.temp }}/solidarc-bootstrap.log
+          if-no-files-found: warn
+          retention-days: 7
+
+      - name: Configure
+        shell: pwsh
+        run: |
+          $Toolchain = Join-Path $env:VCPKG_ROOT 'scripts/buildsystems/vcpkg.cmake'
+          $VulkanInclude = Join-Path $env:VCPKG_ROOT 'installed/x64-windows/include'
+          $VulkanLibrary = Join-Path $env:VCPKG_ROOT 'installed/x64-windows/lib/vulkan-1.lib'
+          cmake -S Editor/AuthoringTools/Modelling/SolidArc -B build/solidarc-windows -A x64 `
+            "-DCMAKE_TOOLCHAIN_FILE=$Toolchain" `
+            "-DVulkan_INCLUDE_DIR=$VulkanInclude" `
+            "-DVulkan_LIBRARY=$VulkanLibrary" `
+            -DCMAKE_MSVC_RUNTIME_LIBRARY=MultiThreaded `
+            -DSOLIDARC_BUILD_VULKAN_APP=ON `
+            -DSOLIDARC_BUILD_VERIFICATION=OFF
+
+      - name: Build console and Vulkan editor
+        id: build-windows
+        shell: pwsh
+        run: |
+          $BuildLog = Join-Path $env:RUNNER_TEMP 'solidarc-build.log'
+          cmake --build build/solidarc-windows --config Release --target SolidArc SolidArcVulkan SolidArcEditorUi --parallel 2 *> $BuildLog
+          $BuildExit = $LASTEXITCODE
+          Get-Content $BuildLog
+          if ($BuildExit -ne 0) {
+            $LogText = (Get-Content $BuildLog | Select-Object -Last 15) -join "`n"
+            $LogText = $LogText.Replace('%', '%25').Replace("`r", '%0D').Replace("`n", '%0A')
+            Write-Output "::error file=.github/workflows/solidarc-binaries.yml,line=110::$LogText"
+            exit $BuildExit
+          }
+
+      - name: Package Windows binaries
+        shell: pwsh
+        run: |
+          $Package = 'dist/solidarc-windows-x64'
+          New-Item -ItemType Directory -Path $Package -Force | Out-Null
+          Copy-Item build/solidarc-windows/Release/SolidArc.exe $Package
+          Copy-Item build/solidarc-windows/Release/SolidArcVulkan.exe $Package
+          Copy-Item (Join-Path $env:VCPKG_ROOT 'installed/x64-windows/bin/vulkan-1.dll') $Package
+          $MatcapPackage = Join-Path $Package 'EngineContent/Matcaps'
+          New-Item -ItemType Directory -Path $MatcapPackage -Force | Out-Null
+          Copy-Item EngineContent/Matcaps/MetalChrome.ppm $MatcapPackage
+          @'
+          SolidArc Windows x64 binaries
+
+          SolidArc is the dependency-light console executable.
+          SolidArcVulkan is the GLFW + Vulkan editor. It requires a Vulkan-capable graphics driver; vulkan-1.dll is included.
+          The viewport defaults to the shared baked shiny Chrome Matcap; use Flat/Matcap controls to switch.
+          EngineContent/Matcaps/MetalChrome.ppm is the baked 128x128 source asset.
+          Source and local build instructions are in Editor/AuthoringTools/Modelling/SolidArc/README.md.
+          '@ | Set-Content -Path (Join-Path $Package 'README.txt')
+          Compress-Archive -Path "$Package/*" -DestinationPath dist/SolidArc-windows-x64.zip -Force
+
+      - name: Upload Windows binaries
+        uses: actions/upload-artifact@v4
+        with:
+          name: SolidArc-windows-x64
+          path: dist/SolidArc-windows-x64.zip
+          if-no-files-found: error
+          retention-days: 30

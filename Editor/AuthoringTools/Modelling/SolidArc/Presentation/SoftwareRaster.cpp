@@ -3,6 +3,7 @@
 //============================================================================================================================================
 
 #include "SoftwareRaster.h"
+#include "../../../../../Engine/DisplayPresentation/BakedMetalMatcap.h"
 #include <algorithm>
 #include <cmath>
 #include <cstring>
@@ -24,6 +25,7 @@ namespace Frontier::SlangMirror
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wunused-parameter"
 using uint = std::uint32_t;
+inline constexpr const uint* MatcapTexels = ::Frontier::kBakedMetalMatcapPixels;
 inline float log(float A) { return std::log(A); }
 #include "Shaders/ShadingRecords.slang"
 #include "Shaders/LatticeProjection.slang"
@@ -43,6 +45,8 @@ struct MatcapSheet
     {
         Texels.resize(size_t(MatcapLayers) * MatcapSize * MatcapSize * 3);
         for (int L = 0; L < MatcapLayers; ++L)
+        {
+            if (L == int(kDefaultMetalMatcapLayer)) continue;  // the default chrome studio is the shared baked lookup
             for (int Y = 0; Y < MatcapSize; ++Y)
                 for (int X = 0; X < MatcapSize; ++X)
                 {
@@ -53,14 +57,17 @@ struct MatcapSheet
                     float* T = &Texels[((size_t(L) * MatcapSize + Y) * MatcapSize + X) * 3];
                     T[0] = C.x; T[1] = C.y; T[2] = C.z;
                 }
+        }
     }
 };
 inline const MatcapSheet& Sheet() { static MatcapSheet A; return A; }
 
 float3 MatcapLookup(uint Layer, float3 N)
 {
-    const MatcapSheet& A = Sheet();
     uint L = Layer < uint(MatcapLayers) ? Layer : 0u;
+    if (L == uint(kDefaultMetalMatcapLayer))
+        return BakedMetalMatcapLookup(N);
+    const MatcapSheet& A = Sheet();
     float Fx = (N.x * 0.5f + 0.5f) * MatcapSize - 0.5f, Fy = (0.5f - N.y * 0.5f) * MatcapSize - 0.5f;
     int X0 = int(std::floor(Fx)), Y0 = int(std::floor(Fy));
     float Tx = Fx - X0, Ty = Fy - Y0;

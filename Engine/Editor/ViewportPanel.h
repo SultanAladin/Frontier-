@@ -11,6 +11,7 @@
 
 #include <cstdint>
 #include "ViewportBillboards.h"
+#include "../DisplayPresentation/ViewportShading.h"
 
 #include <imgui.h>
 
@@ -19,6 +20,7 @@ namespace Frontier {
 class ControlPanel;
 struct EditorInstance;
 struct EditorReadout;
+struct SolidArcConstructTile;
 
 // The shared viewport panel can wear the game editor chrome or the SolidArc CAD chrome. The framebuffer body
 // stays common; only the top tool strip changes.
@@ -87,6 +89,7 @@ public:
     // Last view rect, so the project can size the view rows to the rect it draws into.
     [[nodiscard]] float QueryViewWidth() const noexcept { return LastW_; }
     [[nodiscard]] float QueryViewHeight() const noexcept { return LastH_; }
+    [[nodiscard]] ViewportShadingMode QuerySolidArcShading() const noexcept { return SolidArcShade_; }
 
     // The view's pointer, in view fractions (0..1 across the drawn scene). QueryViewTap hands the click that
     //    landed on the scene view exactly once — the game turns it into a GPU pick tap; Additive reads true
@@ -95,11 +98,19 @@ public:
     [[nodiscard]] bool QueryViewTap(float* AcrossU, float* DownV, bool* Additive) noexcept;
     [[nodiscard]] bool QueryViewAim(float* AcrossU, float* DownV) const noexcept;
 
+    void AssignConstructTiles(const SolidArcConstructTile* Tiles, uint32_t Count) noexcept;
+    [[nodiscard]] bool QueryConstructPick(uint32_t* Tile) noexcept;
+    [[nodiscard]] bool QueryConstructOpen() const noexcept { return ConstructMenuOpen_; }
+    void AssignConstructGuide(bool Active, bool CursorValid, float U, float V,
+                              bool AnchorSet, float AnchorU, float AnchorV, double X, double Y) noexcept;
+
     void Record(EditorInstance* Instances, uint32_t InstanceCount) noexcept;
 
 private:
     void RecordBar() noexcept;
     void RecordSolidArcBar() noexcept;
+    void DrawConstructMenu() noexcept;
+    void DrawConstructGuides(ImDrawList* Draw, ImVec2 Minimum, ImVec2 Maximum) const noexcept;
     void RecordView() noexcept;
     void RecordCommand(EditorInstance* Instances, uint32_t InstanceCount) noexcept;
     void RecordFooter(EditorInstance* Instances, uint32_t InstanceCount) noexcept;
@@ -126,6 +137,9 @@ private:
     uint32_t             StorageW_    = 0u;
     uint32_t             StorageH_    = 0u;
     bool                 CanvasDragging_ = false;
+    bool                 CanvasLeftGesture_ = false;
+    bool                 CanvasLeftTravelled_ = false;
+    float                CanvasPressX_ = 0.0f, CanvasPressY_ = 0.0f;
     float                LastW_       = 0.0f;      // last view rect, for the QueryView* rect
     float                LastH_       = 0.0f;
 
@@ -153,9 +167,19 @@ private:
     ViewportOrbit Orbit_;   // the views menu, the gizmo and the wheel pose through this
     ViewportOrbit Home_    = {};   // the seated home; the projection rows restore it
     uint32_t SolidArcSelectMask_ = 1u;   // Body, Face, Edge, Vertex bits: HTML top-panel parity
-    uint32_t SolidArcShade_      = 3u;   // Wire, Flat, Plastic, Matcap
+    ViewportShadingMode SolidArcShade_ = kDefaultViewportShading;   // shared Flat / baked Matcap selection
     uint32_t SolidArcGizmo_      = 0u;   // Move, Rotate, Scale
     uint32_t SolidArcView_       = 3u;   // Top, Front, Right, Iso, Ortho
+    const SolidArcConstructTile* ConstructTiles_ = nullptr;
+    uint32_t ConstructTileCount_ = 0u;
+    uint32_t ConstructPick_ = 0xFFFFFFFFu;
+    bool ConstructMenuOpen_ = false;
+    bool ConstructGuideActive_ = false;
+    bool ConstructGuideValid_ = false;
+    bool ConstructAnchorSet_ = false;
+    float ConstructGuideU_ = 0.0f, ConstructGuideV_ = 0.0f;
+    float ConstructAnchorU_ = 0.0f, ConstructAnchorV_ = 0.0f;
+    double ConstructGuideX_ = 0.0, ConstructGuideY_ = 0.0;
     bool     DockLeft_  = true;
     bool     DockRight_ = true;
 

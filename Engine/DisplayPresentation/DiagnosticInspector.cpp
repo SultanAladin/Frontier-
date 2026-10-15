@@ -23,6 +23,7 @@ bool DiagnosticInspector::AdvanceInteraction(const InputExchange& Input) noexcep
     const bool F4     = Input.IsKeyPressed(VirtualKeyCategory::KeyF4);
     const bool F5     = Input.IsKeyPressed(VirtualKeyCategory::KeyF5);
     const bool F6     = Input.IsKeyPressed(VirtualKeyCategory::KeyF6);
+    const bool F7     = Input.IsKeyPressed(VirtualKeyCategory::KeyF7);
     const bool Escape = Input.IsKeyPressed(VirtualKeyCategory::KeyEscape);
     const bool Shift  = Input.IsKeyPressed(VirtualKeyCategory::KeyLeftShift) || Input.IsKeyPressed(VirtualKeyCategory::KeyRightShift);
     bool Changed = false;
@@ -49,8 +50,14 @@ bool DiagnosticInspector::AdvanceInteraction(const InputExchange& Input) noexcep
         PatchErrorPixels_ = PatchErrorPixels_ >= 8.0f ? 1.0f : PatchErrorPixels_ * 2.0f;
         Changed = true;
     }
+    if (F7 && !F7Held_)
+    {
+        View_ = View_ == DebugViewCategory::Matcap ? DebugViewCategory::Flat : DebugViewCategory::Matcap;
+        Open_ = true;
+        Changed = true;
+    }
     if (Escape && !EscapeHeld_ && Open_) { Open_ = false; }
-    F3Held_ = F3; F4Held_ = F4; F5Held_ = F5; F6Held_ = F6; EscapeHeld_ = Escape;
+    F3Held_ = F3; F4Held_ = F4; F5Held_ = F5; F6Held_ = F6; F7Held_ = F7; EscapeHeld_ = Escape;
     return Changed;
 }
 
@@ -156,7 +163,7 @@ void DiagnosticInspector::ConstructInspectorLayout(PixelSpace& Surface, float To
         std::snprintf(Rows[7], sizeof(Rows[7]), "material   %s", MaterialSummary);
         RowCount = 9u;
     }
-    std::snprintf(Rows[RowCount - 1u], sizeof(Rows[RowCount - 1u]), "F3 next  \xC2\xB7  Shift+F3 previous  \xC2\xB7  F4 HiZ on/off  \xC2\xB7  F5 alias pick  \xC2\xB7  F6 patch error  \xC2\xB7  Esc close");
+    std::snprintf(Rows[RowCount - 1u], sizeof(Rows[RowCount - 1u]), "F3 next  \xC2\xB7  Shift+F3 previous  \xC2\xB7  F4 HiZ  \xC2\xB7  F5 alias  \xC2\xB7  F6 patch error  \xC2\xB7  F7 Flat/Matcap  \xC2\xB7  Esc close");
 
     const PlanePoint TitleSizePx = Surface.MeasureText(Title, TitleSize);
     float ContentWidth = std::max(Width - Padding * 2.0f, TitleSizePx.X);

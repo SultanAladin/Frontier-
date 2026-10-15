@@ -24,7 +24,7 @@ float3 MatcapStudioSample(uint Layer, float3 N)
     // Reflection vector for the studio environment (sphere map behaviour).
     float3 R = reflect(-View, N);
     float  Sky      = smoothstep(-0.6, 1.0, R.y) * 0.75 + 0.25;                    // graded softbox above, never black
-    float  Floor    = smoothstep(0.1, -0.9, R.y) * 0.5;                            // gentle floor darkening
+    float  Floor    = (1.0 - smoothstep(-0.9, 0.1, R.y)) * 0.5;                    // gentle floor darkening
     float  Horizon  = exp(-R.y * R.y * 10.0) * 0.5;                                // soft horizon band
     float  Softbox  = pow(saturate(dot(R, Key)), 4.0);                             // broad key reflection
     float  Spark    = pow(saturate(dot(R, Key)), 160.0);                           // pin highlight

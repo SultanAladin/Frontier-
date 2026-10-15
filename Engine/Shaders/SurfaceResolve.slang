@@ -32,6 +32,15 @@ layout(set = 0, binding = 9)          uniform sampler2D  HiZImage;
 layout(set = 0, binding = 10, rgba32f) uniform writeonly image2D SurfaceImage;
 layout(set = 0, binding = 11, rgba16f) uniform writeonly image2D NormalImage;
 layout(set = 0, binding = 12, rgba8)   uniform writeonly image2D OutputImage;
+layout(std430, set = 0, binding = 14) readonly buffer BakedMetalMatcapExtent { uint MatcapTexels[]; };
+const int kBakedMetalMatcapSize = 128;
+#define float3 vec3
+#define lerp mix
+#define saturate(Value) clamp((Value), 0.0, 1.0)
+#include "Shaders/BakedMatcapSampling.slang"
+#undef saturate
+#undef lerp
+#undef float3
 
 // R6 row 3: prev-frame reservoirs for the M / W / Age debug views — the same buffer the kernel reads as
 //    binding 16 (written per frame by VisibilityExchange::RecordFrame), so the views show the last completed
@@ -65,6 +74,9 @@ const uint kDebugShadingNormal = 10u;   // R4b: interpolated vertex normal (⚠�
 const uint kDebugReservoirM   = 11u;  // R6 row 3: reservoir M (sample count) — white ramp, saturates at 256
 const uint kDebugReservoirW   = 12u;  // R6 row 3: reservoir W (unbiased weight) — 1−exp(−W·k) heat ramp
 const uint kDebugReservoirAge = 13u;  // R6 row 3: reservoir Age (frames since a fresh sample won) — ramp, saturates at 16
+
+const uint kDebugFlat         = 16u;
+const uint kDebugMatcap       = 17u;
 
 vec3 HashColour(uint V)
 {
@@ -132,7 +144,7 @@ void main()
         Position = CameraOrigin.xyz + Direction * max(T, 0.0);
         if (dot(Normal, -Direction) < 0.0) Normal = -Normal;    // face the camera, as the kernel did with its primary hit
 
-        if (Control.z == kDebugShadingNormal)
+        if (Control.z == kDebugShadingNormal || Control.z == kDebugMatcap)
         {
             // Barycentrics of the hit against the same triangle → interpolated vertex normal (linear part of World; flipped to the camera side).
             vec3  E2 = Position - A;
@@ -186,6 +198,22 @@ void main()
         Colour = Device > 0.0 ? vec3(1.0 - exp(-Linear * 0.1)) : vec3(0.0);
     }
     else if (View == kDebugAlbedo) Colour = Hit ? Materials[Material].Albedo.xyz : vec3(0.0);
+    else if (View == kDebugFlat)
+    {
+        Colour = Hit ? ViewportFlatColour(Materials[Material].Albedo.xyz) : vec3(0.0);
+        Colour = pow(max(Colour, vec3(0.0)), vec3(1.0 / 2.2));
+    }
+    else if (View == kDebugMatcap)
+    {
+        if (Hit)
+        {
+            vec3 ViewNormal = normalize(vec3(dot(ShadingNormal, CameraRight.xyz),
+                                              dot(ShadingNormal, CameraUp.xyz),
+                                              dot(ShadingNormal, -CameraForward.xyz)));
+            Colour = ViewportMatcapTint(BakedMetalMatcapLookup(ViewNormal), Materials[Material].Albedo.xyz);
+            Colour = pow(max(Colour, vec3(0.0)), vec3(1.0 / 2.2));
+        }
+    }
     else if (View == kDebugNormal) Colour = Hit ? Normal * 0.5 + 0.5 : vec3(0.0);
     else if (View == kDebugRoughness)     Colour = Hit ? vec3(Materials[Material].Albedo.w)   : vec3(0.0);
     else if (View == kDebugMetalness)     Colour = Hit ? vec3(Materials[Material].Emissive.w) : vec3(0.0);

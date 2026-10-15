@@ -405,7 +405,7 @@ $ShaderTable = @(
     @{ Source = 'GizmoRaster.vert.slang';      Stage = 'vertex';   Output = 'GizmoRaster.vert.spv' }
     @{ Source = 'GizmoRaster.frag.slang';      Stage = 'fragment'; Output = 'GizmoRaster.frag.spv' }
 )
-$ShaderIncludeNames = @('PatchSelection.slang', 'PatchPolicy.shared.h', 'PresentationDither.slang', 'SceneRecords.slang', 'RayGeneration.slang', 'TraversalCWBVH.slang', 'InterfaceRecords.slang', 'InterfaceSignedDistance.slang', 'SkyRecords.slang', 'MoonRecords.slang', 'PostRecords.slang', 'CloudShadow.slang', 'WeatherMedia.slang', 'MaterialEvaluation.slang', 'ShadowRecords.slang', 'ShadowSample.slang', 'OutlineRecords.slang', 'GizmoRecords.slang')
+$ShaderIncludeNames = @('PatchSelection.slang', 'BakedMatcapSampling.slang', 'PatchPolicy.shared.h', 'PresentationDither.slang', 'SceneRecords.slang', 'RayGeneration.slang', 'TraversalCWBVH.slang', 'InterfaceRecords.slang', 'InterfaceSignedDistance.slang', 'SkyRecords.slang', 'MoonRecords.slang', 'PostRecords.slang', 'CloudShadow.slang', 'WeatherMedia.slang', 'MaterialEvaluation.slang', 'ShadowRecords.slang', 'ShadowSample.slang', 'OutlineRecords.slang', 'GizmoRecords.slang')
 
 function Invoke-ShaderLowering([string] $VulkanRoot)
 {

@@ -1,8 +1,9 @@
 # Unified diffs contain intentional single-space context lines.
-Tools/Build/Patches/*.patch whitespace=-blank-at-eol,-blank-at-eof
+Tools/Build/Patches/*.patch text eol=lf whitespace=-blank-at-eol,-blank-at-eof
 # Native vector-variant fingerprints require stable source bytes on Windows.
 EngineContent/Icons/*.svg text eol=lf
 EngineContent/Icons/ThorVG/*.svg text eol=lf
+EngineContent/Matcaps/*.ppm binary
 Experimental/FrontierEditor/custom-icons/*.svg text eol=lf
 Experimental/FrontierEditor/ui-icons/*.svg text eol=lf
 EngineContent/Icons/Baked/*.rgba binary

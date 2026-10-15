@@ -9,6 +9,7 @@
 #include "DriverProgress.h"
 #include "TelemetryProbe.h"   // dev/debug-only shader-load timing; compiles out of ship builds
 #include "../GeometricRaster/SceneStructure.h"
+#include "../DisplayPresentation/BakedMetalMatcap.h"
 #include <algorithm>
 #include <array>
 #include <cmath>
@@ -60,7 +61,7 @@ struct HiZPushRecord { uint32_t SourceExtent[2]; uint32_t TargetExtent[2]; uint3
 
 const char* DebugViewName(DebugViewCategory View) noexcept
 {
-    static const char* Names[] = { "Off", "Depth", "Visibility ID", "Motion Vectors", "Cluster ID", "HiZ (level 3)", "Albedo", "Normal", "Roughness", "Metalness", "Shading Normal", "Reservoir M", "Reservoir W", "Reservoir Age", "Patch Tiles", "Tiles + Wireframe" };
+    static const char* Names[] = { "Off", "Depth", "Visibility ID", "Motion Vectors", "Cluster ID", "HiZ (level 3)", "Albedo", "Normal", "Roughness", "Metalness", "Shading Normal", "Reservoir M", "Reservoir W", "Reservoir Age", "Patch Tiles", "Tiles + Wireframe", "Flat", "Chrome Matcap" };
     const uint32_t I = static_cast<uint32_t>(View);
     return I < static_cast<uint32_t>(DebugViewCategory::Count) ? Names[I] : Names[0];
 }
@@ -97,7 +98,7 @@ struct VisibilityExchange::VulkanRecord
     bool                              DrawIndirectCount = false;
 
     // Scene (host-visible, uploaded once)
-    GpuBuffer Vertices, Indices, Instances, Clusters, Materials, Luminaires, FlatTriangles;
+    GpuBuffer Vertices, Indices, Instances, Clusters, Materials, Luminaires, FlatTriangles, BakedMetalMatcap;
     VkBuffer  BorrowedSlabs = VK_NULL_HANDLE;                   // R4b: SwapchainExchange's MaterialSlabRecord[] (raster binding 6)
     VkBuffer  BorrowedReservoir = VK_NULL_HANDLE;             // R6 row 3: kernel's prev-frame reservoirs (resolve binding 13, M/W/Age views)
     VkSampler BorrowedSampler = VK_NULL_HANDLE;                 // R4b: bindless table sampler + views (raster binding 7)
@@ -400,6 +401,9 @@ bool VisibilityExchange::Bring(void* Device, void* PhysicalDevice, uint32_t Cycl
     }
     if (!CreateBuffer(Vulkan->Device, Vulkan->MemoryProperties, Vulkan->Counters, kCounterCount * 4u,
                       VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT, false, "cull counters")) return false;
+    if (!UploadBuffer(Vulkan->Device, Vulkan->MemoryProperties, Vulkan->BakedMetalMatcap,
+                      kBakedMetalMatcapPixels, sizeof(kBakedMetalMatcapPixels), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
+                      "baked metallic matcap")) return false;
 
     if (!BringPipelines()) return false;
     Ready = true;
@@ -413,7 +417,7 @@ void VisibilityExchange::Retire() noexcept
     vkDeviceWaitIdle(D);
     RetireTargets();
     for (GpuBuffer* B : { &Vulkan->Vertices, &Vulkan->Indices, &Vulkan->Instances, &Vulkan->Clusters, &Vulkan->Materials, &Vulkan->Luminaires, &Vulkan->FlatTriangles,
-                          &Vulkan->Draws, &Vulkan->Counters, &Vulkan->VisibleBitsA, &Vulkan->VisibleBitsB })
+                          &Vulkan->BakedMetalMatcap, &Vulkan->Draws, &Vulkan->Counters, &Vulkan->VisibleBitsA, &Vulkan->VisibleBitsB })
         DestroyBuffer(D, *B);
     for (uint32_t S = 0u; S < kMaximumCycleSlots; ++S)
     {
@@ -525,9 +529,9 @@ bool VisibilityExchange::BringPipelines() noexcept
     if (!MakePipelineLayout(Vulkan->HiZLayout, sizeof(HiZPushRecord), CS, Vulkan->HiZPipelineLayout)) return false;
     if (!MakeCompute("Engine/Shaders/HiZReduce.spv", Vulkan->HiZPipelineLayout, Vulkan->HiZPipeline)) return false;
 
-    // ④ Resolve: 0 frame, 1 instances, 2 clusters, 3 vertices, 4 indices, 5 materials, 6 visibility, 7 motion, 8 depth, 9 HiZ, 10 surface, 11 normal, 12 presentation, 13 reservoirs (R6 row 3, M/W/Age views)
+    // ④ Resolve: 0 frame, 1 instances, 2 clusters, 3 vertices, 4 indices, 5 materials, 6 visibility, 7 motion, 8 depth, 9 HiZ, 10 surface, 11 normal, 12 presentation, 13 reservoirs, 14 shared baked chrome matcap.
     if (!MakeLayout({ Binding(0, UBO, CS), Binding(1, SSBO, CS), Binding(2, SSBO, CS), Binding(3, SSBO, CS), Binding(4, SSBO, CS), Binding(5, SSBO, CS),
-                      Binding(6, TEX, CS), Binding(7, TEX, CS), Binding(8, TEX, CS), Binding(9, TEX, CS), Binding(10, IMG, CS), Binding(11, IMG, CS), Binding(12, IMG, CS), Binding(13, SSBO, CS) }, Vulkan->ResolveLayout)) return false;
+                      Binding(6, TEX, CS), Binding(7, TEX, CS), Binding(8, TEX, CS), Binding(9, TEX, CS), Binding(10, IMG, CS), Binding(11, IMG, CS), Binding(12, IMG, CS), Binding(13, SSBO, CS), Binding(14, SSBO, CS) }, Vulkan->ResolveLayout)) return false;
     if (!MakePipelineLayout(Vulkan->ResolveLayout, 0u, 0u, Vulkan->ResolvePipelineLayout)) return false;
     if (!MakeCompute("Engine/Shaders/SurfaceResolve.spv", Vulkan->ResolvePipelineLayout, Vulkan->ResolvePipeline)) return false;
 
@@ -1003,6 +1007,7 @@ void VisibilityExchange::WriteDescriptorSets() noexcept
         Image (X, 10u, IMG, Vulkan->Surface.View);
         Image (X, 11u, IMG, Vulkan->Normal.View);
         if (Vulkan->PresentationView) Image(X, 12u, IMG, Vulkan->PresentationView);
+        Buffer(X, 14u, SSBO, Vulkan->BakedMetalMatcap.Buffer);
     }
     // HiZ sets: set L writes level L; set 0 reads the depth attachment, set L>0 reads level L−1.
     for (uint32_t L = 0u; L < Vulkan->HiZ.Levels; ++L)
