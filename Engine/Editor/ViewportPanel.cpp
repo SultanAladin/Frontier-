@@ -6,6 +6,7 @@
 #include "ViewportPanel.h"
 
 #include "ControlPanel.h"
+#include "Editor/AuthoringTools/Modelling/SolidArc/Editor/SolidArcConstructCatalog.h"
 #include "EditorInstance.h"
 
 #include <imgui.h>
@@ -506,6 +507,37 @@ void ViewportPanel::AssignReadout(const EditorReadout* Readout) noexcept
     Readout_ = Readout;
 }
 
+void ViewportPanel::AssignConstructTiles(const SolidArcConstructTile* Tiles, uint32_t Count) noexcept
+{
+    ConstructTiles_ = Tiles;
+    ConstructTileCount_ = (Tiles != nullptr) ? std::min<uint32_t>(Count, 64u) : 0u;
+    ConstructPick_ = 0xFFFFFFFFu;
+}
+
+bool ViewportPanel::QueryConstructPick(uint32_t* Tile) noexcept
+{
+    if (ConstructPick_ == 0xFFFFFFFFu)
+        return false;
+    if (Tile != nullptr)
+        *Tile = ConstructPick_;
+    ConstructPick_ = 0xFFFFFFFFu;
+    return true;
+}
+
+void ViewportPanel::AssignConstructGuide(bool Active, bool CursorValid, float U, float V,
+                                         bool AnchorSet, float AnchorU, float AnchorV, double X, double Y) noexcept
+{
+    ConstructGuideActive_ = Active;
+    ConstructGuideValid_ = CursorValid;
+    ConstructGuideU_ = U;
+    ConstructGuideV_ = V;
+    ConstructAnchorSet_ = AnchorSet;
+    ConstructAnchorU_ = AnchorU;
+    ConstructAnchorV_ = AnchorV;
+    ConstructGuideX_ = X;
+    ConstructGuideY_ = Y;
+}
+
 void ViewportPanel::Record(EditorInstance* Instances, uint32_t InstanceCount) noexcept
 {
     IM_ASSERT(Controls_ != nullptr);
@@ -566,6 +598,120 @@ void ViewportPanel::StepOnce() noexcept
 //------------------------------------------------------------------------------------------------------------------------
 //                                                         HEADER BAR
 //------------------------------------------------------------------------------------------------------------------------
+
+void ViewportPanel::DrawConstructMenu() noexcept
+{
+    ConstructMenuOpen_ = false;
+    if (ConstructTiles_ == nullptr || ConstructTileCount_ == 0u)
+        return;
+    ImGui::SetNextWindowSize(ImVec2(500.0f, 334.0f), ImGuiCond_Appearing);
+    if (!ImGui::BeginPopup("##solidarc_construct_menu", ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse))
+        return;
+    ConstructMenuOpen_ = true;
+    ImGui::TextUnformatted("Construct");
+    ImGui::SameLine();
+    ImGui::TextDisabled("Select a tile, click the XY plane, press Enter to place");
+    ImGui::Separator();
+
+    if (!ImGui::GetIO().WantTextInput)
+    {
+        int ShortcutTile = -1;
+        if (ImGui::IsKeyPressed(ImGuiKey_L, false)) ShortcutTile = ImGui::GetIO().KeyShift ? 2 : 1;
+        else if (ImGui::IsKeyPressed(ImGuiKey_R, false)) ShortcutTile = 3;
+        else if (ImGui::IsKeyPressed(ImGuiKey_C, false)) ShortcutTile = 6;
+        else if (ImGui::IsKeyPressed(ImGuiKey_A, false)) ShortcutTile = 7;
+        else if (ImGui::IsKeyPressed(ImGuiKey_E, false)) ShortcutTile = 8;
+        else if (ImGui::IsKeyPressed(ImGuiKey_P, false)) ShortcutTile = 9;
+        if (ShortcutTile >= 0 && static_cast<uint32_t>(ShortcutTile) < ConstructTileCount_)
+        {
+            ConstructPick_ = static_cast<uint32_t>(ShortcutTile);
+            ImGui::CloseCurrentPopup();
+        }
+    }
+
+    if (ImGui::BeginTabBar("##solidarc_construct_sections"))
+    {
+        constexpr const char* Sections[] = { "Reference", "Sketch Draw", "Solid", "Surface" };
+        for (uint32_t Section = 0u; Section < 4u; ++Section)
+        {
+            if (!ImGui::BeginTabItem(Sections[Section]))
+                continue;
+            uint32_t Column = 0u;
+            for (uint32_t Tile = 0u; Tile < ConstructTileCount_; ++Tile)
+            {
+                const SolidArcConstructTile& Definition = ConstructTiles_[Tile];
+                if (std::strcmp(Definition.Section, Sections[Section]) != 0)
+                    continue;
+                ImGui::PushID(static_cast<int>(Tile));
+                char Label[96] = {};
+                if (Definition.Shortcut != nullptr && Definition.Shortcut[0] != '\0')
+                    std::snprintf(Label, sizeof(Label), "%s  [%s]", Definition.Label, Definition.Shortcut);
+                else
+                    std::snprintf(Label, sizeof(Label), "%s", Definition.Label);
+                if (ImGui::Button(Label, ImVec2(108.0f, 38.0f)))
+                {
+                    ConstructPick_ = Tile;
+                    ImGui::CloseCurrentPopup();
+                }
+                ImGui::PopID();
+                ++Column;
+                if (Column % 4u != 0u)
+                    ImGui::SameLine();
+            }
+            ImGui::EndTabItem();
+        }
+        ImGui::EndTabBar();
+    }
+    ImGui::Separator();
+    ImGui::TextDisabled("Esc cancels · LMB drag orbits · Shift+LMB pans · wheel dollies");
+    ImGui::EndPopup();
+}
+
+void ViewportPanel::DrawConstructGuides(ImDrawList* Draw, ImVec2 Minimum, ImVec2 Maximum) const noexcept
+{
+    if (!ConstructGuideActive_ || !ConstructGuideValid_ || ConstructMenuOpen_ || Draw == nullptr)
+        return;
+    const float Width = Maximum.x - Minimum.x;
+    const float Height = Maximum.y - Minimum.y;
+    const ImVec2 Cursor(Minimum.x + std::clamp(ConstructGuideU_, 0.0f, 1.0f) * Width,
+                        Minimum.y + std::clamp(ConstructGuideV_, 0.0f, 1.0f) * Height);
+    auto Dashed = [Draw](ImVec2 A, ImVec2 B, ImU32 Tint, float Dash, float Gap) noexcept
+    {
+        const float Dx = B.x - A.x, Dy = B.y - A.y;
+        const float Length = std::sqrt(Dx * Dx + Dy * Dy);
+        if (Length <= 0.01f) return;
+        const float Ux = Dx / Length, Uy = Dy / Length;
+        for (float Along = 0.0f; Along < Length; Along += Dash + Gap)
+        {
+            const float End = std::min(Length, Along + Dash);
+            Draw->AddLine(ImVec2(A.x + Ux * Along, A.y + Uy * Along),
+                          ImVec2(A.x + Ux * End, A.y + Uy * End), Tint, 1.0f);
+        }
+    };
+    Dashed(ImVec2(Minimum.x + 1.0f, Cursor.y), ImVec2(Maximum.x - 1.0f, Cursor.y), IM_COL32(63, 218, 229, 190), 11.0f, 7.0f);
+    Dashed(ImVec2(Cursor.x, Minimum.y + 1.0f), ImVec2(Cursor.x, Maximum.y - 1.0f), IM_COL32(63, 218, 229, 190), 11.0f, 7.0f);
+    Draw->AddCircle(Cursor, 5.0f, IM_COL32(130, 240, 246, 230), 20, 1.5f);
+    Draw->AddCircleFilled(Cursor, 1.7f, IM_COL32(230, 255, 255, 255));
+
+    char Readout[96] = {};
+    std::snprintf(Readout, sizeof(Readout), "X %.3f   Y %.3f   ·   grid 10 mm", ConstructGuideX_, ConstructGuideY_);
+    const ImVec2 TextSize = ImGui::CalcTextSize(Readout);
+    ImVec2 LabelPos(Cursor.x + 12.0f, Cursor.y + 10.0f);
+    if (LabelPos.x + TextSize.x + 16.0f > Maximum.x) LabelPos.x = Cursor.x - TextSize.x - 22.0f;
+    if (LabelPos.y + TextSize.y + 12.0f > Maximum.y) LabelPos.y = Cursor.y - TextSize.y - 18.0f;
+    const ImVec2 LabelMax(LabelPos.x + TextSize.x + 14.0f, LabelPos.y + TextSize.y + 10.0f);
+    Draw->AddRectFilled(LabelPos, LabelMax, IM_COL32(9, 17, 20, 228), 5.0f);
+    Draw->AddRect(LabelPos, LabelMax, IM_COL32(63, 218, 229, 135), 5.0f, 0, 1.0f);
+    Draw->AddText(ImVec2(LabelPos.x + 7.0f, LabelPos.y + 5.0f), IM_COL32(200, 250, 252, 255), Readout);
+
+    if (ConstructAnchorSet_)
+    {
+        const ImVec2 Anchor(Minimum.x + std::clamp(ConstructAnchorU_, 0.0f, 1.0f) * Width,
+                            Minimum.y + std::clamp(ConstructAnchorV_, 0.0f, 1.0f) * Height);
+        Dashed(Anchor, Cursor, IM_COL32(255, 184, 86, 200), 6.0f, 4.0f);
+        Draw->AddCircle(Anchor, 7.0f, IM_COL32(255, 184, 86, 255), 16, 1.7f);
+    }
+}
 
 void ViewportPanel::RecordSolidArcBar() noexcept
 {
@@ -688,10 +834,21 @@ void ViewportPanel::RecordSolidArcBar() noexcept
         return Pick;
     };
 
-    if (Pill("##solidarc_construct", "Construct", false, ConstructW, IM_COL32(79, 216, 224, 255)))
+    if (Pill("##solidarc_construct", "Construct", ConstructMenuOpen_, ConstructW, IM_COL32(79, 216, 224, 255)))
+        ImGui::OpenPopup("##solidarc_construct_menu");
+    if (!ConstructMenuOpen_ && !ImGui::GetIO().WantTextInput)
     {
-        // The catalogue opens in the SolidArc document host; this chip keeps the viewport-side affordance live.
+        int ShortcutTile = -1;
+        if (ImGui::IsKeyPressed(ImGuiKey_L, false)) ShortcutTile = ImGui::GetIO().KeyShift ? 2 : 1;
+        else if (ImGui::IsKeyPressed(ImGuiKey_R, false)) ShortcutTile = 3;
+        else if (ImGui::IsKeyPressed(ImGuiKey_C, false)) ShortcutTile = 6;
+        else if (ImGui::IsKeyPressed(ImGuiKey_A, false)) ShortcutTile = 7;
+        else if (ImGui::IsKeyPressed(ImGuiKey_E, false)) ShortcutTile = 8;
+        else if (ImGui::IsKeyPressed(ImGuiKey_P, false)) ShortcutTile = 9;
+        if (ShortcutTile >= 0 && static_cast<uint32_t>(ShortcutTile) < ConstructTileCount_)
+            ConstructPick_ = static_cast<uint32_t>(ShortcutTile);
     }
+    DrawConstructMenu();
 
     const int SelectPick = Segments("##solidarc_sel", SelectLabels, 4u, SolidArcSelectMask_, SelectW);
     if (SelectPick >= 0)
@@ -1383,6 +1540,7 @@ void ViewportPanel::RecordView() noexcept
         Draw->AddImage(ViewTexture_, Min, Max, ImVec2(0.0f, 0.0f), ImVec2(UMax, VMax));
     }
     Draw->AddRect(Min, Max, kStroke, 12.0f);
+    DrawConstructGuides(Draw, Min, Max);
 
     if (ViewTexture_ == static_cast<ImTextureID>(0))
     {
@@ -1502,12 +1660,42 @@ void ViewportPanel::RecordView() noexcept
     // CAD canvas interaction (SolidArc): clicking and dragging across the CAD viewport canvas
     //    orbits the camera, middle-drag or Shift+left-drag pans the target, and scroll wheel dollies.
     //    For standard game viewports, RMB look and WASD flight are handled by the FlyThrough camera.
+    TapLive_ = false;
     if (Chrome_ == ViewportPanelChrome::SolidArcCad)
     {
-        const bool CanvasHover = ImGui::IsWindowHovered() && ImGui::IsMouseHoveringRect(Min, Max) && !OrbHover && !OrbHeld_ && !BillboardHover;
+        const bool CanvasHover = ImGui::IsWindowHovered() && ImGui::IsMouseHoveringRect(Min, Max) &&
+            !OrbHover && !OrbHeld_ && !BillboardHover && !ConstructMenuOpen_;
         if (CanvasHover && (ImGui::IsMouseClicked(0) || ImGui::IsMouseClicked(1) || ImGui::IsMouseClicked(2)))
-        {
             CanvasDragging_ = true;
+        if (CanvasHover && ImGui::IsMouseClicked(0))
+        {
+            CanvasLeftGesture_ = true;
+            CanvasLeftTravelled_ = false;
+            CanvasPressX_ = ImGui::GetIO().MousePos.x;
+            CanvasPressY_ = ImGui::GetIO().MousePos.y;
+        }
+        if (CanvasLeftGesture_ && ImGui::IsMouseDown(0))
+        {
+            const ImVec2 Mouse = ImGui::GetIO().MousePos;
+            const float Dx = Mouse.x - CanvasPressX_, Dy = Mouse.y - CanvasPressY_;
+            if (Dx * Dx + Dy * Dy > 16.0f)
+                CanvasLeftTravelled_ = true;
+        }
+        if (CanvasLeftGesture_ && ImGui::IsMouseReleased(0))
+        {
+            if (!CanvasLeftTravelled_ && !ConstructMenuOpen_)
+            {
+                const ImVec2 Mouse = ImGui::GetIO().MousePos;
+                const float Across = Max.x - Min.x, Down = Max.y - Min.y;
+                if (Across > 1.0f && Down > 1.0f && ImGui::IsMouseHoveringRect(Min, Max))
+                {
+                    TapLive_ = true;
+                    TapAdditive_ = ImGui::GetIO().KeyShift || ImGui::GetIO().KeyCtrl;
+                    TapU_ = (Mouse.x - Min.x) / Across;
+                    TapV_ = (Mouse.y - Min.y) / Down;
+                }
+            }
+            CanvasLeftGesture_ = false;
         }
         if (CanvasDragging_)
         {
@@ -1561,7 +1749,8 @@ void ViewportPanel::RecordView() noexcept
         const ImVec2 Mouse   = ImGui::GetIO().MousePos;
         const float  Across  = Max.x - Min.x;
         const float  Down    = Max.y - Min.y;
-        const bool   OverView = ImGui::IsWindowHovered() && ImGui::IsMouseHoveringRect(Min, Max) && !OrbHover && !OrbHeld_ && !BillboardHover;
+        const bool   OverView = ImGui::IsWindowHovered() && ImGui::IsMouseHoveringRect(Min, Max) &&
+            !OrbHover && !OrbHeld_ && !BillboardHover && !ConstructMenuOpen_;
         if (OverView && Across > 1.0f && Down > 1.0f)
         {
             AimLive_ = true;

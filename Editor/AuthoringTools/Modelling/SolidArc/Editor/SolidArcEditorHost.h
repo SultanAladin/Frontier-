@@ -30,6 +30,9 @@ public:
 
 private:
     void ConstructLayout() noexcept;
+    void AdvanceViewport(ConsoleHost& Host) noexcept;
+    void SyncViewportCamera(ConsoleHost& Host) noexcept;
+    bool PlaceConstruct(ConsoleHost& Host, uint32_t Tile, double X, double Y) noexcept;
 
     ControlPanel Controls_;
     OutlinerPanel Outliner_;
@@ -50,6 +53,14 @@ private:
     EditorReadout Readout_ = {};
     EditorSheet PickedSheet_ = {};
     RasterImage ViewImage_ = {};
+
+    int32_t ConstructTile_ = -1;
+    bool ConstructAnchorSet_ = false;
+    bool ConstructCursorValid_ = false;
+    Vec3 ConstructAnchor_{};
+    Vec3 ConstructCursor_{};
+    bool ViewportOrbitSeated_ = false;
+    uint32_t ViewportOrbitRevision_ = 0u;
 };
 
 } // namespace Frontier

@@ -17,6 +17,8 @@ This import contains the C++ side of the tool:
 - console command host,
 - interaction and gizmo helpers,
 - software-raster presentation proof path,
+- a standalone C++ GLFW/ImGui shell with Vulkan swapchain presentation,
+- a Construct catalogue for reference planes, sketch primitives, solids and surface primitives,
 - shared-editor outliner, viewport and inspector adapters,
 - optional ImGui editor shell,
 - C++ verification sources,
@@ -60,13 +62,29 @@ cmake --build /tmp/solidarc-build --target SolidArcVerification
 ctest --test-dir /tmp/solidarc-build --output-on-failure
 ```
 
+## Standalone Vulkan editor
+
+The command-line target above remains dependency-free. To build the interactive window separately, first install CMake 3.20+, a C++20 compiler, GLFW/ImGui sources, and a Vulkan SDK/loader with a working graphics driver. The repository bootstrap supplies the locked GLFW/ImGui sources and Vulkan headers; it does not install the Vulkan loader or driver.
+
+```bash
+python Tools/Bootstrap.py --package glfw --package imgui --package vulkan-headers
+cmake -S Editor/AuthoringTools/Modelling/SolidArc -B /tmp/solidarc-vulkan -DSOLIDARC_BUILD_VULKAN_APP=ON -DSOLIDARC_BUILD_VERIFICATION=OFF
+cmake --build /tmp/solidarc-vulkan --target SolidArcVulkan
+```
+
+Run `SolidArcVulkan` to open the standalone CAD window. The Construct button offers the reference, sketch, solid and surface catalogues. Choose a tile, click the XY workplane to set its anchor, then press Enter to place; Escape cancels. While placing, cyan cursor-aligned guides and an XYZ readout remain visible. The viewport uses a 10 mm lattice, left-drag orbit, Shift+left-drag pan and wheel dolly.
+
+This first standalone Vulkan shell presents the established SolidArc `SoftwareRaster` image through a Vulkan sampled texture and uses the Vulkan swapchain + ImGui Vulkan backend for the window/UI. CAD geometry, depth and pick generation therefore remain on the proven CPU raster path; the Vulkan target is optional and kept separate from the console build.
+
+The `SolidArc binaries` GitHub Actions workflow builds the console and Vulkan executables for Linux x86_64 and Windows x64, then uploads 30-day downloadable artifacts on pushes to `arena/0f8acff0-frontier` (or a manual workflow dispatch). Both packages include a short runtime note; the Vulkan app still requires a compatible graphics driver.
+
 The dependency-free repository gate is:
 
 ```bash
 Tools/Build/CheckSolidArc.sh
 ```
 
-It compiles and links the console target with `g++`, checks the CAD outliner/inspector adapter, verifies the `.arc` samples are present, then compile-checks every C++ verification translation unit. This is the fallback gate for sandboxes that do not have CMake installed.
+It compiles and links the console target with `g++`, checks the CAD outliner/inspector adapter, executes the Construct catalogue against all 22 command-backed primitive types, verifies the `.arc` samples are present, then compile-checks every C++ verification translation unit. This is the fallback gate for sandboxes that do not have CMake installed.
 
 High-fidelity editor visual proofs are checked with:
 

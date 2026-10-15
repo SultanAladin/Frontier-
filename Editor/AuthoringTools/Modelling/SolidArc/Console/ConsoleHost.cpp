@@ -13,6 +13,7 @@
 #include <algorithm>
 #include <cctype>
 #include <chrono>
+#include <cmath>
 #include <cstdarg>
 #include <filesystem>
 #include <fstream>
@@ -1116,10 +1117,23 @@ std::vector<SceneFigure*> ConsoleHost::ResolveMany(const CommandLine& C, size_t 
 //                                                  RENDER
 //------------------------------------------------------------------------------------------------------------------------
 
+void ConsoleHost::ResizeViewport(uint32_t Width, uint32_t Height) noexcept
+{
+    if (Width == 0u || Height == 0u || (Width == Surface->Width() && Height == Surface->Height()))
+        return;
+    Surface->Resize(Width, Height);
+}
+
+void ConsoleHost::AssignLatticeCell(double CellSize) noexcept
+{
+    if (std::isfinite(CellSize) && CellSize > 1e-6)
+        GridCell = CellSize;
+}
+
 void ConsoleHost::Render() noexcept
 {
     Surface->BeginTarget(Backdrop);
-    Surface->BindView(View.ToViewRecord(Surface->Width(), Surface->Height(), 1.0));
+    Surface->BindView(View.ToViewRecord(Surface->Width(), Surface->Height(), GridCell));
     Surface->DrawLattice();
 
     for (const SceneFigure& Figure : Scene.Figures())

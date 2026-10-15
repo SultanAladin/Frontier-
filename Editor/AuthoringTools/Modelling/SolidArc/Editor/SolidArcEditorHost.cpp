@@ -3,6 +3,8 @@
 //=============================================================================================================================================
 
 #include "SolidArcEditorHost.h"
+#include "SolidArcConstructCatalog.h"
+#include "../Interaction/SnapResolution.h"
 #include "../../../../../Engine/Editor/SunInspectorPanel.h"
 #include "../../../../../Engine/DisplayPresentation/IconPresentation.h"
 
@@ -38,6 +40,7 @@ SolidArcEditorHost::SolidArcEditorHost() noexcept
     };
     Outliner_.AssignFilterCatalog(SolidArcFilters, static_cast<uint32_t>(sizeof(SolidArcFilters) / sizeof(SolidArcFilters[0])));
     Viewport_.AssignChrome(ViewportPanelChrome::SolidArcCad);
+    Viewport_.AssignConstructTiles(kSolidArcConstructTiles.data(), kSolidArcConstructTileCount);
     Outliner_.AssignReadout(&Readout_);
     Viewport_.AssignReadout(&Readout_);
     Inspector_.AssignReadout(&Readout_);
@@ -113,8 +116,106 @@ void SolidArcEditorHost::ConstructLayout() noexcept
     ImGui::DockBuilderFinish(DockId);
 }
 
+void SolidArcEditorHost::SyncViewportCamera(ConsoleHost& Host) noexcept
+{
+    const ViewportOrbit& Orbit = Viewport_.QueryViewportOrbit();
+    if (ViewportOrbitSeated_ && Orbit.Revision == ViewportOrbitRevision_)
+        return;
+    Host.Camera().Yaw = Orbit.Yaw;
+    Host.Camera().Pitch = Orbit.Pitch;
+    Host.Camera().Distance = Orbit.Distance;
+    Host.Camera().Pivot = Vec3{ Orbit.Target[0], Orbit.Target[1], Orbit.Target[2] };
+    Host.Camera().Orthographic = Orbit.Ortho;
+    Host.AssignLatticeCell(0.01);
+    ViewportOrbitRevision_ = Orbit.Revision;
+    ViewportOrbitSeated_ = true;
+}
+
+bool SolidArcEditorHost::PlaceConstruct(ConsoleHost& Host, uint32_t Tile, double X, double Y) noexcept
+{
+    const std::string Command = BuildSolidArcConstructCommand(Tile, X, Y);
+    if (Command.empty())
+        return false;
+    const size_t Before = Host.AllFigures().size();
+    if (!Host.Execute(Command) || Host.AllFigures().size() <= Before)
+        return false;
+    Host.Document().ClearSelection();
+    Host.Document().Figures().back().Selected = true;
+    return true;
+}
+
+void SolidArcEditorHost::AdvanceViewport(ConsoleHost& Host) noexcept
+{
+    uint32_t Tile = 0u;
+    if (Viewport_.QueryConstructPick(&Tile) && Tile < kSolidArcConstructTileCount)
+    {
+        ConstructTile_ = static_cast<int32_t>(Tile);
+        ConstructAnchorSet_ = false;
+        ConstructCursorValid_ = false;
+    }
+
+    SyncViewportCamera(Host);
+    float U = 0.0f, V = 0.0f;
+    const bool Aim = Viewport_.QueryViewAim(&U, &V);
+    ConstructCursorValid_ = false;
+    if (ConstructTile_ >= 0 && Aim)
+    {
+        ConstructCursorValid_ = SnapResolution::PlaneHit(double(U) * Host.Raster().Width(),
+            double(V) * Host.Raster().Height(), Host.Camera(), Host.Raster().Width(), Host.Raster().Height(),
+            Host.WorkPlane(), ConstructCursor_);
+    }
+
+    float TapU = 0.0f, TapV = 0.0f;
+    bool Additive = false;
+    if (Viewport_.QueryViewTap(&TapU, &TapV, &Additive))
+    {
+        if (ConstructTile_ >= 0)
+        {
+            Vec3 Hit;
+            if (SnapResolution::PlaneHit(double(TapU) * Host.Raster().Width(), double(TapV) * Host.Raster().Height(),
+                Host.Camera(), Host.Raster().Width(), Host.Raster().Height(), Host.WorkPlane(), Hit))
+            {
+                ConstructAnchor_ = Hit;
+                ConstructAnchorSet_ = true;
+            }
+        }
+        else
+            Host.ClickSelectAtPixel(double(TapU) * Host.Raster().Width(), double(TapV) * Host.Raster().Height(), Additive);
+    }
+
+    if (ConstructTile_ >= 0 && !Viewport_.QueryConstructOpen() && !ImGui::GetIO().WantTextInput)
+    {
+        if (ImGui::IsKeyPressed(ImGuiKey_Escape, false))
+        {
+            ConstructTile_ = -1;
+            ConstructAnchorSet_ = false;
+            ConstructCursorValid_ = false;
+        }
+        else if (ImGui::IsKeyPressed(ImGuiKey_Enter, false) && ConstructAnchorSet_)
+        {
+            PlaceConstruct(Host, static_cast<uint32_t>(ConstructTile_), ConstructAnchor_.X, ConstructAnchor_.Y);
+            ConstructTile_ = -1;
+            ConstructAnchorSet_ = false;
+            ConstructCursorValid_ = false;
+        }
+    }
+}
+
 void SolidArcEditorHost::Record(ConsoleHost& Host) noexcept
 {
+    SyncViewportCamera(Host);
+    double GuideX = 0.0, GuideY = 0.0, AnchorX = 0.0, AnchorY = 0.0;
+    bool GuideValid = ConstructTile_ >= 0 && ConstructCursorValid_ &&
+        Host.Camera().WorldToPixel(ConstructCursor_, Host.Raster().Width(), Host.Raster().Height(), GuideX, GuideY);
+    bool AnchorValid = ConstructAnchorSet_ &&
+        Host.Camera().WorldToPixel(ConstructAnchor_, Host.Raster().Width(), Host.Raster().Height(), AnchorX, AnchorY);
+    Viewport_.AssignConstructGuide(ConstructTile_ >= 0, GuideValid,
+        GuideValid ? float(GuideX / Host.Raster().Width()) : 0.0f,
+        GuideValid ? float(GuideY / Host.Raster().Height()) : 0.0f,
+        AnchorValid,
+        AnchorValid ? float(AnchorX / Host.Raster().Width()) : 0.0f,
+        AnchorValid ? float(AnchorY / Host.Raster().Height()) : 0.0f,
+        ConstructCursor_.X, ConstructCursor_.Y);
     Host.Render();
     ViewImage_ = Host.Raster().Readback();
     RowCount_ = BuildSolidArcOutliner(Host, Rows_.data(), Bindings_.data(), kMaxEditorInstances, &Readout_);
@@ -148,13 +249,14 @@ void SolidArcEditorHost::Record(ConsoleHost& Host) noexcept
 
     Outliner_.Record(Rows_.data(), RowCount_);
     Viewport_.Record(Rows_.data(), RowCount_);
+    AdvanceViewport(Host);
 
     const uint32_t Picked = Outliner_.QueryPicked();
     EditorInstance* PickedRow = (Picked < RowCount_) ? &Rows_[Picked] : nullptr;
     if (PickedRow != nullptr)
-        BuildSolidArcInspectorSheet(Host, Bindings_[Picked], &PickedSheet_);
+        (void)BuildSolidArcInspectorSheet(Host, Bindings_[Picked], &PickedSheet_);
     else
-        BuildSolidArcInspectorSheet(Host, SolidArcOutlinerBinding{}, &PickedSheet_);
+        (void)BuildSolidArcInspectorSheet(Host, SolidArcOutlinerBinding{}, &PickedSheet_);
     Inspector_.Record(PickedRow, Picked, &PickedSheet_);
 
     ApplySolidArcOutlinerVisibility(Host, Rows_.data(), Bindings_.data(), RowCount_);

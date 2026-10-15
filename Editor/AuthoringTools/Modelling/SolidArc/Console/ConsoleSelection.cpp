@@ -46,6 +46,11 @@ void ConsoleHost::HoverAtPixel(double X, double Y) noexcept
     else Row("hover nothing");
 }
 
+bool ConsoleHost::ClickSelectAtPixel(double X, double Y, bool Toggle) noexcept
+{
+    return SelectAtPixel(X, Y, Toggle);
+}
+
 bool ConsoleHost::SelectAtPixel(double X, double Y, bool Toggle) noexcept
 {
     Render();

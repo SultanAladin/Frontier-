@@ -18,6 +18,7 @@ if(NOT CMAKE_BUILD_TYPE AND CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
 endif()
 
 option(SOLIDARC_BUILD_VERIFICATION "Build SolidArc's C++ verification executables" ON)
+option(SOLIDARC_BUILD_VULKAN_APP "Build the standalone GLFW + Vulkan SolidArc editor" OFF)
 
 add_library(SolidArcKernel STATIC
     Kernel/CurveSpecification.cpp
@@ -100,6 +101,57 @@ if(EXISTS "${SOLIDARC_IMGUI_ROOT}/imgui.h")
     else()
         target_compile_options(SolidArcEditorUi PRIVATE -Wall -Wextra -Wpedantic -Wno-unused-function)
         target_compile_definitions(SolidArcEditorUi PRIVATE FRONTIER_DEVELOPMENT)
+    endif()
+endif()
+
+if(SOLIDARC_BUILD_VULKAN_APP)
+    find_package(Vulkan REQUIRED)
+    set(SOLIDARC_GLFW_ROOT "${FRONTIER_REPO_ROOT}/ExternalPackages/glfw")
+    if(EXISTS "${SOLIDARC_GLFW_ROOT}/CMakeLists.txt")
+        set(GLFW_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
+        set(GLFW_BUILD_TESTS OFF CACHE BOOL "" FORCE)
+        set(GLFW_BUILD_DOCS OFF CACHE BOOL "" FORCE)
+        set(GLFW_INSTALL OFF CACHE BOOL "" FORCE)
+        add_subdirectory("${SOLIDARC_GLFW_ROOT}" "${CMAKE_CURRENT_BINARY_DIR}/solidarc-glfw" EXCLUDE_FROM_ALL)
+        set(SOLIDARC_GLFW_TARGET glfw)
+    else()
+        find_package(glfw3 3.3 CONFIG REQUIRED)
+        if(TARGET glfw)
+            set(SOLIDARC_GLFW_TARGET glfw)
+        elseif(TARGET glfw3::glfw)
+            set(SOLIDARC_GLFW_TARGET glfw3::glfw)
+        else()
+            message(FATAL_ERROR "glfw3 was found but exported neither glfw nor glfw3::glfw")
+        endif()
+    endif()
+
+    if(NOT EXISTS "${SOLIDARC_IMGUI_ROOT}/imgui.cpp" OR NOT EXISTS "${SOLIDARC_IMGUI_ROOT}/backends/imgui_impl_vulkan.cpp")
+        message(FATAL_ERROR "ImGui is required. Run: python Tools/Bootstrap.py --package imgui")
+    endif()
+    add_library(SolidArcImGuiVulkan STATIC
+        "${SOLIDARC_IMGUI_ROOT}/imgui.cpp"
+        "${SOLIDARC_IMGUI_ROOT}/imgui_draw.cpp"
+        "${SOLIDARC_IMGUI_ROOT}/imgui_tables.cpp"
+        "${SOLIDARC_IMGUI_ROOT}/imgui_widgets.cpp"
+        "${SOLIDARC_IMGUI_ROOT}/backends/imgui_impl_glfw.cpp"
+        "${SOLIDARC_IMGUI_ROOT}/backends/imgui_impl_vulkan.cpp"
+    )
+    target_include_directories(SolidArcImGuiVulkan PUBLIC
+        "${SOLIDARC_IMGUI_ROOT}"
+        "${SOLIDARC_IMGUI_ROOT}/backends")
+    target_compile_definitions(SolidArcImGuiVulkan PRIVATE GLFW_INCLUDE_NONE)
+    target_link_libraries(SolidArcImGuiVulkan PUBLIC ${SOLIDARC_GLFW_TARGET} Vulkan::Vulkan)
+
+    add_executable(SolidArcVulkan "${FRONTIER_REPO_ROOT}/Tools/Build/SolidArcVulkan.cpp")
+    target_include_directories(SolidArcVulkan PRIVATE "${FRONTIER_REPO_ROOT}")
+    target_link_libraries(SolidArcVulkan PRIVATE SolidArcConsoleKit SolidArcImGuiVulkan)
+    if(MSVC)
+        target_compile_options(SolidArcVulkan PRIVATE /W4 /permissive- /utf-8)
+        target_compile_definitions(SolidArcVulkan PRIVATE NOMINMAX)
+        target_compile_options(SolidArcImGuiVulkan PRIVATE /W0 /utf-8)
+    else()
+        target_compile_options(SolidArcVulkan PRIVATE -Wall -Wextra -Wpedantic -Wno-unused-function)
+        target_compile_options(SolidArcImGuiVulkan PRIVATE -w)
     endif()
 endif()
 
