@@ -201,12 +201,21 @@ jobs:
     permissions:
       contents: write
     steps:
+      - name: Check out release target
+        uses: actions/checkout@v4
+
       - name: Download platform archives
         uses: actions/download-artifact@v4
         with:
           pattern: SolidArc-*
           path: release-assets
           merge-multiple: true
+
+      - name: Verify platform archives
+        run: |
+          ls -lh release-assets
+          test -s release-assets/SolidArc-linux-x86_64.tar.gz
+          test -s release-assets/SolidArc-windows-x64.zip
 
       - name: Publish GitHub pre-release
         env:
