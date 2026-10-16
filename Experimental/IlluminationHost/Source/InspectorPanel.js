@@ -334,6 +334,21 @@ export function ConstructVehiclePage(Parent, Context)
     Kit.Readout(Live, "Sliding power FL · FR · RL · RR", () => Telemetry().SlidingPower.map((Watts) => (Watts / 1000).toFixed(0)).join(" · ") + " kW");
     Kit.Readout(Live, "Contacts", () => `${Telemetry().Contacts} / 4`);
 
+    const Cabin = Kit.Card(Parent, "Cabin & cameras", "Interior · HMI");
+    Kit.Buttons(Cabin, [{ Label: "Cockpit (C)", Action: () => Change("CameraMode:cockpit") },
+                        { Label: "Steering wheel", Action: () => Change("CameraMode:wheel") },
+                        { Label: "Passenger", Action: () => Change("CameraMode:passenger") }]);
+    Kit.Buttons(Cabin, [{ Label: "Cabin wide", Action: () => Change("CameraMode:dash") },
+                        { Label: "Footwell", Action: () => Change("CameraMode:footwell") },
+                        { Label: "Chase", Action: () => Change("CameraMode:chase") }]);
+    Kit.Readout(Cabin, "Steering lock", () => `${(Telemetry().SteerAngle * 57.29578).toFixed(0)}° at the road wheels`);
+    Kit.Readout(Cabin, "Tyre pressure FL · FR · RL · RR", () => Telemetry().Pressures.map((Kpa) => Kpa.toFixed(0)).join(" · ") + " kPa");
+    Kit.Note(Cabin, "The cockpit is the Project-Drive HMI (DriveCabinLayout) given the dash, seats and wheel the "
+                  + "authored shell never carried: the driver cluster over the dash, the tablet on the centre stack, "
+                  + "and the dashboard on the steering wheel — an RPM bar across its screen with four tyre cells "
+                  + "beneath (green, amber under 160 kPa, red under 90 or shredded). The wheel turns with the lock. "
+                  + "In an interior camera the glazing goes see-through and the sun reaches the dash; drag to look around.");
+
     const Burnout = Kit.Card(Parent, "Burnout", "Line lock");
     Kit.Switch(Burnout, { Label: "Line lock latched (or hold B)", Key: "LineLockLatched" });
     Kit.Switch(Burnout, { Label: "Burnout hold — keep the car in its box", Key: "BurnoutHold" });

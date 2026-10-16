@@ -39,6 +39,21 @@ fn SurfaceVertex(@location(0) Position: vec3f, @location(1) Family: u32, @locati
     let Occupant = Occupants[Identity];
     var Local = Position;
     var LocalNormal = Normal;
+    // 📝 See-through glass for the interior cameras: the glazing is its own occupant (the authored shell minus its
+    //    VehicleGlass facets), smoked and reflective from outside — but the primary raster is a single opaque
+    //    layer, so from a seat inside it would wall off the road. In an interior view its triangles collapse to a
+    //    point and rasterise to nothing; the shadows never carried it, so the sun still falls on the dash.
+    if (Identity == GlassOccupant && Frame.InteriorView != 0u)
+    {
+        var Collapsed: SurfaceVarying;
+        Collapsed.Position      = vec4f(0.0, 0.0, 3.0, 1.0);
+        Collapsed.Normal        = vec3f(0.0, 0.0, 1.0);
+        Collapsed.Family        = Family;
+        Collapsed.CurrentClip   = vec4f(0.0, 0.0, 3.0, 1.0);
+        Collapsed.PreviousClip  = vec4f(0.0, 0.0, 3.0, 1.0);
+        Collapsed.WorldPosition = vec3f(0.0);
+        return Collapsed;
+    }
     let Wheel = Identity - WheelOccupantFirst;
     if (Wheel < 4u)
     {

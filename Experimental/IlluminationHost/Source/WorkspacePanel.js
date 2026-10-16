@@ -258,8 +258,7 @@ export class WorkspacePanel
             Button.addEventListener("click", () =>
             {
                 Button.blur();
-                if ((Button.dataset.mode === "free") !== this.Exhibit.FreeCamera)
-                    this.OnChange("ToggleCamera");
+                this.OnChange(`CameraMode:${Button.dataset.mode}`);
             });
         const Burnout = document.getElementById("burnout-button");
         Burnout.addEventListener("click", () =>
@@ -282,13 +281,13 @@ export class WorkspacePanel
                 this.ProjectOverlays();
             }
         });
-        this.AssignCameraMode(false);
+        this.AssignCameraMode(this.Exhibit.CameraMode || "chase");
     }
 
-    AssignCameraMode(Free)
+    AssignCameraMode(Mode)
     {
         for (const Button of document.querySelectorAll("#camera-mode button"))
-            Button.setAttribute("aria-pressed", (Button.dataset.mode === "free") === Free);
+            Button.setAttribute("aria-pressed", Button.dataset.mode === Mode);
     }
 
     // 📝 Applies the overlay toggles and remembers them. The restore button appears whenever the docks are hidden.

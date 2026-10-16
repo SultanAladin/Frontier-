@@ -49,6 +49,8 @@ loads from Google Fonts; offline it falls back to the system sans.
 | B (hold)     | line lock — front brakes held, rears free: throttle for a burnout     |
 | R            | respawn the vehicle at the burnout box                                |
 | F8 or F      | free camera (WASD, Q/E, Shift) / chase camera                         |
+| C            | cycle the interior cameras: cockpit → wheel → passenger → cabin → footwell |
+| V            | cycle every camera (chase, the interior set, free)                    |
 | H            | bare view: hide both docks and every debug window, or bring them back |
 | drag, wheel  | orbit the chase camera, zoom                                          |
 
@@ -123,6 +125,64 @@ constant sliding power per tyre:
 | 30 kW slide                 | fire after 19 s                | never                               |
 | drift, 70 kW on / 10 kW off | fire within a minute           | never; tread gone after ~90 s       |
 | line-lock burnout (~110 kW) | fire after ~5 s                | fire after ~20 s, burst after ~32 s |
+
+### Soft tyres — the carcass under the shader
+
+The deformation used to be authored in the material shader: cheap, and blind — no pressure, no flat, no wave.
+XPBD knew all three at a cost no frame could carry. Between them sits the model tyre engineers reduce a carcass
+to, the flexible ring on an elastic foundation (`TyreCarcassSolver.js`, after Gong and Pacejka ch. 9): per wheel,
+96 belt nodes in the wheel's own frame,
+
+    ρA·ẅ = T(p)·∂²w/∂s² − EI·∂⁴w/∂s⁴ − k(p)·w − c·ẇ ,
+
+with hoop tension and radial foundation both rising with inflation pressure. The road is a one-sided floor, so
+the belt flattens into a patch whose length the pressure sets; past the pinch (deflection reaching rim minus
+22 mm of rubber) the rim carries the corner. In the dynamics the same stiffness is a spring in series with the
+strut (`VehicleSolver`), found by bisection each substep, so geometry, load and rolling radius agree. The vertex
+shader (`TyreCarcass.wgsl`, included by both the surface and shadow rasters) moves each tyre vertex inward by the
+belt's Catmull-Rom deflection at its angle, weighted by its share of the sidewall height — the bead never leaves
+the rim. What you can see: a pressure sag and patch that grow as a tyre leaks (Inspector → Tyres, or Puncture),
+sidewall bulge and, near empty, the folds a flat throws; a standing wave trailing the patch beyond the belt's
+wave speed (≈ 210 km/h inflated, ≈ 55 km/h flat); a burst that drops the corner onto the rim facet set. 96 nodes
+× 4 wheels at a 3.6 kHz fixed step costs microseconds — the XPBD cloth it replaces cost milliseconds.
+
+### Sparks
+
+A scrape (a pinched or shredded rim on the road; a sill or bumper of the hull spheres grounding out or sliding
+along a barrier) hands the host the contact point, its velocity and the surface normal. The projection
+(`EmberIntegrator.ProjectSparkEmitter`) ejects the ground metal along the sliding direction at the contact, at
+55 % of the sliding speed tipped up off the surface, in a tight cone — where the old projection threw sparks
+against the velocity under a wide isotropic spread and they fountained. Rim sparks run 2200 K, chassis sparks
+2000 K, and the ember advection bounces both along the asphalt. Toggle: Inspector → Vehicle, *Sparks*.
+
+## Cabin, glass and interior cameras
+
+The authored shell has no interior, and the Project-Drive HMI demo (`DriveCabinDisplays`, branch
+`arena/4f07c82a-frontier`) draws its two screens into that empty shell — its cockpit capture shows the cluster
+and tablet floating in a bare tub. `CabinStructure.js` builds the missing cabin procedurally at the HMI fixtures
+(`DriveCabinLayout.h`, rebased onto the CoM like the body): dash and fascia, centre stack, tunnel, seats, door
+cards, headliner, A-pillars — and fixes the demo's UI by seating its screens: the driver cluster over the dash,
+the tablet on the stack with its launcher tiles, and the dashboard moved onto the steering wheel, F1-style
+(twelve RPM cells across its screen lit green → amber → red to the redline, four tyre cells beneath: green,
+amber under 160 kPa, red under 90 kPa or once shredded). The wheel turns with the steering lock at the column
+ratio. Cells are unit-quad occupants whose material override the host rewrites only when a cell changes.
+
+The authored VehicleGlass facets are split out of the body into their own occupant: smoked and reflective from
+outside, exempt from the shadow cascades (so the sun falls on the dash), and collapsed by `SurfaceRaster` when
+an interior camera is active — the primary raster is a single opaque layer, so this is how the cockpit sees the
+road. Cabin occupants live outside the distance span (the union now also skips occupants without the Distance
+role) and carry no cards; the body volume already encloses them.
+
+Interior debug cameras (`CabinCameraSolver.js`, C cycles, V cycles all, or the Inspector's Cabin card): the
+cockpit at the HMI driver's eye (drag to look around), over the steering wheel, from the passenger seat, wide
+from the rear bench, and into the footwell. Driving continues from every seat.
+
+## Headless checks
+
+```sh
+node Experimental/IlluminationHost/Tests/HostChecks.mjs          # solvers, sparks, cabin, scene assembly
+cd Experimental/IlluminationHost/Tests && npm install --no-save webgpu && node ValidateShaders.mjs   # all WGSL
+```
 
 ## Fracture
 

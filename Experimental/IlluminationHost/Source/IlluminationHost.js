@@ -10,7 +10,7 @@ import { CourseMaterial } from "./MaterialSpecification.js";
 import { FragmentDepot } from "./FragmentDepot.js";
 import { TyreMarkSpace, MarkLayout } from "./TyreMarkSpace.js";
 import { TyreCarcassSolver, CarcassRecordBytes } from "./TyreCarcassSolver.js";
-import { VehicleGeometry } from "./VehicleSpecification.js";
+import { VehicleGeometry, EngineSheet } from "./VehicleSpecification.js";
 import { ConstructMaterialSpecification, EncodeMaterialRecords } from "./MaterialSpecification.js";
 import { OccupantDistanceSpace } from "./OccupantDistanceSpace.js";
 import { SceneDistanceSpace, ResolveMovedBounds } from "./SceneDistanceSpace.js";
@@ -25,14 +25,16 @@ import { HardwareMetrics } from "./HardwareMetrics.js";
 import { WorkspacePanel, RetrieveOverlayConfiguration } from "./WorkspacePanel.js";
 import { LightingPresets } from "./InspectorPanel.js";
 import { PlumeSpace, PlumeGrades, PlumeDefaults } from "./PlumeSpace.js";
-import { EmberIntegrator } from "./EmberIntegrator.js";
+import { EmberIntegrator, ProjectSparkEmitter } from "./EmberIntegrator.js";
+import { ResolveCabinCamera, ClassifyInteriorCamera, CameraModeOrder } from "./CabinCameraSolver.js";
 import { PlumeSourceProjection } from "./PlumeSourceProjection.js";
 import { DebrisSolver } from "./DebrisSolver.js";
 import { VehicleSolver } from "./VehicleSolver.js";
 import { DriverInputIntegrator } from "./DriverInputIntegrator.js";
 import { ChaseCameraSolver, FreeCameraSolver } from "./ChaseCameraSolver.js";
 import { ConstructViewTransform, ConstructPerspectiveTransform, MultiplyTransform, InvertTransform, NormalizeVector,
-         SubtractVector, MultiplyAddVector, ProjectRadicalInverse } from "./TransformProjection.js";
+         SubtractVector, MultiplyAddVector, ProjectRadicalInverse, ConstructRigidTransform, ConstructAxisQuaternion,
+         ClampScalar } from "./TransformProjection.js";
 
 const ShaderSources = [
     "SceneRecords.wgsl", "FrameDescriptor.wgsl", "PackingCodec.wgsl", "DiscrepancySequence.wgsl", "SkyProjection.wgsl",
@@ -72,19 +74,9 @@ const PassNames = ["Distance union", "Card lighting", "Shadow", "Surface", "Dire
 
 const FeaturePlumeBit = 4096;   // [-] FeaturePlume in SceneRecords.wgsl
 
-// 📝 Sparks from a scrape: metal ground off at the contact leaves with a third of the contact point's velocity and is
-//    thrown back against the direction of travel — so in the car's frame it sprays rearward — low over the road and
-//    fanned sideways, white-hot. The ember solver bounces them off the asphalt.
-function ProjectSparkEmitter(Spark)
-{
-    const Velocity = Spark.Velocity;
-    const Speed = Math.hypot(Velocity[0], Velocity[1], Velocity[2]);
-    const Back = Speed > 0.3 ? [-Velocity[0] / Speed, -Velocity[1] / Speed, 0.0] : [0.0, 0.0, 0.0];
-    const Throw = Math.min(14.0, 0.45 * Speed);
-    return { Position: [Spark.Point[0], Spark.Point[1], Spark.Point[2] + 0.03],
-             Velocity: [0.3 * Velocity[0] + Back[0] * Throw, 0.3 * Velocity[1] + Back[1] * Throw, 0.6 + 0.05 * Speed],
-             Rate: 300.0 * Spark.Strength, Temperature: 2150.0, Spread: 0.9 + 0.08 * Speed, Lift: 0.0, Gravity: 1.0, Life: 0.6 };
-}
+// 📝 Sparks from a scrape are projected by EmberIntegrator.ProjectSparkEmitter: ground metal leaves along the
+//    sliding direction at the contact, tipped up off the surface — a rim streams them backward off the road, a
+//    sill scraping a wall sheets them along it. The ember solver bounces them off the asphalt.
 
 //------------------------------------------------------------------------------------------------------------------------
 //                                                       BRING-UP
@@ -122,7 +114,11 @@ class IlluminationHost
             this.PendingPreset = Query.get("preset");
         this.Keys = new Set();
         this.FrameIndex = 0;
+        this.CameraMode = "chase";   // chase | free | cockpit | wheel | passenger | dash | footwell
         this.FreeCamera = false;
+        this.CameraInterior = false;
+        this.CabinLook = { Yaw: 0.0, Pitch: 0.0 };   // [rad] drag look-around for the eye cameras
+        this.CabinCellState = new Map();             // occupant → lit family, so overrides upload only on change
         this.Ready = false;
         this.ScriptedInput = null;
         // 🔍 Diagnostic only: ?omit=Union,Cards,Shadow,... leaves the named stages out of the frame.
@@ -172,12 +168,15 @@ class IlluminationHost
         this.Scene.RetainOccupantTransform(this.Scene.VehicleOccupants.Body);
         for (const Wheel of this.Scene.VehicleOccupants.Wheels)
             this.Scene.RetainOccupantTransform(Wheel);
+        for (const Entry of this.Scene.CabinRig)
+            this.Scene.RetainOccupantTransform(Entry.Occupant);
+        this.Scene.RetainOccupantTransform(this.Scene.CabinOccupants.Wheel);
 
         // ① records every stage shares
         const Materials = ConstructMaterialSpecification();
         this.VertexRecords   = this.Exchange.ConstructRecordsFrom(this.Scene.EncodeVertexRecords(), GPUBufferUsage.VERTEX, "Facet vertices");
         this.MaterialRecords = this.Exchange.ConstructRecordsFrom(EncodeMaterialRecords(Materials), GPUBufferUsage.STORAGE, "Materials");
-        this.FrameRecords    = this.Exchange.ConstructRecords(480, GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST, "Frame record");
+        this.FrameRecords    = this.Exchange.ConstructRecords(512, GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST, "Frame record");
         // 💾 Sized for the stress test's full scatter capacity and the fragment span's, so adding occupants never rebuilds
         //    a descriptor group.
         this.OccupantRecords = this.Exchange.ConstructRecords((this.Scene.Occupants.length + ScatterCapacity + FragmentCapacity) * OccupantStride,
@@ -212,7 +211,8 @@ class IlluminationHost
             PaintFamilyFirst:      { Type: "u32", Value: CourseMaterial.PaintWhite },
             MarkMinimum:           { Type: "f32", Value: MarkLayout.Minimum },
             MarkExtent:            { Type: "f32", Value: MarkLayout.Extent },
-            WheelOccupantFirst:    { Type: "u32", Value: this.Scene.VehicleOccupants.Wheels[0] }
+            WheelOccupantFirst:    { Type: "u32", Value: this.Scene.VehicleOccupants.Wheels[0] },
+            GlassOccupant:         { Type: "u32", Value: this.Scene.CabinOccupants.Glass }
         };
         const InheritedConstruct = this.Shaders.ConstructModule.bind(this.Shaders);
         this.Shaders.ConstructModule = (FileName, Constants = {}, Label = FileName) => InheritedConstruct(FileName, { ...this.Constants, ...Constants }, Label);
@@ -280,6 +280,8 @@ class IlluminationHost
         {
             if (Key === "ToggleCamera")
                 this.ToggleCamera();
+            else if (Key.startsWith("CameraMode:"))
+                this.AssignCameraMode(Key.slice("CameraMode:".length));
             else if (Key === "Respawn")
                 this.RespawnVehicle();
             else if (Key === "TraceScale")
@@ -351,6 +353,10 @@ class IlluminationHost
                 Event.preventDefault();
             if (Event.code === "F8" || (Event.code === "KeyF" && !Event.repeat))
                 this.ToggleCamera();
+            if (Event.code === "KeyC" && !Event.repeat)
+                this.CycleCamera(["cockpit", "wheel", "passenger", "dash", "footwell"]);
+            if (Event.code === "KeyV" && !Event.repeat)
+                this.CycleCamera(CameraModeOrder);
             if (Event.code === "KeyR" && !Event.repeat)
                 this.RespawnVehicle();
             if (Event.code === "KeyH" && !Event.repeat)
@@ -382,6 +388,11 @@ class IlluminationHost
                 this.Flight.Yaw -= DeltaX * 0.004;
                 this.Flight.Pitch = Math.max(-1.5, Math.min(1.5, this.Flight.Pitch - DeltaY * 0.004));
             }
+            else if (ClassifyInteriorCamera(this.CameraMode))
+            {
+                this.CabinLook.Yaw   = ClampScalar(this.CabinLook.Yaw - DeltaX * 0.005, -1.10, 1.10);
+                this.CabinLook.Pitch = ClampScalar(this.CabinLook.Pitch - DeltaY * 0.005, -0.45, 0.55);
+            }
             else
             {
                 this.Chase.OrbitYaw -= DeltaX * 0.006;
@@ -391,17 +402,35 @@ class IlluminationHost
         this.Canvas.addEventListener("wheel", (Event) =>
         {
             Event.preventDefault();
-            this.Chase.OrbitScale = Math.max(0.5, Math.min(3.0, this.Chase.OrbitScale * Math.exp(Event.deltaY * 0.001)));
+            if (this.CameraMode === "chase")
+                this.Chase.OrbitScale = Math.max(0.5, Math.min(3.0, this.Chase.OrbitScale * Math.exp(Event.deltaY * 0.001)));
         }, { passive: false });
         new ResizeObserver(() => this.ReconstructScreenTargets()).observe(this.Canvas);
     }
 
     ToggleCamera()
     {
-        this.FreeCamera = !this.FreeCamera;
+        this.AssignCameraMode(this.FreeCamera ? "chase" : "free");
+    }
+
+    // 📝 Camera modes: chase and free outside; cockpit, wheel, passenger, dash and footwell inside the cabin
+    //    (CabinCameraSolver.js). Entering the free camera still seeds it from the chase pose.
+    AssignCameraMode(Mode)
+    {
+        if (!CameraModeOrder.includes(Mode))
+            return;
+        this.CameraMode = Mode;
+        this.FreeCamera = Mode === "free";
         if (this.FreeCamera)
             this.Flight.AssignFromChase(this.Chase.Eye, this.Chase.Target);
-        this.Panel.AssignCameraMode(this.FreeCamera);
+        if (this.Panel)
+            this.Panel.AssignCameraMode(Mode);
+    }
+
+    CycleCamera(Order)
+    {
+        const Next = Order[(Order.indexOf(this.CameraMode) + 1) % Order.length];
+        this.AssignCameraMode(Next === undefined ? Order[0] : Next);
     }
 
     RespawnVehicle()
@@ -472,19 +501,74 @@ class IlluminationHost
         this.Scene.AssignOccupantTransform(this.Scene.VehicleOccupants.Body, Body);
         for (let Wheel = 0; Wheel < 4; ++Wheel)
             this.Scene.AssignOccupantTransform(this.Scene.VehicleOccupants.Wheels[Wheel], this.Vehicle.QueryWheelTransform(Wheel));
+        // 📝 The cabin rig rides the body; the steering wheel additionally turns with the lock — the road wheels'
+        //    steer about the kingpin, the wheel about its own axis at the column's ratio, counter-rotating in the
+        //    driver's view the way a real wheel does (top toward the turn).
+        const Cabin = this.Scene.CabinOccupants;
+        if (Cabin)
+        {
+            const Spin = ConstructRigidTransform([0.0, 0.0, 0.0],
+                ConstructAxisQuaternion([1.0, 0.0, 0.0], -ClampScalar(this.Vehicle.SteerAngle * 2.6, -1.25, 1.25)));
+            const WheelTransform = MultiplyTransform(Body, MultiplyTransform(this.Scene.CabinWheelMount, Spin));
+            this.Scene.AssignOccupantTransform(Cabin.Wheel, WheelTransform);
+            for (const Entry of this.Scene.CabinRig)
+                this.Scene.AssignOccupantTransform(Entry.Occupant,
+                    MultiplyTransform(Entry.Parent === "wheel" ? WheelTransform : Body, Entry.Local));
+        }
+    }
+
+    // 📝 The dashboards lit from telemetry: RPM bars sweep green → amber → red toward the redline on the cluster
+    //    and across the wheel's screen; the wheel's four tyre cells burn green, amber below 160 kPa, red below
+    //    90 kPa or once the tyre has shredded off the rim. An override is rewritten only when a cell changes.
+    RefreshCabinDisplays()
+    {
+        const Cabin = this.Scene.CabinOccupants;
+        if (!Cabin)
+            return;
+        const Telemetry = this.Vehicle.QueryTelemetry();
+        const Fraction = ClampScalar(Telemetry.EngineRPM / EngineSheet.RedlineRPM, 0.0, 1.0);
+        const Light = (Occupant, Family) =>
+        {
+            if (this.CabinCellState.get(Occupant) === Family)
+                return;
+            this.CabinCellState.set(Occupant, Family);
+            this.Scene.Occupants[Occupant].MaterialOverride = Family;
+        };
+        const Bar = (Cells) => Cells.forEach((Occupant, Index) =>
+        {
+            const Lit = Index < Math.round(Fraction * Cells.length);
+            Light(Occupant, !Lit ? CourseMaterial.CellOff
+                        : Index < Cells.length * 0.6 ? CourseMaterial.CellGreen
+                        : Index < Cells.length * 0.85 ? CourseMaterial.CellAmber : CourseMaterial.CellRed);
+        });
+        Bar(Cabin.WheelCells);
+        Bar(Cabin.ClusterCells);
+        Cabin.WheelTyreCells.forEach((Occupant, Wheel) =>
+            Light(Occupant, Telemetry.Shredded[Wheel] || Telemetry.Pressures[Wheel] < 90.0 ? CourseMaterial.CellRed
+                          : Telemetry.Pressures[Wheel] < 160.0 ? CourseMaterial.CellAmber : CourseMaterial.CellGreen));
     }
 
     ResolveCamera(Δτ)
     {
         const Telemetry = this.Vehicle.QueryTelemetry();
         this.Chase.AdvanceChase(this.Vehicle.Position, this.Vehicle.QueryForward(), Telemetry.Speed, Δτ);
-        let Eye, Target, FieldOfView;
+        let Eye, Target, FieldOfView, Near = 0.05, Radians = false;
+        this.CameraInterior = ClassifyInteriorCamera(this.CameraMode);
         if (this.FreeCamera)
         {
             this.Flight.AdvanceFlight(this.Keys, Δτ);
             Eye = this.Flight.Eye;
             Target = MultiplyAddVector(Eye, this.Flight.ResolveForward(), 10.0);
             FieldOfView = this.Flight.FieldOfView;
+        }
+        else if (this.CameraInterior)
+        {
+            const View = ResolveCabinCamera(this.CameraMode, this.Vehicle.QueryBodyTransform(), this.CabinLook);
+            Eye = View.Position;
+            Target = View.Target;
+            FieldOfView = View.VerticalFieldOfView;
+            Near = View.Near;
+            Radians = true;
         }
         else
         {
@@ -493,8 +577,8 @@ class IlluminationHost
             FieldOfView = this.Chase.FieldOfView;
         }
         const Forward = NormalizeVector(SubtractVector(Target, Eye));
-        return { Position: Eye, Target, Forward, VerticalFieldOfView: FieldOfView * Math.PI / 180.0,
-                 Aspect: this.ScreenExtent[0] / this.ScreenExtent[1], Near: 0.05 };
+        return { Position: Eye, Target, Forward, VerticalFieldOfView: Radians ? FieldOfView : FieldOfView * Math.PI / 180.0,
+                 Aspect: this.ScreenExtent[0] / this.ScreenExtent[1], Near };
     }
 
     EncodeFrameRecord(Camera, Light)
@@ -511,7 +595,7 @@ class IlluminationHost
         const Previous = this.PreviousUnjittered || Unjittered;
         this.PreviousUnjittered = Unjittered;
 
-        const Bytes = new ArrayBuffer(480);
+        const Bytes = new ArrayBuffer(512);
         const Scalars = new Float32Array(Bytes);
         const Integers = new Uint32Array(Bytes);
         Scalars.set(ViewProjection, 0);
@@ -552,6 +636,7 @@ class IlluminationHost
         Integers[115] = this.Settings.DistanceInspection;
         Scalars.set(this.Focus, 116);
         Integers[119] = this.Settings.InsetEnabled ? 1 : 0;
+        Integers[120] = this.CameraInterior ? 1 : 0;
         this.Exchange.Device.queue.writeBuffer(this.FrameRecords, 0, Bytes);
     }
 
@@ -610,6 +695,7 @@ class IlluminationHost
             this.RefreshObstacles();
         this.PositionVehicle();
         this.AdvanceCarcass(Step);
+        this.RefreshCabinDisplays();
         const MovingOccupants = this.ResolveVehicleMotion();
 
         // ①½ smoke, soot and fire sources from the tyres and the exhaust, their lights and embers; the stress test's bodies
@@ -654,6 +740,9 @@ class IlluminationHost
         this.PriorLight = { Direction: Light.Direction.slice(), Brightness };
         this.EncodeFrameRecord(Camera, Light);
         Device.queue.writeBuffer(this.OccupantRecords, 0, this.Scene.EncodeOccupantRecords(this.Volumes, this.Scene.DynamicCount));
+        if (this.Scene.CabinCount > 0)
+            Device.queue.writeBuffer(this.OccupantRecords, this.Scene.CabinFirst * OccupantStride,
+                                     this.Scene.EncodeOccupantRecords(this.Volumes, this.Scene.CabinCount, this.Scene.CabinFirst));
         for (const Range of [StirredRange, FragmentRange])
             if (Range)
                 Device.queue.writeBuffer(this.OccupantRecords, Range.First * OccupantStride,

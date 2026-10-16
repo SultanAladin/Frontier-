@@ -119,6 +119,12 @@ fn UniteDistance(@builtin(workgroup_id) Group: vec3u, @builtin(local_invocation_
             continue;
         }
         let Occupant = Occupants[OccupantIndex];
+        // 📝 Raster-only occupants inside the walked span (the cabin sits between the yard and the scatter span)
+        //    own no distance volume; sampling one would divide by its zero voxel extent.
+        if ((Occupant.Roles & RoleDistance) == 0u)
+        {
+            continue;
+        }
         for (var Sub = 0u; Sub < 8u; Sub++)
         {
             let Position = (vec3f(LaneCorner + vec3i(vec3u(Sub & 1u, (Sub >> 1u) & 1u, Sub >> 2u))) + 0.5) * Clip.VoxelExtent;

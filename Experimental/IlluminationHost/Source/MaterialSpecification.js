@@ -56,7 +56,17 @@ export const CourseMaterial = Object.freeze({
     BlockConcrete:   45,
     BlockCore:       46,
     Gravel:          47,
-    DockConcrete:    48
+    DockConcrete:    48,
+    // 📝 Families 49… are the cabin (CabinStructure.js): trim, seat cloth, the display glass and the lit cells of
+    //    the wheel/cluster dashboards. They append after the DriveCourse-aligned span, so no authored family renumbers.
+    CabinTrim:       49,
+    CabinSeat:       50,
+    CabinScreen:     51,
+    CellOff:         52,
+    CellGreen:       53,
+    CellAmber:       54,
+    CellRed:         55,
+    CellCyan:        56
 });
 
 // 📝 The flake headroom and sweep follow DriveSceneAuthor: MetalicCoat (0.680005, 0.800458, 0) × 0.78, coat roughness
@@ -159,6 +169,20 @@ export function ConstructMaterialSpecification()
     Materials[CourseMaterial.BlockCore]       = Dielectric(0.41, 0.40, 0.37, 0.95);
     Materials[CourseMaterial.Gravel]          = Dielectric(0.21, 0.19, 0.16, 0.95);
     Materials[CourseMaterial.DockConcrete]    = Dielectric(0.40, 0.39, 0.37, 0.85);
+
+    // 📝 The cabin. The screens are near-black gloss with a whisper of emission so they read in a dark footwell; the
+    //    dashboard cells are pure emitters whose colour the host picks per frame through the occupant override.
+    Materials[CourseMaterial.CabinTrim]   = Dielectric(0.030, 0.032, 0.038, 0.72);
+    Materials[CourseMaterial.CabinSeat]   = Dielectric(0.055, 0.070, 0.115, 0.95);
+    const Screen = Dielectric(0.008, 0.010, 0.014, 0.08);
+    Screen.Emission = [0.05, 0.14, 0.22];
+    Materials[CourseMaterial.CabinScreen] = Screen;
+    Materials[CourseMaterial.CellOff]     = Dielectric(0.012, 0.014, 0.018, 0.25);
+    const Cell = (Emission) => { const Material = Dielectric(0.01, 0.01, 0.01, 0.3); Material.Emission = Emission; return Material; };
+    Materials[CourseMaterial.CellGreen]   = Cell([0.10, 2.40, 0.35]);
+    Materials[CourseMaterial.CellAmber]   = Cell([2.60, 1.05, 0.08]);
+    Materials[CourseMaterial.CellRed]     = Cell([3.00, 0.16, 0.10]);
+    Materials[CourseMaterial.CellCyan]    = Cell([0.10, 1.30, 2.40]);
     return Materials;
 }
 

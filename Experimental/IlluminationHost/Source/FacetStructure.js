@@ -10,6 +10,9 @@ import { ConstructYard, EmitYardGroundFacets } from "./YardStructure.js";
 import { VehicleGeometry, ResolveCoMAuthoredZ } from "./VehicleSpecification.js";
 import { ConstructIdentityTransform, TransformBounds, InvertTransform,
          SubtractVector, CrossVector, NormalizeVector } from "./TransformProjection.js";
+import { EmitCabinTrimFacets, EmitSteeringWheelFacets, EmitUnitQuadFacets, ConstructCabinCellPlan,
+         CabinFixtures } from "./CabinStructure.js";
+import { ConstructRigidTransform, ConstructAxisQuaternion } from "./TransformProjection.js";
 
 // 📝 What an occupant takes part in. A ground tile only owns a surface card; the ground occupant is only rastered,
 //    because the scene distance field carries the ground as its analytic plane rather than as a sampled volume.
@@ -55,6 +58,10 @@ export class SceneStructure
         this.FacetSets        = [];
         this.Occupants        = [];
         this.VehicleOccupants = { Body: -1, Wheels: [-1, -1, -1, -1] };
+        this.CabinOccupants = null;   // { Trim, Glass, Wheel, ClusterCells, WheelCells, WheelTyreCells }
+        this.CabinRig       = [];     // [{ Occupant, Parent: "body" | "wheel", Local }] re-posed per frame
+        this.CabinFirst     = -1;
+        this.CabinCount     = 0;
         this.GroundTiles      = { First: -1, Strips: [-1, -1, -1, -1] };
         this.GroundOccupant   = -1;
         this.DistanceCount    = 0;
@@ -72,7 +79,7 @@ export class SceneStructure
         ]);
 
         // ① vehicle facet sets — and the bare rims a burst tyre leaves, transferred at bring-up so a burst swaps sets
-        const BodySet       = this.ConstructFacetSet("ControlVehicle body", ProjectBodyFacets(Body), 0.05, 40.0);
+        const BodySet       = this.ConstructFacetSet("ControlVehicle body", ProjectBodyFacets(Body, false), 0.05, 40.0);
         const WheelLeftSet  = this.ConstructFacetSet("ControlVehicle wheel (left)", ProjectWheelFacets(Tyre, Rim, false, true), 0.025, 40.0);
         const WheelRightSet = this.ConstructFacetSet("ControlVehicle wheel (right)", ProjectWheelFacets(Tyre, Rim, true, true), 0.025, 40.0);
         const RimLeftSet    = this.ConstructFacetSet("ControlVehicle rim (left)", ProjectWheelFacets(Tyre, Rim, false, false), 0.025, 40.0);
@@ -96,6 +103,41 @@ export class SceneStructure
         const Yard = ConstructYard(this, { Static: StaticRoles });
         this.Breakables = Yard.Breakables;
         this.DistanceCount = this.Occupants.length;
+
+        // ②¼ the cabin (CabinStructure.js): registered after the distance span is closed, so the union pass never
+        //    walks them — an occupant without a distance volume would answer the union with NaNs. They are raster +
+        //    dynamic only; the host re-poses the rig every frame and uploads this span beside the vehicle's five.
+        {
+            const Roles = OccupantRole.Raster | OccupantRole.Dynamic;
+            const TrimSet  = this.ConstructFacetSet("Cabin trim", EmitCabinTrimFacets(), 0.0, 0.0);
+            const GlassSet = this.ConstructFacetSet("Vehicle glass", ProjectBodyFacets(Body, true), 0.0, 0.0);
+            const WheelSet = this.ConstructFacetSet("Steering wheel", EmitSteeringWheelFacets(), 0.0, 0.0);
+            const QuadSet  = this.ConstructFacetSet("Cabin display quad", EmitUnitQuadFacets(), 0.0, 0.0);
+            const Plan = ConstructCabinCellPlan();
+            this.CabinFirst = this.Occupants.length;
+            this.CabinRig = [];
+            const AddRig = (Name, Set, Parent, Local, Override = -1) =>
+            {
+                const Occupant = this.ConstructOccupant(Name, Set, Local, Roles, Override);
+                this.CabinRig.push({ Occupant, Parent, Local });
+                return Occupant;
+            };
+            const Trim  = AddRig("Cabin trim", TrimSet, "body", Plan.Identity);
+            const Glass = AddRig("Vehicle glass", GlassSet, "body", Plan.Identity);
+            this.Occupants[Glass].NoShadow = true;   // the sun comes through the glazing onto the dash
+            AddRig("Driver cluster screen", QuadSet, "body", Plan.ClusterScreen, CourseMaterial.CabinScreen);
+            AddRig("Cabin tablet screen", QuadSet, "body", Plan.TabletScreen, CourseMaterial.CabinScreen);
+            const ClusterCells = Plan.ClusterCells.map((Local, Index) => AddRig(`Cluster cell ${Index}`, QuadSet, "body", Local));
+            for (const [Index, Tile] of Plan.TabletTiles.entries())
+                AddRig(`Tablet tile ${Index}`, QuadSet, "body", Tile.Local, Tile.Family);
+            const Wheel = this.ConstructOccupant("Steering wheel", WheelSet, Plan.Identity, Roles);
+            const WheelCells     = Plan.WheelCells.map((Local, Index) => AddRig(`Wheel dash cell ${Index}`, QuadSet, "wheel", Local));
+            const WheelTyreCells = Plan.WheelTyreCells.map((Local, Index) => AddRig(`Wheel tyre cell ${Index}`, QuadSet, "wheel", Local));
+            this.CabinOccupants = { Trim, Glass, Wheel, ClusterCells, WheelCells, WheelTyreCells };
+            this.CabinWheelMount = ConstructRigidTransform(CabinFixtures.WheelCentre,
+                                                             ConstructAxisQuaternion([0.0, 1.0, 0.0], CabinFixtures.WheelTilt));
+            this.CabinCount = this.Occupants.length - this.CabinFirst;
+        }
 
         // ②½ the stress-test scatter shapes: facet sets (and so distance volumes) exist from bring-up, occupants only
         //    once the panel asks for them, appended at ScatterFirst — the end of the distance span.
@@ -262,7 +304,7 @@ export class SceneStructure
             if (!(Occupant.Roles & OccupantRole.Raster) || Occupant.Fragment)
                 return;
             Extend(Runs, Index, Occupant.FacetSet);
-            if (Index !== this.GroundOccupant)
+            if (Index !== this.GroundOccupant && !Occupant.NoShadow)
                 Extend(ShadowRuns, Index, Occupant.FacetSet);
         });
         this.RasterRuns = Runs;
@@ -453,12 +495,17 @@ export const OccupantStride = 336;   // [B] - OccupantRecord
 
 // 📝 DriveSceneAuthor::AppendVehicleBody(): rebase the authored model onto the centre of mass (z − 0.11285 m) and keep
 //    the per-facet family; facet normals are flat, exactly as AppendFace derives them.
-function ProjectBodyFacets(Stream)
+// 📝 GlassOnly selects the glazing instead of the shell: the authored VehicleGlass facets become their own
+//    occupant (the cabin block in ConstructScene), so interior cameras can collapse them in the surface raster
+//    and the sun can reach the dash through them.
+function ProjectBodyFacets(Stream, GlassOnly)
 {
     const Rebase = ResolveCoMAuthoredZ();
     const Facets = [];
     for (let Facet = 0; Facet < Stream.FacetCount; ++Facet)
     {
+        if ((Stream.Families[Facet] === CourseMaterial.VehicleGlass) !== GlassOnly)
+            continue;
         const Corners = [];
         for (let Corner = 0; Corner < 3; ++Corner)
         {

@@ -9,6 +9,36 @@
 //    plume's velocity lattice, and draws them as streaks into a radiance target the recombination adds before the
 //    antialiasing. Nothing runs once the last particle has died.
 
+// 📝 Sparks from a scrape (VehicleSolver.RecordScrape hands the host { Point, Velocity, Normal, Strength, Kind }
+//    per contact): metal torn off at the contact does not spray isotropically — it leaves along the surface, in
+//    the direction the contact is sliding, at a fraction of the sliding speed, tipped up off the surface by the
+//    grinding wedge, with a little of the body's motion inherited. So a burst tyre's rim streams sparks backward
+//    along the road (the contact patch's slip direction), and a sill grounding out or kissing a barrier sheets
+//    them along the body instead of through it — the old projection threw them against the velocity with a wide
+//    isotropic spread, which read as a fountain. The cone stays tight (Spread about the eject direction), steel
+//    on the road runs white-hot, and the advection's ground bounce skips them along the asphalt.
+// 📝 Spark: { Point [m], Velocity [m/s] of the contact point, Normal of the surface scraped, Strength [-], Kind }.
+export function ProjectSparkEmitter(Spark)
+{
+    const Normal = Spark.Normal || [0.0, 0.0, 1.0];
+    const Velocity = Spark.Velocity;
+    const NormalSpeed = Velocity[0] * Normal[0] + Velocity[1] * Normal[1] + Velocity[2] * Normal[2];
+    const Tangent = [Velocity[0] - Normal[0] * NormalSpeed, Velocity[1] - Normal[1] * NormalSpeed,
+                     Velocity[2] - Normal[2] * NormalSpeed];
+    const Slide = Math.hypot(Tangent[0], Tangent[1], Tangent[2]);
+    const Direction = Slide > 0.3 ? Tangent.map((Scalar) => Scalar / Slide)
+                                  : [-Velocity[0], -Velocity[1], 0.0].map((Scalar, Axis) =>
+                                        Scalar / Math.max(Math.hypot(Velocity[0], Velocity[1]), 1.0e-3) * (Axis < 2 ? 1.0 : 0.0));
+    const Eject = Math.min(16.0, Math.max(1.5, 0.55 * Slide));
+    const Lift = Math.min(2.2, Math.max(0.4, 0.25 * Eject));
+    return { Position: [Spark.Point[0] + Normal[0] * 0.02, Spark.Point[1] + Normal[1] * 0.02, Spark.Point[2] + Normal[2] * 0.02],
+             Velocity: [Direction[0] * Eject + Normal[0] * Lift + Velocity[0] * 0.08,
+                        Direction[1] * Eject + Normal[1] * Lift + Velocity[1] * 0.08,
+                        Direction[2] * Eject + Normal[2] * Lift + Velocity[2] * 0.08],
+             Rate: 320.0 * Spark.Strength, Temperature: Spark.Kind === "chassis" ? 2000.0 : 2200.0,
+             Spread: 0.35 + 0.045 * Slide, Lift: 0.0, Gravity: 1.0, Life: 0.75 };
+}
+
 const ParticleCapacity = 4096;    // [-]
 const ParticleStride   = 48;      // [B]  EmberParticle
 const RecordBytes      = 48;      // [B]  EmberRecord

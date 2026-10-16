@@ -39,6 +39,7 @@ struct FrameRecord
     DistanceInspection               : u32,       // [-]    distance inspection selector
     FocusPosition                    : vec3f,     // [m]    centre of the scene distance field cascades
     InsetEnabled                     : u32,       // [-]    draw the distance slice inset
+    InteriorView                     : u32,       // [-]    an interior camera is active: SurfaceRaster collapses the glazing
 }
 
 // 📝 FeatureBit — the toggles the control panel exposes, read by the programs that honour them.
