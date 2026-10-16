@@ -12,6 +12,10 @@ The entry module, dependencies and shaders carry a shared release key. Shader fe
 
 For an ABI-changing update, bump `ASSET_RELEASE`, all WGSL release markers (including shared `terrain.wgsl`) and the versioned module/CSS URLs together. `npm test` checks the manifest against shader entries and document/import URLs. `npm run test:assets` tests same-browser version-mismatch detection and reload recovery against the lab server.
 
+## Current r4 scheduling / solver research
+
+See [the r4 research and measurement report](../../Docs/TyreGpuSolverResearch.md) for the literature review, rejected packed-workgroup experiment, 14/24-colour schedule, GPU phase fusion and parallel guard reduction. No constraints or solver iterations were removed. Finite-iteration loads change with ordering and remain uncalibrated. The UI now distinguishes GPU milliseconds from rendered FPS explicitly.
+
 ## Hardening / optimization update
 
 See [the optimization and safety report](../../Docs/TyreGpuHardening.md) for the current acceptance filter, measured before/after results, stress tests, and remaining port blockers. The earlier assessment describes baseline commit `807559c`.
@@ -50,13 +54,13 @@ CPU work: mesh and graph construction once, UI/camera, prescribed rig inputs, co
 1. Fixed 60 Hz simulation tick, four 1/240 s base substeps. Optional adaptive budgeting uses eight substeps above 1.5 m/s and sixteen above 3 m/s. The tick remains 1/60 s; damping and reaction averaging scale with substep duration.
 2. Predict GPU nodes under gravity; apply kinematic rim boundary conditions.
 3. Reset substep XPBD multipliers. Solve `deltaLambda = (−C − alphaTilde lambda) / (sum(w |gradC|²) + alphaTilde)`.
-4. Graph-coloured in-place Gauss–Seidel: 15 edge colours and 26 tet colours; nodes within a colour never overlap. Each dispatch boundary orders dependent colours. No float atomics, cross-workgroup barriers, or concurrent writes to a node.
+4. Graph-coloured in-place Gauss–Seidel: 14 edge colours and 24 tet colours; nodes within a colour never overlap. Each dispatch boundary orders dependent colours. No float atomics, cross-workgroup barriers, or concurrent writes to a node.
 5. Project along the shared height-field normal after material updates (up to three normal iterations); apply accumulated 3D tangent displacement projected onto a Coulomb disk.
 6. Reduce candidate quality and a conservative global interpolation bound. GPU-written indirect arguments activate two local volume-barrier sweeps only for low-J proposals, then redo contact/acceptance. Accept mesh and rig together, then reconstruct velocity. Numerical damping is `0.996^(240 h)` per substep.
 7. Accumulate contact reactions in a GPU node buffer over the tick. Run one final parallel/block reduction for tick-averaged reactions and final accepted element quality, not four repeated force reductions.
 8. Draw boundary triangles directly from the solved node buffer.
 
-Reused staging uploads only active aligned records: 43,008 bytes for the default four substeps (rather than the baseline 2,458,624 bytes). Typed dynamic offsets and redundant pipeline-bind elimination avoid per-dispatch array allocations. Aligned immutable uniform records per substep/colour avoid the common WebGPU mistake of overwriting one uniform buffer and having every queued dispatch see the last values.
+Reused staging uploads only active aligned records: 39,936 bytes for the default four substeps (rather than the baseline 2,458,624 bytes). Typed dynamic offsets and redundant pipeline-bind elimination avoid per-dispatch array allocations. Aligned immutable uniform records per substep/colour avoid the common WebGPU mistake of overwriting one uniform buffer and having every queued dispatch see the last values.
 
 The frame loop advances at most one fixed tick per animation frame and permits at most two submissions in flight, deliberately slowing simulation on a missed budget rather than changing dt or building an unbounded catch-up queue. A displayed **% real-time** exposes that slowdown and now excludes paused time while including backpressure waits. It also slows on displays rendering below 60 Hz. A shipping engine needs an independent scheduler and a GPU command/latency budget.
 
@@ -85,7 +89,7 @@ The finite 3 m × 0.63 m belt, rounded Gaussian cleat and surrounding lower floo
 - GPU solver milliseconds: optional hardware timestamp query around the complete compute pass, including contact and diagnostic reduction, excluding render/readback and CPU command encoding. It is a sampled tick, not a calibrated benchmark. The headline shows rolling p50 of up to 60 asynchronous samples, plus raw last/p95/sample count. Barrier activation and optional substep changes alter GPU work; browser scheduling/render work affect frame intervals separately. A timing change alone does not mean texture or physics motion stopped.
 - CPU encode: rolling mean wall time of the submitted frame command construction/upload/submit, excluding synchronous GPU waits (there are none). It is not CPU tyre-solver time.
 - Safety-step telemetry: minimum accepted fraction over the sampled tick; `N · LIMITED` flags reactions from a limited/penetrating/invalid numerical state.
-- Frame interval: rolling average of requestAnimationFrame intervals, including browser scheduling. This is **not CPU solver time**. Plot auto-scales.
+- Frame interval: rolling average of requestAnimationFrame intervals, including browser scheduling. This is **not CPU solver time**. Derived rendered FPS is shown separately from simulation real-time rate. Plot auto-scales.
 - The debug-only `window.tyreLab.snapshot()` reads all node data (`rigSnapshot()` reads accepted/trial/start rig records) on demand for tests; normal operation never does this.
 
 ## Verification

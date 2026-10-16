@@ -2,13 +2,13 @@ import {
   ASSET_RELEASE,
   COMPUTE_ENTRIES,
   fetchShader,
-} from "./runtime-assets.js?release=tyre-gpu-20261016-r3";
-import { makeTyre } from "./mesh.js?release=tyre-gpu-20261016-r3";
+} from "./runtime-assets.js?release=tyre-gpu-20261016-r4";
+import { makeTyre } from "./mesh.js?release=tyre-gpu-20261016-r4";
 import {
   makeSolverPlan,
   substepsFor,
   assertSolverInputs,
-} from "./solver-plan.js?release=tyre-gpu-20261016-r3";
+} from "./solver-plan.js?release=tyre-gpu-20261016-r4";
 const $ = (id) => document.getElementById(id);
 const state = {
   model: 1,
@@ -302,7 +302,23 @@ window.tyreLab = {
   snapshot: async () => null,
 };
 $("capture").onclick = () => {
+  const gpuSamples = [...history.gpu].sort((a, b) => a - b);
+  const meanFrame = history.frame.length
+    ? history.frame.reduce((a, b) => a + b, 0) / history.frame.length
+    : null;
   const sample = {
+    assetRelease: ASSET_RELEASE,
+    gpuTimingMs: {
+      last: gpuMs,
+      p50: gpuSamples.length
+        ? gpuSamples[Math.floor((gpuSamples.length - 1) * 0.5)]
+        : null,
+      p95: gpuSamples.length
+        ? gpuSamples[Math.floor((gpuSamples.length - 1) * 0.95)]
+        : null,
+      samples: gpuSamples.length,
+    },
+    meanRenderedFps: meanFrame > 0 ? 1000 / meanFrame : null,
     capturedAt: new Date().toISOString(),
     sessionStarted: labStarted,
     parameters: { ...state },
@@ -791,7 +807,6 @@ async function init() {
         for (let s = 0; s < activeSubsteps; s++) {
           const base = s * records * plan.alignment;
           pass.setBindGroup(0, bind, plan.dynamicOffsets, s * records, 1);
-          dispatch("beginStep", 1);
           dispatch("predict", Math.max(N, state.model === 1 ? T : E + T));
           for (let j = 0; j < state.iterations; j++) {
             batches.forEach((b, i) => {
@@ -809,7 +824,6 @@ async function init() {
             dispatch("contact", N);
           }
           dispatch("guardPartials", T);
-          dispatch("guardReduce", 1);
           pass.setBindGroup(
             0,
             prepareRepairBind,
@@ -817,7 +831,7 @@ async function init() {
             s * records,
             1,
           );
-          dispatch("prepareRepair", mesh.tetBatches.length + 3);
+          dispatch("guardPrepare", 1);
           for (let repair = 0; repair < 2; repair++) {
             // Uniform GPU gate makes these no-ops when every proposed J >= .3.
             for (let k = 0; k < batches.length; k++) {
@@ -856,7 +870,6 @@ async function init() {
               (mesh.tetBatches.length + j) * 16,
             );
           }
-          dispatch("commitRig", 1);
           dispatch("finish", N);
         }
         dispatch("reducePartials", Math.max(N, T));
@@ -991,6 +1004,8 @@ async function init() {
           ).toFixed(1),
           "ms",
         );
+        $("frame-fps").textContent =
+          `≈ ${(1000 / (history.frame.reduce((a, b) => a + b, 0) / history.frame.length)).toFixed(1)} FPS · rendered frames, not simulation rate`;
         if (gpuMs !== null) {
           const sorted = [...history.gpu].sort((a, b) => a - b);
           const p50 = sorted[Math.floor((sorted.length - 1) * 0.5)],

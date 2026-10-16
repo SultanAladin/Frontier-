@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1" />
     <title>Frontier / Tyre Dynamics Lab</title>
-    <link rel="stylesheet" href="style.css?release=tyre-gpu-20261016-r3" />
+    <link rel="stylesheet" href="style.css?release=tyre-gpu-20261016-r4" />
   </head>
   <body>
     <header>
@@ -172,8 +172,15 @@
             </div>
             <div>
               <span>FRAME INTERVAL <small>RAF</small></span
-              ><strong id="frame-time">—<em>ms</em></strong
-              ><canvas id="frame-plot"></canvas>
+              ><strong id="frame-time">—<em>ms</em></strong>
+              <div
+                class="metric-foot"
+                id="frame-fps"
+                title="1000 divided by mean RAF interval. GPU compute milliseconds are not FPS."
+              >
+                FPS after first frame samples
+              </div>
+              <canvas id="frame-plot"></canvas>
             </div>
           </div>
           <div class="telemetry">
@@ -216,6 +223,6 @@
         ><a href="README.md">Technical notes ↗</a>
       </footer>
     </main>
-    <script type="module" src="app.js?release=tyre-gpu-20261016-r3"></script>
+    <script type="module" src="app.js?release=tyre-gpu-20261016-r4"></script>
   </body>
 </html>

@@ -1,4 +1,4 @@
-// tyre-lab-release: tyre-gpu-20261016-r3
+// tyre-lab-release: tyre-gpu-20261016-r4
 // One shared surface for compute collision AND render geometry. Units: metres.
 // The cleat is attached to the moving belt (3 m repeat), not a static floor tint.
 fn wrapSigned(x:f32, period:f32)->f32 { return x-period*floor(x/period+.5); }

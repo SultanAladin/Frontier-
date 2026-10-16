@@ -188,6 +188,25 @@ try {
     if (c.reject) assert(c.safe < 1);
   }
   console.log("Isolated GPU guard cases", JSON.stringify(guardCases));
+  const reductions = await page.evaluate(async () => {
+    const { runReductionCases } = await import("./reduction-browser.js");
+    return runReductionCases();
+  });
+  for (const c of reductions) {
+    assert.equal(c.reducedSafe, c.safe);
+    assert.equal(c.preparedSafe, c.safe);
+    assert.equal(c.reducedJ, c.j);
+    assert.equal(c.preparedJ, c.j);
+    assert.equal(c.active, c.j < 0.3);
+    assert.deepEqual(
+      c.groups,
+      c.j < 0.3
+        ? [...Array.from({ length: 24 }, (_, i) => 3 + (i % 4)), 1, 108, 1]
+        : Array(27).fill(0),
+    );
+    assert(c.yz.every(([y, z]) => y === 1 && z === 1));
+  }
+  console.log("Parallel guard/indirect tail cases", JSON.stringify(reductions));
   const download = page.waitForEvent("download");
   await page.click("#capture");
   assert((await download).suggestedFilename().endsWith(".json"));

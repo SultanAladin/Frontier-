@@ -11,6 +11,7 @@ const percentile = (xs, p) =>
     Math.min(xs.length - 1, Math.floor((xs.length - 1) * p))
   ];
 const results = [];
+const parameters = JSON.parse(process.env.BENCH_PARAMETERS || "{}");
 try {
   for (const variant of process.env.BASELINE_DIR
     ? ["baseline", "optimized"]
@@ -52,10 +53,10 @@ try {
     );
     const error = await page.evaluate(() => tyreLab.error);
     if (error) throw new Error(error);
-    await page.evaluate(() => {
-      tyreLab.state.paused = false;
-      tyreLab.setModel(1);
-    });
+    await page.evaluate((parameters) => {
+      Object.assign(tyreLab.state, parameters, { paused: false });
+      tyreLab.setModel(parameters.model ?? 1);
+    }, parameters);
     await page.waitForFunction((n) => tyreLab.ticks >= n, warmup, {
       timeout: 120000,
     });
@@ -80,6 +81,9 @@ try {
               minJ: s.minJ,
               normal: s.normal,
               safe: s.minAcceptedStep ?? 1,
+              barrierActive: s.barrierActive,
+              actualBeltSpeed: s.actualBeltSpeed,
+              maxPenetration: s.maxPenetration,
             });
           }
           if (out.length >= count) return resolve();

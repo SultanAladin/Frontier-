@@ -1,6 +1,10 @@
 # GPU tyre hardening and optimization — 16 October 2026
 
-## Current release: r3 terrain and accepted motion
+## Current release: r4 scheduling research
+
+See [the r4 solver research, measured results and accuracy qualifications](TyreGpuSolverResearch.md). It reduces default colour counts to 14 edges / 24 tetrahedra, fuses independent GPU phases and parallelizes guard reduction. Four-substep upload is now 39,936 B. Software medians improve about 5% on flat/soft rolling and 31% on the parked cleat, partly because solve ordering changes repair activation. Force outputs also change materially; this is not a calibrated or hardware speedup claim. No VBD or new material model is silently substituted.
+
+## Historical r3 terrain and accepted motion
 
 `tyre-gpu-20261016-r3` supersedes the earlier static-ground display/contact path. Rendering and collision now include the same `terrain.wgsl`: finite flat conveyor, rounded moving cleat, analytic slope normals and lower surrounding floor. Contact resolves normal and 3D tangent corrections; reported `normal` is vertical Fy, not slope-normal magnitude.
 

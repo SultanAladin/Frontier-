@@ -1,5 +1,5 @@
 // Isolated GPU tests of the shared render/collision profile. No CPU physics fallback.
-import { fetchShader } from "./runtime-assets.js?release=tyre-gpu-20261016-r3";
+import { fetchShader } from "./runtime-assets.js?release=tyre-gpu-20261016-r4";
 export async function runRoadCases() {
   const adapter = await navigator.gpu.requestAdapter(),
     device = await adapter.requestDevice();

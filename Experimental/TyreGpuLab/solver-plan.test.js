@@ -10,8 +10,8 @@ import { makeTyre } from "./mesh.js";
 const mesh = makeTyre();
 test("active uploads are linear in records, not quadratic; staging is reused", () => {
   const p = makeSolverPlan(mesh);
-  assert.equal(p.records, 42);
-  assert.equal(p.activeBytes(4), 43008);
+  assert.equal(p.records, 39);
+  assert.equal(p.activeBytes(4), 39936);
   assert.equal(p.bytes, MAX_SUBSTEPS * p.records * 256);
   const identity = p.staging;
   p.writeStep(0, {
@@ -100,5 +100,5 @@ test("heatmap writes are opt-in, model bit stays separate", () => {
   });
   assert.equal(p.ints[11], 3);
   assert.equal(p.ints[11] & 1, 1);
-  assert.equal(p.dynamicOffsets[42], 42 * 256);
+  assert.equal(p.dynamicOffsets[39], 39 * 256);
 });

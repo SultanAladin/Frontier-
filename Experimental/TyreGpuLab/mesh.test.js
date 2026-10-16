@@ -64,8 +64,8 @@ test("every graph colour is a matching: race-free in-place GPU writes", () => {
     }
     assert.equal(covered.size, constraints.length);
   }
-  assert.equal(m.edgeBatches.length, 15);
-  assert.equal(m.tetBatches.length, 26);
+  assert.equal(m.edgeBatches.length, 14);
+  assert.equal(m.tetBatches.length, 24);
 });
 test("reduced topology remains valid for mesh experiments", () => {
   const small = makeTyre(16, 3, 5);
@@ -83,4 +83,43 @@ test("invalid topology dimensions fail explicitly", () => {
     [64, 4, NaN],
   ])
     assert.throws(() => makeTyre(...args));
+});
+
+test("structured schedules reach the default vertex-valence lower bounds", () => {
+  for (const [constraints, batches] of [
+    [m.edges, m.edgeBatches],
+    [m.tets, m.tetBatches],
+  ]) {
+    const incident = new Uint32Array(m.rest.length);
+    for (const ids of constraints) for (const node of ids) incident[node]++;
+    assert.equal(batches.length, Math.max(...incident));
+  }
+});
+test("analytic colours remain race-free across periodic seams and small meshes", () => {
+  for (const dims of [
+    [8, 2, 3],
+    [10, 3, 5],
+    [12, 4, 7],
+    [16, 3, 5],
+  ]) {
+    const mesh = makeTyre(...dims);
+    for (const [constraints, batches] of [
+      [mesh.edges, mesh.edgeBatches],
+      [mesh.tets, mesh.tetBatches],
+    ]) {
+      const seen = new Set();
+      for (const batch of batches) {
+        const used = new Set();
+        for (const id of batch) {
+          assert(!seen.has(id));
+          seen.add(id);
+          for (const node of constraints[id]) {
+            assert(!used.has(node), `race on ${dims}, node ${node}`);
+            used.add(node);
+          }
+        }
+      }
+      assert.equal(seen.size, constraints.length);
+    }
+  }
 });

@@ -1,0 +1,3249 @@
+{
+  "date": "2026-10-16",
+  "baselineCommit": "3a88cac",
+  "optimizedSource": "r4 working tree in the commit containing this report",
+  "environment": "Chromium 131 / SwiftShader; software validation ONLY, not hardware GPU performance",
+  "method": "Sequential baseline then optimized, 80 warmup ticks, 32 asynchronous samples per variant; single run order, not statistical confidence bounds",
+  "qualification": "Same topology, material equations, coefficients, tick, sweeps, substeps and safety thresholds. Colour order changes finite-iteration residuals/contact reactions and barrier activation; especially moving cases are NOT equal-trajectory timings. No calibrated load or hardware speedup claim.",
+  "cases": [
+    {
+      "name": "Corotated flat belt, 38 mm, stationary",
+      "capture": {
+        "timestamp": "2026-10-16T20:48:54.232Z",
+        "environment": "Browser-reported adapter; software timings are validation only, not hardware GPU benchmarks",
+        "warmupTicks": 80,
+        "sampleCount": 32,
+        "results": [
+          {
+            "variant": "baseline",
+            "adapter": {
+              "description": "",
+              "vendor": "google",
+              "device": "",
+              "architecture": "swiftshader",
+              "software": true,
+              "validation": true
+            },
+            "mesh": {
+              "nodes": 1792,
+              "edges": 9856,
+              "tets": 6912
+            },
+            "parameters": {
+              "model": 1,
+              "compression": 38,
+              "speed": 0,
+              "stiffness": 1,
+              "friction": 0.8,
+              "iterations": 4,
+              "obstacle": 0,
+              "paused": false,
+              "view": 0,
+              "wire": false,
+              "ghost": false,
+              "adaptive": false
+            },
+            "samples": [
+              {
+                "tick": 80,
+                "gpuMs": 114.316324,
+                "cpuEncodeMs": 0.30000000074505806,
+                "minJ": 0.6625149250030518,
+                "normal": 2747.2607421875,
+                "safe": 1,
+                "barrierActive": false,
+                "actualBeltSpeed": 0,
+                "maxPenetration": 0
+              },
+              {
+                "tick": 82,
+                "gpuMs": 132.029343,
+                "cpuEncodeMs": 0.5,
+                "minJ": 0.6625152230262756,
+                "normal": 2747.2607421875,
+                "safe": 1,
+                "barrierActive": false,
+                "actualBeltSpeed": 0,
+                "maxPenetration": 0
+              },
+              {
+                "tick": 84,
+                "gpuMs": 127.606342,
+                "cpuEncodeMs": 0.40000000037252903,
+                "minJ": 0.6625149846076965,
+                "normal": 2747.2607421875,
+                "safe": 1,
+                "barrierActive": false,
+                "actualBeltSpeed": 0,
+                "maxPenetration": 0
+              },
+              {
+                "tick": 86,
+                "gpuMs": 121.965892,
+                "cpuEncodeMs": 0.39999999944120646,
+                "minJ": 0.6625151038169861,
+                "normal": 2747.2607421875,
+                "safe": 1,
+                "barrierActive": false,
+                "actualBeltSpeed": 0,
+                "maxPenetration": 0
+              },
+              {
+                "tick": 88,
+                "gpuMs": 131.066296,
+                "cpuEncodeMs": 0.5,
+                "minJ": 0.6625151038169861,
+                "normal": 2747.2607421875,
+                "safe": 1,
+                "barrierActive": false,
+                "actualBeltSpeed": 0,
+                "maxPenetration": 0
+              },
+              {
+                "tick": 90,
+                "gpuMs": 121.904131,
+                "cpuEncodeMs": 0.40000000037252903,
+                "minJ": 0.6625152230262756,
+                "normal": 2747.2607421875,
+                "safe": 1,
+                "barrierActive": false,
+                "actualBeltSpeed": 0,
+                "maxPenetration": 0
+              },
+              {
+                "tick": 92,
+                "gpuMs": 127.742544,
+                "cpuEncodeMs": 0.2999999998137355,
+                "minJ": 0.6625149250030518,
+                "normal": 2747.2607421875,
+                "safe": 1,
+                "barrierActive": false,
+                "actualBeltSpeed": 0,
+                "maxPenetration": 0
+              },
+              {
+                "tick": 94,
+                "gpuMs": 125.519872,
+                "cpuEncodeMs": 0.40000000037252903,
+                "minJ": 0.6625150442123413,
+                "normal": 2747.2607421875,
+                "safe": 1,
+                "barrierActive": false,
+                "actualBeltSpeed": 0,
+                "maxPenetration": 0
+              },
+              {
+                "tick": 96,
+                "gpuMs": 122.916827,
+                "cpuEncodeMs": 0.30000000074505806,
+                "minJ": 0.6625151038169861,
+                "normal": 2747.2607421875,
+                "safe": 1,
+                "barrierActive": false,
+                "actualBeltSpeed": 0,
+                "maxPenetration": 0
+              },
+              {
+                "tick": 98,
+                "gpuMs": 129.537778,
+                "cpuEncodeMs": 0.40000000037252903,
+                "minJ": 0.6625152230262756,
+                "normal": 2747.2607421875,
+                "safe": 1,
+                "barrierActive": false,
+                "actualBeltSpeed": 0,
+                "maxPenetration": 0
+              },
+              {
+                "tick": 100,
+                "gpuMs": 120.830953,
+                "cpuEncodeMs": 0.40000000037252903,
+                "minJ": 0.6625151634216309,
+                "normal": 2747.2607421875,
+                "safe": 1,
+                "barrierActive": false,
+                "actualBeltSpeed": 0,
+                "maxPenetration": 0
+              },
+              {
+                "tick": 102,
+                "gpuMs": 126.259677,
+                "cpuEncodeMs": 0.40000000037252903,
+                "minJ": 0.6625149846076965,
+                "normal": 2747.2607421875,
+                "safe": 1,
+                "barrierActive": false,
+                "actualBeltSpeed": 0,
+                "maxPenetration": 0
+              },
+              {
+                "tick": 104,
+                "gpuMs": 120.20859,
+                "cpuEncodeMs": 0.2999999998137355,
+                "minJ": 0.6625150442123413,
+                "normal": 2747.2607421875,
+                "safe": 1,
+                "barrierActive": false,
+                "actualBeltSpeed": 0,
+                "maxPenetration": 0
+              },
+              {
+                "tick": 106,
+                "gpuMs": 125.007586,
+                "cpuEncodeMs": 0.20000000018626451,
+                "minJ": 0.6625149250030518,
+                "normal": 2747.2607421875,
+                "safe": 1,
+                "barrierActive": false,
+                "actualBeltSpeed": 0,
+                "maxPenetration": 0
+              },
+              {
+                "tick": 108,
+                "gpuMs": 116.866625,
+                "cpuEncodeMs": 0.2999999998137355,
+                "minJ": 0.6625152230262756,
+                "normal": 2747.2607421875,
+                "safe": 1,
+                "barrierActive": false,
+                "actualBeltSpeed": 0,
+                "maxPenetration": 0
+              },
+              {
+                "tick": 110,
+                "gpuMs": 116.200493,
+                "cpuEncodeMs": 0.40000000037252903,
+                "minJ": 0.6625151038169861,
+                "normal": 2747.2607421875,
+                "safe": 1,
+                "barrierActive": false,
+                "actualBeltSpeed": 0,
+                "maxPenetration": 0
+              },
+              {
+                "tick": 112,
+                "gpuMs": 127.058677,
+                "cpuEncodeMs": 0.5,
+                "minJ": 0.6625151634216309,
+                "normal": 2747.2607421875,
+                "safe": 1,
+                "barrierActive": false,
+                "actualBeltSpeed": 0,
+                "maxPenetration": 0
+              },
+              {
+                "tick": 114,
+                "gpuMs": 128.978571,
+                "cpuEncodeMs": 0.2999999998137355,
+                "minJ": 0.6625149846076965,
+                "normal": 2747.2607421875,
+                "safe": 1,
+                "barrierActive": false,
+                "actualBeltSpeed": 0,
+                "maxPenetration": 0
+              },
+              {
+                "tick": 116,
+                "gpuMs": 130.413495,
+                "cpuEncodeMs": 0.2999999998137355,
+                "minJ": 0.6625152826309204,
+                "normal": 2747.2607421875,
+                "safe": 1,
+                "barrierActive": false,
+                "actualBeltSpeed": 0,
+                "maxPenetration": 0
+              },
+              {
+                "tick": 118,
+                "gpuMs": 115.21231,
+                "cpuEncodeMs": 0.30000000074505806,
+                "minJ": 0.6625152826309204,
+                "normal": 2747.2607421875,
+                "safe": 1,
+                "barrierActive": false,
+                "actualBeltSpeed": 0,
+                "maxPenetration": 0
+              },
+              {
+                "tick": 120,
+                "gpuMs": 125.407596,
+                "cpuEncodeMs": 0.30000000074505806,
+                "minJ": 0.662514865398407,
+                "normal": 2747.2607421875,
+                "safe": 1,
+                "barrierActive": false,
+                "actualBeltSpeed": 0,
+                "maxPenetration": 0
+              },
+              {
+                "tick": 122,
+                "gpuMs": 122.799621,
+                "cpuEncodeMs": 0.40000000037252903,
+                "minJ": 0.6625150442123413,
+                "normal": 2747.2607421875,
+                "safe": 1,
+                "barrierActive": false,
+                "actualBeltSpeed": 0,
+                "maxPenetration": 0
+              },
+              {
+                "tick": 124,
+                "gpuMs": 119.493132,
+                "cpuEncodeMs": 0.40000000037252903,
+                "minJ": 0.6625151038169861,
+                "normal": 2747.2607421875,
+                "safe": 1,
+                "barrierActive": false,
+                "actualBeltSpeed": 0,
+                "maxPenetration": 0
+              },
+              {
+                "tick": 126,
+                "gpuMs": 117.222546,
+                "cpuEncodeMs": 0.7999999998137355,
+                "minJ": 0.6625150442123413,
+                "normal": 2747.2607421875,
+                "safe": 1,
+                "barrierActive": false,
+                "actualBeltSpeed": 0,
+                "maxPenetration": 0
+              },
+              {
+                "tick": 128,
+                "gpuMs": 130.293111,
+                "cpuEncodeMs": 0.5,
+                "minJ": 0.662514865398407,
+                "normal": 2747.2607421875,
+                "safe": 1,
+                "barrierActive": false,
+                "actualBeltSpeed": 0,
+                "maxPenetration": 0
+              },
+              {
+                "tick": 130,
+                "gpuMs": 125.955078,
+                "cpuEncodeMs": 0.30000000074505806,
+                "minJ": 0.6625149250030518,
+                "normal": 2747.2607421875,
+                "safe": 1,
+                "barrierActive": false,
+                "actualBeltSpeed": 0,
+                "maxPenetration": 0
+              },
+              {
+                "tick": 132,
+                "gpuMs": 127.280228,
+                "cpuEncodeMs": 0.40000000037252903,
+                "minJ": 0.6625152230262756,
+                "normal": 2747.2607421875,
+                "safe": 1,
+                "barrierActive": false,
+                "actualBeltSpeed": 0,
+                "maxPenetration": 0
+              },
+              {
+                "tick": 134,
+                "gpuMs": 128.107594,
+                "cpuEncodeMs": 0.40000000037252903,
+                "minJ": 0.6625151634216309,
+                "normal": 2747.2607421875,
+                "safe": 1,
+                "barrierActive": false,
+                "actualBeltSpeed": 0,
+                "maxPenetration": 0
+              },
+              {
+                "tick": 136,
+                "gpuMs": 120.947642,
+                "cpuEncodeMs": 0.40000000037252903,
+                "minJ": 0.662514865398407,
+                "normal": 2747.2607421875,
+                "safe": 1,
+                "barrierActive": false,
+                "actualBeltSpeed": 0,
+                "maxPenetration": 0
+              },
+              {
+                "tick": 138,
+                "gpuMs": 126.40701,
+                "cpuEncodeMs": 0.5,
+                "minJ": 0.6625148057937622,
+                "normal": 2747.2607421875,
+                "safe": 1,
+                "barrierActive": false,
+                "actualBeltSpeed": 0,
+                "maxPenetration": 0
+              },
+              {
+                "tick": 140,
+                "gpuMs": 119.761436,
+                "cpuEncodeMs": 0.39999999944120646,
+                "minJ": 0.6625151634216309,
+                "normal": 2747.2607421875,
+                "safe": 1,
+                "barrierActive": false,
+                "actualBeltSpeed": 0,
+                "maxPenetration": 0
+              },
+              {
+                "tick": 142,
+                "gpuMs": 127.659947,
+                "cpuEncodeMs": 0.40000000037252903,
+                "minJ": 0.6625152230262756,
+                "normal": 2747.2607421875,
+                "safe": 1,
+                "barrierActive": false,
+                "actualBeltSpeed": 0,
+                "maxPenetration": 0
+              }
+            ],
+            "elapsedMs": 14287.799999999814,
+            "advancedTicks": 64,
+            "diagnostics": {
+              "activeSubsteps": 4,
+              "cpuEncodeMs": 0.40000000037252903,
+              "inFlight": 2,
+              "uploadBytes": 43008
+            },
+            "gpuMs": {
+              "p50": 125.407596,
+              "p95": 130.413495,
+              "p99": 131.066296
+            },
+            "cpuEncodeMs": {
+              "p50": 0.40000000037252903,
+              "p95": 0.5
+            }
+          },
+          {
+            "variant": "optimized",
+            "adapter": {
+              "description": "",
+              "vendor": "google",
+              "device": "",
+              "architecture": "swiftshader",
+              "software": true,
+              "validation": true
+            },
+            "mesh": {
+              "nodes": 1792,
+              "edges": 9856,
+              "tets": 6912
+            },
+            "parameters": {
+              "model": 1,
+              "compression": 38,
+              "speed": 0,
+              "stiffness": 1,
+              "friction": 0.8,
+              "iterations": 4,
+              "obstacle": 0,
+              "paused": false,
+              "view": 0,
+              "wire": false,
+              "ghost": false,
+              "adaptive": false
+            },
+            "samples": [
+              {
+                "tick": 80,
+                "gpuMs": 119.441666,
+                "cpuEncodeMs": 0.2999999998137355,
+                "minJ": 0.7359786033630371,
+                "normal": 3147.53271484375,
+                "safe": 1,
+                "barrierActive": false,
+                "actualBeltSpeed": 0,
+                "maxPenetration": 0
+              },
+              {
+                "tick": 82,
+                "gpuMs": 114.601602,
+                "cpuEncodeMs": 0.39999999944120646,
+                "minJ": 0.7359787225723267,
+                "normal": 3147.533203125,
+                "safe": 1,
+                "barrierActive": false,
+                "actualBeltSpeed": 0,
+                "maxPenetration": 0
+              },
+              {
+                "tick": 84,
+                "gpuMs": 117.73923,
+                "cpuEncodeMs": 0.40000000037252903,
+                "minJ": 0.7359787225723267,
+                "normal": 3147.53271484375,
+                "safe": 1,
+                "barrierActive": false,
+                "actualBeltSpeed": 0,
+                "maxPenetration": 0
+              },
+              {
+                "tick": 86,
+                "gpuMs": 116.895105,
+                "cpuEncodeMs": 0.39999999944120646,
+                "minJ": 0.7359786033630371,
+                "normal": 3147.53271484375,
+                "safe": 1,
+                "barrierActive": false,
+                "actualBeltSpeed": 0,
+                "maxPenetration": 0
+              },
+              {
+                "tick": 88,
+                "gpuMs": 115.657915,
+                "cpuEncodeMs": 0.40000000037252903,
+                "minJ": 0.7359787225723267,
+                "normal": 3147.532958984375,
+                "safe": 1,
+                "barrierActive": false,
+                "actualBeltSpeed": 0,
+                "maxPenetration": 0
+              },
+              {
+                "tick": 90,
+                "gpuMs": 115.890026,
+                "cpuEncodeMs": 0.40000000037252903,
+                "minJ": 0.7359787225723267,
+                "normal": 3147.532958984375,
+                "safe": 1,
+                "barrierActive": false,
+                "actualBeltSpeed": 0,
+                "maxPenetration": 0
+              },
+              {
+                "tick": 92,
+                "gpuMs": 109.845934,
+                "cpuEncodeMs": 0.2999999998137355,
+                "minJ": 0.7359787225723267,
+                "normal": 3147.533203125,
+                "safe": 1,
+                "barrierActive": false,
+                "actualBeltSpeed": 0,
+                "maxPenetration": 0
+              },
+              {
+                "tick": 94,
+                "gpuMs": 120.302801,
+                "cpuEncodeMs": 0.30000000074505806,
+                "minJ": 0.7359787225723267,
+                "normal": 3147.53271484375,
+                "safe": 1,
+                "barrierActive": false,
+                "actualBeltSpeed": 0,
+                "maxPenetration": 0
+              },
+              {
+                "tick": 96,
+                "gpuMs": 123.217857,
+                "cpuEncodeMs": 0.39999999944120646,
+                "minJ": 0.7359787225723267,
+                "normal": 3147.53271484375,
+                "safe": 1,
+                "barrierActive": false,
+                "actualBeltSpeed": 0,
+                "maxPenetration": 0
+              },
+              {
+                "tick": 98,
+                "gpuMs": 119.963234,
+                "cpuEncodeMs": 0.2999999998137355,
+                "minJ": 0.7359786033630371,
+                "normal": 3147.533203125,
+                "safe": 1,
+                "barrierActive": false,
+                "actualBeltSpeed": 0,
+                "maxPenetration": 0
+              },
+              {
+                "tick": 100,
+                "gpuMs": 119.138963,
+                "cpuEncodeMs": 0.40000000037252903,
+                "minJ": 0.7359786033630371,
+                "normal": 3147.53271484375,
+                "safe": 1,
+                "barrierActive": false,
+                "actualBeltSpeed": 0,
+                "maxPenetration": 0
+              },
+              {
+                "tick": 102,
+                "gpuMs": 122.892644,
+                "cpuEncodeMs": 0.2999999998137355,
+                "minJ": 0.7359786033630371,
+                "normal": 3147.53271484375,
+                "safe": 1,
+                "barrierActive": false,
+                "actualBeltSpeed": 0,
+                "maxPenetration": 0
+              },
+              {
+                "tick": 104,
+                "gpuMs": 116.418165,
+                "cpuEncodeMs": 0.40000000037252903,
+                "minJ": 0.7359786033630371,
+                "normal": 3147.53271484375,
+                "safe": 1,
+                "barrierActive": false,
+                "actualBeltSpeed": 0,
+                "maxPenetration": 0
+              },
+              {
+                "tick": 106,
+                "gpuMs": 111.833727,
+                "cpuEncodeMs": 0.5,
+                "minJ": 0.7359786033630371,
+                "normal": 3147.53271484375,
+                "safe": 1,
+                "barrierActive": false,
+                "actualBeltSpeed": 0,
+                "maxPenetration": 0
+              },
+              {
+                "tick": 108,
+                "gpuMs": 117.651365,
+                "cpuEncodeMs": 0.39999999944120646,
+                "minJ": 0.7359787225723267,
+                "normal": 3147.532958984375,
+                "safe": 1,
+                "barrierActive": false,
+                "actualBeltSpeed": 0,
+                "maxPenetration": 0
+              },
+              {
+                "tick": 110,
+                "gpuMs": 119.843212,
+                "cpuEncodeMs": 0.39999999944120646,
+                "minJ": 0.7359787225723267,
+                "normal": 3147.532958984375,
+                "safe": 1,
+                "barrierActive": false,
+                "actualBeltSpeed": 0,
+                "maxPenetration": 0
+              },
+              {
+                "tick": 112,
+                "gpuMs": 123.401052,
+                "cpuEncodeMs": 0.40000000037252903,
+                "minJ": 0.7359787225723267,
+                "normal": 3147.532958984375,
+                "safe": 1,
+                "barrierActive": false,
+                "actualBeltSpeed": 0,
+                "maxPenetration": 0
+              },
+              {
+                "tick": 114,
+                "gpuMs": 121.323125,
+                "cpuEncodeMs": 0.599999999627471,
+                "minJ": 0.7359786033630371,
+                "normal": 3147.53271484375,
+                "safe": 1,
+                "barrierActive": false,
+                "actualBeltSpeed": 0,
+                "maxPenetration": 0
+              },
+              {
+                "tick": 116,
+                "gpuMs": 122.11266,
+                "cpuEncodeMs": 0.6000000005587935,
+                "minJ": 0.7359787225723267,
+                "normal": 3147.53271484375,
+                "safe": 1,
+                "barrierActive": false,
+                "actualBeltSpeed": 0,
+                "maxPenetration": 0
+              },
+              {
+                "tick": 118,
+                "gpuMs": 121.136638,
+                "cpuEncodeMs": 0.2999999998137355,
+                "minJ": 0.7359787225723267,
+                "normal": 3147.53271484375,
+                "safe": 1,
+                "barrierActive": false,
+                "actualBeltSpeed": 0,
+                "maxPenetration": 0
+              },
+              {
+                "tick": 120,
+                "gpuMs": 120.041217,
+                "cpuEncodeMs": 0.2999999998137355,
+                "minJ": 0.7359787821769714,
+                "normal": 3147.53271484375,
+                "safe": 1,
+                "barrierActive": false,
+                "actualBeltSpeed": 0,
+                "maxPenetration": 0
+              },
+              {
+                "tick": 122,
+                "gpuMs": 111.294405,
+                "cpuEncodeMs": 0.30000000074505806,
+                "minJ": 0.7359787225723267,
+                "normal": 3147.53271484375,
+                "safe": 1,
+                "barrierActive": false,
+                "actualBeltSpeed": 0,
+                "maxPenetration": 0
+              },
+              {
+                "tick": 124,
+                "gpuMs": 115.700152,
+                "cpuEncodeMs": 0.2999999998137355,
+                "minJ": 0.7359787225723267,
+                "normal": 3147.53271484375,
+                "safe": 1,
+                "barrierActive": false,
+                "actualBeltSpeed": 0,
+                "maxPenetration": 0
+              },
+              {
+                "tick": 126,
+                "gpuMs": 112.237332,
+                "cpuEncodeMs": 0.5,
+                "minJ": 0.7359786033630371,
+                "normal": 3147.532958984375,
+                "safe": 1,
+                "barrierActive": false,
+                "actualBeltSpeed": 0,
+                "maxPenetration": 0
+              },
+              {
+                "tick": 128,
+                "gpuMs": 117.914053,
+                "cpuEncodeMs": 0.40000000037252903,
+                "minJ": 0.7359787225723267,
+                "normal": 3147.53271484375,
+                "safe": 1,
+                "barrierActive": false,
+                "actualBeltSpeed": 0,
+                "maxPenetration": 0
+              },
+              {
+                "tick": 130,
+                "gpuMs": 120.439001,
+                "cpuEncodeMs": 0.2999999998137355,
+                "minJ": 0.7359785437583923,
+                "normal": 3147.53271484375,
+                "safe": 1,
+                "barrierActive": false,
+                "actualBeltSpeed": 0,
+                "maxPenetration": 0
+              },
+              {
+                "tick": 132,
+                "gpuMs": 115.592806,
+                "cpuEncodeMs": 0.5,
+                "minJ": 0.7359786033630371,
+                "normal": 3147.53271484375,
+                "safe": 1,
+                "barrierActive": false,
+                "actualBeltSpeed": 0,
+                "maxPenetration": 0
+              },
+              {
+                "tick": 134,
+                "gpuMs": 124.373797,
+                "cpuEncodeMs": 0.5,
+                "minJ": 0.7359786033630371,
+                "normal": 3147.532958984375,
+                "safe": 1,
+                "barrierActive": false,
+                "actualBeltSpeed": 0,
+                "maxPenetration": 0
+              },
+              {
+                "tick": 136,
+                "gpuMs": 122.140455,
+                "cpuEncodeMs": 0.5,
+                "minJ": 0.7359786033630371,
+                "normal": 3147.533203125,
+                "safe": 1,
+                "barrierActive": false,
+                "actualBeltSpeed": 0,
+                "maxPenetration": 0
+              },
+              {
+                "tick": 138,
+                "gpuMs": 118.283937,
+                "cpuEncodeMs": 0.2999999998137355,
+                "minJ": 0.7359787821769714,
+                "normal": 3147.532958984375,
+                "safe": 1,
+                "barrierActive": false,
+                "actualBeltSpeed": 0,
+                "maxPenetration": 0
+              },
+              {
+                "tick": 140,
+                "gpuMs": 119.937833,
+                "cpuEncodeMs": 0.40000000037252903,
+                "minJ": 0.7359787225723267,
+                "normal": 3147.533203125,
+                "safe": 1,
+                "barrierActive": false,
+                "actualBeltSpeed": 0,
+                "maxPenetration": 0
+              },
+              {
+                "tick": 142,
+                "gpuMs": 122.980555,
+                "cpuEncodeMs": 0.20000000018626451,
+                "minJ": 0.7359787225723267,
+                "normal": 3147.53271484375,
+                "safe": 1,
+                "barrierActive": false,
+                "actualBeltSpeed": 0,
+                "maxPenetration": 0
+              }
+            ],
+            "elapsedMs": 14113.899999999441,
+            "advancedTicks": 64,
+            "diagnostics": {
+              "activeSubsteps": 4,
+              "cpuEncodeMs": 0.20000000018626451,
+              "inFlight": 2,
+              "uploadBytes": 39936
+            },
+            "gpuMs": {
+              "p50": 119.138963,
+              "p95": 123.217857,
+              "p99": 123.401052
+            },
+            "cpuEncodeMs": {
+              "p50": 0.39999999944120646,
+              "p95": 0.5
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "Corotated parked 45 mm cleat, 38 mm compression",
+      "capture": {
+        "timestamp": "2026-10-16T20:45:02.734Z",
+        "environment": "Browser-reported adapter; software timings are validation only, not hardware GPU benchmarks",
+        "warmupTicks": 80,
+        "sampleCount": 32,
+        "results": [
+          {
+            "variant": "baseline",
+            "adapter": {
+              "description": "",
+              "vendor": "google",
+              "device": "",
+              "architecture": "swiftshader",
+              "software": true,
+              "validation": true
+            },
+            "mesh": {
+              "nodes": 1792,
+              "edges": 9856,
+              "tets": 6912
+            },
+            "parameters": {
+              "model": 1,
+              "compression": 38,
+              "speed": 0,
+              "stiffness": 1,
+              "friction": 0.8,
+              "iterations": 4,
+              "obstacle": 0.045,
+              "paused": false,
+              "view": 0,
+              "wire": false,
+              "ghost": false,
+              "adaptive": false
+            },
+            "samples": [
+              {
+                "tick": 80,
+                "gpuMs": 177.747824,
+                "cpuEncodeMs": 0.39999999944120646,
+                "minJ": 0.3500153124332428,
+                "normal": 4140.66455078125,
+                "safe": 1
+              },
+              {
+                "tick": 82,
+                "gpuMs": 167.526479,
+                "cpuEncodeMs": 0.40000000037252903,
+                "minJ": 0.3500153720378876,
+                "normal": 4140.6591796875,
+                "safe": 1
+              },
+              {
+                "tick": 84,
+                "gpuMs": 178.122913,
+                "cpuEncodeMs": 0.30000000074505806,
+                "minJ": 0.35001519322395325,
+                "normal": 4140.6533203125,
+                "safe": 1
+              },
+              {
+                "tick": 86,
+                "gpuMs": 174.317186,
+                "cpuEncodeMs": 0.39999999944120646,
+                "minJ": 0.35001516342163086,
+                "normal": 4140.64697265625,
+                "safe": 1
+              },
+              {
+                "tick": 88,
+                "gpuMs": 171.804367,
+                "cpuEncodeMs": 0.40000000037252903,
+                "minJ": 0.35001522302627563,
+                "normal": 4140.6416015625,
+                "safe": 1
+              },
+              {
+                "tick": 90,
+                "gpuMs": 169.791818,
+                "cpuEncodeMs": 0.2999999998137355,
+                "minJ": 0.35001513361930847,
+                "normal": 4140.6357421875,
+                "safe": 1
+              },
+              {
+                "tick": 92,
+                "gpuMs": 179.001031,
+                "cpuEncodeMs": 0.2999999998137355,
+                "minJ": 0.3500150442123413,
+                "normal": 4140.6298828125,
+                "safe": 1
+              },
+              {
+                "tick": 94,
+                "gpuMs": 170.482701,
+                "cpuEncodeMs": 0.5,
+                "minJ": 0.35001513361930847,
+                "normal": 4140.625,
+                "safe": 1
+              },
+              {
+                "tick": 96,
+                "gpuMs": 185.986688,
+                "cpuEncodeMs": 0.39999999944120646,
+                "minJ": 0.3500151038169861,
+                "normal": 4140.61962890625,
+                "safe": 1
+              },
+              {
+                "tick": 98,
+                "gpuMs": 177.186463,
+                "cpuEncodeMs": 0.2999999998137355,
+                "minJ": 0.3500150442123413,
+                "normal": 4140.61474609375,
+                "safe": 1
+              },
+              {
+                "tick": 100,
+                "gpuMs": 174.918983,
+                "cpuEncodeMs": 0.5,
+                "minJ": 0.3500150740146637,
+                "normal": 4140.609375,
+                "safe": 1
+              },
+              {
+                "tick": 102,
+                "gpuMs": 199.75922,
+                "cpuEncodeMs": 0.6000000005587935,
+                "minJ": 0.35001513361930847,
+                "normal": 4140.6044921875,
+                "safe": 1
+              },
+              {
+                "tick": 104,
+                "gpuMs": 174.334284,
+                "cpuEncodeMs": 0.5,
+                "minJ": 0.35001495480537415,
+                "normal": 4140.599609375,
+                "safe": 1
+              },
+              {
+                "tick": 106,
+                "gpuMs": 178.038631,
+                "cpuEncodeMs": 0.5,
+                "minJ": 0.3500150442123413,
+                "normal": 4140.5947265625,
+                "safe": 1
+              },
+              {
+                "tick": 108,
+                "gpuMs": 179.150667,
+                "cpuEncodeMs": 0.5,
+                "minJ": 0.3500150442123413,
+                "normal": 4140.5888671875,
+                "safe": 1
+              },
+              {
+                "tick": 110,
+                "gpuMs": 185.522828,
+                "cpuEncodeMs": 0.40000000037252903,
+                "minJ": 0.3500151038169861,
+                "normal": 4140.58447265625,
+                "safe": 1
+              },
+              {
+                "tick": 112,
+                "gpuMs": 179.505574,
+                "cpuEncodeMs": 0.39999999944120646,
+                "minJ": 0.35001489520072937,
+                "normal": 4140.57958984375,
+                "safe": 1
+              },
+              {
+                "tick": 114,
+                "gpuMs": 186.388661,
+                "cpuEncodeMs": 0.40000000037252903,
+                "minJ": 0.35001498460769653,
+                "normal": 4140.5751953125,
+                "safe": 1
+              },
+              {
+                "tick": 116,
+                "gpuMs": 186.069125,
+                "cpuEncodeMs": 0.39999999944120646,
+                "minJ": 0.3500150740146637,
+                "normal": 4140.5703125,
+                "safe": 1
+              },
+              {
+                "tick": 118,
+                "gpuMs": 193.527146,
+                "cpuEncodeMs": 0.39999999944120646,
+                "minJ": 0.3500150144100189,
+                "normal": 4140.56591796875,
+                "safe": 1
+              },
+              {
+                "tick": 120,
+                "gpuMs": 179.304675,
+                "cpuEncodeMs": 0.40000000037252903,
+                "minJ": 0.35001495480537415,
+                "normal": 4140.5615234375,
+                "safe": 1
+              },
+              {
+                "tick": 122,
+                "gpuMs": 177.056864,
+                "cpuEncodeMs": 0.40000000037252903,
+                "minJ": 0.35001495480537415,
+                "normal": 4140.55712890625,
+                "safe": 1
+              },
+              {
+                "tick": 124,
+                "gpuMs": 180.874954,
+                "cpuEncodeMs": 0.40000000037252903,
+                "minJ": 0.350014865398407,
+                "normal": 4140.55224609375,
+                "safe": 1
+              },
+              {
+                "tick": 126,
+                "gpuMs": 179.660593,
+                "cpuEncodeMs": 0.5,
+                "minJ": 0.35001492500305176,
+                "normal": 4140.5478515625,
+                "safe": 1
+              },
+              {
+                "tick": 128,
+                "gpuMs": 181.421334,
+                "cpuEncodeMs": 0.40000000037252903,
+                "minJ": 0.350014865398407,
+                "normal": 4140.54345703125,
+                "safe": 1
+              },
+              {
+                "tick": 130,
+                "gpuMs": 177.942402,
+                "cpuEncodeMs": 0.40000000037252903,
+                "minJ": 0.35001489520072937,
+                "normal": 4140.5390625,
+                "safe": 1
+              },
+              {
+                "tick": 132,
+                "gpuMs": 180.488783,
+                "cpuEncodeMs": 0.40000000037252903,
+                "minJ": 0.35001489520072937,
+                "normal": 4140.53369140625,
+                "safe": 1
+              },
+              {
+                "tick": 134,
+                "gpuMs": 176.557252,
+                "cpuEncodeMs": 0.2999999998137355,
+                "minJ": 0.35001489520072937,
+                "normal": 4140.52880859375,
+                "safe": 1
+              },
+              {
+                "tick": 136,
+                "gpuMs": 180.486109,
+                "cpuEncodeMs": 0.2999999998137355,
+                "minJ": 0.3500148355960846,
+                "normal": 4140.5234375,
+                "safe": 1
+              },
+              {
+                "tick": 138,
+                "gpuMs": 177.750768,
+                "cpuEncodeMs": 0.20000000018626451,
+                "minJ": 0.3500148057937622,
+                "normal": 4140.51904296875,
+                "safe": 1
+              },
+              {
+                "tick": 140,
+                "gpuMs": 170.792126,
+                "cpuEncodeMs": 0.40000000037252903,
+                "minJ": 0.35001471638679504,
+                "normal": 4140.513671875,
+                "safe": 1
+              },
+              {
+                "tick": 142,
+                "gpuMs": 182.043041,
+                "cpuEncodeMs": 0.2999999998137355,
+                "minJ": 0.3500148057937622,
+                "normal": 4140.5078125,
+                "safe": 1
+              }
+            ],
+            "elapsedMs": 18195,
+            "advancedTicks": 64,
+            "diagnostics": {
+              "activeSubsteps": 4,
+              "cpuEncodeMs": 0.2999999998137355,
+              "inFlight": 2,
+              "uploadBytes": 43008
+            },
+            "gpuMs": {
+              "p50": 178.122913,
+              "p95": 186.388661,
+              "p99": 193.527146
+            },
+            "cpuEncodeMs": {
+              "p50": 0.40000000037252903,
+              "p95": 0.5
+            }
+          },
+          {
+            "variant": "optimized",
+            "adapter": {
+              "description": "",
+              "vendor": "google",
+              "device": "",
+              "architecture": "swiftshader",
+              "software": true,
+              "validation": true
+            },
+            "mesh": {
+              "nodes": 1792,
+              "edges": 9856,
+              "tets": 6912
+            },
+            "parameters": {
+              "model": 1,
+              "compression": 38,
+              "speed": 0,
+              "stiffness": 1,
+              "friction": 0.8,
+              "iterations": 4,
+              "obstacle": 0.045,
+              "paused": false,
+              "view": 0,
+              "wire": false,
+              "ghost": false,
+              "adaptive": false
+            },
+            "samples": [
+              {
+                "tick": 80,
+                "gpuMs": 123.558991,
+                "cpuEncodeMs": 0.39999999944120646,
+                "minJ": 0.42965227365493774,
+                "normal": 4679.85400390625,
+                "safe": 1
+              },
+              {
+                "tick": 82,
+                "gpuMs": 120.411539,
+                "cpuEncodeMs": 0.40000000037252903,
+                "minJ": 0.4296497702598572,
+                "normal": 4679.85546875,
+                "safe": 1
+              },
+              {
+                "tick": 84,
+                "gpuMs": 128.713667,
+                "cpuEncodeMs": 0.2999999998137355,
+                "minJ": 0.42964813113212585,
+                "normal": 4679.8564453125,
+                "safe": 1
+              },
+              {
+                "tick": 86,
+                "gpuMs": 118.31631,
+                "cpuEncodeMs": 0.39999999944120646,
+                "minJ": 0.4296463131904602,
+                "normal": 4679.857421875,
+                "safe": 1
+              },
+              {
+                "tick": 88,
+                "gpuMs": 116.769531,
+                "cpuEncodeMs": 0.30000000074505806,
+                "minJ": 0.42964479327201843,
+                "normal": 4679.859375,
+                "safe": 1
+              },
+              {
+                "tick": 90,
+                "gpuMs": 121.701213,
+                "cpuEncodeMs": 0.5,
+                "minJ": 0.4296432435512543,
+                "normal": 4679.8603515625,
+                "safe": 1
+              },
+              {
+                "tick": 92,
+                "gpuMs": 125.9936,
+                "cpuEncodeMs": 0.30000000074505806,
+                "minJ": 0.429641455411911,
+                "normal": 4679.8603515625,
+                "safe": 1
+              },
+              {
+                "tick": 94,
+                "gpuMs": 120.066729,
+                "cpuEncodeMs": 0.40000000037252903,
+                "minJ": 0.4296399652957916,
+                "normal": 4679.861328125,
+                "safe": 1
+              },
+              {
+                "tick": 96,
+                "gpuMs": 107.857892,
+                "cpuEncodeMs": 0.5,
+                "minJ": 0.42963820695877075,
+                "normal": 4679.8623046875,
+                "safe": 1
+              },
+              {
+                "tick": 98,
+                "gpuMs": 107.767551,
+                "cpuEncodeMs": 0.39999999944120646,
+                "minJ": 0.42963624000549316,
+                "normal": 4679.86376953125,
+                "safe": 1
+              },
+              {
+                "tick": 100,
+                "gpuMs": 113.333305,
+                "cpuEncodeMs": 0.40000000037252903,
+                "minJ": 0.4296344518661499,
+                "normal": 4679.8642578125,
+                "safe": 1
+              },
+              {
+                "tick": 102,
+                "gpuMs": 126.801496,
+                "cpuEncodeMs": 0.2999999998137355,
+                "minJ": 0.42963242530822754,
+                "normal": 4679.86572265625,
+                "safe": 1
+              },
+              {
+                "tick": 104,
+                "gpuMs": 123.062639,
+                "cpuEncodeMs": 0.40000000037252903,
+                "minJ": 0.4296306371688843,
+                "normal": 4679.86669921875,
+                "safe": 1
+              },
+              {
+                "tick": 106,
+                "gpuMs": 127.321664,
+                "cpuEncodeMs": 0.40000000037252903,
+                "minJ": 0.42962875962257385,
+                "normal": 4679.86767578125,
+                "safe": 1
+              },
+              {
+                "tick": 108,
+                "gpuMs": 125.954649,
+                "cpuEncodeMs": 0.2999999998137355,
+                "minJ": 0.429627001285553,
+                "normal": 4679.86865234375,
+                "safe": 1
+              },
+              {
+                "tick": 110,
+                "gpuMs": 126.973657,
+                "cpuEncodeMs": 0.5,
+                "minJ": 0.42962542176246643,
+                "normal": 4679.86962890625,
+                "safe": 1
+              },
+              {
+                "tick": 112,
+                "gpuMs": 127.448281,
+                "cpuEncodeMs": 0.39999999944120646,
+                "minJ": 0.42962324619293213,
+                "normal": 4679.87060546875,
+                "safe": 1
+              },
+              {
+                "tick": 114,
+                "gpuMs": 139.76129,
+                "cpuEncodeMs": 0.40000000037252903,
+                "minJ": 0.4296213686466217,
+                "normal": 4679.87109375,
+                "safe": 1
+              },
+              {
+                "tick": 116,
+                "gpuMs": 114.724634,
+                "cpuEncodeMs": 0.20000000018626451,
+                "minJ": 0.4296199381351471,
+                "normal": 4679.8720703125,
+                "safe": 1
+              },
+              {
+                "tick": 118,
+                "gpuMs": 120.261286,
+                "cpuEncodeMs": 0.40000000037252903,
+                "minJ": 0.42961862683296204,
+                "normal": 4679.87353515625,
+                "safe": 1
+              },
+              {
+                "tick": 120,
+                "gpuMs": 122.264653,
+                "cpuEncodeMs": 0.39999999944120646,
+                "minJ": 0.4296165704727173,
+                "normal": 4679.8740234375,
+                "safe": 1
+              },
+              {
+                "tick": 122,
+                "gpuMs": 115.776155,
+                "cpuEncodeMs": 0.2999999998137355,
+                "minJ": 0.4296146333217621,
+                "normal": 4679.87548828125,
+                "safe": 1
+              },
+              {
+                "tick": 124,
+                "gpuMs": 123.076908,
+                "cpuEncodeMs": 0.40000000037252903,
+                "minJ": 0.42961275577545166,
+                "normal": 4679.87646484375,
+                "safe": 1
+              },
+              {
+                "tick": 126,
+                "gpuMs": 126.679728,
+                "cpuEncodeMs": 0.39999999944120646,
+                "minJ": 0.429610937833786,
+                "normal": 4679.876953125,
+                "safe": 1
+              },
+              {
+                "tick": 128,
+                "gpuMs": 129.281185,
+                "cpuEncodeMs": 0.40000000037252903,
+                "minJ": 0.4296090006828308,
+                "normal": 4679.8779296875,
+                "safe": 1
+              },
+              {
+                "tick": 130,
+                "gpuMs": 116.000728,
+                "cpuEncodeMs": 0.40000000037252903,
+                "minJ": 0.42960724234580994,
+                "normal": 4679.87890625,
+                "safe": 1
+              },
+              {
+                "tick": 132,
+                "gpuMs": 120.414774,
+                "cpuEncodeMs": 0.40000000037252903,
+                "minJ": 0.42960575222969055,
+                "normal": 4679.8798828125,
+                "safe": 1
+              },
+              {
+                "tick": 134,
+                "gpuMs": 120.57875,
+                "cpuEncodeMs": 0.19999999925494194,
+                "minJ": 0.4296038746833801,
+                "normal": 4679.880859375,
+                "safe": 1
+              },
+              {
+                "tick": 136,
+                "gpuMs": 122.5052,
+                "cpuEncodeMs": 0.2999999998137355,
+                "minJ": 0.42960211634635925,
+                "normal": 4679.8818359375,
+                "safe": 1
+              },
+              {
+                "tick": 138,
+                "gpuMs": 130.14757,
+                "cpuEncodeMs": 0.40000000037252903,
+                "minJ": 0.429600328207016,
+                "normal": 4679.8828125,
+                "safe": 1
+              },
+              {
+                "tick": 140,
+                "gpuMs": 131.731121,
+                "cpuEncodeMs": 0.39999999944120646,
+                "minJ": 0.42959848046302795,
+                "normal": 4679.8837890625,
+                "safe": 1
+              },
+              {
+                "tick": 142,
+                "gpuMs": 125.386998,
+                "cpuEncodeMs": 0.40000000037252903,
+                "minJ": 0.42959684133529663,
+                "normal": 4679.884765625,
+                "safe": 1
+              }
+            ],
+            "elapsedMs": 14461.099999999627,
+            "advancedTicks": 64,
+            "diagnostics": {
+              "activeSubsteps": 4,
+              "cpuEncodeMs": 0.40000000037252903,
+              "inFlight": 2,
+              "uploadBytes": 39936
+            },
+            "gpuMs": {
+              "p50": 122.5052,
+              "p95": 130.14757,
+              "p99": 131.731121
+            },
+            "cpuEncodeMs": {
+              "p50": 0.39999999944120646,
+              "p95": 0.5
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "Edge carcass, 38 mm, stiffness 0.25, requested 5 m/s moving cleat",
+      "capture": {
+        "timestamp": "2026-10-16T20:50:08.412Z",
+        "environment": "Browser-reported adapter; software timings are validation only, not hardware GPU benchmarks",
+        "warmupTicks": 80,
+        "sampleCount": 32,
+        "results": [
+          {
+            "variant": "baseline",
+            "adapter": {
+              "description": "",
+              "vendor": "google",
+              "device": "",
+              "architecture": "swiftshader",
+              "software": true,
+              "validation": true
+            },
+            "mesh": {
+              "nodes": 1792,
+              "edges": 9856,
+              "tets": 6912
+            },
+            "parameters": {
+              "model": 0,
+              "compression": 38,
+              "speed": 5,
+              "stiffness": 0.25,
+              "friction": 0.8,
+              "iterations": 4,
+              "obstacle": 0.045,
+              "paused": false,
+              "view": 0,
+              "wire": false,
+              "ghost": false,
+              "adaptive": false
+            },
+            "samples": [
+              {
+                "tick": 80,
+                "gpuMs": 145.012356,
+                "cpuEncodeMs": 0.40000000037252903,
+                "minJ": 0.6842447519302368,
+                "normal": 2158.869140625,
+                "safe": 0.7873818874359131,
+                "barrierActive": false,
+                "actualBeltSpeed": 4.389073848724365,
+                "maxPenetration": 1.0660189331639989e-19
+              },
+              {
+                "tick": 82,
+                "gpuMs": 142.470446,
+                "cpuEncodeMs": 0.5,
+                "minJ": 0.7416946887969971,
+                "normal": 2041.199462890625,
+                "safe": 0.7678621411323547,
+                "barrierActive": false,
+                "actualBeltSpeed": 4.569999694824219,
+                "maxPenetration": 1.9254120867118196e-12
+              },
+              {
+                "tick": 84,
+                "gpuMs": 143.203351,
+                "cpuEncodeMs": 0.40000000037252903,
+                "minJ": 0.6507064700126648,
+                "normal": 2046.7164306640625,
+                "safe": 0.727474570274353,
+                "barrierActive": false,
+                "actualBeltSpeed": 4.53297233581543,
+                "maxPenetration": 4.865012215304887e-08
+              },
+              {
+                "tick": 86,
+                "gpuMs": 144.345752,
+                "cpuEncodeMs": 0.30000000074505806,
+                "minJ": 0.744744598865509,
+                "normal": 2636.932373046875,
+                "safe": 0.7006621360778809,
+                "barrierActive": false,
+                "actualBeltSpeed": 3.7778143882751465,
+                "maxPenetration": 5.088031684863381e-08
+              },
+              {
+                "tick": 88,
+                "gpuMs": 146.755365,
+                "cpuEncodeMs": 0.40000000037252903,
+                "minJ": 0.3782942593097687,
+                "normal": 3431.28759765625,
+                "safe": 0.5321873426437378,
+                "barrierActive": false,
+                "actualBeltSpeed": 3.3958277702331543,
+                "maxPenetration": 0
+              },
+              {
+                "tick": 90,
+                "gpuMs": 196.852438,
+                "cpuEncodeMs": 0.599999999627471,
+                "minJ": 0.35577458143234253,
+                "normal": 3398.09619140625,
+                "safe": 0.18926790356636047,
+                "barrierActive": true,
+                "actualBeltSpeed": 1.133184552192688,
+                "maxPenetration": 6.821751594543457e-05
+              },
+              {
+                "tick": 92,
+                "gpuMs": 199.261567,
+                "cpuEncodeMs": 0.40000000037252903,
+                "minJ": 0.3361656665802002,
+                "normal": 2676.885986328125,
+                "safe": 0.3925485908985138,
+                "barrierActive": true,
+                "actualBeltSpeed": 2.1592729091644287,
+                "maxPenetration": 0
+              },
+              {
+                "tick": 94,
+                "gpuMs": 195.877117,
+                "cpuEncodeMs": 0.39999999944120646,
+                "minJ": 0.3248150050640106,
+                "normal": 2518.8388671875,
+                "safe": 0.2503105700016022,
+                "barrierActive": true,
+                "actualBeltSpeed": 1.3545217514038086,
+                "maxPenetration": 3.255903720855713e-06
+              },
+              {
+                "tick": 96,
+                "gpuMs": 186.717136,
+                "cpuEncodeMs": 0.5,
+                "minJ": 0.29769495129585266,
+                "normal": 2451.29541015625,
+                "safe": 0.20257918536663055,
+                "barrierActive": true,
+                "actualBeltSpeed": 1.0478112697601318,
+                "maxPenetration": 6.875395774841309e-05
+              },
+              {
+                "tick": 98,
+                "gpuMs": 202.284645,
+                "cpuEncodeMs": 0.40000000037252903,
+                "minJ": 0.31365564465522766,
+                "normal": 2353.83251953125,
+                "safe": 0.20023690164089203,
+                "barrierActive": true,
+                "actualBeltSpeed": 1.0635218620300293,
+                "maxPenetration": 0.0003670714795589447
+              },
+              {
+                "tick": 100,
+                "gpuMs": 140.934293,
+                "cpuEncodeMs": 0.40000000037252903,
+                "minJ": 0.3812386393547058,
+                "normal": 2115.727294921875,
+                "safe": 0.2647934556007385,
+                "barrierActive": false,
+                "actualBeltSpeed": 1.381380558013916,
+                "maxPenetration": 0.00036527588963508606
+              },
+              {
+                "tick": 102,
+                "gpuMs": 142.742499,
+                "cpuEncodeMs": 0.5,
+                "minJ": 0.42679622769355774,
+                "normal": 1576.8607177734375,
+                "safe": 0.307487428188324,
+                "barrierActive": false,
+                "actualBeltSpeed": 1.5812033414840698,
+                "maxPenetration": 0.0009302720427513123
+              },
+              {
+                "tick": 104,
+                "gpuMs": 134.353967,
+                "cpuEncodeMs": 0.39999999944120646,
+                "minJ": 0.4269004762172699,
+                "normal": 875.7454223632812,
+                "safe": 0.3211112320423126,
+                "barrierActive": false,
+                "actualBeltSpeed": 1.6101837158203125,
+                "maxPenetration": 0
+              },
+              {
+                "tick": 106,
+                "gpuMs": 147.717555,
+                "cpuEncodeMs": 0.39999999944120646,
+                "minJ": 0.4310419261455536,
+                "normal": 788.300048828125,
+                "safe": 0.3255351483821869,
+                "barrierActive": false,
+                "actualBeltSpeed": 1.6322815418243408,
+                "maxPenetration": 0
+              },
+              {
+                "tick": 108,
+                "gpuMs": 140.542896,
+                "cpuEncodeMs": 0.40000000037252903,
+                "minJ": 0.4359014630317688,
+                "normal": 708.0919189453125,
+                "safe": 0.330509215593338,
+                "barrierActive": false,
+                "actualBeltSpeed": 1.6573655605316162,
+                "maxPenetration": 0
+              },
+              {
+                "tick": 110,
+                "gpuMs": 141.676849,
+                "cpuEncodeMs": 0.5,
+                "minJ": 0.44132381677627563,
+                "normal": 656.2891845703125,
+                "safe": 0.335774689912796,
+                "barrierActive": false,
+                "actualBeltSpeed": 1.6841071844100952,
+                "maxPenetration": 0
+              },
+              {
+                "tick": 112,
+                "gpuMs": 137.526313,
+                "cpuEncodeMs": 2.1000000005587935,
+                "minJ": 0.44748735427856445,
+                "normal": 625.4246215820312,
+                "safe": 0.34160974621772766,
+                "barrierActive": false,
+                "actualBeltSpeed": 1.7141175270080566,
+                "maxPenetration": 0
+              },
+              {
+                "tick": 114,
+                "gpuMs": 153.672374,
+                "cpuEncodeMs": 0.5,
+                "minJ": 0.4546756148338318,
+                "normal": 654.2632446289062,
+                "safe": 0.3485328257083893,
+                "barrierActive": false,
+                "actualBeltSpeed": 1.7499053478240967,
+                "maxPenetration": 0
+              },
+              {
+                "tick": 116,
+                "gpuMs": 138.565563,
+                "cpuEncodeMs": 0.599999999627471,
+                "minJ": 0.4631703495979309,
+                "normal": 661.8138427734375,
+                "safe": 0.35682979226112366,
+                "barrierActive": false,
+                "actualBeltSpeed": 1.7929315567016602,
+                "maxPenetration": 0
+              },
+              {
+                "tick": 118,
+                "gpuMs": 142.572467,
+                "cpuEncodeMs": 0.2999999998137355,
+                "minJ": 0.4732520580291748,
+                "normal": 656.1893920898438,
+                "safe": 0.36695170402526855,
+                "barrierActive": false,
+                "actualBeltSpeed": 1.845635175704956,
+                "maxPenetration": 0
+              },
+              {
+                "tick": 120,
+                "gpuMs": 148.345656,
+                "cpuEncodeMs": 0.6000000005587935,
+                "minJ": 0.48558083176612854,
+                "normal": 721.435302734375,
+                "safe": 0.37836429476737976,
+                "barrierActive": false,
+                "actualBeltSpeed": 1.9050014019012451,
+                "maxPenetration": 0
+              },
+              {
+                "tick": 122,
+                "gpuMs": 148.658071,
+                "cpuEncodeMs": 0.599999999627471,
+                "minJ": 0.500276505947113,
+                "normal": 775.6790771484375,
+                "safe": 0.39337804913520813,
+                "barrierActive": false,
+                "actualBeltSpeed": 1.9827067852020264,
+                "maxPenetration": 0
+              },
+              {
+                "tick": 124,
+                "gpuMs": 144.479246,
+                "cpuEncodeMs": 0.5,
+                "minJ": 0.5184276103973389,
+                "normal": 912.1962890625,
+                "safe": 0.41161561012268066,
+                "barrierActive": false,
+                "actualBeltSpeed": 2.0774924755096436,
+                "maxPenetration": 0
+              },
+              {
+                "tick": 126,
+                "gpuMs": 159.232437,
+                "cpuEncodeMs": 0.5,
+                "minJ": 0.5428147315979004,
+                "normal": 1019.2850952148438,
+                "safe": 0.4343528151512146,
+                "barrierActive": false,
+                "actualBeltSpeed": 2.197827100753784,
+                "maxPenetration": 0
+              },
+              {
+                "tick": 128,
+                "gpuMs": 141.826099,
+                "cpuEncodeMs": 0.5,
+                "minJ": 0.5723790526390076,
+                "normal": 1060.86572265625,
+                "safe": 0.4649578034877777,
+                "barrierActive": false,
+                "actualBeltSpeed": 2.3596572875976562,
+                "maxPenetration": 0
+              },
+              {
+                "tick": 130,
+                "gpuMs": 151.076988,
+                "cpuEncodeMs": 0.40000000037252903,
+                "minJ": 0.596662700176239,
+                "normal": 1087.0355224609375,
+                "safe": 0.5066803097724915,
+                "barrierActive": false,
+                "actualBeltSpeed": 2.58087158203125,
+                "maxPenetration": 0
+              },
+              {
+                "tick": 132,
+                "gpuMs": 141.430249,
+                "cpuEncodeMs": 0.2999999998137355,
+                "minJ": 0.617702305316925,
+                "normal": 1157.0494384765625,
+                "safe": 0.5638859272003174,
+                "barrierActive": false,
+                "actualBeltSpeed": 2.884368896484375,
+                "maxPenetration": 0
+              },
+              {
+                "tick": 134,
+                "gpuMs": 143.313239,
+                "cpuEncodeMs": 0.5,
+                "minJ": 0.6801247596740723,
+                "normal": 1329.9090576171875,
+                "safe": 0.6430956721305847,
+                "barrierActive": false,
+                "actualBeltSpeed": 3.3077073097229004,
+                "maxPenetration": 0
+              },
+              {
+                "tick": 136,
+                "gpuMs": 143.757473,
+                "cpuEncodeMs": 0.5,
+                "minJ": 0.7109295725822449,
+                "normal": 1498.067138671875,
+                "safe": 0.7418004870414734,
+                "barrierActive": false,
+                "actualBeltSpeed": 3.812985420227051,
+                "maxPenetration": 0
+              },
+              {
+                "tick": 138,
+                "gpuMs": 145.447863,
+                "cpuEncodeMs": 0.39999999944120646,
+                "minJ": 0.6709322333335876,
+                "normal": 1661.001708984375,
+                "safe": 0.6538273096084595,
+                "barrierActive": false,
+                "actualBeltSpeed": 3.8545918464660645,
+                "maxPenetration": 0
+              },
+              {
+                "tick": 140,
+                "gpuMs": 132.16725,
+                "cpuEncodeMs": 0.40000000037252903,
+                "minJ": 0.6907011270523071,
+                "normal": 1745.0780029296875,
+                "safe": 0.6831846237182617,
+                "barrierActive": false,
+                "actualBeltSpeed": 3.6605215072631836,
+                "maxPenetration": 0
+              },
+              {
+                "tick": 142,
+                "gpuMs": 134.016835,
+                "cpuEncodeMs": 0.39999999944120646,
+                "minJ": 0.7391961216926575,
+                "normal": 1760.33251953125,
+                "safe": 0.727608323097229,
+                "barrierActive": false,
+                "actualBeltSpeed": 4.348289966583252,
+                "maxPenetration": 0
+              }
+            ],
+            "elapsedMs": 16095.100000000559,
+            "advancedTicks": 64,
+            "diagnostics": {
+              "activeSubsteps": 4,
+              "cpuEncodeMs": 0.39999999944120646,
+              "inFlight": 2,
+              "uploadBytes": 43008
+            },
+            "gpuMs": {
+              "p50": 143.757473,
+              "p95": 196.852438,
+              "p99": 199.261567
+            },
+            "cpuEncodeMs": {
+              "p50": 0.40000000037252903,
+              "p95": 0.599999999627471
+            }
+          },
+          {
+            "variant": "optimized",
+            "adapter": {
+              "description": "",
+              "vendor": "google",
+              "device": "",
+              "architecture": "swiftshader",
+              "software": true,
+              "validation": true
+            },
+            "mesh": {
+              "nodes": 1792,
+              "edges": 9856,
+              "tets": 6912
+            },
+            "parameters": {
+              "model": 0,
+              "compression": 38,
+              "speed": 5,
+              "stiffness": 0.25,
+              "friction": 0.8,
+              "iterations": 4,
+              "obstacle": 0.045,
+              "paused": false,
+              "view": 0,
+              "wire": false,
+              "ghost": false,
+              "adaptive": false
+            },
+            "samples": [
+              {
+                "tick": 80,
+                "gpuMs": 135.592892,
+                "cpuEncodeMs": 0.2999999998137355,
+                "minJ": 0.5707247257232666,
+                "normal": 3061.60302734375,
+                "safe": 0.6479981541633606,
+                "barrierActive": false,
+                "actualBeltSpeed": 3.8402504920959473,
+                "maxPenetration": 7.053336048556957e-08
+              },
+              {
+                "tick": 82,
+                "gpuMs": 139.297436,
+                "cpuEncodeMs": 0.5,
+                "minJ": 0.5140174031257629,
+                "normal": 3088.86474609375,
+                "safe": 0.558629035949707,
+                "barrierActive": false,
+                "actualBeltSpeed": 3.187070369720459,
+                "maxPenetration": 5.587935447692871e-09
+              },
+              {
+                "tick": 84,
+                "gpuMs": 128.737991,
+                "cpuEncodeMs": 0.40000000037252903,
+                "minJ": 0.5502444505691528,
+                "normal": 2942.195556640625,
+                "safe": 0.4291626811027527,
+                "barrierActive": false,
+                "actualBeltSpeed": 2.3468894958496094,
+                "maxPenetration": 2.2921711206436157e-05
+              },
+              {
+                "tick": 86,
+                "gpuMs": 136.113599,
+                "cpuEncodeMs": 0.39999999944120646,
+                "minJ": 0.6518071889877319,
+                "normal": 2985.265869140625,
+                "safe": 0.5517725944519043,
+                "barrierActive": false,
+                "actualBeltSpeed": 2.799811363220215,
+                "maxPenetration": 4.9602240324020386e-06
+              },
+              {
+                "tick": 88,
+                "gpuMs": 126.972923,
+                "cpuEncodeMs": 0.2999999998137355,
+                "minJ": 0.6554012894630432,
+                "normal": 2763.05859375,
+                "safe": 0.5142450928688049,
+                "barrierActive": false,
+                "actualBeltSpeed": 2.8949670791625977,
+                "maxPenetration": 0.00018946826457977295
+              },
+              {
+                "tick": 90,
+                "gpuMs": 147.28163,
+                "cpuEncodeMs": 0.39999999944120646,
+                "minJ": 0.7435398101806641,
+                "normal": 1909.7838134765625,
+                "safe": 0.7166057229042053,
+                "barrierActive": false,
+                "actualBeltSpeed": 3.9751644134521484,
+                "maxPenetration": 0
+              },
+              {
+                "tick": 92,
+                "gpuMs": 137.706349,
+                "cpuEncodeMs": 0.40000000037252903,
+                "minJ": 0.7264333367347717,
+                "normal": 1983.0355224609375,
+                "safe": 0.6088849902153015,
+                "barrierActive": false,
+                "actualBeltSpeed": 3.5713934898376465,
+                "maxPenetration": 5.606337616370638e-10
+              },
+              {
+                "tick": 94,
+                "gpuMs": 136.817624,
+                "cpuEncodeMs": 0.40000000037252903,
+                "minJ": 0.7575976848602295,
+                "normal": 2008.323974609375,
+                "safe": 0.5393943190574646,
+                "barrierActive": false,
+                "actualBeltSpeed": 3.2231247425079346,
+                "maxPenetration": 1.0663983869671663e-14
+              },
+              {
+                "tick": 96,
+                "gpuMs": 128.090833,
+                "cpuEncodeMs": 0.5,
+                "minJ": 0.783858597278595,
+                "normal": 1987.21142578125,
+                "safe": 0.6605483293533325,
+                "barrierActive": false,
+                "actualBeltSpeed": 4.207352638244629,
+                "maxPenetration": 9.758198037986881e-23
+              },
+              {
+                "tick": 98,
+                "gpuMs": 134.851608,
+                "cpuEncodeMs": 0.39999999944120646,
+                "minJ": 0.7309381365776062,
+                "normal": 2026.4144287109375,
+                "safe": 0.5729519128799438,
+                "barrierActive": false,
+                "actualBeltSpeed": 4.126317501068115,
+                "maxPenetration": 2.9959192691194075e-32
+              },
+              {
+                "tick": 100,
+                "gpuMs": 133.295195,
+                "cpuEncodeMs": 0.6000000005587935,
+                "minJ": 0.7734482884407043,
+                "normal": 2060.87646484375,
+                "safe": 0.5517897605895996,
+                "barrierActive": false,
+                "actualBeltSpeed": 3.644227981567383,
+                "maxPenetration": 0
+              },
+              {
+                "tick": 102,
+                "gpuMs": 139.47621,
+                "cpuEncodeMs": 0.5,
+                "minJ": 0.7761930227279663,
+                "normal": 2062.755615234375,
+                "safe": 0.5417371392250061,
+                "barrierActive": false,
+                "actualBeltSpeed": 4.2205023765563965,
+                "maxPenetration": 0
+              },
+              {
+                "tick": 104,
+                "gpuMs": 140.314312,
+                "cpuEncodeMs": 0.5,
+                "minJ": 0.7408963441848755,
+                "normal": 2058.649169921875,
+                "safe": 0.7265748977661133,
+                "barrierActive": false,
+                "actualBeltSpeed": 3.9522242546081543,
+                "maxPenetration": 0
+              },
+              {
+                "tick": 106,
+                "gpuMs": 140.041823,
+                "cpuEncodeMs": 0.39999999944120646,
+                "minJ": 0.7763583660125732,
+                "normal": 2095.972412109375,
+                "safe": 0.7599007487297058,
+                "barrierActive": false,
+                "actualBeltSpeed": 4.289846420288086,
+                "maxPenetration": 0
+              },
+              {
+                "tick": 108,
+                "gpuMs": 137.053276,
+                "cpuEncodeMs": 0.5,
+                "minJ": 0.7636730670928955,
+                "normal": 2087.282958984375,
+                "safe": 0.6312638521194458,
+                "barrierActive": false,
+                "actualBeltSpeed": 3.879668712615967,
+                "maxPenetration": 0
+              },
+              {
+                "tick": 110,
+                "gpuMs": 139.787458,
+                "cpuEncodeMs": 0.39999999944120646,
+                "minJ": 0.7345134615898132,
+                "normal": 2097.877197265625,
+                "safe": 0.8091409206390381,
+                "barrierActive": false,
+                "actualBeltSpeed": 4.529085159301758,
+                "maxPenetration": 0
+              },
+              {
+                "tick": 112,
+                "gpuMs": 141.838832,
+                "cpuEncodeMs": 0.39999999944120646,
+                "minJ": 0.7584641575813293,
+                "normal": 2100.05712890625,
+                "safe": 0.5839310884475708,
+                "barrierActive": false,
+                "actualBeltSpeed": 3.8547921180725098,
+                "maxPenetration": 0
+              },
+              {
+                "tick": 114,
+                "gpuMs": 128.012615,
+                "cpuEncodeMs": 0.5,
+                "minJ": 0.7749744057655334,
+                "normal": 2108.42822265625,
+                "safe": 0.6772007346153259,
+                "barrierActive": false,
+                "actualBeltSpeed": 4.260431289672852,
+                "maxPenetration": 0
+              },
+              {
+                "tick": 116,
+                "gpuMs": 142.110783,
+                "cpuEncodeMs": 0.2999999998137355,
+                "minJ": 0.7413524985313416,
+                "normal": 2096.46923828125,
+                "safe": 0.569644033908844,
+                "barrierActive": false,
+                "actualBeltSpeed": 3.934274911880493,
+                "maxPenetration": 0
+              },
+              {
+                "tick": 118,
+                "gpuMs": 136.778952,
+                "cpuEncodeMs": 0.2999999998137355,
+                "minJ": 0.7433001399040222,
+                "normal": 2104.2802734375,
+                "safe": 0.6016321778297424,
+                "barrierActive": false,
+                "actualBeltSpeed": 3.9975035190582275,
+                "maxPenetration": 1.0861822883872065e-31
+              },
+              {
+                "tick": 120,
+                "gpuMs": 133.0557,
+                "cpuEncodeMs": 0.6000000005587935,
+                "minJ": 0.7676752805709839,
+                "normal": 2106.79248046875,
+                "safe": 0.5763877034187317,
+                "barrierActive": false,
+                "actualBeltSpeed": 4.123882293701172,
+                "maxPenetration": 4.673978881352054e-19
+              },
+              {
+                "tick": 122,
+                "gpuMs": 137.052815,
+                "cpuEncodeMs": 0.39999999944120646,
+                "minJ": 0.7615461349487305,
+                "normal": 2102.067626953125,
+                "safe": 0.5622000098228455,
+                "barrierActive": false,
+                "actualBeltSpeed": 3.9532203674316406,
+                "maxPenetration": 1.1350493878126144e-09
+              },
+              {
+                "tick": 124,
+                "gpuMs": 145.11163,
+                "cpuEncodeMs": 0.40000000037252903,
+                "minJ": 0.7367062568664551,
+                "normal": 2118.67724609375,
+                "safe": 0.5437412858009338,
+                "barrierActive": false,
+                "actualBeltSpeed": 4.076902389526367,
+                "maxPenetration": 1.5651517859538444e-09
+              },
+              {
+                "tick": 126,
+                "gpuMs": 135.340893,
+                "cpuEncodeMs": 0.5,
+                "minJ": 0.7084645628929138,
+                "normal": 2811.32421875,
+                "safe": 0.588710606098175,
+                "barrierActive": false,
+                "actualBeltSpeed": 3.9725303649902344,
+                "maxPenetration": 1.5543463405265356e-08
+              },
+              {
+                "tick": 128,
+                "gpuMs": 140.029783,
+                "cpuEncodeMs": 0.40000000037252903,
+                "minJ": 0.48249414563179016,
+                "normal": 3113.99462890625,
+                "safe": 0.7029743790626526,
+                "barrierActive": false,
+                "actualBeltSpeed": 4.0395636558532715,
+                "maxPenetration": 7.450580596923828e-09
+              },
+              {
+                "tick": 130,
+                "gpuMs": 134.99521,
+                "cpuEncodeMs": 0.599999999627471,
+                "minJ": 0.4957730770111084,
+                "normal": 2971.721923828125,
+                "safe": 0.4963141679763794,
+                "barrierActive": false,
+                "actualBeltSpeed": 3.4180476665496826,
+                "maxPenetration": 3.725290298461914e-09
+              },
+              {
+                "tick": 132,
+                "gpuMs": 137.703533,
+                "cpuEncodeMs": 0.40000000037252903,
+                "minJ": 0.6518656015396118,
+                "normal": 2980.61279296875,
+                "safe": 0.563807487487793,
+                "barrierActive": false,
+                "actualBeltSpeed": 3.1144917011260986,
+                "maxPenetration": 2.60770320892334e-06
+              },
+              {
+                "tick": 134,
+                "gpuMs": 133.244715,
+                "cpuEncodeMs": 0.40000000037252903,
+                "minJ": 0.5315784215927124,
+                "normal": 2921.734375,
+                "safe": 0.5595943331718445,
+                "barrierActive": false,
+                "actualBeltSpeed": 2.8975062370300293,
+                "maxPenetration": 2.679973840713501e-05
+              },
+              {
+                "tick": 136,
+                "gpuMs": 136.891478,
+                "cpuEncodeMs": 0.40000000037252903,
+                "minJ": 0.7753838896751404,
+                "normal": 1998.5767822265625,
+                "safe": 0.6829872727394104,
+                "barrierActive": false,
+                "actualBeltSpeed": 4.030416011810303,
+                "maxPenetration": 2.4130031306413002e-09
+              },
+              {
+                "tick": 138,
+                "gpuMs": 137.892254,
+                "cpuEncodeMs": 0.39999999944120646,
+                "minJ": 0.7321589589118958,
+                "normal": 1964.3704833984375,
+                "safe": 0.688084602355957,
+                "barrierActive": false,
+                "actualBeltSpeed": 3.951460838317871,
+                "maxPenetration": 2.6725897050994263e-09
+              },
+              {
+                "tick": 140,
+                "gpuMs": 130.435519,
+                "cpuEncodeMs": 0.5,
+                "minJ": 0.7545843720436096,
+                "normal": 2028.1494140625,
+                "safe": 0.7420535087585449,
+                "barrierActive": false,
+                "actualBeltSpeed": 4.1184210777282715,
+                "maxPenetration": 9.471891587037318e-13
+              },
+              {
+                "tick": 142,
+                "gpuMs": 148.421064,
+                "cpuEncodeMs": 0.40000000037252903,
+                "minJ": 0.7788395285606384,
+                "normal": 1995.53271484375,
+                "safe": 0.6901575326919556,
+                "barrierActive": false,
+                "actualBeltSpeed": 3.9233314990997314,
+                "maxPenetration": 3.0444104564027154e-20
+              }
+            ],
+            "elapsedMs": 15511.200000000186,
+            "advancedTicks": 64,
+            "diagnostics": {
+              "activeSubsteps": 4,
+              "cpuEncodeMs": 0.40000000037252903,
+              "inFlight": 2,
+              "uploadBytes": 39936
+            },
+            "gpuMs": {
+              "p50": 136.891478,
+              "p95": 145.11163,
+              "p99": 147.28163
+            },
+            "cpuEncodeMs": {
+              "p50": 0.40000000037252903,
+              "p95": 0.599999999627471
+            }
+          }
+        ]
+      }
+    }
+  ],
+  "rejectedExperiments": [
+    {
+      "name": "256-thread single-workgroup repair prototype, rolling edge case",
+      "status": "Discarded; no demonstrated software tail-latency advantage, not present in shipped source",
+      "capture": {
+        "timestamp": "2026-10-16T20:33:23.565Z",
+        "environment": "Browser-reported adapter; software timings are validation only, not hardware GPU benchmarks",
+        "warmupTicks": 80,
+        "sampleCount": 24,
+        "results": [
+          {
+            "variant": "baseline",
+            "adapter": {
+              "description": "",
+              "vendor": "google",
+              "device": "",
+              "architecture": "swiftshader",
+              "software": true,
+              "validation": true
+            },
+            "mesh": {
+              "nodes": 1792,
+              "edges": 9856,
+              "tets": 6912
+            },
+            "parameters": {
+              "model": 0,
+              "compression": 38,
+              "speed": 5,
+              "stiffness": 0.25,
+              "friction": 0.8,
+              "iterations": 4,
+              "obstacle": 0.045,
+              "paused": false,
+              "view": 0,
+              "wire": false,
+              "ghost": false,
+              "adaptive": false
+            },
+            "samples": [
+              {
+                "tick": 80,
+                "gpuMs": 137.978408,
+                "cpuEncodeMs": 0.2999999998137355,
+                "minJ": 0.6842447519302368,
+                "normal": 2158.869140625,
+                "safe": 0.7873818874359131
+              },
+              {
+                "tick": 82,
+                "gpuMs": 136.836663,
+                "cpuEncodeMs": 0.5,
+                "minJ": 0.7416946887969971,
+                "normal": 2041.199462890625,
+                "safe": 0.7678621411323547
+              },
+              {
+                "tick": 84,
+                "gpuMs": 150.310853,
+                "cpuEncodeMs": 0.39999999944120646,
+                "minJ": 0.6507064700126648,
+                "normal": 2046.7164306640625,
+                "safe": 0.727474570274353
+              },
+              {
+                "tick": 86,
+                "gpuMs": 144.307991,
+                "cpuEncodeMs": 0.40000000037252903,
+                "minJ": 0.744744598865509,
+                "normal": 2636.932373046875,
+                "safe": 0.7006621360778809
+              },
+              {
+                "tick": 88,
+                "gpuMs": 146.090879,
+                "cpuEncodeMs": 0.5,
+                "minJ": 0.3782942593097687,
+                "normal": 3431.28759765625,
+                "safe": 0.5321873426437378
+              },
+              {
+                "tick": 90,
+                "gpuMs": 178.730662,
+                "cpuEncodeMs": 0.30000000074505806,
+                "minJ": 0.35577458143234253,
+                "normal": 3398.09619140625,
+                "safe": 0.18926790356636047
+              },
+              {
+                "tick": 92,
+                "gpuMs": 188.733004,
+                "cpuEncodeMs": 0.30000000074505806,
+                "minJ": 0.3361656665802002,
+                "normal": 2676.885986328125,
+                "safe": 0.3925485908985138
+              },
+              {
+                "tick": 94,
+                "gpuMs": 194.753906,
+                "cpuEncodeMs": 0.40000000037252903,
+                "minJ": 0.3248150050640106,
+                "normal": 2518.8388671875,
+                "safe": 0.2503105700016022
+              },
+              {
+                "tick": 96,
+                "gpuMs": 195.575588,
+                "cpuEncodeMs": 0.40000000037252903,
+                "minJ": 0.29769495129585266,
+                "normal": 2451.29541015625,
+                "safe": 0.20257918536663055
+              },
+              {
+                "tick": 98,
+                "gpuMs": 194.959215,
+                "cpuEncodeMs": 0.39999999944120646,
+                "minJ": 0.31365564465522766,
+                "normal": 2353.83251953125,
+                "safe": 0.20023690164089203
+              },
+              {
+                "tick": 100,
+                "gpuMs": 135.325722,
+                "cpuEncodeMs": 0.2999999998137355,
+                "minJ": 0.3812386393547058,
+                "normal": 2115.727294921875,
+                "safe": 0.2647934556007385
+              },
+              {
+                "tick": 102,
+                "gpuMs": 146.068391,
+                "cpuEncodeMs": 0.2999999998137355,
+                "minJ": 0.42679622769355774,
+                "normal": 1576.8607177734375,
+                "safe": 0.307487428188324
+              },
+              {
+                "tick": 104,
+                "gpuMs": 143.541195,
+                "cpuEncodeMs": 0.39999999944120646,
+                "minJ": 0.4269004762172699,
+                "normal": 875.7454223632812,
+                "safe": 0.3211112320423126
+              },
+              {
+                "tick": 106,
+                "gpuMs": 148.84568,
+                "cpuEncodeMs": 0.40000000037252903,
+                "minJ": 0.4310419261455536,
+                "normal": 788.300048828125,
+                "safe": 0.3255351483821869
+              },
+              {
+                "tick": 108,
+                "gpuMs": 133.828306,
+                "cpuEncodeMs": 0.2999999998137355,
+                "minJ": 0.4359014630317688,
+                "normal": 708.0919189453125,
+                "safe": 0.330509215593338
+              },
+              {
+                "tick": 110,
+                "gpuMs": 144.698555,
+                "cpuEncodeMs": 0.5,
+                "minJ": 0.44132381677627563,
+                "normal": 656.2891845703125,
+                "safe": 0.335774689912796
+              },
+              {
+                "tick": 112,
+                "gpuMs": 140.333565,
+                "cpuEncodeMs": 0.2999999998137355,
+                "minJ": 0.44748735427856445,
+                "normal": 625.4246215820312,
+                "safe": 0.34160974621772766
+              },
+              {
+                "tick": 114,
+                "gpuMs": 157.586356,
+                "cpuEncodeMs": 0.6000000005587935,
+                "minJ": 0.4546756148338318,
+                "normal": 654.2632446289062,
+                "safe": 0.3485328257083893
+              },
+              {
+                "tick": 116,
+                "gpuMs": 142.428811,
+                "cpuEncodeMs": 0.5,
+                "minJ": 0.4631703495979309,
+                "normal": 661.8138427734375,
+                "safe": 0.35682979226112366
+              },
+              {
+                "tick": 118,
+                "gpuMs": 147.495095,
+                "cpuEncodeMs": 0.5,
+                "minJ": 0.4732520580291748,
+                "normal": 656.1893920898438,
+                "safe": 0.36695170402526855
+              },
+              {
+                "tick": 120,
+                "gpuMs": 139.831122,
+                "cpuEncodeMs": 0.5,
+                "minJ": 0.48558083176612854,
+                "normal": 721.435302734375,
+                "safe": 0.37836429476737976
+              },
+              {
+                "tick": 122,
+                "gpuMs": 139.936635,
+                "cpuEncodeMs": 0.40000000037252903,
+                "minJ": 0.500276505947113,
+                "normal": 775.6790771484375,
+                "safe": 0.39337804913520813
+              },
+              {
+                "tick": 124,
+                "gpuMs": 145.376671,
+                "cpuEncodeMs": 0.40000000037252903,
+                "minJ": 0.5184276103973389,
+                "normal": 912.1962890625,
+                "safe": 0.41161561012268066
+              },
+              {
+                "tick": 126,
+                "gpuMs": 143.544435,
+                "cpuEncodeMs": 0.40000000037252903,
+                "minJ": 0.5428147315979004,
+                "normal": 1019.2850952148438,
+                "safe": 0.4343528151512146
+              }
+            ],
+            "elapsedMs": 12078.099999999627,
+            "advancedTicks": 48,
+            "diagnostics": {
+              "activeSubsteps": 4,
+              "cpuEncodeMs": 0.40000000037252903,
+              "inFlight": 2,
+              "uploadBytes": 43008
+            },
+            "gpuMs": {
+              "p50": 144.698555,
+              "p95": 194.753906,
+              "p99": 194.959215
+            },
+            "cpuEncodeMs": {
+              "p50": 0.40000000037252903,
+              "p95": 0.5
+            }
+          },
+          {
+            "variant": "optimized",
+            "adapter": {
+              "description": "",
+              "vendor": "google",
+              "device": "",
+              "architecture": "swiftshader",
+              "software": true,
+              "validation": true
+            },
+            "mesh": {
+              "nodes": 1792,
+              "edges": 9856,
+              "tets": 6912
+            },
+            "parameters": {
+              "model": 0,
+              "compression": 38,
+              "speed": 5,
+              "stiffness": 0.25,
+              "friction": 0.8,
+              "iterations": 4,
+              "obstacle": 0.045,
+              "paused": false,
+              "view": 0,
+              "wire": false,
+              "ghost": false,
+              "adaptive": false,
+              "repairParallel": false
+            },
+            "samples": [
+              {
+                "tick": 80,
+                "gpuMs": 147.228328,
+                "cpuEncodeMs": 0.40000000037252903,
+                "minJ": 0.6842447519302368,
+                "normal": 2158.869140625,
+                "safe": 0.7873818874359131
+              },
+              {
+                "tick": 82,
+                "gpuMs": 140.860077,
+                "cpuEncodeMs": 0.2999999998137355,
+                "minJ": 0.7416946887969971,
+                "normal": 2041.199462890625,
+                "safe": 0.7678621411323547
+              },
+              {
+                "tick": 84,
+                "gpuMs": 143.180711,
+                "cpuEncodeMs": 0.40000000037252903,
+                "minJ": 0.6507064700126648,
+                "normal": 2046.7164306640625,
+                "safe": 0.727474570274353
+              },
+              {
+                "tick": 86,
+                "gpuMs": 166.793892,
+                "cpuEncodeMs": 0.2999999998137355,
+                "minJ": 0.744744598865509,
+                "normal": 2636.932373046875,
+                "safe": 0.7006621360778809
+              },
+              {
+                "tick": 88,
+                "gpuMs": 142.447075,
+                "cpuEncodeMs": 0.40000000037252903,
+                "minJ": 0.3782942593097687,
+                "normal": 3431.28759765625,
+                "safe": 0.5321873426437378
+              },
+              {
+                "tick": 90,
+                "gpuMs": 230.313728,
+                "cpuEncodeMs": 0.2999999998137355,
+                "minJ": 0.35577458143234253,
+                "normal": 3398.09619140625,
+                "safe": 0.18926790356636047
+              },
+              {
+                "tick": 92,
+                "gpuMs": 217.666808,
+                "cpuEncodeMs": 0.40000000037252903,
+                "minJ": 0.3361656665802002,
+                "normal": 2676.885986328125,
+                "safe": 0.3925485908985138
+              },
+              {
+                "tick": 94,
+                "gpuMs": 231.628623,
+                "cpuEncodeMs": 0.39999999944120646,
+                "minJ": 0.3248150050640106,
+                "normal": 2518.8388671875,
+                "safe": 0.2503105700016022
+              },
+              {
+                "tick": 96,
+                "gpuMs": 218.668074,
+                "cpuEncodeMs": 0.40000000037252903,
+                "minJ": 0.29769495129585266,
+                "normal": 2451.29541015625,
+                "safe": 0.20257918536663055
+              },
+              {
+                "tick": 98,
+                "gpuMs": 238.92301,
+                "cpuEncodeMs": 0.40000000037252903,
+                "minJ": 0.31365564465522766,
+                "normal": 2353.83251953125,
+                "safe": 0.20023690164089203
+              },
+              {
+                "tick": 100,
+                "gpuMs": 139.269597,
+                "cpuEncodeMs": 0.40000000037252903,
+                "minJ": 0.3812386393547058,
+                "normal": 2115.727294921875,
+                "safe": 0.2647934556007385
+              },
+              {
+                "tick": 102,
+                "gpuMs": 143.179207,
+                "cpuEncodeMs": 0.2999999998137355,
+                "minJ": 0.42679622769355774,
+                "normal": 1576.8607177734375,
+                "safe": 0.307487428188324
+              },
+              {
+                "tick": 104,
+                "gpuMs": 142.559731,
+                "cpuEncodeMs": 0.20000000018626451,
+                "minJ": 0.4269004762172699,
+                "normal": 875.7454223632812,
+                "safe": 0.3211112320423126
+              },
+              {
+                "tick": 106,
+                "gpuMs": 135.419975,
+                "cpuEncodeMs": 0.2999999998137355,
+                "minJ": 0.4310419261455536,
+                "normal": 788.300048828125,
+                "safe": 0.3255351483821869
+              },
+              {
+                "tick": 108,
+                "gpuMs": 128.518749,
+                "cpuEncodeMs": 0.39999999944120646,
+                "minJ": 0.4359014630317688,
+                "normal": 708.0919189453125,
+                "safe": 0.330509215593338
+              },
+              {
+                "tick": 110,
+                "gpuMs": 130.461739,
+                "cpuEncodeMs": 0.39999999944120646,
+                "minJ": 0.44132381677627563,
+                "normal": 656.2891845703125,
+                "safe": 0.335774689912796
+              },
+              {
+                "tick": 112,
+                "gpuMs": 137.749373,
+                "cpuEncodeMs": 0.40000000037252903,
+                "minJ": 0.44748735427856445,
+                "normal": 625.4246215820312,
+                "safe": 0.34160974621772766
+              },
+              {
+                "tick": 114,
+                "gpuMs": 141.024808,
+                "cpuEncodeMs": 0.5,
+                "minJ": 0.4546756148338318,
+                "normal": 654.2632446289062,
+                "safe": 0.3485328257083893
+              },
+              {
+                "tick": 116,
+                "gpuMs": 139.295285,
+                "cpuEncodeMs": 0.2999999998137355,
+                "minJ": 0.4631703495979309,
+                "normal": 661.8138427734375,
+                "safe": 0.35682979226112366
+              },
+              {
+                "tick": 118,
+                "gpuMs": 133.72649,
+                "cpuEncodeMs": 0.6000000005587935,
+                "minJ": 0.4732520580291748,
+                "normal": 656.1893920898438,
+                "safe": 0.36695170402526855
+              },
+              {
+                "tick": 120,
+                "gpuMs": 135.360494,
+                "cpuEncodeMs": 0.5,
+                "minJ": 0.48558083176612854,
+                "normal": 721.435302734375,
+                "safe": 0.37836429476737976
+              },
+              {
+                "tick": 122,
+                "gpuMs": 134.34094,
+                "cpuEncodeMs": 0.5,
+                "minJ": 0.500276505947113,
+                "normal": 775.6790771484375,
+                "safe": 0.39337804913520813
+              },
+              {
+                "tick": 124,
+                "gpuMs": 132.498243,
+                "cpuEncodeMs": 0.6000000005587935,
+                "minJ": 0.5184276103973389,
+                "normal": 912.1962890625,
+                "safe": 0.41161561012268066
+              },
+              {
+                "tick": 126,
+                "gpuMs": 138.206066,
+                "cpuEncodeMs": 0.5,
+                "minJ": 0.5428147315979004,
+                "normal": 1019.2850952148438,
+                "safe": 0.4343528151512146
+              }
+            ],
+            "elapsedMs": 12176,
+            "advancedTicks": 48,
+            "diagnostics": {
+              "activeSubsteps": 4,
+              "cpuEncodeMs": 0.5,
+              "inFlight": 2,
+              "uploadBytes": 43008
+            },
+            "gpuMs": {
+              "p50": 140.860077,
+              "p95": 230.313728,
+              "p99": 231.628623
+            },
+            "cpuEncodeMs": {
+              "p50": 0.40000000037252903,
+              "p95": 0.5
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "64-thread single-workgroup repair prototype, parked corotated cleat",
+      "status": "Discarded; no demonstrated software tail-latency advantage, not present in shipped source",
+      "capture": {
+        "timestamp": "2026-10-16T20:35:27.595Z",
+        "environment": "Browser-reported adapter; software timings are validation only, not hardware GPU benchmarks",
+        "warmupTicks": 80,
+        "sampleCount": 24,
+        "results": [
+          {
+            "variant": "baseline",
+            "adapter": {
+              "description": "",
+              "vendor": "google",
+              "device": "",
+              "architecture": "swiftshader",
+              "software": true,
+              "validation": true
+            },
+            "mesh": {
+              "nodes": 1792,
+              "edges": 9856,
+              "tets": 6912
+            },
+            "parameters": {
+              "model": 1,
+              "compression": 38,
+              "speed": 0,
+              "stiffness": 1,
+              "friction": 0.8,
+              "iterations": 4,
+              "obstacle": 0.045,
+              "paused": false,
+              "view": 0,
+              "wire": false,
+              "ghost": false,
+              "adaptive": false
+            },
+            "samples": [
+              {
+                "tick": 80,
+                "gpuMs": 183.00785,
+                "cpuEncodeMs": 0.40000000037252903,
+                "minJ": 0.3500153124332428,
+                "normal": 4140.66455078125,
+                "safe": 1
+              },
+              {
+                "tick": 82,
+                "gpuMs": 174.987214,
+                "cpuEncodeMs": 0.40000000037252903,
+                "minJ": 0.3500153720378876,
+                "normal": 4140.6591796875,
+                "safe": 1
+              },
+              {
+                "tick": 84,
+                "gpuMs": 179.079731,
+                "cpuEncodeMs": 0.39999999944120646,
+                "minJ": 0.35001519322395325,
+                "normal": 4140.6533203125,
+                "safe": 1
+              },
+              {
+                "tick": 86,
+                "gpuMs": 176.452307,
+                "cpuEncodeMs": 0.2999999998137355,
+                "minJ": 0.35001516342163086,
+                "normal": 4140.64697265625,
+                "safe": 1
+              },
+              {
+                "tick": 88,
+                "gpuMs": 175.985113,
+                "cpuEncodeMs": 0.40000000037252903,
+                "minJ": 0.35001522302627563,
+                "normal": 4140.6416015625,
+                "safe": 1
+              },
+              {
+                "tick": 90,
+                "gpuMs": 177.405333,
+                "cpuEncodeMs": 0.2999999998137355,
+                "minJ": 0.35001513361930847,
+                "normal": 4140.6357421875,
+                "safe": 1
+              },
+              {
+                "tick": 92,
+                "gpuMs": 176.712302,
+                "cpuEncodeMs": 0.40000000037252903,
+                "minJ": 0.3500150442123413,
+                "normal": 4140.6298828125,
+                "safe": 1
+              },
+              {
+                "tick": 94,
+                "gpuMs": 181.315463,
+                "cpuEncodeMs": 0.2999999998137355,
+                "minJ": 0.35001513361930847,
+                "normal": 4140.625,
+                "safe": 1
+              },
+              {
+                "tick": 96,
+                "gpuMs": 180.975071,
+                "cpuEncodeMs": 0.39999999944120646,
+                "minJ": 0.3500151038169861,
+                "normal": 4140.61962890625,
+                "safe": 1
+              },
+              {
+                "tick": 98,
+                "gpuMs": 170.934071,
+                "cpuEncodeMs": 0.40000000037252903,
+                "minJ": 0.3500150442123413,
+                "normal": 4140.61474609375,
+                "safe": 1
+              },
+              {
+                "tick": 100,
+                "gpuMs": 167.747394,
+                "cpuEncodeMs": 0.2999999998137355,
+                "minJ": 0.3500150740146637,
+                "normal": 4140.609375,
+                "safe": 1
+              },
+              {
+                "tick": 102,
+                "gpuMs": 185.097491,
+                "cpuEncodeMs": 0.39999999944120646,
+                "minJ": 0.35001513361930847,
+                "normal": 4140.6044921875,
+                "safe": 1
+              },
+              {
+                "tick": 104,
+                "gpuMs": 166.046553,
+                "cpuEncodeMs": 0.40000000037252903,
+                "minJ": 0.35001495480537415,
+                "normal": 4140.599609375,
+                "safe": 1
+              },
+              {
+                "tick": 106,
+                "gpuMs": 181.65283,
+                "cpuEncodeMs": 0.5,
+                "minJ": 0.3500150442123413,
+                "normal": 4140.5947265625,
+                "safe": 1
+              },
+              {
+                "tick": 108,
+                "gpuMs": 176.593865,
+                "cpuEncodeMs": 0.30000000074505806,
+                "minJ": 0.3500150442123413,
+                "normal": 4140.5888671875,
+                "safe": 1
+              },
+              {
+                "tick": 110,
+                "gpuMs": 178.029101,
+                "cpuEncodeMs": 0.5,
+                "minJ": 0.3500151038169861,
+                "normal": 4140.58447265625,
+                "safe": 1
+              },
+              {
+                "tick": 112,
+                "gpuMs": 191.682636,
+                "cpuEncodeMs": 0.40000000037252903,
+                "minJ": 0.35001489520072937,
+                "normal": 4140.57958984375,
+                "safe": 1
+              },
+              {
+                "tick": 114,
+                "gpuMs": 185.184974,
+                "cpuEncodeMs": 0.40000000037252903,
+                "minJ": 0.35001498460769653,
+                "normal": 4140.5751953125,
+                "safe": 1
+              },
+              {
+                "tick": 116,
+                "gpuMs": 177.67606,
+                "cpuEncodeMs": 0.39999999944120646,
+                "minJ": 0.3500150740146637,
+                "normal": 4140.5703125,
+                "safe": 1
+              },
+              {
+                "tick": 118,
+                "gpuMs": 179.204855,
+                "cpuEncodeMs": 0.40000000037252903,
+                "minJ": 0.3500150144100189,
+                "normal": 4140.56591796875,
+                "safe": 1
+              },
+              {
+                "tick": 120,
+                "gpuMs": 177.254643,
+                "cpuEncodeMs": 0.40000000037252903,
+                "minJ": 0.35001495480537415,
+                "normal": 4140.5615234375,
+                "safe": 1
+              },
+              {
+                "tick": 122,
+                "gpuMs": 178.079662,
+                "cpuEncodeMs": 0.5,
+                "minJ": 0.35001495480537415,
+                "normal": 4140.55712890625,
+                "safe": 1
+              },
+              {
+                "tick": 124,
+                "gpuMs": 166.722854,
+                "cpuEncodeMs": 0.39999999944120646,
+                "minJ": 0.350014865398407,
+                "normal": 4140.55224609375,
+                "safe": 1
+              },
+              {
+                "tick": 126,
+                "gpuMs": 184.15811,
+                "cpuEncodeMs": 0.5,
+                "minJ": 0.35001492500305176,
+                "normal": 4140.5478515625,
+                "safe": 1
+              }
+            ],
+            "elapsedMs": 13461.700000000186,
+            "advancedTicks": 48,
+            "diagnostics": {
+              "activeSubsteps": 4,
+              "cpuEncodeMs": 0.5,
+              "inFlight": 2,
+              "uploadBytes": 43008
+            },
+            "gpuMs": {
+              "p50": 177.67606,
+              "p95": 185.097491,
+              "p99": 185.184974
+            },
+            "cpuEncodeMs": {
+              "p50": 0.40000000037252903,
+              "p95": 0.5
+            }
+          },
+          {
+            "variant": "optimized",
+            "adapter": {
+              "description": "",
+              "vendor": "google",
+              "device": "",
+              "architecture": "swiftshader",
+              "software": true,
+              "validation": true
+            },
+            "mesh": {
+              "nodes": 1792,
+              "edges": 9856,
+              "tets": 6912
+            },
+            "parameters": {
+              "model": 1,
+              "compression": 38,
+              "speed": 0,
+              "stiffness": 1,
+              "friction": 0.8,
+              "iterations": 4,
+              "obstacle": 0.045,
+              "paused": false,
+              "view": 0,
+              "wire": false,
+              "ghost": false,
+              "adaptive": false,
+              "repairParallel": false
+            },
+            "samples": [
+              {
+                "tick": 79,
+                "gpuMs": 195.869736,
+                "cpuEncodeMs": 0.2999999998137355,
+                "minJ": 0.35001519322395325,
+                "normal": 4140.66796875,
+                "safe": 1
+              },
+              {
+                "tick": 81,
+                "gpuMs": 185.893985,
+                "cpuEncodeMs": 0.7000000001862645,
+                "minJ": 0.35001522302627563,
+                "normal": 4140.66162109375,
+                "safe": 1
+              },
+              {
+                "tick": 83,
+                "gpuMs": 183.327528,
+                "cpuEncodeMs": 0.39999999944120646,
+                "minJ": 0.3500152826309204,
+                "normal": 4140.65625,
+                "safe": 1
+              },
+              {
+                "tick": 85,
+                "gpuMs": 191.493993,
+                "cpuEncodeMs": 0.40000000037252903,
+                "minJ": 0.35001516342163086,
+                "normal": 4140.650390625,
+                "safe": 1
+              },
+              {
+                "tick": 87,
+                "gpuMs": 178.057789,
+                "cpuEncodeMs": 0.5,
+                "minJ": 0.3500150740146637,
+                "normal": 4140.64453125,
+                "safe": 1
+              },
+              {
+                "tick": 89,
+                "gpuMs": 180.947023,
+                "cpuEncodeMs": 0.2999999998137355,
+                "minJ": 0.35001519322395325,
+                "normal": 4140.638671875,
+                "safe": 1
+              },
+              {
+                "tick": 91,
+                "gpuMs": 174.373791,
+                "cpuEncodeMs": 0.20000000018626451,
+                "minJ": 0.3500150144100189,
+                "normal": 4140.63330078125,
+                "safe": 1
+              },
+              {
+                "tick": 93,
+                "gpuMs": 166.469343,
+                "cpuEncodeMs": 0.40000000037252903,
+                "minJ": 0.3500150740146637,
+                "normal": 4140.6279296875,
+                "safe": 1
+              },
+              {
+                "tick": 95,
+                "gpuMs": 182.419213,
+                "cpuEncodeMs": 0.40000000037252903,
+                "minJ": 0.3500150740146637,
+                "normal": 4140.6220703125,
+                "safe": 1
+              },
+              {
+                "tick": 97,
+                "gpuMs": 186.844517,
+                "cpuEncodeMs": 0.39999999944120646,
+                "minJ": 0.3500151038169861,
+                "normal": 4140.6171875,
+                "safe": 1
+              },
+              {
+                "tick": 99,
+                "gpuMs": 184.184704,
+                "cpuEncodeMs": 0.39999999944120646,
+                "minJ": 0.3500150144100189,
+                "normal": 4140.6123046875,
+                "safe": 1
+              },
+              {
+                "tick": 101,
+                "gpuMs": 180.858419,
+                "cpuEncodeMs": 0.2999999998137355,
+                "minJ": 0.3500151038169861,
+                "normal": 4140.6064453125,
+                "safe": 1
+              },
+              {
+                "tick": 103,
+                "gpuMs": 180.524333,
+                "cpuEncodeMs": 0.2999999998137355,
+                "minJ": 0.3500150144100189,
+                "normal": 4140.6015625,
+                "safe": 1
+              },
+              {
+                "tick": 105,
+                "gpuMs": 172.515648,
+                "cpuEncodeMs": 0.30000000074505806,
+                "minJ": 0.3500150144100189,
+                "normal": 4140.5966796875,
+                "safe": 1
+              },
+              {
+                "tick": 107,
+                "gpuMs": 175.866996,
+                "cpuEncodeMs": 0.39999999944120646,
+                "minJ": 0.35001495480537415,
+                "normal": 4140.591796875,
+                "safe": 1
+              },
+              {
+                "tick": 109,
+                "gpuMs": 181.635193,
+                "cpuEncodeMs": 0.30000000074505806,
+                "minJ": 0.35001495480537415,
+                "normal": 4140.5869140625,
+                "safe": 1
+              },
+              {
+                "tick": 111,
+                "gpuMs": 172.073395,
+                "cpuEncodeMs": 0.6000000005587935,
+                "minJ": 0.3500150442123413,
+                "normal": 4140.58203125,
+                "safe": 1
+              },
+              {
+                "tick": 113,
+                "gpuMs": 180.515256,
+                "cpuEncodeMs": 0.39999999944120646,
+                "minJ": 0.35001498460769653,
+                "normal": 4140.5771484375,
+                "safe": 1
+              },
+              {
+                "tick": 115,
+                "gpuMs": 184.696074,
+                "cpuEncodeMs": 0.5,
+                "minJ": 0.35001495480537415,
+                "normal": 4140.57275390625,
+                "safe": 1
+              },
+              {
+                "tick": 117,
+                "gpuMs": 193.874849,
+                "cpuEncodeMs": 0.39999999944120646,
+                "minJ": 0.350014865398407,
+                "normal": 4140.568359375,
+                "safe": 1
+              },
+              {
+                "tick": 119,
+                "gpuMs": 180.601053,
+                "cpuEncodeMs": 0.40000000037252903,
+                "minJ": 0.35001492500305176,
+                "normal": 4140.5634765625,
+                "safe": 1
+              },
+              {
+                "tick": 121,
+                "gpuMs": 194.971236,
+                "cpuEncodeMs": 0.40000000037252903,
+                "minJ": 0.3500148355960846,
+                "normal": 4140.55908203125,
+                "safe": 1
+              },
+              {
+                "tick": 123,
+                "gpuMs": 184.147995,
+                "cpuEncodeMs": 0.40000000037252903,
+                "minJ": 0.35001495480537415,
+                "normal": 4140.5546875,
+                "safe": 1
+              },
+              {
+                "tick": 125,
+                "gpuMs": 181.635813,
+                "cpuEncodeMs": 0.5,
+                "minJ": 0.35001489520072937,
+                "normal": 4140.5498046875,
+                "safe": 1
+              }
+            ],
+            "elapsedMs": 13262.200000000186,
+            "advancedTicks": 47,
+            "diagnostics": {
+              "activeSubsteps": 4,
+              "cpuEncodeMs": 0.5,
+              "inFlight": 2,
+              "uploadBytes": 43008
+            },
+            "gpuMs": {
+              "p50": 181.635193,
+              "p95": 193.874849,
+              "p99": 194.971236
+            },
+            "cpuEncodeMs": {
+              "p50": 0.39999999944120646,
+              "p95": 0.5
+            }
+          }
+        ]
+      }
+    }
+  ]
+}

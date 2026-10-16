@@ -1,4 +1,4 @@
-import { fetchShader } from "./runtime-assets.js?release=tyre-gpu-20261016-r3";
+import { fetchShader } from "./runtime-assets.js?release=tyre-gpu-20261016-r4";
 // Browser-only isolated tests of the ACTUAL WGSL acceptance kernels, not a CPU solver.
 export async function runGuardCases() {
   const adapter = await navigator.gpu.requestAdapter();
@@ -66,7 +66,7 @@ export async function runGuardCases() {
     code: await fetchShader("physics.wgsl"),
   });
   const pipelines = await Promise.all(
-    ["guardPartials", "guardReduce", "commitRig", "finish"].map((entryPoint) =>
+    ["guardPartials", "guardReduce", "finish"].map((entryPoint) =>
       device.createComputePipelineAsync({
         layout: device.createPipelineLayout({ bindGroupLayouts: [layout] }),
         compute: { module, entryPoint },

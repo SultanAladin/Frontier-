@@ -1,16 +1,14 @@
 // Bump the release key AND the versioned module URLs when the JS/WGSL ABI changes.
-export const ASSET_RELEASE = "tyre-gpu-20261016-r3";
+export const ASSET_RELEASE = "tyre-gpu-20261016-r4";
 export const COMPUTE_ENTRIES = Object.freeze([
-  "beginStep",
   "predict",
   "solveEdges",
   "solveTets",
   "contact",
   "guardPartials",
   "guardReduce",
-  "prepareRepair",
+  "guardPrepare",
   "solveBarrier",
-  "commitRig",
   "finish",
   "reducePartials",
   "reduce",

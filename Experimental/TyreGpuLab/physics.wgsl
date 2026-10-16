@@ -1,4 +1,4 @@
-// tyre-lab-release: tyre-gpu-20261016-r3
+// tyre-lab-release: tyre-gpu-20261016-r4
 struct Node { p: vec4f, previous: vec4f, velocity: vec4f, rest: vec4f, info: vec4f }
 struct Edge { ids: vec2u, length: f32, pad: f32 }
 struct Tet { ids: vec4u, b0: vec4f, b1: vec4f, b2: vec4f }
@@ -24,16 +24,15 @@ fn quatMatrix(q:vec4f)->mat3x3f {
 // rig records: accepted, trial, start-of-tick; (angle, hub height, cleat height, belt phase).
 fn trialRig()->vec4f {return tickContacts[2*u.nodes+1];}
 fn trialRoad(p:vec3f)->vec3f {let r=trialRig();return roadProfile(p.xz,r.z,r.w);}
-fn hub(r:vec3f)->vec3f {
- let rig=trialRig();let a=-rig.x;let c=cos(a);let s=sin(a);
+fn hub(r:vec3f,rig:vec4f)->vec3f {
+ let a=-rig.x;let c=cos(a);let s=sin(a);
  return vec3f(c*r.x-s*r.y,s*r.x+c*r.y+rig.y,r.z);
 }
-@compute @workgroup_size(1) fn beginStep(){
+fn proposedRig()->vec4f {
  let r=tickContacts[2*u.nodes];
- if(u.substepIndex==0u){tickContacts[2*u.nodes+2]=r;}
- // Integrate from ACCEPTED GPU state, never from a CPU clock that runs ahead
- // while the guard is limiting. This prevents accumulated phase/pose wind-up.
- tickContacts[2*u.nodes+1]=vec4f(r.x+u.speed*u.dt/.48,
+ // Integrate from accepted state. predict does not read its concurrently written
+ // trial record: pinned nodes compute this same expression independently.
+ return vec4f(r.x+u.speed*u.dt/.48,
   r.y+clamp(u.height-r.y,-.06*u.dt,.06*u.dt),
   r.z+clamp(u.obstacle-r.z,-.048*u.dt,.048*u.dt),r.w+u.speed*u.dt);
 }
@@ -54,13 +53,17 @@ fn applyPosition(i:u32,p:vec4f){
 }
 @compute @workgroup_size(64) fn predict(@builtin(global_invocation_id) gid:vec3u) {
  let i=gid.x;
+ if(i==0u){
+  if(u.substepIndex==0u){tickContacts[2*u.nodes+2]=tickContacts[2*u.nodes];}
+  tickContacts[2*u.nodes+1]=proposedRig();
+ }
  // Clearing multipliers is independent of the node prediction; fuse the dispatch.
  if((u.model & 1u)==1u){if(i<u.tets){lambdas[u.edges+i]=vec2f(0);}}
  else {if(i<u.edges+u.tets){lambdas[i]=vec2f(0);}}
  if(i>=u.nodes){return;}
  var n=nodes[i]; n.previous=n.p; n.info=vec4f(0);
  tickContacts[u.nodes+i]=vec4f(0);
- if(n.p.w==0){n.p=vec4f(hub(n.rest.xyz),0);n.velocity=vec4f(0);}
+ if(n.p.w==0){n.p=vec4f(hub(n.rest.xyz,proposedRig()),0);n.velocity=vec4f(0);}
  else {n.velocity.y-=9.81*u.dt; n.p=vec4f(n.p.xyz+n.velocity.xyz*u.dt,n.p.w);}
  nodes[i]=n;
 }
@@ -181,22 +184,31 @@ var<workgroup> jacobianScratch: array<f32,64>;
  for(var stride=32u;stride>0u;stride/=2u){if(lid.x<stride){safeScratch[lid.x]=min(safeScratch[lid.x],safeScratch[lid.x+stride]);jacobianScratch[lid.x]=min(jacobianScratch[lid.x],jacobianScratch[lid.x+stride]);}workgroupBarrier();}
  if(lid.x==0u){stats[4+group.x*2]=vec4f(safeScratch[0],jacobianScratch[0],0,0);}
 }
-@compute @workgroup_size(1) fn guardReduce(){
+// Parallel reduction: no lane serially walks all 108 mesh blocks. The scratch
+// barriers order ONLY this workgroup, never independent material workgroups.
+fn guardQuality(lid:u32)->vec2f {
  var safe=1.0;var minJ=1.0;let blocks=(u.tets+63u)/64u;
- for(var i=0u;i<blocks;i++){safe=min(safe,stats[4+i*2].x);minJ=min(minJ,stats[4+i*2].y);}
- stats[2].x=safe;stats[2].y=minJ;
- if(minJ<.3){stats[3].w=1;}
+ for(var i=lid;i<blocks;i+=64u){safe=min(safe,stats[4+i*2].x);minJ=min(minJ,stats[4+i*2].y);}
+ safeScratch[lid]=safe;jacobianScratch[lid]=minJ;workgroupBarrier();
+ for(var stride=32u;stride>0u;stride/=2u){
+  if(lid<stride){safeScratch[lid]=min(safeScratch[lid],safeScratch[lid+stride]);jacobianScratch[lid]=min(jacobianScratch[lid],jacobianScratch[lid+stride]);}
+  workgroupBarrier();
+ }
+ let result=vec2f(safeScratch[0],jacobianScratch[0]);
+ if(lid==0u){stats[2].x=result.x;stats[2].y=result.y;if(result.y<.3){stats[3].w=1;}}
+ return result;
 }
-// Alternate bind group redirects binding 7 to GPU indirect arguments here.
-// During solveBarrier it is restored to the quaternion buffer, so the indirect
-// buffer is NOT simultaneously bound as writable storage and indirect input.
-@compute @workgroup_size(64) fn prepareRepair(@builtin(global_invocation_id) gid:vec3u){
- let i=gid.x;if(i>=arrayLength(&rotationBits)){return;}
+@compute @workgroup_size(64) fn guardReduce(@builtin(local_invocation_id) lid:vec3u){let result=guardQuality(lid.x);}
+// Alternate binding 7 is the INDIRECT argument buffer here, not quaternions.
+// Fuse first guard reduction and argument preparation; no CPU decision/readback.
+@compute @workgroup_size(64) fn guardPrepare(@builtin(local_invocation_id) lid:vec3u){
+ let quality=guardQuality(lid.x);let i=lid.x;
+ if(i>=arrayLength(&rotationBits)){return;}
  let colours=arrayLength(&rotationBits)-3u;var groups=1u;
  if(i<colours){groups=schedule[u.edges+u.tets+i];}
  else if(i==colours){groups=(u.nodes+63u)/64u;}
  else if(i==colours+1u){groups=(u.tets+63u)/64u;}
- groups=select(0u,groups,stats[2].y<.3);
+ groups=select(0u,groups,quality.y<.3);
  rotationBits[i]=vec4u(groups,1,1,0);
 }
 // Local unilateral volume barrier: remove a bad proposal BEFORE falling back to
@@ -216,7 +228,7 @@ var<workgroup> jacobianScratch: array<f32,64>;
  applyPosition(t.ids.x,vec4f(p0.xyz+g0*dl*p0.w,p0.w));applyPosition(t.ids.y,vec4f(p1.xyz+g1*dl*p1.w,p1.w));
  applyPosition(t.ids.z,vec4f(p2.xyz+g2*dl*p2.w,p2.w));applyPosition(t.ids.w,vec4f(p3.xyz+g3*dl*p3.w,p3.w));
 }
-@compute @workgroup_size(1) fn commitRig(){
+fn acceptRig(){
  let safe=stats[2].x;stats[1].w=min(stats[1].w,safe);
  let old=tickContacts[2*u.nodes];let trial=tickContacts[2*u.nodes+1];
  var accepted=old;if(safe>0){accepted=old+safe*(trial-old);}
@@ -224,7 +236,10 @@ var<workgroup> jacobianScratch: array<f32,64>;
  tickContacts[2*u.nodes]=accepted;
 }
 @compute @workgroup_size(64) fn finish(@builtin(global_invocation_id) gid:vec3u) {
- let i=gid.x;if(i>=u.nodes){return;}var n=nodes[i];let safe=stats[2].x;
+ let i=gid.x;if(i>=u.nodes){return;}
+ // Other finish invocations do not read the rig/header; the next dispatch does.
+ if(i==0u){acceptRig();}
+ var n=nodes[i];let safe=stats[2].x;
  // Branch, not mix: zero * NaN would still poison a rejected state.
  if(safe<=0){n.p=vec4f(n.previous.xyz,n.p.w);n.info=vec4f(0);}else if(safe<1){n.p=vec4f(n.previous.xyz+safe*(n.p.xyz-n.previous.xyz),n.p.w);}
  n.velocity=vec4f((n.p.xyz-n.previous.xyz)/u.dt*pow(.996,u.dt*240),0);nodes[i]=n;

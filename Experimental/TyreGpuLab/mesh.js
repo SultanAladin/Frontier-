@@ -15,7 +15,8 @@ export function makeTyre(segments = 64, radial = 4, across = 7) {
     tets = [],
     edges = [],
     surface = [],
-    pinned = [];
+    pinned = [],
+    tetBatches = Array.from({ length: 24 }, () => []);
   const id = (s, r, z) =>
     ((s + segments) % segments) * radial * across + r * across + z;
   for (let s = 0; s < segments; s++)
@@ -46,14 +47,14 @@ export function makeTyre(segments = 64, radial = 4, across = 7) {
           id(s, r + 1, z + 1),
           id(s + 1, r + 1, z + 1),
         ];
-        for (const q of [
+        for (const [kind, q] of [
           [0, 1, 3, 7],
           [0, 3, 2, 7],
           [0, 2, 6, 7],
           [0, 6, 4, 7],
           [0, 4, 5, 7],
           [0, 5, 1, 7],
-        ]) {
+        ].entries()) {
           const t = q.map((i) => v[i]);
           if (
             det(
@@ -64,6 +65,14 @@ export function makeTyre(segments = 64, radial = 4, across = 7) {
           )
             [t[1], t[2]] = [t[2], t[1]];
           tets.push(t);
+          // A Kuhn tet is a monotone 3-axis path. For each orientation, the
+          // middle coordinate plus parity of the endpoints gives four disjoint
+          // translations. Even angular segments preserve this at the seam.
+          const middle = [1, 0, 2, 1, 0, 2][kind],
+            cell = [s, r, z];
+          const parity =
+            2 * (cell[middle] & 1) + ((s + r + z - cell[middle]) & 1);
+          tetBatches[4 * kind + parity].push(tets.length - 1);
         }
       }
   // Extract boundary faces, guaranteeing exactly the same surface as the volume mesh.
@@ -113,42 +122,32 @@ export function makeTyre(segments = 64, radial = 4, across = 7) {
       d / 6,
     );
   }
-  // Deterministic saturation-degree graph colouring (asset-cook work, not physics).
-  // Higher saturation first reduces tiny tail batches: default 15 edge/26 tet colours.
-  function colour(constraints) {
-    const incident = Array.from({ length: rest.length }, () => []);
-    constraints.forEach((ids, i) => ids.forEach((v) => incident[v].push(i)));
-    const adjacent = Array.from(
-      { length: constraints.length },
-      () => new Set(),
-    );
-    for (const ids of incident)
-      for (const a of ids) for (const b of ids) if (a !== b) adjacent[a].add(b);
-    const colours = new Int32Array(constraints.length).fill(-1),
-      saturation = constraints.map(() => new Set()),
-      batches = [];
-    for (let k = 0; k < constraints.length; k++) {
-      let pick = -1;
-      for (let i = 0; i < constraints.length; i++)
-        if (
-          colours[i] < 0 &&
-          (pick < 0 ||
-            saturation[i].size > saturation[pick].size ||
-            (saturation[i].size === saturation[pick].size &&
-              adjacent[i].size > adjacent[pick].size))
-        )
-          pick = i;
-      let c = 0;
-      while (saturation[pick].has(c)) c++;
-      colours[pick] = c;
-      (batches[c] ??= []).push(pick);
-      for (const neighbour of adjacent[pick])
-        if (colours[neighbour] < 0) saturation[neighbour].add(c);
+  // Each of the seven positive grid directions forms disjoint open paths or
+  // even periodic cycles. Alternate their edges: 7 directions * 2 = 14 colours.
+  // Interior valence is 14 edges / 24 tets, so both schedules meet the lower
+  // bound for a matching-based solver on the default topology.
+  const edgeBatches = Array.from({ length: 14 }, () => []);
+  const coordinates = (i) => [
+    Math.floor(i / (radial * across)),
+    Math.floor(i / across) % radial,
+    i % across,
+  ];
+  edges.forEach(([a, b], i) => {
+    let start = coordinates(a),
+      end = coordinates(b);
+    let d = end.map((v, k) => v - start[k]);
+    if (d[0] > 1) d[0] -= segments;
+    if (d[0] < -1) d[0] += segments;
+    const axis = d.findIndex((v) => v !== 0);
+    if (d[axis] < 0) {
+      [start, end] = [end, start];
+      d = d.map((v) => -v);
     }
-    return batches;
-  }
-  const edgeBatches = colour(edges),
-    tetBatches = colour(tets);
+    if (d.some((v) => v !== 0 && v !== 1))
+      throw new Error("Invalid structured edge direction");
+    const direction = d[0] + 2 * d[1] + 4 * d[2];
+    edgeBatches[2 * (direction - 1) + (start[axis] & 1)].push(i);
+  });
   return {
     rest,
     pinned,
