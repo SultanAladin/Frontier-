@@ -1,9 +1,14 @@
-import { makeTyre } from "./mesh.js";
+import {
+  ASSET_RELEASE,
+  COMPUTE_ENTRIES,
+  fetchShader,
+} from "./runtime-assets.js?release=tyre-gpu-20261016-r2";
+import { makeTyre } from "./mesh.js?release=tyre-gpu-20261016-r2";
 import {
   makeSolverPlan,
   substepsFor,
   assertSolverInputs,
-} from "./solver-plan.js";
+} from "./solver-plan.js?release=tyre-gpu-20261016-r2";
 const $ = (id) => document.getElementById(id);
 const state = {
   model: 1,
@@ -43,7 +48,7 @@ function fatal(e) {
   console.error(e);
   $("error").hidden = false;
   $("error").textContent =
-    `WebGPU lab stopped\n\n${e.message || e}\n\nUse a current WebGPU-enabled browser over HTTPS or localhost. A compatible GPU is required. There is intentionally no CPU physics fallback.`;
+    `WebGPU lab stopped\n\n${e.message || e}\n\n${/version mismatch|Entry point.*exist/i.test(e.message || String(e)) ? "Application assets are out of sync. Reload this preview with Ctrl+Shift+R; this is not a GPU compatibility diagnosis." : "Use a current WebGPU-enabled browser over HTTPS or localhost. A compatible GPU is required. There is intentionally no CPU physics fallback."}`;
   $("status").textContent = "● GPU UNAVAILABLE / STOPPED";
   ready = false;
   window.tyreLab.error = String(e);
@@ -267,6 +272,7 @@ function metric(id, value, unit) {
   $(id).innerHTML = `${value}<em>${unit}</em>`;
 }
 window.tyreLab = {
+  release: ASSET_RELEASE,
   state,
   mesh: { nodes: N, edges: E, tets: T },
   get ready() {
@@ -408,8 +414,10 @@ async function init() {
       return plan.activeBytes(activeSubsteps);
     },
   };
-  const physicsCode = await (await fetch("./physics.wgsl")).text(),
-    renderCode = await (await fetch("./render.wgsl")).text();
+  const [physicsCode, renderCode] = await Promise.all([
+    fetchShader("physics.wgsl"),
+    fetchShader("render.wgsl"),
+  ]);
   const computeModule = device.createShaderModule({ code: physicsCode }),
     renderModule = device.createShaderModule({ code: renderCode });
   for (const module of [computeModule, renderModule]) {
@@ -460,17 +468,7 @@ async function init() {
     }),
     pipelines = {};
   await Promise.all(
-    [
-      "predict",
-      "solveEdges",
-      "solveTets",
-      "contact",
-      "guardPartials",
-      "guardReduce",
-      "finish",
-      "reducePartials",
-      "reduce",
-    ].map(async (entry) => {
+    COMPUTE_ENTRIES.map(async (entry) => {
       pipelines[entry] = await device.createComputePipelineAsync({
         layout: pipelineLayout,
         compute: { module: computeModule, entryPoint: entry },

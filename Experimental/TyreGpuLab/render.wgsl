@@ -1,3 +1,4 @@
+// tyre-lab-release: tyre-gpu-20261016-r2
 struct Node { p:vec4f, previous:vec4f, velocity:vec4f, rest:vec4f, info:vec4f }
 struct Camera { vp:mat4x4f, eye:vec4f, options:vec4f, settings:vec4f }
 @group(0) @binding(0) var<storage,read> nodes:array<Node>;

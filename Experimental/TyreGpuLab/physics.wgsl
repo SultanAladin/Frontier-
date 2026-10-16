@@ -1,3 +1,4 @@
+// tyre-lab-release: tyre-gpu-20261016-r2
 struct Node { p: vec4f, previous: vec4f, velocity: vec4f, rest: vec4f, info: vec4f }
 struct Edge { ids: vec2u, length: f32, pad: f32 }
 struct Tet { ids: vec4u, b0: vec4f, b1: vec4f, b2: vec4f }

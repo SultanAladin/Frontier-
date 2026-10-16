@@ -6,6 +6,12 @@ A standalone **GPU physics experiment**, not a native engine feature or an AAA-r
 
 See [the hardware-screenshot assessment and Frontier integration plan](../../Docs/VolumetricTyreAssessment.md) for the folding diagnosis, timing interpretation, code-audit findings, coupling requirements and proposed acceptance gates.
 
+## Asset updates / cached preview recovery
+
+The entry module, dependencies and shaders carry a shared release key. Shader fetches bypass HTTP caching and validate their release marker/compute entry points before pipeline creation. `server.py` sends `Cache-Control: no-store` and returns fresh bytes even for old Last-Modified validators. Use this server (or `npm run dev`) rather than a generic caching static server during iteration. After upgrading an already-open old preview once, reload it with **Ctrl+Shift+R** if necessary. A missing `clearLambda` error means mixed old JS/new WGSL, not unsupported GPU hardware; clearing is fused into `predict` now.
+
+For an ABI-changing update, bump `ASSET_RELEASE`, both WGSL release markers and the versioned module/CSS URLs together. `npm test` checks the manifest against shader entries and document/import URLs. `npm run test:assets` tests same-browser version-mismatch detection and reload recovery against the lab server.
+
 ## Hardening / optimization update
 
 See [the optimization and safety report](../../Docs/TyreGpuHardening.md) for the current acceptance filter, measured before/after results, stress tests, and remaining port blockers. The earlier assessment describes baseline commit `807559c`.
@@ -14,7 +20,7 @@ See [the optimization and safety report](../../Docs/TyreGpuHardening.md) for the
 
 ```sh
 cd Experimental/TyreGpuLab
-python3 -m http.server 8080 --bind 0.0.0.0
+python3 server.py --port 8080
 # Open http://localhost:8080 locally, or the HTTPS preview URL.
 ```
 
