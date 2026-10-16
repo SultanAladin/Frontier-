@@ -14,14 +14,24 @@ function Archive(Name) {
 }
 test('shredding keeps the complete metal rim on both sides, not just its small hub', () => {
     const Tyre = Archive('Tyre'), Rim = Archive('Rim');
-    assert.ok([...Rim.Families].some(F => F === CourseMaterial.Tyre)); // authored archive regression
+    assert.ok([...Rim.Families].some(F => F === CourseMaterial.Tyre)); // authored dark material slot, deliberately reused by Drive
     for (const Mirrored of [false,true]) {
         const Faces = ProjectWheelFacets(Tyre,Rim,Mirrored);
         assert.equal(Faces.filter(F => F.Family === CourseMaterial.Tyre).length,Tyre.FacetCount);
-        assert.equal(Faces.filter(F => F.Family === CourseMaterial.Hub).length,Rim.FacetCount);
+        assert.equal(Faces.filter(F => F.Family === CourseMaterial.Hub).length,272);
+        assert.equal(Faces.filter(F => F.Family === CourseMaterial.RimBase).length,1296);
+        for (let I = 0; I < Rim.FacetCount; ++I) {
+            assert.equal(Faces[Tyre.FacetCount+I].Family,
+                Rim.Families[I] === CourseMaterial.Tyre ? CourseMaterial.RimBase : CourseMaterial.Hub);
+        }
         assert.ok(Faces.slice(Tyre.FacetCount).every(F => F.Family !== CourseMaterial.Tyre));
     }
-    const Alloy = ConstructMaterialSpecification()[CourseMaterial.Hub];
+    const Materials = ConstructMaterialSpecification();
+    const Base = Materials[CourseMaterial.RimBase];
+    assert.deepEqual(Base.Albedo,[0.03741,0.03741,0.03741]);
+    assert.deepEqual(Base.Emission,[0,0,0]);
+    assert.notEqual(Base,Materials[CourseMaterial.Tyre]);
+    const Alloy = Materials[CourseMaterial.Hub];
     assert.ok(Alloy.Albedo[2] > Alloy.Albedo[0]); assert.ok(Alloy.Emission[2] > 0);
 });
 test('tablet scale matches touch edges, leaves cluster/driver fixed, and is encoded for every render path', () => {

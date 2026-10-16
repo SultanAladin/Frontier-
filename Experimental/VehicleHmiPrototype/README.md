@@ -34,9 +34,10 @@ See [PLAN.md](PLAN.md) for earlier physics/VFX changes.
 
 ## Rim, spark and HMI usability corrections
 
-- Shredding removes only rubber. The metal rim archive's incorrectly rubber-labelled
-  barrel/spokes are mapped to the Hub material; the complete rim stays visible in
-  the world, shadows, mirrors and Garage. The original blue emissive finish is restored by default; Garage also offers alloy/dark rims.
+- Shredding removes only rubber. The rim preserves Project Drive's two authored face slots: 1,296 dark faces and
+  272 blue emissive accent faces. The dark finish has its own RimBase identity so
+  shredding cannot remove it. Both parts remain visible in shadows/mirrors/Garage.
+  Garage rim-finish changes affect the accent slot only, not the black base.
 - Spark width is bounded to 0.65–1.35 render pixels with a tighter core, preserving
   motion streaks without large close-up particle billboards.
 - Press **M** to toggle **HMI** focus / cockpit, or choose **HMI** in the camera selector
@@ -54,7 +55,7 @@ Open **Garage** on the tablet to drag paint, gloss/matte finishes or rim finishe
 onto the live car preview. A material chip follows your pointer/finger, including
 over the GPU-rendered preview. The turntable pauses during dragging. Release on the
 matching body/rim surface to apply to the actual car; background/wrong-surface drops
-cancel. **Blue glow rims** restores the original blue metallic/emissive material.
+cancel. **Blue accents** restores the original blue metallic/emissive accent slot.
 
 The screen is now display-referred/antiglare rather than HDR sky-reflective glass,
 so scene exposure no longer bleaches its authored colours. Both brightness controls

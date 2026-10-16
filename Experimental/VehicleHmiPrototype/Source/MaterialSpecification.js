@@ -96,6 +96,7 @@ export const CourseMaterial = Object.freeze({
     CabinCarpet:     77,
     MirrorTrim:      78,
     TabletHousing:   80,
+    RimBase:         81, // original MatTyre finish on METAL geometry; never shredded
     RimScrape:       79     // the rear-view mirror's housing and stem: CabinTrim's finish, fixed to the shell, not the cockpit
 });
 
@@ -145,6 +146,10 @@ export function ConstructMaterialSpecification()
 
     Materials[CourseMaterial.VehiclePlastic] = Dielectric(0.012, 0.014, 0.018, 0.50);
     Materials[CourseMaterial.Tyre]           = Dielectric(0.03741, 0.03741, 0.03741, 0.76087);
+
+    // Drive's rim uses MatTyre on most faces, not the blue mag-accent material.
+    // Separate identity keeps that authored dark finish without rubber damage collapse.
+    Materials[CourseMaterial.RimBase] = Dielectric(0.03741, 0.03741, 0.03741, 0.76087);
 
     const Hub = Dielectric(0.06, 0.22, 0.62, 0.22);
     Hub.Metalness = 1.0;

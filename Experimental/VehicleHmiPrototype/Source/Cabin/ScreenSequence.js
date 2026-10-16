@@ -631,7 +631,7 @@ export class ScreenSequence
                 () => { this.Appearance?.Apply({ DarkWheels: !this.Appearance.DarkWheels, BlueRims: false }); this.Dirty = true; });
             const RimRegion = this.Regions.find(Region => Region.Identifier === "wheels");
             if (RimRegion) RimRegion.Material = { Kind: "wheel", DarkWheels: !this.Appearance?.DarkWheels, BlueRims: false };
-            this.RasterButton("blue-rims", "Blue glow rims", 1008, 606, 128, 36,
+            this.RasterButton("blue-rims", "Blue accents", 1008, 606, 128, 36,
                 () => { this.Appearance?.Apply({ DarkWheels: false, BlueRims: true }); this.Dirty = true; });
             const BlueRegion = this.Regions.find(R => R.Identifier === "blue-rims");
             if (BlueRegion) BlueRegion.Material = { Kind: "wheel", DarkWheels: false, BlueRims: true };
@@ -779,7 +779,7 @@ export class ScreenSequence
                 const Pick = Inside ? this.Preview?.Pick?.((Across-78)/640, (Down-248)/400) : null;
                 const Material = Active.Contact.Material;
                 const Valid = Material.Kind !== "wheel" ? Pick?.Family === CourseMaterial.BodyCoat
-                    : Pick?.Occupant > 0 && Pick?.Family === CourseMaterial.Hub;
+                    : Pick?.Occupant > 0 && [CourseMaterial.Hub, CourseMaterial.RimBase].includes(Pick?.Family);
                 if (Valid) {
                     this.Appearance?.Apply(Material.Kind === "paint" ? { Colour: Material.Colour } : Material.Kind === "finish" ? { Matte: Material.Matte } : { DarkWheels: Material.DarkWheels, BlueRims: Material.BlueRims });
                     if (Material.Colour) this.FinishColour = Material.Colour;

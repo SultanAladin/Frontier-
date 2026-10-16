@@ -80,3 +80,16 @@ test('blue emissive rim and matte finishes can be dragged onto their matching su
     Screen.ForwardPointer('up', 400, 450);
     assert.equal(Screen.Appearance.Matte,true);
 });
+
+test('rim finish changes affect selected accent faces, never the black rim base or tyre', () => {
+    const Materials = ConstructMaterialSpecification();
+    const Base = structuredClone(Materials[CourseMaterial.RimBase]);
+    const Tyre = structuredClone(Materials[CourseMaterial.Tyre]);
+    const Appearance = new VehicleAppearance(Materials, () => {});
+    for (const Finish of [{DarkWheels:true}, {DarkWheels:false,BlueRims:false}, {DarkWheels:false,BlueRims:true}]) {
+        Appearance.Apply(Finish);
+        assert.deepEqual(Materials[CourseMaterial.RimBase],Base);
+        assert.deepEqual(Materials[CourseMaterial.Tyre],Tyre);
+    }
+    assert.ok(Materials[CourseMaterial.Hub].Emission[2] > 0);
+});

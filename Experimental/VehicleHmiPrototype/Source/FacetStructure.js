@@ -533,9 +533,9 @@ export function ProjectWheelFacets(Tyre, Rim, Mirrored)
                 [Corners[1], Corners[2]] = [Corners[2], Corners[1]];
                 [Normals[1], Normals[2]] = [Normals[2], Normals[1]];
             }
-            // The metal archive mislabels 1296 rim facets as rubber (9). Never let tyre
-            // damage collapse the barrel/spokes along with the separate rubber archive.
-            const Family = Flat && Stream.Families[Facet] === CourseMaterial.Tyre ? CourseMaterial.Hub : Stream.Families[Facet];
+            // Preserve the authored two-slot rim: 1296 dark MatTyre faces and 272
+            // blue MatHub accents. Only the separate rubber archive may shred.
+            const Family = Flat && Stream.Families[Facet] === CourseMaterial.Tyre ? CourseMaterial.RimBase : Stream.Families[Facet];
             Facets.push(Flat ? { Corners, Family } : { Corners, Normals, Family });
         }
     };

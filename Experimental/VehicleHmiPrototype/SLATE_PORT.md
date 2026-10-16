@@ -116,3 +116,23 @@ its own brightness overlay. Screens no longer use the scene's emission multiplie
 blue emissive rims/matte finishes. Effects (36 frames) and scaled-HMI/plume (48
 frames) Dawn checks pass with no errors/warnings. Real-browser visual review is
 still required.
+
+## Correction: preserve the original two-material rim
+
+Rechecked Project Drive on `SultanAladin/Frontier-`, branch
+`arena/4f07c82a-frontier`: `EngineContent/GeometryArchives/ControlWheelStructure.inl`
+explicitly records **MatTyre: 1296, MatHub: 272**. `DriveSceneAuthor.cpp` gives the
+first slot its authored dark finish (linear 0.03741, roughness 0.76087) and calls
+MatHub “Material.024 — rim mag accent”, a blue tinted metal with 0.12 emissive lift.
+
+The earlier interpretation of those 1,296 labels as an authoring mistake was wrong;
+they are intentional dark faces, not additional blue faces. The runtime now maps
+ONLY those metal-archive MatTyre faces to a dedicated `RimBase` material carrying
+that same dark finish. The 272 marked blue faces stay Hub, triangle-for-triangle.
+Actual tyre rubber remains Tyre. Thus both rim slots survive shredding without
+turning the entire rim blue. Garage finish changes only affect the accent slot;
+drops are accepted on either rim slot. Both mirrored wheels are regression-tested
+against each original triangle's material assignment.
+
+Validation: 31 tests pass; populated effects/shredded-wheel Dawn validation completes
+36 frames with no errors/warnings. No new rendered browser review is claimed.
