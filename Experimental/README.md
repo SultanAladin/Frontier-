@@ -7,6 +7,7 @@ These browser design studies are separate from the native C++ editor.
 | Frontier Editor — outliner, inspector and sliding Construct menu | [FrontierEditor/index.html](FrontierEditor/index.html) |
 | SVG icon gallery | [FrontierEditor/icons.html](FrontierEditor/icons.html) |
 | Collection-icon options | [FrontierEditor/collection-icon-options.html](FrontierEditor/collection-icon-options.html) |
+| WebGPU distance-field GI (Slate exhibit) in a Frontier editor workspace — drift yard, ControlVehicle burnouts, tyre smoke & fire, fracture, stress test | [IlluminationHost/index.html](IlluminationHost/index.html) — serve it, see [IlluminationHost/README.md](IlluminationHost/README.md) |
 
 The editor's JSX/CSS, SVG assets, package files, browser scripts and vendor
 provenance moved together into `FrontierEditor/`, preserving relative links.
@@ -27,3 +28,10 @@ repository root.
 Native C++ sources and runtime assets have **not** moved. Generated native
 proof/report HTML stays in `Exhibits/Gallery/` with its associated evidence.
 The native icon import/bake tools now use the approved SVG sources here.
+
+`IlluminationHost/` needs no install step, but it must be served over HTTP (WebGPU and its relative shader fetches
+do not work from `file://`):
+
+```sh
+node Experimental/IlluminationHost/ExhibitExchange.mjs --port 8080
+```
