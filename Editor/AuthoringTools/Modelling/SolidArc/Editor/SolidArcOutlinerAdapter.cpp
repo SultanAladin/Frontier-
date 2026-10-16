@@ -267,10 +267,12 @@ void FormatFigureMeta(const SceneFigure& Figure, char* Destination, size_t Capac
 void SeatFigureRow(EditorInstance& Row, SolidArcOutlinerBinding& Binding, const SceneFigure& Figure, uint32_t Depth) noexcept
 {
     CopyText(Row.Label, sizeof(Row.Label), Figure.Name.c_str());
+    Row.InspectorKey = Figure.Identity;
     Row.Depth     = Depth;
     Row.KidCount  = 0u;
     Row.Category  = EditorInstanceCategory::Geometry;
     Row.Glyph     = FigureGlyph(Figure.Classification);
+    CopyText(Row.CadShape,sizeof(Row.CadShape),FigureShapeKind(Figure));
     Row.Narrowing = FigureNarrowing(Figure);
     Row.FilterMask = FigureFilterMask(Figure);
     Row.Visible   = !Figure.Hidden;
@@ -466,7 +468,7 @@ uint32_t BuildSolidArcOutliner(const ConsoleHost& Host,
                                EditorInstance* Rows,
                                SolidArcOutlinerBinding* Bindings,
                                uint32_t Capacity,
-                               EditorReadout* Readout) noexcept
+                               EditorReadout* Readout, bool CadCollection) noexcept
 {
     if (Rows == nullptr || Bindings == nullptr || Capacity == 0u)
         return 0u;
@@ -485,6 +487,13 @@ uint32_t BuildSolidArcOutliner(const ConsoleHost& Host,
     };
 
     uint32_t At = 0u;
+    if (CadCollection && (!Host.AllFigures().empty() || !Host.AllDimensions().empty() || !Host.AllConstraints().empty()))
+    {
+        SeatFolder(Rows[At], "Geometry collection", 0, 0, EditorGlyph::Folder,
+                   EditorNarrowing::Auto, 0xffffffffu, kSketchTint);
+        Rows[At].InspectorKey=0xffffffffffffffffull;
+        ++At;
+    }
     for (const SolidArcBucket& Bucket : Buckets)
     {
         if (At >= Capacity)
@@ -498,13 +507,17 @@ uint32_t BuildSolidArcOutliner(const ConsoleHost& Host,
         else
             KidCount = CountFigures(Host, Bucket);
 
-        const uint32_t FolderRow = At++;
-        SeatFolder(Rows[FolderRow], Bucket.Label, 0u, KidCount, Bucket.Glyph, Bucket.Narrowing, Bucket.FilterMask, Bucket.Tint);
-        char CountText[24] = {};
-        std::snprintf(CountText, sizeof(CountText), "%u", KidCount);
-        CopyText(Rows[FolderRow].Meta, sizeof(Rows[FolderRow].Meta), CountText);
-        if (KidCount == 0u)
-            Rows[FolderRow].Standing = EditorStanding::Quiet;
+        if (!CadCollection)
+        {
+            const uint32_t FolderRow = At++;
+            SeatFolder(Rows[FolderRow], Bucket.Label, 0u, KidCount, Bucket.Glyph, Bucket.Narrowing, Bucket.FilterMask, Bucket.Tint);
+            char CountText[24] = {};
+            std::snprintf(CountText, sizeof(CountText), "%u", KidCount);
+            CopyText(Rows[FolderRow].Meta, sizeof(Rows[FolderRow].Meta), CountText);
+            if (KidCount == 0u)
+                Rows[FolderRow].Standing = EditorStanding::Quiet;
+
+        }
 
         if (Bucket.BucketKind == SolidArcBucket::Kind::Dimensions)
         {
@@ -525,6 +538,7 @@ uint32_t BuildSolidArcOutliner(const ConsoleHost& Host,
                 CopyText(Row.Meta, sizeof(Row.Meta), Dimension.Label.c_str());
                 Binding.RowRole = SolidArcOutlinerBinding::Role::Dimension;
                 Binding.DimensionId = Dimension.Id;
+                Row.InspectorKey=(1ull<<32)|Dimension.Id;
                 ++At;
             }
         }
@@ -549,6 +563,7 @@ uint32_t BuildSolidArcOutliner(const ConsoleHost& Host,
                 CopyText(Row.Meta, sizeof(Row.Meta), IdText);
                 Binding.RowRole = SolidArcOutlinerBinding::Role::Constraint;
                 Binding.ConstraintId = Constraint.Id;
+                Row.InspectorKey=(2ull<<32)|Constraint.Id;
                 ++At;
             }
         }
@@ -559,11 +574,15 @@ uint32_t BuildSolidArcOutliner(const ConsoleHost& Host,
                 if (!BucketAccepts(Bucket, Figure) || At >= Capacity)
                     continue;
                 SeatFigureRow(Rows[At], Bindings[At], Figure, 1u);
+                if(CadCollection) CopyText(Rows[At].Tag,sizeof(Rows[At].Tag),
+                    Figure.Classification==FigureClassification::Curve ? "CURVE" : Figure.Classification==FigureClassification::Body ? "BODY" :
+                    Figure.Classification==FigureClassification::Surface ? "SURFACE" : "REF");
                 ++At;
             }
         }
     }
 
+    if (CadCollection && At) Rows[0].KidCount=At-1;
     if (Readout != nullptr)
     {
         *Readout = EditorReadout{};

@@ -35,7 +35,7 @@ void Select(Panel& U,float X,float Y,float W,const char* N){auto& P=*Find(U.Shee
 void Axes(Panel& U,float Y,float W,const char* N,const char* Caption){auto& P=*Find(U.Sheet,N);U.Text(24,Y,Caption,11,Muted);ImGui::SetCursorScreenPos(U.At(24,Y+24));ImGui::BeginChild(N,{W-48,32},ImGuiChildFlags_None,ImGuiWindowFlags_NoScrollbar|ImGuiWindowFlags_NoScrollWithMouse);U.Controls.AxisVec3("##axes",P.Axes,1,true);ImGui::EndChild();}
 }
 void RecordCloudsInspector(ControlPanel& Controls,EditorInstance&,EditorSheet& Sheet){
- RecordWindBindingControls(Sheet);
+ RecordWindBindingControls(Controls,Sheet);
  if(!Find(Sheet,"Coverage")||!Find(Sheet,"Anisotropy")){ImGui::TextUnformatted("Cloud properties unavailable");return;}
  bool Local=Sheet.Appearance==EditorSheetAppearance::LocalCloud;auto* Font=ImGui::GetFont();for(auto* F:ImGui::GetIO().Fonts->Fonts)if(!std::strcmp(F->GetDebugName(),"Sun reference / regular"))Font=F;ImGui::PushFont(Font,14);ImVec2 O=ImGui::GetCursorScreenPos();O.x+=20;O.y+=20;float W=std::max(240.f,ImGui::GetContentRegionAvail().x-40);Panel U{Controls,Sheet,ImGui::GetWindowDrawList(),O,Font};auto& Cached=Cache();Update(Cached,Sheet,Local,(W-48)/182);char Text[160];
  U.Text(0,8,"Inspector / Environment",8,Muted);U.Text(0,48,"Clouds",25);U.Text(0,83,Local?"LOCAL VOLUMETRIC CLOUD · bounded volume":"GLOBAL VOLUMETRIC CLOUDS · atmospheric layer",10,Muted);

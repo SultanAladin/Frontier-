@@ -11,6 +11,7 @@
 #pragma once
 
 #include "EditorInstance.h"
+#include <imgui.h>
 
 #include <cstdint>
 
@@ -30,6 +31,12 @@ struct OutlinerFilterEntry
 class OutlinerPanel final
 {
 public:
+    // Native SolidArc seats these same panels in its browser-approved workspace layout.
+    // CAD presentation uses name-first flat rows, persistent eyes and a genuine empty state;
+    // it deliberately disables tree reparenting (CAD document relationships are not UI-owned).
+    void AssignCadPresentation(bool Enabled) noexcept { SolidArcCensus_ = Enabled; }
+    void AssignSolidArcCensus(bool Enabled) noexcept { AssignCadPresentation(Enabled); }
+    void AssignFrameless(bool Enabled) noexcept { Frameless_ = Enabled; }
     void AssignControls(ControlPanel* Controls) noexcept;
     // The tab's close mark writes through this; null leaves the tab without one.
     void AssignTabOpen(bool* Open) noexcept;
@@ -60,6 +67,7 @@ public:
     void AddPick(uint32_t Index) noexcept;
 
     // The page's Tab: the panel narrows to 236 px and drops its tiles, pills and metas.
+    [[nodiscard]] ImVec2 QueryFilterCentre() const noexcept { return FilterCentre_; }
     [[nodiscard]] bool QueryCompact() const noexcept { return Compact_; }
     void AssignCompact(bool On) noexcept { Compact_ = On; }
 
@@ -91,6 +99,9 @@ private:
     //    Target's last row (Into); Target == kNoEditorInstance seats it at the root's end. Refuses a cycle.
     bool MoveRun(EditorInstance* Instances, uint32_t InstanceCount, uint32_t Lifted, uint32_t Target, bool Before) noexcept;
 
+    ImVec2 FilterCentre_={};
+    bool Frameless_ = false;
+    bool SolidArcCensus_ = false;
     ControlPanel*        Controls_ = nullptr;
     bool*                TabOpen_ = nullptr;
     const EditorReadout* Readout_  = nullptr;

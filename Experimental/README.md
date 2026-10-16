@@ -4,6 +4,7 @@ These browser design studies are separate from the native C++ editor.
 
 | Prototype | Entry point |
 | --- | --- |
+| Texture / shader editor — complete pinned Alloy app, saved for later | [TextureShaderEditor/IMPORT.md](TextureShaderEditor/IMPORT.md) · [offline app](TextureShaderEditor/site/index.html) |
 | Frontier Editor — outliner, inspector and sliding Construct menu | [FrontierEditor/index.html](FrontierEditor/index.html) |
 | SVG icon gallery | [FrontierEditor/icons.html](FrontierEditor/icons.html) |
 | Collection-icon options | [FrontierEditor/collection-icon-options.html](FrontierEditor/collection-icon-options.html) |

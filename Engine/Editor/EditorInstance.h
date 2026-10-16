@@ -75,6 +75,7 @@ enum class EditorNarrowing : uint32_t
 struct EditorInstance
 {
     uint64_t InspectorKey=0; // Stable project identity; never inferred from row order or display name.
+    char             CadShape[24]={}; // optional native CAD shape icon; independent of user name
     char             Label[44] = {};                        // display name; the panel renames in place
     char             Notes[256] = {};                       // per-instance scratch; the inspector's notes card
     uint32_t         Depth     = 0u;                        // Depth in the preorder walk
@@ -158,7 +159,7 @@ enum class EditorPropertyCategory : uint32_t
     Count
 };
 
-constexpr uint32_t kMaxEditorOptions      = 6u;    // options one Select may offer
+constexpr uint32_t kMaxEditorOptions      = 8u;    // options one Select may offer
 constexpr uint32_t kMaxEditorOptionChars  = 20u;   // chars per option, terminator included
 constexpr uint32_t kMaxEditorGroupProps   = 10u;   // properties per card
 constexpr uint32_t kMaxEditorSheetGroups  = 6u;    // cards per sheet

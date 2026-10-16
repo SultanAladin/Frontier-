@@ -192,7 +192,9 @@ int main()
         Panel.Expect("Per-whole matcap stored on the figure", Host.Document().Find(std::string("Cylinder"))->Matcap == 9);
         Host.Execute("matcap Cylinder velvet");
         Panel.Expect("Unknown studio refused", Host.RefusalCount() == Before + 1);
-        Panel.Expect("Ten studios listed", MatcapCount() == 10 && std::string(MatcapName(1)) == "chrome");
+        Panel.Expect("Fourteen recovered studios retain their names", MatcapCount() == 14 && std::string(MatcapName(1)) == "chrome" &&
+            std::string(MatcapName(10)) == "rubber" && std::string(MatcapName(11)) == "glass" &&
+            std::string(MatcapName(12)) == "headlight" && std::string(MatcapName(13)) == "taillight");
     }
 
     return Panel.Conclude();

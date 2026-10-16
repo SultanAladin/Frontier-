@@ -100,7 +100,9 @@ void RecordMoonInspector(ControlPanel& Controls,EditorInstance&,EditorSheet& She
  // Instance selection stays compact inside settings; there is no duplicate row above it.
  unsigned HeaderBody=std::min(Property(Sheet,Cached.Slot,"Preset").Picked,5u);U.Glyph=Cached.Thumbnails[HeaderBody].GetTexRef();U.GlyphReady=Cached.Ready[HeaderBody];U.Card(0,110,W,178,"Moon settings");
  ImGui::SetCursorScreenPos(U.At(W-(W>=450?224:124),126));ImGui::SetNextItemWidth(W>=450?200:100);
- auto& Current=Property(Sheet,Cached.Slot,"Preset");if(ImGui::BeginCombo("##moon-instance",Current.Options[std::min(Current.Picked,5u)])){for(int I=0;I<4;++I){ImGui::PushID(I);auto& P=Property(Sheet,I,"Preset");if(ImGui::Selectable(P.Options[std::min(P.Picked,5u)],I==Cached.Slot))Cached.Slot=I;ImGui::PopID();}ImGui::EndCombo();}
+ char Instances[kMaxEditorOptions][kMaxEditorOptionChars]={};
+ for(int I=0;I<4;++I){auto& P=Property(Sheet,I,"Preset");std::snprintf(Instances[I],sizeof(Instances[I]),"%s",P.Options[std::min(P.Picked,5u)]);}
+ uint32_t Selected=Cached.Slot;if(Controls.DropDown("##moon-instance",&Selected,Instances,4,W>=450?200:100))Cached.Slot=int(Selected);
  if(ImGui::IsItemHovered())ImGui::SetTooltip("Active moon instance");
 
  int S=Cached.Slot;ImGui::PushID(S);auto& Visible=Property(Sheet,S,"Visible").On;auto& Follow=Property(Sheet,S,"Follow Sky").On;auto& Az=Property(Sheet,S,"Azimuth").Figure;auto& El=Property(Sheet,S,"Elevation").Figure;auto& Phase=Property(Sheet,S,"Phase").Figure;auto& Size=Property(Sheet,S,"Size").Figure;auto& Roll=Property(Sheet,S,"Roll").Figure;auto& Pitch=Property(Sheet,S,"Pitch").Figure;auto& Bright=Property(Sheet,S,"Bright").Figure;

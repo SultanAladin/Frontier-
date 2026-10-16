@@ -41,3 +41,9 @@ Exhibits/Gallery/*
 #    same creatures rather than additional content, and three of them exceed GitHub's 50 MB recommendation.
 #    They stay on disk, untracked.
 EngineContent/GeometryArchives/CreaturesVault/Refined/
+
+# Local Python build/proof tooling
+.venv/
+
+# Disposable local investigation and compilation
+_AgentScratch/

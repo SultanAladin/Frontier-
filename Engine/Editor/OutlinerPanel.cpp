@@ -17,6 +17,7 @@
 #include "OutlinerPanel.h"
 
 #include "ControlPanel.h"
+#include "CadWidgets.h"
 #include "../DisplayPresentation/IconPresentation.h"
 #include "../DisplayPresentation/GlyphSpace.h"
 #include "../DisplayPresentation/VectorCodec.h"
@@ -1041,8 +1042,8 @@ void OutlinerPanel::Record(EditorInstance* Instances, uint32_t InstanceCount) no
 {
     IM_ASSERT(Controls_ != nullptr);
     ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0.0f, 0.0f));
-    ImGui::PushStyleColor(ImGuiCol_WindowBg, ImVec4(15.0f / 255.0f, 16.0f / 255.0f, 18.0f / 255.0f, 1.0f));
-    const bool Open = ImGui::Begin(WindowTitle_, TabOpen_, ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse);
+    ImGui::PushStyleColor(ImGuiCol_WindowBg, SolidArcCensus_ ? ImGui::GetStyle().Colors[ImGuiCol_WindowBg] : ImVec4(15.0f / 255.0f, 16.0f / 255.0f, 18.0f / 255.0f, 1.0f));
+    const bool Open = ImGui::Begin(WindowTitle_, TabOpen_, (SolidArcCensus_ ? ImGuiWindowFlags_NoCollapse : 0) | (Frameless_ ? ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoDocking | ImGuiWindowFlags_NoSavedSettings : 0) | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse);
     ImGui::PopStyleColor();
     ImGui::PopStyleVar();
     if (!Open)
@@ -1112,7 +1113,7 @@ void OutlinerPanel::Record(EditorInstance* Instances, uint32_t InstanceCount) no
         RecordChips();
     }
     (void)RecordOutline(Instances, InstanceCount);
-    RecordFooter();
+    if (!SolidArcCensus_) RecordFooter();
     for(uint32_t i=0;i<InstanceCount;++i){Instances[i].Shut=Shut_[i];RosterKeys_[i]=Instances[i].InspectorKey;}
     RosterCount_=InstanceCount;
     ImGui::End();
@@ -1148,7 +1149,7 @@ void OutlinerPanel::RecordHeader(EditorInstance* Instances, uint32_t InstanceCou
     uint32_t Total = 0u;
     for (uint32_t i = 0u; i < InstanceCount; ++i)
     {
-        if (Instances[i].Category != EditorInstanceCategory::Folder)
+        if (Instances[i].Category != EditorInstanceCategory::Folder && (!SolidArcCensus_ || (Instances[i].InspectorKey>>32)==0))
         {
             ++Total;
         }
@@ -1158,7 +1159,8 @@ void OutlinerPanel::RecordHeader(EditorInstance* Instances, uint32_t InstanceCou
         // "Showcase · 142 nodes" — the level name rides the tick readout; without one the head reads "Scene".
         const char* Scene = (Readout_ != nullptr && Readout_->Scene[0] != '\0') ? Readout_->Scene : "Scene";
         char Sub[40];
-        std::snprintf(Sub, sizeof(Sub), "%s \xc2\xb7 %u nodes", Scene, Total);
+        if (SolidArcCensus_) std::snprintf(Sub, sizeof(Sub), "Scene · %u figures", Total);
+        if (!SolidArcCensus_) std::snprintf(Sub, sizeof(Sub), "%s · %u nodes", Scene, Total);
         DrawSized(Draw, Ui, 12.0f, X, Cy + 1.0f, kT3, Sub);
     }
 
@@ -1203,14 +1205,13 @@ void OutlinerPanel::RecordTiles(EditorInstance* Instances, uint32_t InstanceCoun
         {
             continue;
         }
-        if (Instances[i].Visible)
+        if (SolidArcCensus_)
         {
-            ++Visible;
+            if (Instances[i].FilterMask & (1u << 2u)) ++Visible; // actual CAD bodies
+            if (Instances[i].FilterMask & 3u) ++Hidden;        // actual CAD curves
         }
-        else
-        {
-            ++Hidden;
-        }
+        else if (Instances[i].Visible) ++Visible;
+        else ++Hidden;
     }
 
     const float RowWidth = ImGui::GetContentRegionAvail().x;
@@ -1230,13 +1231,13 @@ void OutlinerPanel::RecordTiles(EditorInstance* Instances, uint32_t InstanceCoun
         Draw->AddRect(Min, Max, kStroke, 18.0f, 0, 1.0f);
 
         const bool  Ok    = t == 0u;
-        const bool  Warn  = t == 1u && Hidden > 0u;
+        const bool  Warn  = !SolidArcCensus_ && t == 1u && Hidden > 0u;
         const ImVec2 IcoC(Min.x + 14.0f + 11.0f, Min.y + 12.0f + 11.0f);
-        Draw->AddCircleFilled(IcoC, 11.0f, Ok ? kGreen : (Warn ? kErrTile : kTileIco));
-        DrawIcon(Draw, Ok ? OutlinerIconCategory::Check : OutlinerIconCategory::Warn, ImVec2(IcoC.x - 7.0f, IcoC.y - 7.0f),
+        Draw->AddCircleFilled(IcoC, 11.0f, SolidArcCensus_ ? kTileIco : Ok ? kGreen : (Warn ? kErrTile : kTileIco));
+        DrawIcon(Draw, SolidArcCensus_ ? (Ok ? OutlinerIconCategory::Lattice : OutlinerIconCategory::Wave) : Ok ? OutlinerIconCategory::Check : OutlinerIconCategory::Warn, ImVec2(IcoC.x - 7.0f, IcoC.y - 7.0f),
             14.0f, Ok ? kInkOnOk : (Warn ? kRed : kT3));
 
-        DrawSized(Draw, Ui, 12.0f, Min.x + 14.0f, Min.y + 12.0f + 22.0f + 4.0f + 8.0f, kT2, Ok ? "Visible" : "Hidden");
+        DrawSized(Draw, Ui, 12.0f, Min.x + 14.0f, Min.y + 12.0f + 22.0f + 4.0f + 8.0f, kT2, SolidArcCensus_ ? (Ok ? "Bodies" : "Sketches") : Ok ? "Visible" : "Hidden");
 
         char Figure[12];
         std::snprintf(Figure, sizeof(Figure), "%u", Ok ? Visible : Hidden);
@@ -1273,12 +1274,13 @@ void OutlinerPanel::RecordSearch() noexcept
     }
 
     const char NarrowWord[] = { 'F', 'i', 'l', 't', 'e', 'r', '\0' };
-    const float BtnW = Compact_ ? 82.0f : 92.0f;
+    const float BtnW = (Compact_ ? 82.0f : 92.0f) + (Lit ? 24.0f : 0.0f);
     const float Gap = 8.0f;
     const ImVec2 Min(Cursor.x + kSidePad, Cursor.y);
     const ImVec2 Max(Cursor.x + RowWidth - kSidePad - BtnW - Gap, Cursor.y + H);
     const ImVec2 BtnMin(Max.x + Gap, Cursor.y);
     const ImVec2 BtnMax(BtnMin.x + BtnW, Cursor.y + H);
+    FilterCentre_=ImVec2((BtnMin.x+BtnMax.x)*.5f,(BtnMin.y+BtnMax.y)*.5f);
 
     Draw->AddRectFilled(Min, Max, kG2, H * 0.5f);
     Draw->AddRect(Min, Max, kStroke, H * 0.5f, 0, 1.0f);
@@ -1314,29 +1316,11 @@ void OutlinerPanel::RecordSearch() noexcept
     }
 
     ImGui::SetCursorScreenPos(BtnMin);
-    ImGui::InvisibleButton("##narrow_menu", ImVec2(BtnW, H));
-    const bool Hot = ImGui::IsItemHovered();
-    if (ImGui::IsItemClicked())
-    {
-        NarrowMenuOpen_ = !NarrowMenuOpen_;
-        if (NarrowMenuOpen_)
-        {
-            ImGui::OpenPopup("##narrow_menu_popup");
-        }
-    }
-    const bool PopupOpen = ImGui::IsPopupOpen("##narrow_menu_popup");
-    if (!PopupOpen)
-    {
-        NarrowMenuOpen_ = false;
-    }
-    Draw->AddRectFilled(BtnMin, BtnMax, (Hot || PopupOpen) ? kG3 : kG2, H * 0.5f);
-    Draw->AddRect(BtnMin, BtnMax, (Hot || PopupOpen) ? kStroke2 : kStroke, H * 0.5f, 0, 1.0f);
-    DrawIcon(Draw, OutlinerIconCategory::Sliders, ImVec2(BtnMin.x + 11.0f, Cy - 7.0f), 14.0f, (Hot || PopupOpen) ? kText : kT3);
-    DrawSized(Draw, Ui, 12.0f, BtnMin.x + 32.0f, Cy, (Hot || PopupOpen || Lit > 0u) ? kText : kT3, NarrowWord);
-    const float ArrowX = BtnMax.x - 17.0f;
-    const float ArrowY = Cy - 2.0f;
-    Draw->AddTriangleFilled(ImVec2(ArrowX - 4.0f, ArrowY), ImVec2(ArrowX + 4.0f, ArrowY),
-                            ImVec2(ArrowX, ArrowY + (PopupOpen ? -4.0f : 4.0f)), (Hot || PopupOpen) ? kText : kT3);
+    if(Controls_->DropdownButton("##narrow_menu",NarrowWord,ImVec2(BtnW,H),ImGui::IsPopupOpen("##narrow_menu_popup"),Lit>0,32,true))
+        ImGui::OpenPopup("##narrow_menu_popup");
+    const bool PopupOpen=ImGui::IsPopupOpen("##narrow_menu_popup");
+    const bool Hot=ImGui::IsItemHovered() || ImGui::IsItemActive();
+    DrawIcon(Draw,OutlinerIconCategory::Sliders,ImVec2(BtnMin.x+11,Cy-7),14,(Hot||PopupOpen)?kText:kT3);
     if (Lit > 0u)
     {
         char Count[8];
@@ -1347,48 +1331,17 @@ void OutlinerPanel::RecordSearch() noexcept
         DrawSized(Draw, Ui, 10.0f, BtnMax.x - 28.0f - CountW + 5.0f, Cy, kText, Count);
     }
 
-    ImGui::SetNextWindowPos(ImVec2(BtnMin.x, BtnMax.y + 6.0f), ImGuiCond_Appearing);
-    ImGui::SetNextWindowSize(ImVec2(170.0f, 0.0f), ImGuiCond_Appearing);
-    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(8.0f, 8.0f));
-    ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(0.0f, 5.0f));
-    ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 16.0f);
-    ImGui::PushStyleColor(ImGuiCol_PopupBg, ImGui::ColorConvertU32ToFloat4(kGlass));
-    ImGui::PushStyleColor(ImGuiCol_Border, ImGui::ColorConvertU32ToFloat4(kStroke2));
-    if (ImGui::BeginPopup("##narrow_menu_popup", ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse))
+    if(Controls_->BeginDropdownPopup("##narrow_menu_popup",ImVec2(BtnMin.x,BtnMax.y+6),170))
     {
-        ImDrawList* PopDraw = ImGui::GetWindowDrawList();
-        for (uint32_t Slot = 0u; Slot < FilterCount && Slot < kMaxOutlinerFilters; ++Slot)
+        for(uint32_t Slot=0;Slot<FilterCount && Slot<kMaxOutlinerFilters;++Slot)
         {
-            const char* Label = QueryFilterLabel(Slot);
-            const ImVec2 P = ImGui::GetCursorScreenPos();
-            const float W = ImGui::GetContentRegionAvail().x;
-            ImGui::PushID(static_cast<int>(Slot));
-            ImGui::InvisibleButton("##choice", ImVec2(W, 28.0f));
-            const bool RowHot = ImGui::IsItemHovered();
-            if (ImGui::IsItemClicked())
-            {
-                FilterOn_[Slot] = !FilterOn_[Slot];
-                NarrowMenuOpen_ = false;
-                ImGui::CloseCurrentPopup();
-            }
+            ImGui::PushID(int(Slot));
+            if(Controls_->DropdownChoice("##choice",QueryFilterLabel(Slot),FilterOn_[Slot],QueryFilterTint(Slot),kGreen))
+            {FilterOn_[Slot]=!FilterOn_[Slot];ImGui::CloseCurrentPopup();}
             ImGui::PopID();
-            if (RowHot || FilterOn_[Slot])
-            {
-                PopDraw->AddRectFilled(P, ImVec2(P.x + W, P.y + 28.0f), RowHot ? kG3 : kG2, 14.0f);
-            }
-            PopDraw->AddCircleFilled(ImVec2(P.x + 13.0f, P.y + 14.0f), 3.0f, QueryFilterTint(Slot));
-            DrawSized(PopDraw, Ui, 11.0f, P.x + 26.0f, P.y + 14.0f, FilterOn_[Slot] ? kText : kT2, Label);
-            if (FilterOn_[Slot])
-            {
-                DrawIcon(PopDraw, OutlinerIconCategory::Check, ImVec2(P.x + W - 22.0f, P.y + 7.0f), 14.0f, kGreen);
-            }
         }
-        NarrowMenuOpen_ = true;
-        ImGui::EndPopup();
+        Controls_->EndDropdownPopup();
     }
-    ImGui::PopStyleColor(2);
-    ImGui::PopStyleVar(3);
-
     ImGui::SetCursorScreenPos(ImVec2(Cursor.x, Cursor.y + H + 8.0f));
 }
 
@@ -1627,8 +1580,9 @@ void OutlinerPanel::RecordEmpty(float Width) noexcept
     ImGui::Dummy(ImVec2(Width, 30.0f + 16.0f + 30.0f));
     const ImVec2 Min = ImGui::GetItemRectMin();
     ImFont* Ui = Controls_->QueryUi();
-    const float W = MeasureSized(Ui, 12.0f, "Nothing here.");
-    DrawSized(ImGui::GetWindowDrawList(), Ui, 12.0f, Min.x + (Width - W) * 0.5f, Min.y + 30.0f + 8.0f, kT3, "Nothing here.");
+    const char* Message=SolidArcCensus_ ? "No geometry. Use Construct to begin." : "Nothing here.";
+    const float W = MeasureSized(Ui, 12.0f, Message);
+    DrawSized(ImGui::GetWindowDrawList(), Ui, 12.0f, Min.x + std::max(0.0f,(Width - W) * 0.5f), Min.y + 30.0f + 8.0f, kT3, Message);
 }
 
 //------------------------------------------------------------------------------------------------------------------------
@@ -1657,7 +1611,7 @@ void OutlinerPanel::RecordRow(EditorInstance* Instances, uint32_t InstanceCount,
     ImGui::PushID(static_cast<int>(Index));
     // Keep the row's hit target out of the chevron/eye columns. A full-width
     // InvisibleButton consumed their press before the small controls could see it.
-    const float HitLeft=Min.x+8.0f+float(Row.Depth)*13.0f+kChevBox+kRowGap;
+    const float HitLeft=SolidArcCensus_ ? Min.x+8.0f : Min.x+8.0f+float(Row.Depth)*13.0f+kChevBox+kRowGap;
     const float HitRight=Max.x-(Row.Pinned?0.0f:kEyeBox+6.0f);
     ImGui::SetCursorScreenPos(ImVec2(HitLeft,Min.y));
     ImGui::InvisibleButton("##row", ImVec2(std::max(1.0f,HitRight-HitLeft), RowH), ImGuiButtonFlags_MouseButtonLeft);
@@ -1675,7 +1629,7 @@ void OutlinerPanel::RecordRow(EditorInstance* Instances, uint32_t InstanceCount,
     const ImU32 Accent = RowTint(Row);
 
     // Drag: the page's HTML5 drag. A press that travels starts one; pinned folders never do.
-    if (ImGui::IsItemActive() && !Row.Pinned && !Row.Component && DragLifted_ == kNoEditorInstance
+    if (ImGui::IsItemActive() && !SolidArcCensus_ && !Row.Pinned && !Row.Component && DragLifted_ == kNoEditorInstance
         && ImGui::IsMouseDragging(0, 4.0f))
     {
         DragLifted_ = Index;
@@ -1728,9 +1682,10 @@ void OutlinerPanel::RecordRow(EditorInstance* Instances, uint32_t InstanceCount,
 
     // Columns, left to right.
     const float Cy = Min.y + RowH * 0.5f;
-    float X = Min.x + 8.0f + static_cast<float>(Row.Depth) * 13.0f;
+    float X = Min.x + 8.0f + (SolidArcCensus_ ? 0.0f : static_cast<float>(Row.Depth) * 13.0f);
 
-    // Chevron.
+    // CAD uses flat collection rows; game trees retain their chevrons.
+    if (!SolidArcCensus_)
     {
         const ImVec2 ChevMin(X, Cy - kChevBox * 0.5f);
         if (HasKids)
@@ -1752,7 +1707,8 @@ void OutlinerPanel::RecordRow(EditorInstance* Instances, uint32_t InstanceCount,
         const IconSymbol Artwork = ArtworkFor(Row);
         const float ArtSize=std::min(kIcoBox,RowH-4.f);
         const ImVec2 ArtMin(X+(kIcoBox-ArtSize)*.5f, Cy-ArtSize*.5f);
-        if (!IconPresentation::Draw(Draw, Artwork, ArtMin, ArtSize, Fade * DimF))
+        if(Row.CadShape[0])CadWidgets::DrawShapeIcon(Draw,Row.CadShape,ImVec2(ArtMin.x+ArtSize*.5f,Cy),ArtSize/32.f,GlyphInk);
+        else if (!IconPresentation::Draw(Draw, Artwork, ArtMin, ArtSize, Fade * DimF))
             DrawIcon(Draw, IconFor(Row), ImVec2(X + (kIcoBox - 14.0f) * 0.5f, Cy - 7.0f), 14.0f, GlyphInk);
         else if (IconPresentation::Result(Artwork) != IconResult::Ready &&
                  ImGui::IsMouseHoveringRect(ArtMin, ImVec2(ArtMin.x+ArtSize, ArtMin.y+ArtSize)))
@@ -1763,7 +1719,7 @@ void OutlinerPanel::RecordRow(EditorInstance* Instances, uint32_t InstanceCount,
 
     // Right-hand columns, measured first so the name knows its room.
     float RightX = Max.x - 6.0f;
-    const bool ShowEye = !Row.Pinned && (Hot || Picked || !Row.Visible);
+    const bool ShowEye = !Row.Pinned && (SolidArcCensus_ || Hot || Picked || !Row.Visible);
     if (!Row.Pinned)
     {
         RightX -= kEyeBox;
@@ -1790,7 +1746,7 @@ void OutlinerPanel::RecordRow(EditorInstance* Instances, uint32_t InstanceCount,
     }
 
     // Folder rows match HTML: artwork + label + visibility, no extra status glyph.
-    if (!Folder)
+    if (!Folder && !SolidArcCensus_)
     {
         EditorStanding Standing = EditorStanding::Ok;
         char Note[24] = {};
@@ -1817,8 +1773,16 @@ void OutlinerPanel::RecordRow(EditorInstance* Instances, uint32_t InstanceCount,
         RightX -= kRowGap;
     }
 
+    if (SolidArcCensus_ && !Folder && Row.Tag[0] && RightX-X>100)
+    {
+        const float TypeW=MeasureSized(Ui,9.0f,Row.Tag);
+        RightX-=TypeW;
+        DrawSized(Draw,Ui,9.0f,RightX,Cy,ScaleAlpha(kT3,Fade),Row.Tag);
+        RightX-=8;
+    }
+    if(SolidArcCensus_ && Hot && Row.Meta[0]) ImGui::SetTooltip("%s\n%s",Row.Label,Row.Meta);
     // Meta.
-    if (!Compact_ && Row.Meta[0] != '\0')
+    if (!SolidArcCensus_ && !Compact_ && Row.Meta[0] != '\0')
     {
         const float W = MeasureSized(Mono, 11.0f, Row.Meta);
         RightX -= W;
@@ -1836,7 +1800,7 @@ void OutlinerPanel::RecordRow(EditorInstance* Instances, uint32_t InstanceCount,
         else
         {
             float TagW = 0.0f;
-            if (Row.Tag[0] != '\0')
+            if (!SolidArcCensus_ && Row.Tag[0] != '\0')
             {
                 char TagUpper[8];
                 UpperCopy(TagUpper, sizeof(TagUpper), Row.Tag);

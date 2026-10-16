@@ -6,11 +6,120 @@
 //    walks the pick plane inside the rectangle — no separate frustum code to keep in step with the drawing.
 #include "ConsoleHost.h"
 #include "Presentation/ScenePresentation.h"
+#include "Kernel/ProfileSolver.h"
+#include "Kernel/BlendSolver.h"
+#include "Kernel/SkinSolver.h"
 #include <algorithm>
 #include <set>
 
 namespace Frontier
 {
+
+ConsoleHost::FaceExtrusionContext ConsoleHost::FaceExtrusionSelection() const
+{
+    FaceExtrusionContext Out;Out.Normal=true;Vec3 First;bool HaveNormal=false;
+    for(const auto& F:Scene.Figures()) {
+        if(F.SelectedFaces.empty())continue;
+        Out.Count+=unsigned(F.SelectedFaces.size());Out.Targets.emplace_back(F.Identity,F.SelectedFaces);
+        if(F.Classification!=FigureClassification::Body||F.Hidden||F.Locked){Out.Reason="Face extrusion requires visible unlocked solid bodies.";return Out;}
+        const auto Allowed=BlendSolver::CanPushFaces(F.Body,F.SelectedFaces,true);
+        if(Allowed){Out.Reason=Allowed.Detail;return Out;}
+        if(BlendSolver::CanPushFaces(F.Body,F.SelectedFaces,false))Out.Normal=false;
+        for(int Face:F.SelectedFaces) {
+            const auto N=F.Body.FaceNormal(Face,.5,.5);
+            if(HaveNormal&&First.Dot(N)<.999999)Out.Normal=false;
+            if(!HaveNormal){First=N;HaveNormal=true;}
+        }
+    }
+    if(!Out.Count){Out.Reason="Select one or more body faces (face mode · 3).";return Out;}
+    for(const auto& F:Scene.Figures())if(!F.SelectedEdges.empty()||!F.SelectedPoles.empty()||(F.Selected&&F.SelectedFaces.empty())) {Out.Reason="Select faces only; clear whole-figure, edge and pole selections.";return Out;}
+    if(Scene.SelectedAreaCount()){Out.Reason="Select either sketch regions or body faces, not both.";return Out;}
+    Out.Available=true;return Out;
+}
+
+// Cache exact trim eligibility between geometry/visibility/lock changes; never run
+// curve intersections on every native mouse frame.
+ConsoleHost::SketchToolContext ConsoleHost::SketchTools() const
+{
+    uint64_t Key=UndoSequence::Fingerprint(Scene);
+    for(const auto& F:Scene.Figures()){Key^=uint64_t(F.Identity)*1099511628211ull+uint64_t(F.Locked);Key*=1099511628211ull;}
+    if(SketchToolsCached_&&Key==SketchToolsFingerprint_)return SketchToolsCache_;
+    SketchToolContext Out;Out.CutReason="Draw or unlock a visible sketch curve first.";
+    Out.TrimReason="Trim needs an editable curve crossed by another visible sketch curve.";
+    for(const auto& F:Scene.Figures()) {
+        if(F.Hidden||F.Locked||F.Classification!=FigureClassification::Curve||F.Curve.Poles.size()<2)continue;
+        Out.Cut=true;Out.CutReason="Click a curve to split it at that point. Closed curves split at the click and their existing seam.";
+        if(Out.Trim)continue;
+        std::vector<NurbsCurve> Cutters;
+        for(const auto& K:Scene.Figures())if(K.Identity!=F.Identity&&!K.Hidden&&K.Classification==FigureClassification::Curve)Cutters.push_back(K.Curve);
+        if(ProfileSolver::Trimmed(F.Curve,Cutters,F.Curve.Sample((F.Curve.DomainStart()+F.Curve.DomainEnd())*.5))) {
+            Out.Trim=true;Out.TrimReason="Click inside the segment to remove between intersections. Open ends also bound segments.";
+        }
+    }
+    SketchToolsCache_=Out;SketchToolsFingerprint_=Key;SketchToolsCached_=true;return Out;
+}
+
+// Screen-space nearest-curve search only chooses an exact NURBS parameter. It
+// doesn't rasterize a CPU image or flatten the saved model to a tessellation.
+bool ConsoleHost::SketchEditAtPixel(bool Trim,double X,double Y,double Radius) noexcept
+{
+    SketchEditStatus_="Click directly on an editable sketch curve.";
+    const double W=Surface->Width(),H=Surface->Height();
+    if(!std::isfinite(X)||!std::isfinite(Y)||!std::isfinite(Radius)||X<0||Y<0||X>=W||Y>=H||Radius<=0||Radius>128)return false;
+    uint32_t Pick=0;double Parameter=0,Best=Radius*Radius;
+    for(const auto& F:Scene.Figures()) {
+        if(F.Hidden||F.Locked||F.Classification!=FigureClassification::Curve||F.Curve.Poles.size()<2)continue;
+        std::vector<Vec3> Points;std::vector<double> Parameters;
+        F.Curve.Tessellate(Points,&Parameters,ScalarCriteria::ChordTolerance);
+        auto Distance=[&](double T){double A,B;if(!View.WorldToPixel(F.Curve.Sample(T),W,H,A,B))return ScalarCriteria::Infinity;return (A-X)*(A-X)+(B-Y)*(B-Y);};
+        for(size_t I=1;I<Points.size();++I) {
+            double AX,AY,BX,BY;
+            if(!View.WorldToPixel(Points[I-1],W,H,AX,AY)||!View.WorldToPixel(Points[I],W,H,BX,BY))continue;
+            const double DX=BX-AX,DY=BY-AY,L=DX*DX+DY*DY;
+            const double U=L>0?std::clamp(((X-AX)*DX+(Y-AY)*DY)/L,0.,1.):0.;
+            const double D=std::hypot(AX+U*DX-X,AY+U*DY-Y);
+            if(D>Radius+2)continue;
+            double Lo=Parameters[I-1],Hi=Parameters[I];
+            for(int J=0;J<30;++J){const double A=Lo+(Hi-Lo)*.38196601125,B=Lo+(Hi-Lo)*.61803398875;if(Distance(A)<Distance(B))Hi=B;else Lo=A;}
+            const double Candidates[]={Parameters[I-1],Parameters[I],(Lo+Hi)*.5};
+            for(double T:Candidates){const double Value=Distance(T);if(Value<Best){Best=Value;Pick=F.Identity;Parameter=T;}}
+        }
+    }
+    if(!Pick)return false;
+    const Vec3 P=Scene.Find(Pick)->Curve.Sample(Parameter);
+    char Command[256];std::snprintf(Command,sizeof(Command),"%s #%u (%.17g,%.17g,%.17g) --select-result",Trim?"trim":"cut",Pick,P.X,P.Y,P.Z);
+    const bool Accepted=Execute(Command);
+    SketchEditStatus_=Accepted?(Trim?"Trimmed segment. Click another segment · Esc to finish.":"Curve split. Click another curve · Esc to finish."):
+        (Trim?"Cannot trim here: click inside a segment with crossing boundaries, not on an intersection.":"Cannot cut here: click away from endpoints or the existing closed-curve seam.");
+    return Accepted;
+}
+
+// Shared Inspector eligibility follows the native command operand contracts.
+// Applying an operation still performs the solver's full geometry validation.
+std::vector<ConsoleHost::SelectionOperation> ConsoleHost::CurveSelectionOperations() const
+{
+    std::vector<NurbsCurve> Curves;
+    for(uint32_t Id:Scene.OrderedSelection()) {
+        const SceneFigure* F=nullptr;for(const auto& Item:Scene.Figures())if(Item.Identity==Id){F=&Item;break;}
+        if(!F || F->Classification!=FigureClassification::Curve || F->Hidden || F->Locked || !F->SelectedPoles.empty())return {};
+        Curves.push_back(F->Curve);
+    }
+    for(const auto& F:Scene.Figures())if(!F.SelectedFaces.empty()||!F.SelectedEdges.empty()||!F.SelectedPoles.empty())return {};
+    if(Scene.SelectedAreaCount() || Curves.empty())return {};
+    if(Curves.size()==1)return {{"extrude","Extrude","Extend the profile into a solid or sheet."},{"revolve","Revolve","Rotate the profile around an axis."},{"pipe","Pipe","Create a circular tube along this path."}};
+    std::vector<SelectionOperation> Out={{"loft","Loft","Skin sections in selection order; closed sections can form a solid."}};
+    if(SkinSolver::CoplanarClosedSections(Curves)) {
+        Out[0].Enabled=false;
+        Out[0].Hint="Solid loft unavailable: all closed profiles lie in the same plane (zero thickness). Move a section out of the plane. Explicit sheet loft remains available via --sheet.";
+    }
+    if(Curves.size()==2) {
+        Out.push_back({"sweep","Sweep","First selected curve is the profile; second is the path."});
+        Out.push_back({"ruled","Ruled surface","Connect corresponding points with straight rulings."});
+        if(!Curves[0].Closed()&&!Curves[1].Closed())Out.push_back({"bridge","Bridge","Connect two open sections with a sheet."});
+    }
+    if(ProfileSolver::Joined(Curves))Out.push_back({"join","Join","Join endpoint-connected curves into one curve."});
+    return Out;
+}
 
 namespace
 {
@@ -26,7 +135,10 @@ namespace
 void ConsoleHost::HoverAtPixel(double X, double Y) noexcept
 {
     if (X < 0 || Y < 0 || X >= Surface->Width() || Y >= Surface->Height()) return;
-    Render();
+    // The native editor rendered the pick plane before routing this frame's pointer.
+    // Re-rendering here and again for the new highlight doubled the expensive CPU AA work
+    // on every mouse move. An unpainted standalone host still needs its first pick plane.
+    if (DrawnSignature == 0) (void)RenderIfChanged();
     uint32_t Pick = Surface->Pick(uint32_t(X), uint32_t(Y));
     const auto Part = SceneDocument::PartOf(Pick);
     if (Mode == SelectMode::Whole || Mode == SelectMode::Face) { if (Part == SceneDocument::PickPart::Pole || Part == SceneDocument::PickPart::Edge) Pick = SceneDocument::PickOf(SceneDocument::IdentityOf(Pick)); }
@@ -48,7 +160,7 @@ void ConsoleHost::HoverAtPixel(double X, double Y) noexcept
 
 bool ConsoleHost::SelectAtPixel(double X, double Y, bool Toggle) noexcept
 {
-    Render();
+    (void)RenderIfChanged();
     uint32_t Pick = Surface->Pick(uint32_t(X), uint32_t(Y));
     uint32_t Id = SceneDocument::IdentityOf(Pick); int Pole = SceneDocument::PoleOf(Pick);
     SceneFigure* Figure = Scene.Find(Id);
@@ -65,12 +177,12 @@ bool ConsoleHost::SelectAtPixel(double X, double Y, bool Toggle) noexcept
         if (Pole < 0)
         {
             // Clicking a body in control mode selects the figure so its cage appears (Blender: enter edit on it).
-            Figure->Selected = true; Row("click (%d,%d): #%u %s — cage shown, click its poles", int(X), int(Y), Figure->Identity, Figure->Name.c_str());
+            Figure->Selected = true; Scene.TouchSelection(*Figure); Row("click (%d,%d): #%u %s — cage shown, click its poles", int(X), int(Y), Figure->Identity, Figure->Name.c_str());
             return true;
         }
         const bool On = Toggle ? !Figure->PoleSelected(Pole) : true;
         TogglePole(*Figure, Pole, On);
-        Figure->Selected = true;
+        Figure->Selected = true; Scene.TouchSelection(*Figure);
         Vec3 P = Figure->PolePosition(Pole);
         Row("pole %d of #%u %s %s  (%.4f %.4f %.4f)  ·  %d pole(s) selected", Pole, Figure->Identity, Figure->Name.c_str(), On ? "selected" : "deselected", P.X, P.Y, P.Z, Scene.SelectedPoleCount());
         return true;
@@ -95,7 +207,7 @@ bool ConsoleHost::SelectAtPixel(double X, double Y, bool Toggle) noexcept
         Row("edge %d of #%u %s %s  (%s, length %.4f, %zu face(s))  ·  %d edge(s) selected", Edge, Figure->Identity, Figure->Name.c_str(), On ? "selected" : "deselected", Describe(E.Curve.Classification), E.Curve.Length(), E.Coedges.size(), Scene.SelectedEdgeCount());
         return true;
     }
-    Figure->Selected = Toggle ? !Figure->Selected : true;
+    Figure->Selected = Toggle ? !Figure->Selected : true; Scene.TouchSelection(*Figure);
     DescribeFigure(*Figure);
     Row("%d selected", Scene.SelectedCount());
     return true;
@@ -103,7 +215,7 @@ bool ConsoleHost::SelectAtPixel(double X, double Y, bool Toggle) noexcept
 
 int ConsoleHost::SelectInRectangle(double X0, double Y0, double X1, double Y1, bool Toggle, bool Subtract) noexcept
 {
-    Render();
+    (void)RenderIfChanged();
     if (!Toggle && !Subtract) Scene.ClearSelection();
     const uint32_t Ax = uint32_t(std::clamp(std::min(X0, X1), 0.0, double(Surface->Width() - 1)));
     const uint32_t Bx = uint32_t(std::clamp(std::max(X0, X1), 0.0, double(Surface->Width() - 1)));
@@ -119,7 +231,7 @@ int ConsoleHost::SelectInRectangle(double X0, double Y0, double X1, double Y1, b
         if (Mode == SelectMode::Control)
         {
             if (Pole < 0) continue;                                                     // box in control mode only takes poles
-            TogglePole(*Figure, Pole, !Subtract); Figure->Selected = true; ++Changed;
+            TogglePole(*Figure, Pole, !Subtract); Figure->Selected = true; Scene.TouchSelection(*Figure); ++Changed;
         }
         else if (Mode == SelectMode::Face && Figure->Classification == FigureClassification::Body)
         {
@@ -135,7 +247,7 @@ int ConsoleHost::SelectInRectangle(double X0, double Y0, double X1, double Y1, b
         }
         else if (Figure->Selected == Subtract)
         {
-            Figure->Selected = !Subtract; ++Changed;
+            Figure->Selected = !Subtract; Scene.TouchSelection(*Figure); ++Changed;
         }
     }
     return Changed;
@@ -178,7 +290,7 @@ void ConsoleHost::RegisterSelection() noexcept
             }
             else
             {
-                for (SceneFigure& I : Scene.Figures()) if (!I.Hidden) I.Selected = !I.Selected;
+                for (SceneFigure& I : Scene.Figures()) if (!I.Hidden) { I.Selected = !I.Selected; Scene.TouchSelection(I); }
             }
         }
         else if (C.Count() >= 1 && C.Arguments[0] == "box")
@@ -209,7 +321,7 @@ void ConsoleHost::RegisterSelection() noexcept
         {
             SceneFigure* I = Resolve(C.Arguments[1]); if (!I) return Refuse("no figure '%s'", C.Arguments[1].c_str());
             if (!C.Switch("add")) for (SceneFigure& J : Scene.Figures()) J.SelectedPoles.clear();
-            I->Selected = true;
+            I->Selected = true; Scene.TouchSelection(*I);
             if (C.Count() == 3 && C.Arguments[2] == "all") { I->SelectedPoles.clear(); for (int P = 0; P < I->PoleCount(); ++P) I->SelectedPoles.push_back(P); }
             else if (C.Count() == 3 && C.Arguments[2] == "none") I->SelectedPoles.clear();
             else for (size_t K = 2; K < C.Count(); ++K)
@@ -223,7 +335,7 @@ void ConsoleHost::RegisterSelection() noexcept
         {
             std::vector<SceneFigure*> Items = ResolveMany(C, 0); if (Items.empty()) return Refuse("select: nothing matched");
             if (!C.Switch("add")) Scene.ClearSelection();
-            for (SceneFigure* I : Items) I->Selected = true;
+            for (SceneFigure* I : Items) { I->Selected = true; Scene.TouchSelection(*I); }
         }
         int N = 0; for (const SceneFigure& I : Scene.Figures()) if (I.Selected) { ++N; DescribeFigure(I); }
         std::string Sub;

@@ -19,6 +19,9 @@ class ControlPanel;
 class InspectorPanel final
 {
 public:
+    // Native SolidArc seats these same panels in its browser-approved workspace layout.
+    void AssignCadPresentation(bool Enabled) noexcept { CadPresentation_=Enabled; }
+    void AssignFrameless(bool Enabled) noexcept { Frameless_ = Enabled; }
     void AssignControls(ControlPanel* Controls) noexcept;
     // The tab's close mark writes through this; null leaves the tab without one.
     void AssignTabOpen(bool* Open) noexcept;
@@ -39,6 +42,8 @@ private:
     void  RecordFooter(EditorInstance* Picked) noexcept;
     float RecordCaps(const char* Text, const ImVec2& At, ImU32 Tint) noexcept;
 
+    bool CadPresentation_=false;
+    bool Frameless_ = false;
     ControlPanel*        Controls_ = nullptr;
     bool*                TabOpen_ = nullptr;
     const EditorReadout* Readout_  = nullptr;

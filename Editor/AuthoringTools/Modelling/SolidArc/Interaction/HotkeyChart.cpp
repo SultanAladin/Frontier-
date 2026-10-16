@@ -57,7 +57,7 @@ HotkeyChart HotkeyChart::Defaults() noexcept
     B("ctrl+shift+l","tool slot",          "Slot");
     B("ctrl+shift+e","tool ellipse",       "Ellipse");
     //---------------------------------------------- solid ops ----------------------------------------------
-    B("e",           "tool extrude",       "Extrude selected curve/face");
+    B("e",           "extrude-options",       "Extrude selected curve/face");
     B("q",           "boolean union selected",     "Boolean union of the selected bodies / profiles (Plasticity Q)");
     B("shift+q",     "boolean subtract selected",  "Boolean subtract: last selected body / profile from the rest");
     B("ctrl+q",      "boolean intersect selected", "Boolean intersect of the selected bodies / profiles");
@@ -66,8 +66,8 @@ HotkeyChart HotkeyChart::Defaults() noexcept
     B("shift+p",     "sweep selected",     "Sweep: first selected = profile, second = path");
     B("p",           "pipe selected 0.25", "Pipe along the selected curve / edge (radius via `pipe`)");
     B("shift+l",     "fillpatch selected", "Patch: Coons / N-sided fill over the selected boundaries");
-    B("b",           "fillet selected 0.25",  "Fillet the selected curves' corners (Plasticity B; radius via `fillet`)");
-    B("shift+b",     "chamfer selected 0.25", "Chamfer the selected curves' corners");
+    B("b",           "bevel-options",  "Interactive Bevel / Chamfer · solid edges or planar sketch corners");
+    B("shift+b",     "bevel-options --chamfer", "Interactive Chamfer");
     B("o",           "offset selected 0.25",  "Offset the selected curves (Plasticity O)");
     B("t",           "tool trim",             "Trim");
     B("j",           "join selected",      "Join curves");
