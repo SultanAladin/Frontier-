@@ -31,6 +31,9 @@ add_library(SolidArcKernel STATIC
     Kernel/ConstraintGraph.cpp
     Kernel/MirrorSolver.cpp
     Kernel/BlendSolver.cpp
+    Kernel/FaceEditSolver.cpp
+    Kernel/SurfaceOffsetSolver.cpp
+    Kernel/TweakSolver.cpp
 )
 target_include_directories(SolidArcKernel PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 
@@ -83,6 +86,8 @@ set(SOLIDARC_IMGUI_ROOT "${FRONTIER_REPO_ROOT}/ExternalPackages/imgui")
 if(EXISTS "${SOLIDARC_IMGUI_ROOT}/imgui.h")
     add_library(SolidArcEditorUi STATIC
         Editor/SolidArcEditorHost.cpp
+        Editor/SolidArcWorkspace.cpp
+        Editor/SolidArcInspector.cpp
         "${FRONTIER_REPO_ROOT}/Engine/Editor/ControlPanel.cpp"
         "${FRONTIER_REPO_ROOT}/Engine/Editor/OutlinerPanel.cpp"
         "${FRONTIER_REPO_ROOT}/Engine/Editor/ViewportPanel.cpp"

@@ -78,7 +78,16 @@ bool CommandCodec::Decode(std::string_view Line, std::vector<CommandLine>& Out, 
             continue;
         }
         if (Ch == '"') { InQuote = true; continue; }
-        if (Ch == '#' && Depth == 0) break;
+        if (Ch == '#' && Depth == 0)
+        {
+            // Stable scene references (#12) are operands, not the start of a comment.
+            // Preserve ordinary '# comment' and '#tag' comments, including inline ones.
+            size_t End=I+1;
+            while(End<Line.size() && std::isdigit(static_cast<unsigned char>(Line[End])))++End;
+            const bool Identity=Current.empty() && End>I+1 &&
+                (End==Line.size() || std::isspace(static_cast<unsigned char>(Line[End])) || Line[End]==';');
+            if(!Identity)break;
+        }
         if (Ch == '(') ++Depth;
         if (Ch == ')') { if (--Depth < 0) { Error = "unbalanced ')'"; return false; } }
         if (Depth == 0 && Ch == ';') { FlushCommand(); continue; }

@@ -45,7 +45,7 @@ struct SolidArcOutlinerBinding
                                              EditorInstance* Rows,
                                              SolidArcOutlinerBinding* Bindings,
                                              uint32_t Capacity,
-                                             EditorReadout* Readout) noexcept;
+                                             EditorReadout* Readout, bool CadCollection = false) noexcept;
 
 void ApplySolidArcOutlinerVisibility(ConsoleHost& Host,
                                       const EditorInstance* Rows,

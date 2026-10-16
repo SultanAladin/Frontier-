@@ -5,6 +5,7 @@
 //    project's record feed.
 
 #include "EditorHost.h"
+#include "EditorTheme.h"
 #include "SunInspectorPanel.h"
 #include "../DisplayPresentation/IconPresentation.h"
 
@@ -426,6 +427,8 @@ void EditorHost::ApplyTheme() noexcept
     Tints[ImGuiCol_TabDimmedSelectedOverline] = ImVec4(0.0f, 0.0f, 0.0f, 0.0f);
     Tints[ImGuiCol_DockingPreview]        = ImVec4(1.000f, 1.000f, 1.000f, 0.12f);
     Tints[ImGuiCol_TextSelectedBg]        = ImVec4(0.424f, 0.467f, 1.000f, 0.35f);
+    ApplyEditorControlTheme(Applied);
+    ApplyPanelTabTheme(Applied);
 
     // Faces. Outfit carries the chrome — the celestial page's own face, its 300 body weight, 300 title and
     //    200 census numerals — and JetBrains Mono the figures, as the page's --mono. Each archive is probed

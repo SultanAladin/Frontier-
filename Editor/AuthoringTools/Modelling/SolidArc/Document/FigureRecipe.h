@@ -18,7 +18,7 @@ namespace Frontier
 class SceneDocument;
 struct Workplane;
 
-enum class RecipeOperation : uint8_t { None = 0, Extrude, Revolve, Loft, Sweep, Pipe, Patch, FairPatch };
+enum class RecipeOperation : uint8_t { None = 0, Extrude, Revolve, Loft, Sweep, Pipe, Patch, FairPatch, SurfaceOffset };
 [[nodiscard]] const char* Describe(RecipeOperation Operation) noexcept;
 
 // One input: a curve figure, a sketch area (its bounding curves + the centroid that identifies the cell), or a body edge.
@@ -52,6 +52,7 @@ struct FigureRecipe
     Vec3                     Axis = Vec3::UnitY();                                      // [-] revolve
     double                   Angle = 0.0;                                               // [rad] revolve
     double                   Radius = 0.0;                                              // [m] pipe
+    bool                     OffsetFailureHidden = false;                              // [-] restore visibility after a failed offset recovers
     bool                     Sheet = false;                                             // [-] force sheet output
     uint64_t                 InputFingerprint = 0;                                      // [-] geometry of the inputs at the last build
     std::string              Complaint;                                                 // [-] why the last regeneration failed (empty = fine)
@@ -64,7 +65,7 @@ struct FigureRecipe
     [[nodiscard]] Vec3 Hint(const SceneDocument& Scene, const Workplane& Work) const noexcept;    // centroid of the rim samples
     [[nodiscard]] uint64_t FingerprintInputs(const SceneDocument& Scene, const Workplane& Work) const noexcept;
     // Build the figure's geometry. Exactly one of the outputs is filled, chosen by the recipe.
-    struct Product { NurbsSurface Sheet; BrepBody Body; std::vector<NurbsSurface> Sheets; bool IsBody = false; };
+    struct Product { NurbsCurve Curve; bool IsCurve = false; NurbsSurface Sheet; BrepBody Body; std::vector<NurbsSurface> Sheets; bool IsBody = false; };
     [[nodiscard]] Deliver<Product> Produce(const SceneDocument& Scene, const Workplane& Work, FairPatchReport* Report = nullptr) const noexcept;
     [[nodiscard]] std::string Summary(const SceneDocument& Scene) const noexcept;
 };

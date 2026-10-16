@@ -37,6 +37,7 @@ struct ViewportOrbit
 {
     float    Yaw      = 0.0f;   // [rad] 0 faces +Y, positive turns toward +X
     float    Pitch    = 0.0f;   // [rad] positive looks up toward +Z
+    float    Roll     = 0.0f;   // CAD screen-space orbit; game chrome retains zero
     float    Distance = 4.5f;   // [m] eye to target
     float    Target[3] = { 0.0f, 0.5f, 1.4f };
     bool     Ortho    = false;  // false reads perspective, true orthographic
@@ -47,12 +48,21 @@ struct ViewportOrbit
 class ViewportPanel final
 {
 public:
+    // Native SolidArc seats these same panels in its browser-approved workspace layout.
+    void AssignBrowserCadChrome(bool Enabled) noexcept { BrowserCadChrome_ = Enabled; }
+    int ConsumeCadViewRequest() noexcept {const int Result=CadViewRequest_;CadViewRequest_=-1;return Result;}
+    [[nodiscard]] ImVec2 QueryCameraMenuCentre() const noexcept { return CameraMenuCentre_; }
+    [[nodiscard]] ImVec2 QueryProjectionMenuCentre() const noexcept { return ProjectionMenuCentre_; }
+    [[nodiscard]] ImVec2 QueryConstructCentre() const noexcept { return ConstructCentre_; }
+    void AssignFrameless(bool Enabled) noexcept { Frameless_ = Enabled; }
     void AssignControls(ControlPanel* Controls) noexcept;
     // The tab's close mark writes through this; null leaves the tab without one.
     void AssignTabOpen(bool* Open) noexcept;
     // Lets SolidArc seat this exact panel beside Project-Zero without sharing the same ImGui title/id.
     void AssignWindowTitle(const char* Title) noexcept;
     // Switches the top chrome between the Project-Zero/game controls and SolidArc's CAD controls.
+    [[nodiscard]] bool ConsumeSolidArcConstructRequest() noexcept
+    { const bool Requested = SolidArcConstructRequested_; SolidArcConstructRequested_ = false; return Requested; }
     void AssignChrome(ViewportPanelChrome Chrome) noexcept { Chrome_ = Chrome; }
 
     // Seats the scene view: RGBA32 top-down rows the view draws under its orb. The headless harness seats a CPU
@@ -82,6 +92,7 @@ public:
     // Seats the orbit's home from the harness camera (yaw, pitch, target, distance); the snaps and the
     //    gizmo work from there. Reads the orbit back for the harness trace and the game camera.
     void SeatViewportOrbit(const ViewportOrbit& Seated) noexcept;
+    void UpdateViewportOrbit(const ViewportOrbit& Current) noexcept { Orbit_ = Current; }
     [[nodiscard]] const ViewportOrbit& QueryViewportOrbit() const noexcept { return Orbit_; }
 
     // Last view rect, so the project can size the view rows to the rect it draws into.
@@ -95,11 +106,15 @@ public:
     [[nodiscard]] bool QueryViewTap(float* AcrossU, float* DownV, bool* Additive) noexcept;
     [[nodiscard]] bool QueryViewAim(float* AcrossU, float* DownV) const noexcept;
 
+    // SolidArc owns its modelling pointer; the shared panel still owns chrome/compass widgets.
+    void AssignExternalCadInput(bool Enabled) noexcept { ExternalCadInput_ = Enabled; }
+    [[nodiscard]] ImVec2 QueryViewOrigin() const noexcept { return ViewOrigin_; }
     void Record(EditorInstance* Instances, uint32_t InstanceCount) noexcept;
 
 private:
     void RecordBar() noexcept;
     void RecordSolidArcBar() noexcept;
+    void RecordBrowserCadBar() noexcept;
     void RecordView() noexcept;
     void RecordCommand(EditorInstance* Instances, uint32_t InstanceCount) noexcept;
     void RecordFooter(EditorInstance* Instances, uint32_t InstanceCount) noexcept;
@@ -113,6 +128,9 @@ private:
     void RunSugRow(uint32_t Row, EditorInstance* Instances, uint32_t InstanceCount) noexcept;
     static int ConsoleCallback(ImGuiInputTextCallbackData* Edit) noexcept;
 
+    bool Frameless_ = false;
+    bool BrowserCadChrome_ = false;
+    ImVec2 ConstructCentre_ = {}, CameraMenuCentre_ = {}, ProjectionMenuCentre_ = {};
     ControlPanel*        Controls_ = nullptr;
     bool*                TabOpen_ = nullptr;
     const EditorReadout* Readout_  = nullptr;
@@ -125,6 +143,8 @@ private:
     uint32_t             ViewH_       = 0u;
     uint32_t             StorageW_    = 0u;
     uint32_t             StorageH_    = 0u;
+    bool                 ExternalCadInput_ = false;
+    ImVec2               ViewOrigin_ = {};
     bool                 CanvasDragging_ = false;
     float                LastW_       = 0.0f;      // last view rect, for the QueryView* rect
     float                LastH_       = 0.0f;
@@ -152,6 +172,8 @@ private:
     bool     MarkersOn_ = true;
     ViewportOrbit Orbit_;   // the views menu, the gizmo and the wheel pose through this
     ViewportOrbit Home_    = {};   // the seated home; the projection rows restore it
+    int CadViewRequest_=-1;
+    bool SolidArcConstructRequested_ = false;
     uint32_t SolidArcSelectMask_ = 1u;   // Body, Face, Edge, Vertex bits: HTML top-panel parity
     uint32_t SolidArcShade_      = 3u;   // Wire, Flat, Plastic, Matcap
     uint32_t SolidArcGizmo_      = 0u;   // Move, Rotate, Scale

@@ -3,6 +3,7 @@
 //============================================================================================================================================
 
 #include "ToolSession.h"
+#include <algorithm>
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
@@ -29,6 +30,10 @@ const char* ToolName(ToolChoice Classification) noexcept
         case ToolChoice::CentreRectangle:  return "centerrect";
         case ToolChoice::Polygon:          return "polygon";
         case ToolChoice::Slot:             return "slot";
+        case ToolChoice::PolylineSlot:     return "pslot";
+        case ToolChoice::DatumPoint:       return "datum-point";
+        case ToolChoice::SketchPoint:      return "sketch-point";
+        case ToolChoice::PresetSlot:       return "slot2";
         case ToolChoice::Circle:           return "circle";
         case ToolChoice::TwoPointCircle:   return "circle2";
         case ToolChoice::ThreePointCircle: return "circle3";
@@ -48,7 +53,7 @@ std::optional<ToolChoice> ParseToolChoice(std::string_view Name) noexcept
 {
     static const ToolChoice All[] = { ToolChoice::Line, ToolChoice::Polyline, ToolChoice::Rectangle, ToolChoice::CentreRectangle, ToolChoice::Polygon, ToolChoice::Slot,
                                     ToolChoice::Circle, ToolChoice::TwoPointCircle, ToolChoice::ThreePointCircle, ToolChoice::Arc, ToolChoice::ThreePointArc,
-                                    ToolChoice::Ellipse, ToolChoice::Spline, ToolChoice::ControlCurve, ToolChoice::Move, ToolChoice::Rotate, ToolChoice::Scale };
+                                    ToolChoice::Ellipse, ToolChoice::Spline, ToolChoice::ControlCurve, ToolChoice::Move, ToolChoice::Rotate, ToolChoice::Scale, ToolChoice::PolylineSlot, ToolChoice::DatumPoint, ToolChoice::SketchPoint, ToolChoice::PresetSlot };
     for (ToolChoice K : All) if (Name == ToolName(K)) return K;
     if (Name == "rectangle") return ToolChoice::Rectangle;
     if (Name == "grab" || Name == "translate") return ToolChoice::Move;
@@ -78,11 +83,17 @@ bool ToolSession::Begin(ToolChoice NewChoice, const Context& NewCtx, Completion 
 {
     if (Active()) Finish(false);
     Classification = NewChoice; Ctx = NewCtx; OnComplete = std::move(NewCompletion);
+    // Each begin has deterministic defaults; explicit tool-options commands preserve edits in .arc replay.
+    SlotRadius=.25; Clockwise=false; Circumscribed=false; Closed=false; Sides=6; Degree=3;
     Prompts.clear(); Confirmed.clear(); Scalars.clear(); Live = {}; PromptIndex = 0; HavePointer = false;
     auto P = [&](const char* Label, Want W = Want::Point, bool Optional = false) { Prompts.push_back({ Label, W, Optional }); };
     switch (Classification)
     {
+        case ToolChoice::DatumPoint:
+        case ToolChoice::SketchPoint:      P("Position"); break;
+        case ToolChoice::PresetSlot:       P("First centre"); P("Second centre"); break;
         case ToolChoice::Line:             P("Start"); P("End"); break;
+        case ToolChoice::PolylineSlot:     P("First centre"); P("Next centre — Enter / right-click to finish", Want::Point, true); break;
         case ToolChoice::Polyline:         P("Start"); P("Next", Want::Point, true); break;             // repeats until Enter
         case ToolChoice::Rectangle:        P("First corner"); P("Opposite corner"); break;
         case ToolChoice::CentreRectangle:  P("Centre"); P("Corner"); break;
@@ -107,11 +118,25 @@ bool ToolSession::Begin(ToolChoice NewChoice, const Context& NewCtx, Completion 
     return true;
 }
 
+void ToolSession::ResizeViewport(uint32_t Width, uint32_t Height) noexcept
+{
+    if (Ctx.Width == Width && Ctx.Height == Height) return;
+    if (HavePointer && Ctx.Width > 0u && Ctx.Height > 0u)
+    {
+        PointerX *= double(Width) / Ctx.Width;
+        PointerY *= double(Height) / Ctx.Height;
+    }
+    Ctx.Width = Width;
+    Ctx.Height = Height;
+    if (Active()) Rebuild();
+}
+
 void ToolSession::Cancel() noexcept { if (Active()) Finish(false); }
 
 void ToolSession::Finish(bool Completed) noexcept
 {
     ToolResult Out;
+    Out.SourceTool=Classification;
     Out.Completed = Completed;
     if (Completed)
     {
@@ -140,6 +165,13 @@ void ToolSession::Finish(bool Completed) noexcept
                 Out.Transform = Mat4::Translation(Pivot) * Mat4::Scaling(S) * Mat4::Translation(Pivot * -1.0);
                 char B[96]; std::snprintf(B, sizeof B, "scale %.4f lock %s", F, AxisLockName(Live.Lock)); Out.Summary = B;
             }
+        }
+        else if(Classification==ToolChoice::DatumPoint || Classification==ToolChoice::SketchPoint)
+        {
+            if(Confirmed.empty()) Out.Completed=false;
+            else Out.ReferencePoints.push_back(Confirmed.front());
+            Out.ConstructionPoint=Classification==ToolChoice::DatumPoint;
+            Out.Summary=std::string(ToolName(Classification));
         }
         else
         {
@@ -330,6 +362,7 @@ bool ToolSession::Confirm() noexcept
 {
     if (!Active()) return false;
     if (!Live.NumericEntry.empty()) return SupplyText(std::string(Live.NumericEntry));
+    if (Confirmed.empty() && !HavePointer) return false; // Enter never invents a first point at the origin
     if (CurrentPrompt().Optional || PromptIndex >= Prompts.size()) { Finish(true); return true; }
     if (Classification == ToolChoice::Move || Classification == ToolChoice::Rotate || Classification == ToolChoice::Scale) { Finish(true); return true; }
     return Advance(Live.Cursor);
@@ -365,14 +398,22 @@ Deliver<NurbsCurve> ToolSession::Produce(bool Final) const noexcept
     switch (Classification)
     {
         case ToolChoice::Line:             return N >= 2 ? NurbsCurve::Line(P[0], P[1]) : Reject("need two points");
-        case ToolChoice::Polyline:         return N >= 2 ? NurbsCurve::Polyline(P, false) : Reject("need two points");
+        case ToolChoice::Polyline:         return N >= 2 ? NurbsCurve::Polyline(P, Closed) : Reject("need two points");
         case ToolChoice::Rectangle:        return N >= 2 ? NurbsCurve::Rectangle(W, L(P[0]), L(P[1])) : Reject("need two corners");
         case ToolChoice::CentreRectangle:  return N >= 2 ? NurbsCurve::Rectangle(W, L(P[0]) - (L(P[1]) - L(P[0])), L(P[1])) : Reject("need centre and corner");
         case ToolChoice::Polygon:
         {
             if (N < 2) return Reject("need centre and radius");
             Vec2 C = L(P[0]), R = L(P[1]) - C;
-            return NurbsCurve::Polygon(W, C, R.Length(), Sides, R.Angle(), true);
+            return NurbsCurve::Polygon(W, C, R.Length(), Sides, R.Angle(), !Circumscribed);
+        }
+        case ToolChoice::PresetSlot: return N>=2 ? NurbsCurve::Slot(W,L(P[0]),L(P[1]),SlotRadius):Reject("need two centres");
+        case ToolChoice::PolylineSlot:
+        {
+            if(N<2) return Reject("need two slot centres");
+            std::vector<Vec2> Spine;
+            for(auto Point:P) { const auto Local=L(Point); if(Spine.empty() || Local.Distance(Spine.back())>ScalarCriteria::MergeTolerance) Spine.push_back(Local); }
+            return NurbsCurve::PolylineSlot(W,Spine,SlotRadius);
         }
         case ToolChoice::Slot:
         {
@@ -407,8 +448,11 @@ Deliver<NurbsCurve> ToolSession::Produce(bool Final) const noexcept
             double A0 = S.Angle(), A1 = (L(P[2]) - C).Angle();
             double Sweep = A1 - A0;
             while (Sweep <= 0) Sweep += ScalarCriteria::TwoPi;                          // counter-clockwise, like Plasticity
+            if(Clockwise) Sweep-=ScalarCriteria::TwoPi;
             if (Given(Scalars[2])) Sweep = ScalarCriteria::Radians(Scalars[2]);
-            return NurbsCurve::Arc(P[0], W.Normal(), R, A0, Sweep);
+            const Workplane ArcPlane = Workplane::FromNormal(P[0], W.Normal());
+            const double WorldStart = ArcPlane.ToLocal(P[1]).Angle();
+            return NurbsCurve::Arc(P[0], W.Normal(), R, WorldStart, Sweep);
         }
         case ToolChoice::ThreePointArc:
         {
@@ -438,6 +482,7 @@ void ToolSession::Rebuild() noexcept
     Live.Points = Confirmed;
     Live.Curves.clear();
     Live.Readout.clear();
+    Live.Dimensions.clear();Live.AngleSegments.clear();Live.DimensionSpokes.clear();
     if (!Active()) return;
     char B[128];
     if (Classification == ToolChoice::Move || Classification == ToolChoice::Rotate || Classification == ToolChoice::Scale)
@@ -456,6 +501,71 @@ void ToolSession::Rebuild() noexcept
         }
         if (Classification == ToolChoice::Polygon) { std::snprintf(B, sizeof B, "sides %d (↑/↓, n<k>)", Sides); Live.Readout.push_back(B); }
         if (Classification == ToolChoice::Spline || Classification == ToolChoice::ControlCurve) { std::snprintf(B, sizeof B, "degree %d (↑/↓, d<k>)", Degree); Live.Readout.push_back(B); }
+    }
+    // Spatial live dimensions are presentation metadata, not authored document dimensions.
+    // The native ImGui view uses its UI font for labels; both CPU/GPU devices draw the strokes.
+    if (!Confirmed.empty())
+    {
+        const Vec3 A = Confirmed.front(), B = Confirmed.size() > 1 ? Confirmed[1] : Live.Cursor;
+        auto Dimension = [&](Vec3 P, Vec3 Q, const char* Prefix, double Value, float OffsetY=0)
+        {
+            char Text[96]; std::snprintf(Text, sizeof Text, "%s%.1f mm", Prefix, Value*1000);
+            Live.Dimensions.push_back({P, Q, Text,OffsetY});
+        };
+        auto AngleDimension=[&](Vec3 Vertex,Vec3 First,Vec3 Last){
+            const Vec2 V=Ctx.Plane.ToLocal(Vertex),F=Ctx.Plane.ToLocal(First)-V,E=Ctx.Plane.ToLocal(Last)-V;
+            const double Start=F.Angle();double Sweep=E.Angle()-Start;
+            while(Sweep>ScalarCriteria::Pi)Sweep-=ScalarCriteria::TwoPi;while(Sweep< -ScalarCriteria::Pi)Sweep+=ScalarCriteria::TwoPi;
+            const double Radius=std::min(F.Length(),E.Length())*.35;
+            auto At=[&](double T,double Scale=1.){return Ctx.Plane.ToWorld(V+Vec2{std::cos(T),std::sin(T)}*(Radius*Scale));};
+            for(int I=0;I<16;++I){Live.AngleSegments.push_back(At(Start+Sweep*I/16));Live.AngleSegments.push_back(At(Start+Sweep*(I+1)/16));}
+            char Text[64];std::snprintf(Text,sizeof Text,"%.1f°",std::abs(ScalarCriteria::Degrees(Sweep)));
+            const Vec3 Label=At(Start+Sweep*.5,1.6);Live.Dimensions.push_back({Label,Label,Text});
+        };
+        if (Classification == ToolChoice::Rectangle || Classification == ToolChoice::CentreRectangle)
+        {
+            Vec2 Lo = Ctx.Plane.ToLocal(A), Hi = Ctx.Plane.ToLocal(Live.Cursor);
+            if (Classification == ToolChoice::CentreRectangle) Lo = Lo - (Hi - Lo);
+            const Vec3 P = Ctx.Plane.ToWorld(Lo), Q = Ctx.Plane.ToWorld({Hi.X, Lo.Y}), R = Ctx.Plane.ToWorld(Hi);
+            Dimension(P-Ctx.Plane.AxisY*.4, Q-Ctx.Plane.AxisY*.4, "", std::fabs(Hi.X - Lo.X));
+            Dimension(Q+Ctx.Plane.AxisX*.4, R+Ctx.Plane.AxisX*.4, "", std::fabs(Hi.Y - Lo.Y));
+        }
+        else if(Classification==ToolChoice::Circle || Classification==ToolChoice::TwoPointCircle) {
+            const Vec3 C=Classification==ToolChoice::Circle?A:(A+B)*.5;
+            const double Radius=A.Distance(B)*(Classification==ToolChoice::Circle?1:.5);
+            Dimension(C,C+Ctx.Plane.AxisX*Radius,"R ",Radius,-14);
+            const Vec3 V=(Ctx.Plane.AxisX+Ctx.Plane.AxisY)*(Radius*std::sqrt(.5));
+            Dimension(C-V,C+V,"⌀ ",Radius*2,14);
+        }
+        else if(Classification==ToolChoice::Polygon) {
+            const double Radius=A.Distance(B),Angle=(Ctx.Plane.ToLocal(B)-Ctx.Plane.ToLocal(A)).Angle();
+            const Vec3 Next=A+(Ctx.Plane.AxisX*std::cos(Angle+ScalarCriteria::TwoPi/Sides)+Ctx.Plane.AxisY*std::sin(Angle+ScalarCriteria::TwoPi/Sides))*Radius;
+            Live.DimensionSpokes={A,B,A,Next};Dimension(A,B,"R ",Radius,-14);Dimension(B,Next,"",B.Distance(Next),14);AngleDimension(A,B,Next);
+            char Text[96];std::snprintf(Text,sizeof Text,"%d sides · %.1f° interior",Sides,180.*(Sides-2)/Sides);
+            Live.Dimensions.push_back({A,A,Text,23});
+        }
+        else if(Classification==ToolChoice::Arc) {
+            Dimension(A,B,"R ",A.Distance(B));
+            if(Confirmed.size()>1) {
+                const Vec2 C=Ctx.Plane.ToLocal(A);double Start=(Ctx.Plane.ToLocal(B)-C).Angle(),Sweep=(Ctx.Plane.ToLocal(Live.Cursor)-C).Angle()-Start;
+                while(Sweep<=0)Sweep+=ScalarCriteria::TwoPi;
+                const double R=A.Distance(B)*1.15,T=Start+Sweep*.5;
+                const Vec3 Q=A+(Ctx.Plane.AxisX*std::cos(T)+Ctx.Plane.AxisY*std::sin(T))*R;
+                char Text[64];std::snprintf(Text,sizeof Text,"%.1f°",ScalarCriteria::Degrees(Sweep));Live.Dimensions.push_back({Q,Q,Text});
+            }
+        }
+        else if (Classification == ToolChoice::Ellipse && Confirmed.size() > 1)
+        {
+            const Vec2 M = Ctx.Plane.ToLocal(B) - Ctx.Plane.ToLocal(A);
+            const Vec2 N{-M.Y, M.X};
+            const double Minor = std::fabs((Ctx.Plane.ToLocal(Live.Cursor) - Ctx.Plane.ToLocal(A)).Dot(N.Normalised()));
+            Dimension(A, B, "a ", M.Length());
+            Dimension(A, Ctx.Plane.ToWorld(Ctx.Plane.ToLocal(A) + N.Normalised() * Minor), "b ", Minor);
+        }
+        else {
+            Dimension(Confirmed.back(), Live.Cursor, "", Confirmed.back().Distance(Live.Cursor),-14);
+            if(Confirmed.size()>1)AngleDimension(Confirmed.back(),Confirmed[Confirmed.size()-2],Live.Cursor);
+        }
     }
     if (Live.Lock != AxisLock::None) { std::snprintf(B, sizeof B, "lock %s", AxisLockName(Live.Lock)); Live.Readout.push_back(B); }
     if (!Live.NumericEntry.empty()) Live.Readout.push_back("typing: " + Live.NumericEntry);

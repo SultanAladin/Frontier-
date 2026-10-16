@@ -87,6 +87,14 @@ struct SkinSolver
     [[nodiscard]] static std::vector<NurbsCurve> RingOrder(std::vector<NurbsCurve> Pieces, double Tolerance) noexcept;
     // Curve for one face loop of a body (coedges joined in loop order); rejects when the pieces do not chain.
     [[nodiscard]] static Deliver<NurbsCurve> LoopCurve(const BrepBody& Body, int Loop) noexcept;
+
+    // Face loft (Phase 34a/34f/35d/36b): one solid from two closed solids, two distinct faces of one B-rep that owns
+    //    disconnected hulls, the verified opposite-cap identity of a canonical axis-aligned prism, the exact identity of
+    //    a native cylinder/cone cap pair, or the bounded non-identity replacement of a hole-free prismatic extrusion.
+    //    In bridge routes, selected boundary loops become least-twist ruled skin; connected extrusion routes retain the
+    //    two end caps and replace only native extrusion sides. Adjacent, holed, seam-bearing, analytic-side and ambiguous
+    //    selections refuse rather than overlapping. Sources are never modified and results must validate as one positive-volume solid.
+    [[nodiscard]] static Deliver<BrepBody> LoftFaces(const BrepBody& A, int FaceA, const BrepBody& B, int FaceB) noexcept;
 };
 
 } // namespace Frontier

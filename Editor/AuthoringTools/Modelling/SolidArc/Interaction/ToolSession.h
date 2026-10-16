@@ -22,7 +22,7 @@ enum class ToolChoice : uint8_t
     None,
     Line, Polyline, Rectangle, CentreRectangle, Polygon, Slot, Circle, TwoPointCircle, ThreePointCircle,
     Arc, ThreePointArc, Ellipse, Spline, ControlCurve,
-    Move, Rotate, Scale,
+    Move, Rotate, Scale, PolylineSlot, DatumPoint, SketchPoint, PresetSlot,
 };
 
 [[nodiscard]] const char* ToolName(ToolChoice Classification) noexcept;
@@ -38,8 +38,18 @@ struct ToolPrompt
     bool Optional = false;                                                              // [-] Enter/RMB may finish the tool here
 };
 
+struct ToolDimension
+{
+    Vec3 A, B;                                      // world-space dimension stroke; label at midpoint
+    std::string Label;
+    float OffsetY=0; // reference label offset in display pixels
+};
+
 struct ToolPreview
 {
+    std::vector<ToolDimension> Dimensions;
+    std::vector<Vec3> AngleSegments, DimensionSpokes; // endpoint pairs, display-only
+
     std::vector<NurbsCurve>   Curves;                                                   // [-] rubber-band geometry
     std::vector<Vec3>         Points;                                                   // [m] confirmed points
     std::vector<std::string>  Readout;                                                  // [-] "L 3.4142", "∠ 45.0°"
@@ -51,7 +61,10 @@ struct ToolPreview
 
 struct ToolResult
 {
+    ToolChoice SourceTool = ToolChoice::None;
     bool                    Completed = false;                                          // [-] false = cancelled
+    std::vector<Vec3> ReferencePoints;
+    bool ConstructionPoint = false;
     std::vector<NurbsCurve> Curves;                                                     // [-] produced geometry
     Mat4                    Transform;                                                  // [-] for G/R/S
     std::string             Summary;                                                    // [-] one line for the console
@@ -81,13 +94,24 @@ public:
     [[nodiscard]] const ToolPreview& Preview() const noexcept { return Live; }
     [[nodiscard]] const Context& CurrentContext() const noexcept { return Ctx; }
 
+    void SetSlotRadius(double Radius) noexcept { SlotRadius=std::max(1e-6,Radius); Rebuild(); }
+    [[nodiscard]] double QuerySlotRadius() const noexcept { return SlotRadius; }
+    void SetClockwise(bool Value) noexcept { Clockwise=Value; Rebuild(); }
+    bool QueryClockwise() const noexcept { return Clockwise; }
+    void SetCircumscribed(bool Value) noexcept { Circumscribed=Value; Rebuild(); }
+    bool QueryCircumscribed() const noexcept { return Circumscribed; }
+    void SetClosed(bool Value) noexcept { Closed=Value; Rebuild(); }
+    bool QueryClosed() const noexcept { return Closed; }
+    void SetSides(int Value) noexcept { Sides=std::clamp(Value,3,64); Rebuild(); }
+    int QuerySides() const noexcept { return Sides; }
     // Feed events; returns true when consumed. Pointer coordinates are pixels.
     bool Receive(const InputEvent& Event) noexcept;
 
     // Console shortcuts: supply a world point / typed text directly (scripts drive the tool without a pointer).
     bool SupplyPoint(Vec3 P) noexcept;
     bool SupplyText(std::string_view Text) noexcept;                                    // "3", "2,4", "@1,1", "r2.5", "a30", "n6"
-    bool Confirm() noexcept;                                                            // Enter / LMB with nothing pending
+    bool Confirm() noexcept;
+    void ResizeViewport(uint32_t Width, uint32_t Height) noexcept; // dynamic CAD preview resolution                                                            // Enter / LMB with nothing pending
     void Attach(const Workplane& P) noexcept { Ctx.Plane = P; Rebuild(); }
 
 private:
@@ -114,6 +138,8 @@ private:
     bool                    HavePointer = false;
     double                  PointerX = 0.0, PointerY = 0.0;                             // [px]
     bool                    SnapSuppressed = false;                                     // [-] Ctrl held
+    bool Clockwise=false, Circumscribed=false, Closed=false;
+    double                  SlotRadius = 0.25;
     int                     Sides = 6;                                                  // [-] polygon
     int                     Degree = 3;                                                 // [-] spline / control curve
 };

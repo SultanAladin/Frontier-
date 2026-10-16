@@ -35,6 +35,7 @@ $Declared = @(
     @{ Name = 'PatchC-RoundTabButtons.patch';  Sentinel = 'FRONTIER PATCH C'; Witness = 'imgui_widgets.cpp' }
     @{ Name = 'PatchD-TabAddButton.patch';     Sentinel = 'FRONTIER PATCH D'; Witness = 'imgui.cpp' }
     @{ Name = 'PatchE-NoTabScrollButtons.patch'; Sentinel = 'FRONTIER PATCH E'; Witness = 'imgui.cpp' }
+    @{ Name = 'PatchF-TabContentInsets.patch'; Sentinel = 'FRONTIER PATCH F'; Witness = 'imgui_widgets.cpp' }
 )
 
 # 🔴 The commit these patches were written against. `git apply` would fail loudly on a different tree,

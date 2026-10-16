@@ -18,13 +18,16 @@ Vec3 CameraProjection::Eye() const noexcept
 }
 
 Vec3 CameraProjection::Forward() const noexcept { return (Pivot - Eye()).Normalised(); }
-Vec3 CameraProjection::Right() const noexcept { return Forward().Cross(Vec3::UnitZ()).Normalised(); }
+Vec3 CameraProjection::Right() const noexcept {
+    // CAD navigation is strictly upright: world Z has no screen-right component.
+    // Ignore legacy roll in saved/replayed camera state too.
+    return {std::cos(Yaw),std::sin(Yaw),0};
+}
 Vec3 CameraProjection::Up() const noexcept { return Right().Cross(Forward()); }
 
 Mat4 CameraProjection::ViewMatrix() const noexcept
 {
-    Vec3 UpHint = std::fabs(Forward().Z) > 0.9999 ? (Pitch > 0 ? Vec3{ std::sin(Yaw), -std::cos(Yaw), 0 } * -1.0 : Vec3{ std::sin(Yaw), -std::cos(Yaw), 0 }) : Vec3::UnitZ();
-    return Mat4::LookAt(Eye(), Pivot, UpHint);
+    return Mat4::LookAt(Eye(), Pivot, Up());
 }
 
 double CameraProjection::NearDistance() const noexcept
@@ -57,8 +60,15 @@ Mat4 CameraProjection::ProjectionMatrix(double Aspect) const noexcept
 
 void CameraProjection::Orbit(double DeltaYaw, double DeltaPitch) noexcept
 {
+    Roll = 0;
     Yaw = std::fmod(Yaw + DeltaYaw, ScalarCriteria::TwoPi);
-    Pitch = ScalarCriteria::Clamp(Pitch + DeltaPitch, -ScalarCriteria::HalfPi + 1e-3, ScalarCriteria::HalfPi - 1e-3);
+    if(DeltaPitch!=0) Pitch = ScalarCriteria::Clamp(Pitch + DeltaPitch, -ScalarCriteria::HalfPi + 1e-3, ScalarCriteria::HalfPi - 1e-3);
+}
+
+void CameraProjection::OrbitScreen(double Horizontal, double Vertical) noexcept
+{
+    // Compatibility entry point: every viewport drag uses the same Z-up orbit.
+    Orbit(Horizontal,Vertical);
 }
 
 void CameraProjection::Pan(double DeltaRightPixels, double DeltaUpPixels, double ViewportHeight) noexcept
@@ -75,6 +85,7 @@ void CameraProjection::Dolly(double Steps) noexcept
 
 void CameraProjection::Look(CanonicalView View) noexcept
 {
+    Roll=0;
     const double Limit = ScalarCriteria::HalfPi - 1e-4;
     switch (View)
     {
@@ -133,7 +144,7 @@ ViewRecord CameraProjection::ToViewRecord(uint32_t Width, uint32_t Height, doubl
     Vec3 E = Orthographic ? Forward() * -1.0 : Eye();
     R.EyePosition[0] = float(E.X); R.EyePosition[1] = float(E.Y); R.EyePosition[2] = float(E.Z); R.EyePosition[3] = Orthographic ? 0.0f : 1.0f;
     R.Viewport[0] = float(Width); R.Viewport[1] = float(Height); R.Viewport[2] = 1.0f / Width; R.Viewport[3] = 1.0f / Height;
-    R.LatticeStyle[0] = float(LatticeCell); R.LatticeStyle[1] = 10.0f; R.LatticeStyle[2] = float(std::max(Distance * 6.0, 40.0)); R.LatticeStyle[3] = 0.6f;
+    R.LatticeStyle[0] = float(LatticeCell); R.LatticeStyle[1] = 5.0f; R.LatticeStyle[2] = float(std::max(Distance * 0.9, 3.5)); R.LatticeStyle[3] = 0.35f;
     Vec3 Key = Vec3{ -0.45, -0.35, 0.82 }.Normalised();
     R.Illumination[0] = float(Key.X); R.Illumination[1] = float(Key.Y); R.Illumination[2] = float(Key.Z); R.Illumination[3] = 0.42f;
     R.DepthPolicy[0] = float(LineDepthBias());

@@ -30,6 +30,14 @@ The SolidArc editor shell reuses the engine editor panels while presenting Solid
 
 The upstream browser HTML panel and PNG proof artifacts are still not built into the runtime; the native editor reproduces the relevant controls in ImGui.
 
+## Empty documents and sketch drawing
+
+The browser and native C++/ImGui workflow update is documented in
+[`Experimental/SolidArc/WORKFLOW.md`](../../../../Experimental/SolidArc/WORKFLOW.md).
+It covers the pinned published reference, empty startup/recovery, Construct, staged primitive
+drawing, spatial dimensions, native headless proof and remaining reference-tool gaps.
+Native modal geometry still uses `ToolSession`; the browser's new `draw` command is atomic.
+
 ## Sample scripts
 
 Native `.arc` construction journals live under:
