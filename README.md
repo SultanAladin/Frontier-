@@ -53,6 +53,7 @@ For setup without compiling, run `python Tools/Setup.py`. To install all applica
 | `Projects/Project-Dyno/` | Dyno/audio project |
 | `Projects/Project-Fluid/` | Flux particle fluid, Ripple pond and CPU tests; [integration/review](Docs/WaterIntegration.md) |
 | `EngineContent/` | Runtime icons, font licences, fonts, celestial textures and star data |
+| `Experimental/TyreGpuLab/` | Standalone WebGPU tyre constraint/volumetric lab; [run, debug, load readback and limitations](Experimental/TyreGpuLab/README.md) |
 | `Experimental/FrontierEditor/` | Browser editor prototype, icon gallery and collection studies |
 | `Experimental/{Liquid,Ocean,Water}/` | Separate inherited research experiments—not integrated runtime features |
 | `ExternalPackages/Dependencies.lock.json` | Exact third-party revisions and archive SHA-256 checksums |

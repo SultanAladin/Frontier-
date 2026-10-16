@@ -1,0 +1,202 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Frontier / Tyre Dynamics Lab</title>
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <header>
+      <a class="brand" href="#">F<span>╱</span></a>
+      <div class="identity">FRONTIER <span>RESEARCH & DEVELOPMENT</span></div>
+      <div class="breadcrumb">EXPERIMENTS <b>/</b> VEHICLE DYNAMICS</div>
+      <div class="status" id="status">● INITIALISING WEBGPU</div>
+    </header>
+    <main>
+      <section class="heading">
+        <div>
+          <div class="eyebrow">PHYSICS SANDBOX <span>01 / TYRE</span></div>
+          <h1>Where rubber meets reality<span>.</span></h1>
+          <p>
+            Compute-driven tyre deformation. Real geometry. Measurable
+            reactions.
+          </p>
+        </div>
+        <div class="heading-tag">
+          WEBGPU COMPUTE<span>NO CPU PHYSICS FALLBACK</span>
+        </div>
+      </section>
+      <div class="workspace">
+        <aside class="controls">
+          <div class="panel-title"><span>01</span> SOLVER CONFIGURATION</div>
+          <div class="model-tabs">
+            <button id="xpbd" class="active">
+              XPBD<span>EDGE CARCASS</span></button
+            ><button id="flesh">VOLUMETRIC<span>COROTATED FEM</span></button>
+          </div>
+          <p class="model-description" id="model-description">
+            Distance-constrained carcass with tetrahedral volume preservation.
+            Graph-coloured XPBD on the GPU.
+          </p>
+          <div class="section-label">TEST RIG <span>KINEMATIC HUB</span></div>
+          <label
+            >Radial compression <output id="compression-out">38 mm</output
+            ><input
+              id="compression"
+              type="range"
+              min="0"
+              max="95"
+              value="38"
+              step="1"
+          /></label>
+          <label
+            >Belt speed <output id="speed-out">0.0 m/s</output
+            ><input
+              id="speed"
+              type="range"
+              min="0"
+              max="3"
+              value="0"
+              step="0.1"
+          /></label>
+          <label
+            >Material stiffness <output id="stiffness-out">1.00 ×</output
+            ><input
+              id="stiffness"
+              type="range"
+              min="0.25"
+              max="4"
+              value="1"
+              step="0.05"
+          /></label>
+          <label
+            >Friction coefficient <output id="friction-out">0.80 μ</output
+            ><input
+              id="friction"
+              type="range"
+              min="0"
+              max="1.5"
+              value="0.8"
+              step="0.05"
+          /></label>
+          <div class="section-label">ENVIRONMENT</div>
+          <div class="segmented">
+            <button id="flat" class="active">Flat belt</button
+            ><button id="cleat">Rounded cleat</button>
+          </div>
+          <div class="section-label">SOLVER BUDGET</div>
+          <label
+            >Iterations / substep <output id="iterations-out">4</output
+            ><input
+              id="iterations"
+              type="range"
+              min="4"
+              max="8"
+              value="4"
+              step="1"
+          /></label>
+          <div class="small-row">
+            <span>Fixed simulation tick</span><b>60 Hz · 4 substeps</b>
+          </div>
+          <div class="section-label">VISUAL DIAGNOSTICS</div>
+          <select id="view">
+            <option value="0">Carcass · shaded surface</option>
+            <option value="1">Volume error · |J − 1|</option>
+            <option value="2">Contact · vertical impulse</option>
+          </select>
+          <label class="check"
+            ><input id="wire" type="checkbox" /> Tetrahedral surface edges
+            <span>W</span></label
+          >
+          <label class="check"
+            ><input id="ghost" type="checkbox" /> Undeformed envelope
+            <span>G</span></label
+          >
+          <div class="actions">
+            <button id="pause">Ⅱ Pause</button
+            ><button id="reset">↺ Reset</button>
+          </div>
+          <button id="capture" class="capture">
+            ↓ Export diagnostic sample
+          </button>
+          <div class="honesty">
+            <span>RESEARCH PROTOTYPE</span>Flesh-inspired corotational
+            tetrahedra, not Epic Chaos. Not an AAA-ready vehicle system. No
+            suspension model, no shader deformation.
+          </div>
+        </aside>
+        <section class="viewport-wrap">
+          <div class="viewport">
+            <canvas id="scene"></canvas>
+            <div class="viewport-top">
+              <span class="live-dot"></span><b>TYRE / 01</b
+              ><span id="mesh-info">BUILDING VOLUME MESH</span>
+            </div>
+            <div id="quality" hidden></div>
+            <div class="viewport-mode">
+              PERSPECTIVE <span>DRAG TO ORBIT · SCROLL TO ZOOM</span>
+            </div>
+            <div id="error" hidden></div>
+            <div class="viewport-bottom">
+              <div><span class="mint-line"></span>GPU-DEFORMED MESH</div>
+              <div id="solver-label">XPBD / DISTANCE + VOLUME</div>
+            </div>
+            <div class="axis"><i>Y</i><span>↗ Z</span><b>X →</b></div>
+          </div>
+          <div class="metrics">
+            <div>
+              <span>BELT REACTION · Fy <small>GPU → CPU</small></span
+              ><strong id="load">—<em>N</em></strong
+              ><canvas id="load-plot"></canvas>
+            </div>
+            <div>
+              <span
+                >GPU SOLVER <small id="timer-type">TIMESTAMP QUERY</small></span
+              ><strong id="gpu-time">—<em>ms</em></strong>
+              <div class="metric-foot" id="budget">Waiting for adapter</div>
+            </div>
+            <div>
+              <span>FRAME INTERVAL <small>RAF</small></span
+              ><strong id="frame-time">—<em>ms</em></strong
+              ><canvas id="frame-plot"></canvas>
+            </div>
+          </div>
+          <div class="telemetry">
+            <span>CONTACT NODES <b id="contacts">—</b></span
+            ><span>MIN J <b id="min-j">—</b></span
+            ><span>MAX |J−1| <b id="error-j">—</b></span
+            ><span>READBACK AGE <b id="read-age">—</b></span
+            ><span>TANGENTIAL <b id="tangent">—</b></span>
+          </div>
+        </section>
+      </div>
+      <section class="notes">
+        <div>
+          <span>THE COMPUTE PATH</span>
+          <h2>Physics first. Pixels second.</h2>
+        </div>
+        <p>
+          <b>01 / Solve</b>Predict → strain / distance → volume → contact →
+          velocity. All positions and constraint multipliers stay in GPU storage
+          buffers.
+        </p>
+        <p>
+          <b>02 / Measure</b>Contact corrections are reduced to impulses on the
+          GPU. A small asynchronous readback returns the belt reaction, not a
+          suspension approximation.
+        </p>
+        <p>
+          <b>03 / Inspect</b>Render the actual solved nodes. Compare solvers,
+          track volume error and inversion, and expose GPU time separately from
+          browser frame time.
+        </p>
+      </section>
+      <footer>
+        FRONTIER EXPERIMENTAL <span>SI UNITS · FIXED STEP · GPU RESIDENT</span
+        ><a href="README.md">Technical notes ↗</a>
+      </footer>
+    </main>
+    <script type="module" src="app.js"></script>
+  </body>
+</html>

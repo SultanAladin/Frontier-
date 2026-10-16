@@ -1,0 +1,13 @@
+{
+  "name": "frontier-tyre-gpu-lab",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "python3 -m http.server 8080 --bind 0.0.0.0",
+    "test": "node --test mesh.test.js",
+    "test:gpu": "node browser-test.mjs"
+  },
+  "devDependencies": {
+    "playwright": "^1.56.0"
+  }
+}
