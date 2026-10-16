@@ -127,6 +127,9 @@ export class VehicleSolver
             SlipTravel:     0.0,
             ContactPoint:    null,
             ContactVelocity: [0.0, 0.0, 0.0],
+            Longitudinal:    [1.0, 0.0, 0.0],
+            RollingRadius:   VehicleGeometry.TyreRadius - 0.012,
+            SurfaceSpeed:    0.0,
             SupportBody:     null,
             SupportPoint:    null,
             SupportImpulse:  [0.0, 0.0, 0.0],
@@ -611,6 +614,8 @@ export class VehicleSolver
                 const Vy = DotVector(Velocity, Lateral);
                 const RollingRadius = Math.max(VehicleGeometry.TyreRimRadius, Wheel.Radius - Wheel.TyreDeflection / 3.0 - (Wheel.Shredded ? 0.0 : 0.012));
                 const SlipSpeed = Vx - Wheel.Spin * RollingRadius;
+                Wheel.Longitudinal = Longitudinal.slice();
+                Wheel.RollingRadius = RollingRadius;
                 const [σx, σy] = this.Tyres.ResolveRelaxationLengths(Wheel.Load);
                 // 📐 σ·dκ'/dt + |Vx|·κ' = −Vsx and σ·dα'/dt + |Vx|·α' = −Vy, integrated backward-Euler.
                 Wheel.SlipRatio = ClampScalar((Wheel.SlipRatio - SlipSpeed * Δτ / σx) / (1.0 + Math.abs(Vx) * Δτ / σx), -1.5, 1.5);
@@ -685,6 +690,7 @@ export class VehicleSolver
             Wheel.Spin += SpinTorque * Δτ / Inertia;
             const BrakeStep = BrakeTorque * Δτ / Inertia;
             Wheel.Spin = Math.abs(Wheel.Spin) <= BrakeStep ? 0.0 : Wheel.Spin - Math.sign(Wheel.Spin) * BrakeStep;
+            Wheel.SurfaceSpeed = Wheel.Spin * Wheel.RollingRadius;
             Wheel.SpinAngle = (Wheel.SpinAngle + Wheel.Spin * Δτ) % (2.0 * Math.PI);
         }
 
@@ -930,6 +936,8 @@ export class VehicleSolver
         return this.Wheels.map((Wheel, Index) =>
         {
             const Hub = this.QueryWheelTransform(Index).slice(12, 15);
+            const Heading = RotateVector(MultiplyQuaternion(this.Orientation, ConstructAxisQuaternion([0.0, 0.0, 1.0], Wheel.Steer)), [1.0, 0.0, 0.0]);
+            const Longitudinal = Wheel.Contact ? Wheel.Longitudinal : Heading;
             const Seconds = Wheel.SampleSeconds;
             const OnDebris = Wheel.SupportSeconds > 0.0;
             Wheel.SupportSeconds = 0.0;
@@ -943,6 +951,9 @@ export class VehicleSolver
                 Shredded:        Wheel.Shredded,
                 ContactVelocity: Wheel.ContactVelocity.slice(),
                 TreadVelocity:   Wheel.TreadVelocity ? Wheel.TreadVelocity.slice() : [0.0, 0.0, 0.0],
+                Longitudinal:    Longitudinal.slice(),
+                SurfaceSpeed:   Wheel.Spin * Wheel.RollingRadius,
+                Radius:         Wheel.Radius,
                 HubPosition:     Hub,
                 Airspeed:        LengthVector(this.LinearVelocity)
             };

@@ -15,8 +15,9 @@ props whose debris are convex rigid bodies in the distance field, and a derez / 
 ControlVehicle"). The later screen-trace commit `194ce3aa` is deliberately not included. Everything after the
 import in this folder was developed here. The editor look comes from `Experimental/FrontierEditor` (tokens in
 `Docs/FrontierEditorComponents.md`); the fracture algorithm and its material table from `Experimental/FractureEditor`
-(Frontier-, `arena/215a6f39-frontier`); the derez presets from `Experimental/ParticleEditor` (same branch); the smoke
-design from Frontier's `Engine/VolumetricDynamics`.
+(Frontier-, `arena/215a6f39-frontier`); the derez presets from `Experimental/ParticleEditor` (same branch); tyre heat
+and failure from Frontier's `Engine/VolumetricDynamics`. The current Slate cabin/HMI, GPU plume solver and tyre-source
+pattern are integrated from commit `3c987f33c71c2477bd73ca29c69d5bd0ee484d1a`.
 
 The former patch is reconstructed here as ordinary source files; no `.patch` file is needed to run the prototype.
 The three `Archive/*.facet` streams are reproducible with `Archive/FacetArchiveCodec.py` from the authored vehicle INL
@@ -29,7 +30,8 @@ Any static file server works; WebGPU needs a current Chrome or Edge (Safari 26+,
 
 ```sh
 cd Experimental/IlluminationHost
-python3 -m http.server 8080
+npm --prefix Tools ci       # installs the exact Jolt browser bundle; also required for headless validation
+python3 -m http.server 8080 --bind 0.0.0.0
 # open http://localhost:8080/
 ```
 
@@ -46,8 +48,8 @@ groups the scene; selecting an entry rebuilds the inspector (`Source/InspectorPa
 | Global distance field · Surface cache | cascade state and freezing, slice inset; card radiosity and relighting budget |
 | Sun & sky | presets (Noon · Golden · Dusk · Night), sun direction, solar / sky / emitter intensity |
 | ControlVehicle · Tyre marks | telemetry, **burnout / line lock**, **tyres** (pressures per axle, soft carcass and its **Deformation ×** exaggeration, wear, failure, puncture / blowout / shred buttons, deflection · patch · tread readouts), ignition, thermal grip, **camera rigs**; rubber deposit |
-| **Cabin · HMI** | the TabletPanel HMI live in the car (screens, brightness, open an app), **Garage** body/rim material application (sRGB swatches, gloss/matte), **Solid / Ghost / Wire** studio preview, **cockpit size** (scale, fore/aft, height, across), see-through glass and its transmission, mirror views, interior cameras |
-| **Smoke & fire** | the Smoke + Fire editor: Domain, Source, Simulation, Appearance, Fire, Presets — every gas quantity as a slider, plus a test emitter |
+| **Cabin · HMI** | Slate steering wheel, dashboard, binnacle cluster, tablet and interior; live HMI apps and **Garage** body/rim material application, **Solid / Ghost / Wire** preview, HMI-only display scaling, see-through glass, mirrors and interior cameras |
+| **Smoke & fire** | Slate GPU plume transport and depth-aware rendering; tyre slip/temperature sources, soot and fire, four quality grades, wind/optics controls and a test emitter |
 | **Derez · VFX** | the Particle Editor's Derez cube · Reverse derez · Glitch dissolve presets, cube timing and motion, **the car's own colours or the palette**, face glow, **momentum**, recovery triggers, test buttons |
 | **Fracture** · each breakable prop | debris (rigid bodies, distance-field admission, respawn); per prop the Fracture editor: Material, Impact, Fragment quality, Bake, Geometry receipt |
 | **Training arena** · Cones | the ten drills with Start buttons, last result and best time; arena reset; the cones |
@@ -134,43 +136,31 @@ settles. Reset (T, or a drill start) bursts it into cubes where it lies and asse
 
 ## Smoke and fire
 
-Tyre conditions follow Frontier's `ThermalIntegrator.h`: tread, carcass and enclosed gas exchange heat implicitly;
-the heat source is the actual sliding dissipation `|Fx·Vsx| + |Fy·Vsy|` integrated over the vehicle substeps.
-Smoke onset follows `SmokeOnsetClassifier.h` and the wheel source `GasVehicleIntake.h`; a source now also leaves
-with a share of the **tread's slip velocity**, so a burnout throws its smoke backwards off the spinning tyre and a
-drift sideways. A tyre ignites after sustained overheating (authored 350 °C held 4 s; diagnostic 160 °C held 1 s),
-burns rubber, adds soot and plume heat, lights the scene directly and through the cards, and goes out when it cools.
+Tyre temperatures and ignition remain local to `TyreThermalSolver.js`: tread, carcass and enclosed gas exchange heat
+implicitly, with sliding work `|Fx·Vsx| + |Fy·Vsy|` accumulated by the vehicle solver. A tyre ignites only after
+sustained overheating (authored 350 °C held 4 s; labelled diagnostic 160 °C held 1 s), then contributes heat, soot,
+flame and fire light until it cools.
 
-The lattice is a two-level cell grid following the car, after Frontier's `SmokeSequence` / `CoarseGasField`, but on
-the GPU: toroidal windows (scrolling rewrites only new cells), 25 cm fine cells in 8³ bricks that skip empty space,
-a 50 cm incompressible flow with a warm-started Jacobi solve, obstacles from the one scene distance field (including
-the moving car), light resolved once per occupied cell per tick, a half- or quarter-resolution march composed after
-TAA, and nothing recorded at all when no smoke is resident. What makes it look real:
+The transport and source geometry follow Slate commit `3c987f33c71c2477bd73ca29c69d5bd0ee484d1a` (`PlumeSpace.js`,
+`PlumeSourceProjection.js`, and `Shader/Plume*.wgsl`), adapted to Frontier's contact readings and thermal state. A
+burnout's **surface slip** flings smoke rearward from the patch; a share leaves from behind and above the hub as an
+arch puff. A burning tyre has two open-air flame seats, at its outer sidewall and trailing tread, so soot and hot gas
+rise instead of pooling under the wheel arch. Burst tyres add short-lived smoke/soot sources. `SourceCapacity` is 24;
+slip, spin direction, contact, tread temperature and combustion power come from the live vehicle/thermal solvers.
 
-1. **vorticity confinement** (Fedkiw, Stam & Jensen 2001) on the coarse flow hands back the swirls a 50 cm
-   semi-Lagrangian solve smears away;
-2. **ambient wind** — open air relaxes toward it and the pressure solve routes it round every solid;
-3. **fine detail** — the march reads three octaves of a tiling value-and-cellular noise, folded 0.5 / 0.3 / 0.2
-   around ½, at 2.2 /m (11 cm features over the 25 cm cells), drifting downwind and rising with the plume; it erodes
-   the thin edges into wisps while a dense core keeps its mass. (The earlier domain-warped 0.85 /m billows read as
-   cloud; they remain as the *Legacy billows* preset and the Warp slider.)
-4. **multiple scattering** in three octaves (Wrenninge 2013), each further octave weighted by the albedo again so
-   white rubber smoke glows through while soot keeps only its single bounce; a **backward phase lobe** (−0.65 g mixed
-   with the forward g = 0.38) gives a back-lit plume its silver lining; the sky reaching a cell falls to under a fifth
-   through the smoke above it — a thick column has a dark belly;
-5. **blackbody flames** — a Helland blackbody between the flame's tip (1150 K) and core (1800 K), set by the cell's
-   heat, with the Stefan–Boltzmann T⁴ brightness and flickering tongues; soot darkens the plume above.
+`PlumeSpace` advances a toroidal GPU volume at up to 60 Hz: a coarse, warm-started pressure solve carries a finer
+smoke/heat/flame/soot lattice; the window recentres around the vehicle without copying retained cells. Vorticity
+confinement restores curls, wind steers open air, the moving vehicle and scene distance field obstruct flow, and a
+periodic detail volume breaks up the cloud edges. The volume march evaluates sun/shadow, sky and fire illumination.
+It runs at the trace resolution and is **depth-aware upsampled into the recombined image before TAA**, so a plume
+behind the body does not wash over the vehicle silhouette. When the domain is idle, no transport or march pass is
+recorded. The independent existing `SparkSequence` still handles tyre-rim and debris sparks after TAA.
 
-The defaults follow the sibling branch's Plume system (itself derived from the C++ reference): vorticity 3.0,
-turbulence 0.6 m/s at 3.7 /m, dissipation 0.10 /s, wind 0.8 m/s at 30°, albedo 0.88, forward scattering 0.38,
-multiple scattering 0.75, detail 0.7 at 2.2 /m.
-
-The **Smoke + Fire editor** exposes all of it (`GasParameterCatalogue` in `Source/SmokeSequence.js`): emission,
-temperature, expansion, soot, carrier drag, tread ejection; buoyancy, dissipation, cooling, vorticity, turbulence,
-wind, time scale, pressure iterations; density, albedo, forward scattering, multiple scattering, ambient, detail,
-erosion, warp, powder; flame intensity, core and tip temperatures, temperature scale, flicker, decay, fire light —
-with presets (Tyre smoke, Thick burnout, Light haze, Inferno, Crosswind, Legacy billows) and a **test emitter** 3 m ahead of the car (a smoke plume, or one burning
-tyre at the tyre model's 60 kW) so every slider can be judged without driving.
+Four live quality grades trade window size, cell size, pressure iterations and march samples: Low (64×64×20 at 40 cm),
+Medium (96×96×24 at 30 cm), High (128×128×32 at 25 cm) and Ultra (160×160×48 at 20 cm). `?plume=0…3` selects one
+at startup. `?inspection=10` isolates the smoke/fire volume. The Smoke & Fire inspector exposes source emission,
+density, heat, soot and buoyancy; dissipation, cooling, vorticity, turbulence and wind; extinction, albedo, scattering,
+ambient and detail; ignition, flame core/tip/decay and fire light, plus a test smoke/fire source 3 m ahead of the car.
 
 ## Burnouts and tyre marks
 
@@ -241,30 +231,23 @@ to where it sees them now, depth-tested against the scene.
 
 ## The cabin and the HMI
 
-`Source/CabinStructure.js`, `Source/CabinSequence.js`, `Shader/CabinOverlay.wgsl`, `Shader/ForwardRaster.wgsl`,
-`Source/Cabin/` (the TabletPanel modules, copied). The authored shell is an empty tub; the cabin is built into the
-body's facet set from DriveCabinLayout.h's placements (left-hand drive, the eye at X −0.20 Z 1.12): a dashboard
-under the cowl, the steering column and a steering wheel that turns with the front wheels (× 13.5, in the vertex
-stage), the **cluster on the column binnacle**, read through the wheel's upper opening, the **tablet** on the centre
-stack, seats, a console, two door mirrors and a rear-view mirror.
+The cabin geometry and projected dashboard/HMI are based on Slate commit
+`3c987f33c71c2477bd73ca29c69d5bd0ee484d1a`: `Source/CabinLayout.js`, `Source/CabinProjection.js`,
+`Source/HMI/*` and `Shader/CabinRaster.wgsl`. The local integration retains Frontier's live tyre-pressure telemetry, glazing and mirror support facets/passes, Garage preview and pointer routing. The authored vehicle now has
+the Slate steering wheel and dashboard, binnacle cluster and centre-stack tablet, with the surrounding cabin interior.
 
-* **The HMI** is `Experimental/TabletPanel` (arena/215a6f39-frontier) as is — launcher, twelve applications, five
-  launcher designs, the hexagon cluster — drawn into its own canvases and uploaded as textures when they redraw. The
-  cluster shows the car's speed, revs, gear and tyre pressures; Telemetry and Tyres read the solver; the Tyres slider
-  pumps the tyres; the **Garage shows this car**, rendered live into its preview well by the exhibit's own studio pass
-  (its own camera and three lights, on a turntable you can drag). From the cockpit, click the tablet.
-* **Glass** is see-through: the glazing leaves the opaque raster and the cabin overlay draws it over what is behind —
-  the sky's Fresnel reflection, a sun glint, 72 % transmission; it casts no shadow, so the sun reaches the cabin. The
-  cabin's traced indirect light is attenuated (`Shader/CabinVolume.wgsl`): its surfaces lie inside the body's
-  distance volume and would otherwise gather the sunlit exterior.
-* **Mirrors** are a separate render pass: the driver's eye reflected in each mirror's plane, through an off-axis
-  frustum fitted to its glass (Kooima), its near plane on the glass, a small lit forward pass over the same facets —
-  one mirror per frame while the mirrors can be seen.
-* **Cockpit size** (Cabin · HMI): the dashboard, console, column and wheel, binnacle, tablet and seats scale together
-  about a point on the cabin floor under the dashboard and shift fore/aft, up/down and across; the vertex stage
-  places them (the facets never change), the screens and the tablet's touch follow, and the seated eyes ride with
-  their seats' hip points without being scaled — so from the driver's camera a smaller cockpit really looks smaller.
-  The shell, its glass, the mirrors and the carpet stay put; `?cockpit=0.9` starts it scaled.
+* **HMI** — the local Slate-based HMI app suite draws to its own canvases/textures. The cluster reads live speed, revs,
+  gear, temperatures and tyre pressures; Telemetry and Tyres use solver data; the Tyres app can pump the tyres. The
+  Garage renders this vehicle into its preview well; its body/rim colour and gloss/matte controls update the actual
+  vehicle material records and surface cards, not only the picker. Solid, Ghost and Wire remain available in the studio
+  preview. In the cockpit, click the tablet; the display pose and touch region share the same scale.
+* **HMI size** changes only the tablet and cluster display surfaces and their touch mapping. The dashboard, wheel,
+  seats, cabin geometry, mirrors and seated camera remain at authored size. Use the **Display size** slider or
+  `?hmi=0.9` at startup.
+* **Glass** remains see-through: glazing is overlaid on what is behind it with Fresnel reflection and transmission; the
+  cabin's traced indirect light is attenuated (`Shader/CabinVolume.wgsl`).
+* **Mirrors** use a separate, off-axis forward render fitted to each mirror plane; the local glass/mirror overlay remains
+  in place around the Slate HMI projection.
 * **Cameras**: C cycles chase, cockpit, passenger, hood and two tyre rigs (also in Vehicle → Camera and Cabin · HMI).
 
 ## Fracture
@@ -282,21 +265,15 @@ Fragments are written into the prop's composite facet set and drawn in **one cal
 fragment occupant) and cast shadows. The car pays the momentum of an inelastic exchange. The debris **stays where it
 lands** — the prop is rebuilt by T, *Reassemble*, or (with *Respawn* switched on) after the lifetime.
 
-**Debris physics** (`Source/RigidBodyWorld.js`, shared with the cones): every fragment is a convex hull — its points
-and its face planes, about its centre of mass — at 120 Hz:
+**Debris physics** (`Source/RigidBodyWorld.js`, shared with the cones) uses `jolt-physics@1.1.0` as the primary rigid-body backend. Before cones or fragments are created, the host initializes Jolt with a non-moving layer and a moving layer; the pair table permits static↔dynamic and dynamic↔dynamic collisions, and the broadphase table maps both layers explicitly. Gravity is set to this simulation's Z-up `(0, 0, −9.81 m/s²)`. Course colliders and active obstacle boxes enter the static layer; each cone and fragment is a dynamic convex hull. This follows Jolt's documented setup rather than relying on default filters.
 
-- against the course: hull points below the analytic surface, along its normal;
-- against the walls, barriers, containers and intact props: hull points inside a box leave through its nearest face,
-  box corners inside a hull push the hull off;
-- against each other and the cones: each hull's contact samples (corners, edge midpoints, face centroids) inside the
-  other's planes, through a uniform grid, a separating-plane early-out, and a spread six-contact manifold;
-- against the car, **both ways**: the hull spheres and four wheels against each hull's planes, with the car's mass
-  and inertia — a cone flies, a concrete slab stops the car;
-- under the car: the strut casts read the highest hull top under each tyre, so the car **drives over** debris (steps
-  up to 20 cm; anything taller is an obstacle), and the tyre's load and traction pin or drag the piece it rides.
+The vehicle remains in `VehicleSolver.js`; a custom contact bridge exchanges impulses with nearby Jolt bodies in both directions. The preserved `RigidBodyWorld` API (`AddBody`, `RemoveBody`, `PlaceBody`, `Wake`, `Advance`, `QuerySupport`) still serves cones, fracture debris and suspension support. Settled Jolt bodies sleep until touched; the inspector reports the active backend and timing. If WebAssembly initialization fails, the original custom sequential-impulse solver remains the fallback. `?physics=custom` selects that fallback explicitly for comparison.
 
-Sequential impulses with restitution only for real approaches, Coulomb friction, a split projection that sees the
-penetration already removed, and sleeping: a settled body is immovable until something with momentum reaches it.
+The contact/support bridge retains the exhibit's behavior:
+
+- **Car against debris, both ways**: the car hull spheres and four wheels exchange contact impulses with nearby bodies — a cone flies, a concrete slab stops the car;
+- **Under the car**: strut casts read the highest hull top under each tyre, so the car **drives over** supported debris (steps up to 20 cm; anything taller is an obstacle), while tyre load and traction pin or drag the piece;
+- **Fallback solver**: analytic course contacts, static obstacle boxes, convex-hull dynamic pairs, restitution/friction, split positional correction and sleeping are retained for environments where Jolt is unavailable or when `?physics=custom` is requested.
 
 **Fragments in the distance field**: every fragment large enough for the field to resolve (radius ≥ 0.75 of the
 finest cascade's voxel) gets a 12³ signed distance volume of its own in a 256-slot pool appended to the occupant
@@ -345,10 +322,13 @@ palette, glow, momentum) and the triggers.
 | `stress=N` | enable N stress objects at start |
 | `stressmotion=0\|1\|2` | stress objects static, one in ten moving, all moving |
 | `stresspool=K` | reserve K stress objects at bring-up (default 1536, clamped to the identity ceiling) |
-| `inspection=0…9` | start in a debug display |
-| `omit=Union,Cards,Shadow,Direct,Resampling,Diffuse,Reflection,Inspection,Resolve,Present,Smoke` | diagnostic: leave stages out |
+| `plume=0…3` | smoke/fire quality grade at start (Low, Medium, High, Ultra) |
+| `testplume=0…2` | diagnostic source: off, steady smoke, or steady fire + soot |
+| `hmi=0.65…1.4` | HMI display scale only; cabin geometry and camera remain unchanged |
+| `physics=custom` | diagnostic: use the retained custom rigid-body fallback instead of Jolt |
+| `inspection=0…10` | start in a debug display; 10 isolates smoke + fire |
+| `omit=Union,Cards,Shadow,Direct,Resampling,Diffuse,Reflection,Inspection,Resolve,Present,Plume` | diagnostic: leave stages out |
 | `camera=Chase\|Cockpit\|Passenger\|Hood\|Tyre FL\|Tyre RL` | camera rig at start |
-| `cockpit=0.5…1.5` | cockpit scale at start |
 | `capture=1` | diagnostic: present through a read-back canvas (headless software adapters) |
 
 ## Stress test
@@ -367,9 +347,12 @@ Frame timing card shows the average frame rate, the **1 % low** over the last 24
 `webgpu` package): on the null backend it validates every WGSL module, pipeline layout and command; with a
 SwiftShader Vulkan ICD it renders real frames and writes PNG captures. A `HOOKS` module can script input (the
 burnout, a run down the smash alley) and report from the host. See the file header for usage.
-`Tools/VehicleStability.mjs` needs nothing installed: it steps the vehicle, thermal and carcass solvers in the frame
-loop's order on the open pad and fails on a bouncing body, a left–right asymmetry, a car leaving the ground or a
-runaway wheel (see *Soft tyres, pressure and failure*).
+To exercise an active smoke or fire source as well as shader/pipeline bring-up, run the harness with
+`?capture=1&testplume=1` (smoke) or `?capture=1&testplume=2` (fire + soot); `?physics=custom` checks the retained
+rigid-body fallback. The default host uses Jolt when WebAssembly initializes successfully and reports the selected
+backend in its inspector. `Tools/VehicleStability.mjs` needs nothing installed: it steps the vehicle, thermal and
+carcass solvers in the frame loop's order on the open pad and fails on a bouncing body, a left–right asymmetry, a car
+leaving the ground or a runaway wheel (see *Soft tyres, pressure and failure*).
 
 ## Licences of bundled assets
 

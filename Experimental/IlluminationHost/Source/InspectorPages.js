@@ -9,19 +9,19 @@
 //    the Fracture inspector is the Fracture Editor's (Material, Impact, Fragment quality, Bake, Geometry receipt),
 //    driving the exhibit's own breakable props.
 
-import { GasParameterCatalogue, ConstructGasParameters } from "./SmokeSequence.js";
+import { PlumeDefaults } from "./PlumeSpace.js";
 import { FractureMaterials, FractureMaterialOrder } from "./FractureStructure.js";
 import { FractureModes } from "./FractureSequence.js";
 import { VehicleGeometry } from "./VehicleSpecification.js";
 import { ArenaZones, TrainingDrills } from "./LevelStructure.js";
 import { DerezPresets } from "./EffectSequence.js";
 import { FormatPrimary } from "./TrainingSequence.js";
-import { CameraRigs, CockpitDefaults } from "./CabinStructure.js";
+import { CameraRigs } from "./CabinStructure.js";
 
 export const InspectionModes = [
     ["Final image", 0], ["Direct sun only", 1], ["Indirect diffuse (GI)", 2], ["Indirect irradiance (denoised)", 3],
     ["ReSTIR irradiance (raw, no denoise)", 4], ["Glossy reflections", 5], ["Global distance field", 6],
-    ["Surface cards (texel space)", 7], ["Normals", 8], ["Albedo", 9]
+    ["Surface cards (texel space)", 7], ["Normals", 8], ["Albedo", 9], ["Smoke + fire", 10]
 ];
 
 export const DistanceInspections = [
@@ -41,18 +41,6 @@ export const LightingPresets = {
 
 // 📝 Places R can't reach: the editor drops the car at the start of each feature (LevelStructure's ArenaZones).
 export const LevelZones = ArenaZones;
-
-// 📝 Look presets for the gas: each a partial override of the catalogue defaults.
-export const GasPresets = {
-    "Tyre smoke":   {},
-    "Thick burnout": { Emission: 2.2, Density: 1.6, Dissipation: 0.12, Albedo: 0.9, Vorticity: 2.2, Expansion: 1.4, MultiScatter: 0.9 },
-    "Light haze":   { Emission: 0.6, Density: 0.55, Dissipation: 0.35, Detail: 0.75, Erosion: 0.9, Albedo: 0.92 },
-    "Inferno":      { FlameIntensity: 2.4, FlameTemperature: 1.18, FlameFlicker: 0.85, Soot: 2.2, Heat: 1.8, FireLight: 2.2, Buoyancy: 3.4 },
-    "Crosswind":    { WindSpeed: 5.5, WindHeading: 95.0, Turbulence: 0.7, Dissipation: 0.28 },
-    // 📝 The look before the reference pass: big warped billows, softer and cloudier.
-    "Legacy billows": { Density: 1.0, Dissipation: 0.22, Vorticity: 1.6, Turbulence: 0.4, TurbulenceScale: 1.1, Albedo: 0.86, Phase: 0.45,
-                        MultiScatter: 0.45, Detail: 0.65, DetailScale: 0.85, Erosion: 0.75, Warp: 0.35, Powder: 0.2, WindSpeed: 0.0 }
-};
 
 const Accent = {
     Render: "#9fb4d6", Environment: "#e8c27a", Vehicle: "#e1d34a", Effects: "#e8833a", Destruction: "#8fb3a4", Level: "#a8bbeb"
@@ -100,10 +88,10 @@ export function ConstructEntities(Host)
           Build: (C, B) => BuildMarks(Host, C, B),
           Toggle: { Read: () => S.TyreMarks, Write: (On) => { S.TyreMarks = On; } } },
         { Id: "gas", Group: "Effects", Name: "Smoke & fire", Type: "Gas domain", Glyph: "Flame", Colour: Accent.Effects,
-          Description: "Eulerian smoke · combustion · tyre sources", Meta: () => (Host.Smoke.Resident ? "resident" : "idle"),
-          State: () => (Host.Smoke.Resident ? "live" : ""), Build: (C, B) => BuildGas(Host, C, B),
-          Toggle: { Read: () => S.SmokeEnabled, Write: (On) => { S.SmokeEnabled = On; } },
-          Switches: () => [Feature("Smoke", "CloudFog", S, "SmokeEnabled"),
+          Description: "GPU-simulated tyre smoke · soot · flame", Meta: () => (Host.Plume.Resident ? "resident" : "idle"),
+          State: () => (Host.Plume.Resident ? "live" : ""), Build: (C, B) => BuildGas(Host, C, B),
+          Toggle: { Read: () => S.PlumeEnabled, Write: (On) => { S.PlumeEnabled = On; } },
+          Switches: () => [Feature("Smoke & fire", "CloudFog", S, "PlumeEnabled"),
                            { Name: "Ignition", Glyph: "Flame", Read: () => S.IgnitionMode !== 2, Write: (On) => { S.IgnitionMode = On ? 0 : 2; } },
                            { Name: "Test plume", Glyph: "Wind", Read: () => S.TestPlume > 0, Write: (On) => { S.TestPlume = On ? 1 : 0; } },
                            Feature("Line lock", "Gauge", S, "LineLock")] },
@@ -157,14 +145,6 @@ function Feature(Name, Glyph, Target, Key)
 function Slider(C, Parent, Target, Key, Label, Minimum, Maximum, Step, Unit = "", Digits = 2, Labels = null, OnInput = null)
 {
     return C.Slider(Parent, Target, Key, { Label, Minimum, Maximum, Step, Unit, Digits, Labels, OnInput });
-}
-
-function GasSlider(C, Parent, Gas, Key, Labels = null)
-{
-    const Entry = GasParameterCatalogue[Key];
-    const Digits = Entry.Step >= 1 ? 0 : Entry.Step >= 0.1 ? 1 : Entry.Step >= 0.01 ? 2 : 3;
-    return C.Slider(Parent, Gas, Key, { Label: Entry.Label, Minimum: Entry.Minimum, Maximum: Entry.Maximum, Step: Entry.Step,
-                                        Unit: Entry.Unit, Digits, Labels });
 }
 
 //------------------------------------------------------------------------------------------------------------------------
@@ -376,17 +356,12 @@ function BuildCabin(Host, C, Body)
         C.Button(Apps, Caption, null, () => { if (!Cabin.Screen) return; if (Application) Cabin.Screen.PresentApplication(Application); else Cabin.Screen.PresentHome(); });
     C.Readout(Screens, () => Cabin.QueryReadout());
 
-    const Size = C.Card(Body, "Cockpit size", "MoveSpace", { Accent: Accent.Vehicle, Index: 2, Subtitle: "Scale and place the interior" });
-    C.Muted(Size, "The dashboard, console, column and wheel, binnacle, tablet and seats scale together about a point on the cabin floor under the "
-                + "dashboard, then shift; the seated eyes go with them, so the cockpit camera stays in its seat. The shell, its glass, the three "
-                + "mirrors and the carpet are the car's and stay put. The facets never change — the vertex stage places them — so drag freely; "
-                + "only the cabin's share of the lighting's distance field keeps the authored size.");
-    Slider(C, Size, S, "CockpitScale", "Scale", 0.6, 1.4, 0.01, "×", 2, ["Smaller", "Larger"]);
-    Slider(C, Size, S, "CockpitForward", "Fore / aft", -0.3, 0.3, 0.005, "m", 3, ["Back", "Forward"]);
-    Slider(C, Size, S, "CockpitHeight", "Height", -0.2, 0.2, 0.005, "m", 3, ["Lower", "Higher"]);
-    Slider(C, Size, S, "CockpitLateral", "Across", -0.2, 0.2, 0.005, "m", 3, ["Right", "Left"]);
+    const Size = C.Card(Body, "HMI size", "MoveSpace", { Accent: Accent.Vehicle, Index: 2, Subtitle: "Resize only the mounted displays" });
+    C.Muted(Size, "The Slate tablet and binnacle display scale together with their touch regions. The steering wheel, dashboard, cabin, mirrors and seated camera "
+                + "stay at their authored size — this control changes only the HUD/HMI surfaces.");
+    Slider(C, Size, S, "HmiScale", "Display size", 0.65, 1.4, 0.01, "×", 2, ["Compact", "Larger"]);
     const SizeRow = C.ActionRow(Size);
-    C.Button(SizeRow, "Authored size", "RotateCcw", () => { Object.assign(S, CockpitDefaults); C.Synchronise(); });
+    C.Button(SizeRow, "Slate size", "RotateCcw", () => { S.HmiScale = 1.0; C.Synchronise(); });
     C.Button(SizeRow, "Driver's view", "Camera", () => Host.AssignCameraMode("Cockpit"));
 
     const Glass = C.Card(Body, "Glass & mirrors", "Eye", { Accent: Accent.Vehicle, Index: 3 });
@@ -424,45 +399,68 @@ function BuildMarks(Host, C, Body)
 
 function BuildGas(Host, C, Body)
 {
-    const S = Host.Settings, Gas = S.Gas;
-    const Domain = C.Card(Body, "Domain", "Box", { Accent: Accent.Effects, Index: 1, Subtitle: "Toroidal lattice following the car" });
-    C.Metric(Domain, () => Host.Smoke.Extent.join("×"), "cells", 0, () => (Host.Smoke.Resident ? ["resident", "live"] : ["idle", ""]));
-    C.Muted(Domain, "25 cm fine cells in 8³ bricks over a 50 cm solved flow, ticked at 60 Hz; empty bricks are skipped, and with nothing resident no pass is recorded at all.");
-    C.Stats(Domain, [["Sources", () => Host.Smoke.Metrics.Sources], ["Ticks", () => Host.Smoke.Metrics.Ticks], ["Relocations", () => Host.Smoke.Metrics.Relocations]]);
-    C.Segmented(Domain, S, "SmokeResolution", [["Half-res march", 2], ["Quarter", 4]], { Label: "Render", OnChange: () => Host.ApplySetting("SmokeResolution") });
-    C.Segmented(Domain, S, "TestPlume", [["Off", 0], ["Smoke plume", 1], ["Fire", 2]], { Label: "Test emitter · 3 m ahead of the car" });
+    const S = Host.Settings;
+    const Domain = C.Card(Body, "Domain", "Box", { Accent: Accent.Effects, Index: 1, Subtitle: "Slate's device-resident smoke & fire" });
+    C.Metric(Domain, () => Host.Plume.ThermoExtent.join("×"), "fine cells", 0,
+             () => [Host.Plume.Resident ? "resident" : "idle", Host.Plume.Resident ? "live" : ""]);
+    C.Muted(Domain, "A toroidal temperature-and-soot volume follows the car; its coarser flow is solved on the GPU. The depth-aware march keeps smoke behind the vehicle silhouette, and idle plumes record no transport or march pass.");
+    C.Stats(Domain, [["Sources", () => Host.PlumeSources.Count], ["Steps", () => Host.Plume.StepsTaken],
+                     ["Active tyres", () => Host.PlumeSources.ActiveTyres]]);
+    C.Segmented(Domain, S, "PlumeGrade", [["Low", 0], ["Medium", 1], ["High", 2], ["Ultra", 3]],
+                { Label: "Simulation quality", OnChange: () => Host.ApplySetting("PlumeGrade") });
+    C.Segmented(Domain, S, "TestPlume", [["Off", 0], ["Smoke plume", 1], ["Fire", 2]], { Label: "Test source · 3 m ahead of the car" });
     const Row = C.ActionRow(Domain);
     C.Button(Row, "Clear smoke", "Trash2", () => Host.ApplySetting("ClearSmoke"));
-    C.Button(Row, "Defaults", "RotateCcw", () => { Object.assign(Gas, ConstructGasParameters()); C.Synchronise(); });
+    C.Button(Row, "Slate defaults", "RotateCcw", () =>
+    {
+        const PriorGrade = S.PlumeGrade;
+        Object.assign(S, PlumeDefaults);
+        S.TestPlume = 0;
+        if (PriorGrade !== S.PlumeGrade)
+            Host.ApplySetting("PlumeGrade");
+        C.Synchronise();
+    });
 
-    const Source = C.Card(Body, "Source", "Droplets", { Accent: Accent.Effects, Index: 2, Subtitle: "Multipliers on the tyre model" });
-    for (const Key of ["Emission", "Heat", "Expansion", "Soot", "Momentum", "TreadEjection"])
-        GasSlider(C, Source, Gas, Key);
+    const Source = C.Card(Body, "Tyre sources", "Droplets", { Accent: Accent.Effects, Index: 2, Subtitle: "Slip, tread temperature, soot and fire" });
+    Slider(C, Source, S, "PlumeEmissionRate", "Emission rate", 0, 4, 0.05, "×", 2, ["None", "Strong"]);
+    Slider(C, Source, S, "PlumeDensity", "Smoke density", 0.2, 3, 0.05, "×", 2, ["Light", "Dense"]);
+    Slider(C, Source, S, "PlumeHeat", "Heat yield", 0, 4, 0.05, "×", 2);
+    Slider(C, Source, S, "PlumeSoot", "Soot yield", 0, 4, 0.05, "×", 2);
+    Slider(C, Source, S, "PlumeBuoyancy", "Buoyancy", 0, 8, 0.1, "m/s²·K", 1);
 
-    const Simulation = C.Card(Body, "Simulation", "Wind", { Accent: Accent.Effects, Index: 3 });
-    C.Instrument(Simulation, 86, (Context, Width, Height) => DrawDecay(Context, Width, Height, Gas), true);
-    for (const Key of ["Buoyancy", "Dissipation", "Cooling", "Vorticity", "Turbulence", "TurbulenceScale"])
-        GasSlider(C, Simulation, Gas, Key);
-    GasSlider(C, Simulation, Gas, "WindSpeed", ["Still", "Gale"]);
-    GasSlider(C, Simulation, Gas, "WindHeading");
-    GasSlider(C, Simulation, Gas, "TimeScale", ["Slow motion", "Fast"]);
-    GasSlider(C, Simulation, Gas, "PressureSweeps");
+    const Transport = C.Card(Body, "Transport", "Wind", { Accent: Accent.Effects, Index: 3 });
+    Slider(C, Transport, S, "PlumeDissipation", "Dissipation", 0, 0.9, 0.01, "1/s", 2);
+    Slider(C, Transport, S, "PlumeCooling", "Cooling", 0, 0.95, 0.01, "1/s", 2);
+    Slider(C, Transport, S, "PlumeVorticity", "Vorticity confinement", 0, 6, 0.1, "ε", 1);
+    Slider(C, Transport, S, "PlumeTurbulence", "Turbulence", 0, 2, 0.02, "m/s", 2);
+    Slider(C, Transport, S, "PlumeTurbulenceScale", "Turbulence frequency", 0.2, 4, 0.05, "1/m", 2);
+    Slider(C, Transport, S, "PlumeWindSpeed", "Wind speed", 0, 12, 0.1, "m/s", 1, ["Still", "Gale"]);
+    Slider(C, Transport, S, "PlumeWindDirection", "Wind heading", 0, 360, 1, "°", 0);
 
-    const Appearance = C.Card(Body, "Appearance", "CloudFog", { Accent: Accent.Effects, Index: 4 });
-    for (const Key of ["Density", "Albedo", "Phase", "MultiScatter", "Ambient", "Detail", "DetailScale", "Erosion", "Warp", "Powder"])
-        GasSlider(C, Appearance, Gas, Key);
+    const Appearance = C.Card(Body, "Optics & detail", "CloudFog", { Accent: Accent.Effects, Index: 4 });
+    Slider(C, Appearance, S, "PlumeExtinction", "Extinction", 0.2, 8, 0.1, "1/m", 1);
+    Slider(C, Appearance, S, "PlumeAlbedo", "Smoke albedo", 0.2, 0.98, 0.01, "", 2);
+    Slider(C, Appearance, S, "PlumeScattering", "Multiple scattering", 0, 1.5, 0.05, "×", 2);
+    Slider(C, Appearance, S, "PlumeAnisotropy", "Forward scattering", 0, 0.9, 0.01, "g", 2);
+    Slider(C, Appearance, S, "PlumeAmbient", "Ambient light", 0, 3, 0.05, "×", 2);
+    Slider(C, Appearance, S, "PlumeDetail", "Detail", 0, 1, 0.02, "", 2);
+    Slider(C, Appearance, S, "PlumeDetailScale", "Detail frequency", 0.2, 4, 0.05, "1/m", 2);
 
-    const Fire = C.Card(Body, "Fire", "Flame", { Accent: Accent.Effects, Index: 5, Subtitle: "Combustion of the tyre" });
-    C.Instrument(Fire, 54, (Context, Width, Height) => DrawBlackbody(Context, Width, Height, Gas), true);
-    C.Select(Fire, S, "IgnitionMode", IgnitionOptions, { Label: "Ignition" });
-    for (const Key of ["FlameIntensity", "FlameCore", "FlameTip", "FlameTemperature", "FlameFlicker", "FlameLoss", "FireLight"])
-        GasSlider(C, Fire, Gas, Key);
+    const Fire = C.Card(Body, "Fire", "Flame", { Accent: Accent.Effects, Index: 5, Subtitle: "Sustained tyre ignition · blackbody core" });
+    C.Select(Fire, S, "IgnitionMode", IgnitionOptions, { Label: "Ignition threshold" });
+    Slider(C, Fire, S, "PlumeFire", "Flame intensity", 0, 4, 0.05, "×", 2);
+    Slider(C, Fire, S, "PlumeFlameCore", "Flame core", 1300, 2400, 10, "K", 0);
+    Slider(C, Fire, S, "PlumeFlameTip", "Flame tip", 900, 1600, 10, "K", 0);
+    Slider(C, Fire, S, "PlumeFlameDecay", "Flame decay", 0.5, 10, 0.1, "1/s", 1);
+    Slider(C, Fire, S, "PlumeFireLight", "Fire light", 0, 4, 0.05, "×", 2);
 
-    const Presets = C.Card(Body, "Presets", "Sparkles", { Accent: Accent.Effects, Index: 6 });
-    const PresetRow = C.ActionRow(Presets);
-    for (const [Name, Values] of Object.entries(GasPresets))
-        C.Button(PresetRow, Name, null, () => { Object.assign(Gas, ConstructGasParameters(), Values); C.Synchronise(); });
-    C.Readout(Presets, () => Host.Smoke.QueryReadout(Host.Thermal));
+    const Readout = C.Card(Body, "Volume receipt", "Activity", { Accent: Accent.Effects, Index: 6 });
+    C.Readout(Readout, () =>
+    {
+        const D = Host.Plume.QueryDescription();
+        return [`${D.Grade} · ${D.Span} · ${D.Cells.toLocaleString()} cells · ${(D.Bytes / (1024 * 1024)).toFixed(1)} MiB`,
+                `${D.Thermo} thermo · ${D.Velocity} flow · ${D.Sweeps} pressure sweeps · ${D.Samples} march samples`];
+    });
 }
 
 // 📐 Survival of density and heat after emission: (1 − loss)^t, with the rise of a warm parcel under the buoyancy.
@@ -575,7 +573,8 @@ function BuildFractureGlobal(Host, C, Body)
     Slider(C, Debris, Host.Bodies.Settings, "Friction", "Friction", 0, 3, 0.05, "×", 2);
     Slider(C, Debris, S, "FieldRadius", "Distance field from radius", 0.25, 4, 0.05, "voxels", 2, ["More pieces", "Fewer"]);
     C.Switch(Debris, Host.Bodies.Settings, "Vehicle", { Label: "Car collides with debris", Detail: "Both ways" });
-    C.Stats(Debris, [["Bodies", () => Host.Bodies.Metrics.Bodies], ["Awake", () => Host.Bodies.Metrics.Awake], ["Step", () => Host.Bodies.Metrics.Milliseconds, "ms", 2]]);
+    C.Stats(Debris, [["Backend", () => Host.Bodies.Metrics.Backend], ["Bodies", () => Host.Bodies.Metrics.Bodies],
+                      ["Awake", () => Host.Bodies.Metrics.Awake], ["Step", () => Host.Bodies.Metrics.Milliseconds, "ms", 2]]);
     C.Stats(Debris, [["Contacts", () => Host.Bodies.Metrics.Contacts], ["Pool volumes", () => Host.Volumes.PoolMetrics.Live], ["Computed", () => Host.Volumes.PoolMetrics.Computed]]);
 
     const Bake = C.Card(Body, "Bake · all props", "Layers", { Accent: Accent.Destruction, Index: 3 });

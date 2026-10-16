@@ -412,4 +412,31 @@ export function ExtractGlassFacets(BodyFacets)
     return BodyFacets.filter((Facet) => Facet.Family === CourseMaterial.VehicleGlass);
 }
 
+// 📝 The Slate cabin mesh supplies the dashboard, steering wheel, cluster, tablet, carpet and seats. Retain only
+//    the local mirror housings and glasses so the existing mirror cameras remain visible without a second wheel/HMI.
+export function ConstructCabinSupportFacets()
+{
+    const Facets = [];
+    const F = CourseMaterial;
+    for (const Mirror of CabinLayout.Mirrors)
+    {
+        const Header = Mirror.Name.startsWith("Rear");
+        const Depth = Header ? 0.018 : 0.05;
+        const Housing = Add(Mirror.Centre, Scale(Mirror.Normal, -Depth - 0.0015));
+        Box(Facets, Housing, [Mirror.Width * 0.5 + 0.012, Mirror.Height * 0.5 + 0.012, Depth],
+            [Mirror.Right, Mirror.Up, Mirror.Normal], Header ? F.MirrorTrim : F.BodyCoat);
+        const Corner = (X, Y) => Add(Add(Mirror.Centre, Scale(Mirror.Right, X * Mirror.Width * 0.5)), Scale(Mirror.Up, Y * Mirror.Height * 0.5));
+        Quad(Facets, Corner(-1, -1), Corner(1, -1), Corner(1, 1), Corner(-1, 1), F.MirrorGlass, Mirror.Normal);
+        if (Header)
+            Cylinder(Facets, Add(Mirror.Centre, Scale(Mirror.Normal, -0.03)), Add(Mirror.Centre, [0.03, 0.0, 0.11]), 0.012, F.MirrorTrim, 10);
+        else
+        {
+            const Side = Math.sign(Mirror.Centre[1]);
+            Box(Facets, Add(Mirror.Centre, [0.035, -Side * 0.12, -0.05]), [0.06, 0.07, 0.022],
+                [[1, 0, 0], [0, 1, 0], [0, 0, 1]], F.BodyCoat);
+        }
+    }
+    return Facets;
+}
+
 export { Body as ProjectModelPoint };

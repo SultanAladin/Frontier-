@@ -31,7 +31,8 @@ import { RecoveryDirector, RecoveryReasons } from "./RecoveryDirector.js";
 import { TrainingSequence } from "./TrainingSequence.js";
 import { SpawnPoint } from "./CourseStructure.js";
 import { TyreThermalSolver, IgnitionModes } from "./TyreThermalSolver.js";
-import { SmokeSequence, ConstructGasParameters } from "./SmokeSequence.js";
+import { PlumeSpace, PlumeGrades, PlumeDefaults } from "./PlumeSpace.js";
+import { PlumeSourceProjection } from "./PlumeSourceProjection.js";
 import { VehicleSolver } from "./VehicleSolver.js";
 import { DriverInputIntegrator } from "./DriverInputIntegrator.js";
 import { ChaseCameraSolver, FreeCameraSolver } from "./ChaseCameraSolver.js";
@@ -42,7 +43,8 @@ import { TyreCarcassSolver, VehicleRecordBytes } from "./TyreCarcassSolver.js";
 import { ConstructHullPoints, HullPointRadius } from "./HullStructure.js";
 import { SparkSequence } from "./SparkSequence.js";
 import { CabinSequence } from "./CabinSequence.js";
-import { CabinLayout, CameraRigs, CockpitDefaults, ResolveCockpitFrame, PlaceSeatedEye } from "./CabinStructure.js";
+import { CabinProjection } from "./CabinProjection.js";
+import { CabinLayout, CameraRigs, ResolveCockpitFrame, PlaceSeatedEye } from "./CabinStructure.js";
 import { VehicleGeometry } from "./VehicleSpecification.js";
 
 
@@ -54,10 +56,10 @@ const ShaderSources = [
     "AtmosphereScattering.wgsl", "SurfaceReflectance.wgsl", "ShadowRaster.wgsl", "SurfaceRaster.wgsl", "DirectRadiance.wgsl",
     "ReservoirRecords.wgsl", "ReservoirTemporal.wgsl", "ReservoirSpatial.wgsl", "ReflectionTraversal.wgsl", "VarianceTemporal.wgsl",
     "VarianceWavelet.wgsl", "VarianceUpsample.wgsl", "InspectionMarch.wgsl", "DisplayRecombination.wgsl", "DisplayAntialias.wgsl",
-    "DisplayExposure.wgsl", "DisplayPresent.wgsl", "FireIllumination.wgsl", "SmokeRecords.wgsl", "SmokeLattice.wgsl",
-    "SmokeTransport.wgsl", "SmokePressure.wgsl", "SmokeAdvection.wgsl", "SmokeIllumination.wgsl", "SmokeMarch.wgsl", "SmokeComposite.wgsl",
+    "DisplayExposure.wgsl", "DisplayPresent.wgsl", "FireIllumination.wgsl", "PlumeRecords.wgsl", "PlumeAdvection.wgsl",
+    "PlumeVorticity.wgsl", "PlumePressure.wgsl", "PlumeMarch.wgsl",
     "FragmentDistance.wgsl", "EffectRecords.wgsl", "EffectRaster.wgsl", "TyreCarcass.wgsl", "SparkRaster.wgsl", "ForwardRaster.wgsl",
-    "CabinOverlay.wgsl", "CabinVolume.wgsl"
+    "CabinOverlay.wgsl", "CabinVolume.wgsl", "CabinRaster.wgsl"
 ];
 
 // 📝 Quality grades trade cascade resolution, card density and traversal length; selected with ?quality=low|medium|high.
@@ -74,9 +76,10 @@ const FeatureBits = { Indirect: 1, TemporalReuse: 2, SpatialReuse: 4, Visibility
                       CardRadiosity: 64, Antialias: 128, DirectShadow: 256, AutoExposure: 512, RadianceRefresh: 1024 };
 
 const TemporalRestartBit = 2048;   // [-] FeatureTemporalRestart in SceneRecords.wgsl
+const FeaturePlumeBit = 4096;       // [-] depth-aware smoke and fire march in DisplayRecombination.wgsl
 
-const PassNames = ["Distance union", "Card lighting", "Shadow", "Surface", "Direct", "ReSTIR GI", "Diffuse reconstruction",
-                   "Reflection", "Glossy reconstruction", "Resolve", "Smoke transport", "Smoke render"];
+const PassNames = ["Distance union", "Plume transport", "Card lighting", "Shadow", "Surface", "Direct", "Plume march", "ReSTIR GI",
+                   "Diffuse reconstruction", "Reflection", "Glossy reconstruction", "Resolve"];
 
 const FrameRecordExtent = 512;   // [B] FrameRecord in SceneRecords.wgsl
 const FireLightReach    = 14.0;  // [m] influence radius of a tyre fire's light
@@ -95,11 +98,11 @@ class IlluminationHost
         if (Query.has("scale"))
             this.Grade.RenderScale = Math.max(0.25, Math.min(2.0, Number(Query.get("scale"))));
         this.Settings = {
+            ...PlumeDefaults,
             Inspection: Number(Query.get("inspection") || 0), DistanceInspection: 1, InsetEnabled: false, SliceHeight: 0.6,
             HudVisible: false, PanelVisible: true,
-            SmokeEnabled: true, SmokeResolution: 2, IgnitionMode: 0, ThermalGrip: false, LineLock: true,
+            IgnitionMode: 0, ThermalGrip: false, LineLock: true,
             TyreMarks: true, TyreMarkStrength: 1.0,
-            Gas: ConstructGasParameters(),
             SunElevation: 38.0, SunAzimuth: 145.0, SolarIlluminance: 12.0, SkyScale: 1.0, EmissionScale: 1.0,
             ExposureCompensation: 0.0, AutoExposure: true, DirectShadow: true,
             Indirect: true, TemporalReuse: true, SpatialReuse: true, VisibilityReuse: true, RadianceRefresh: true,
@@ -110,12 +113,19 @@ class IlluminationHost
             // 📝 Tyres: cold pressures per axle [kPa], the carcass deformation and its visual exaggeration, wear and failure.
             TyrePressureFront: 220, TyrePressureRear: 220, TyreDeformation: true, DeformationScale: 1.0,
             TyreWear: true, WearScale: 1.0, TyreFailure: true, Sparks: true,
-            // 📝 Cockpit size (Cabin · HMI): the interior's scale about its anchor and its offset [m] (CabinStructure.js);
-            //    ?cockpit=0.9 starts it scaled.
-            ...CockpitDefaults,
-            CockpitScale: Query.has("cockpit") ? Math.max(0.5, Math.min(1.5, Number(Query.get("cockpit")) || 1.0)) : CockpitDefaults.CockpitScale,
+            // 📝 Only the mounted display surfaces scale; the Slate dashboard, wheel, cabin and seated eye stay fixed.
+            HmiScale: Query.has("hmi") ? Math.max(0.65, Math.min(1.4, Number(Query.get("hmi")) || 1.0)) : 1.0,
             CameraMode: Query.get("camera") || "Chase"
         };
+        if (Query.has("plume"))
+        {
+            const Grade = Number(Query.get("plume"));
+            if (Number.isFinite(Grade))
+                this.Settings.PlumeGrade = Math.max(0, Math.min(PlumeGrades.length - 1, Math.round(Grade)));
+        }
+        if (Query.has("testplume"))
+            this.Settings.TestPlume = Math.max(0, Math.min(2, Number(Query.get("testplume")) || 0));
+        this.ForceCustomBodies = Query.get("physics") === "custom";
         if (Query.has("preset"))
             this.PendingPreset = Query.get("preset");
         // 📝 Stress test: ?stresspool=K reserves K objects at bring-up (default 1536, clamped to the identity ceiling),
@@ -250,15 +260,32 @@ class IlluminationHost
         // 📝 The rigid-body world every loose thing shares: debris and cones; the car's wheels can ride heavy pieces.
         this.Bodies = new RigidBodyWorld();
         this.Bodies.AssignObstacles(this.Scene.QueryObstacleBounds());
+        if (this.ForceCustomBodies)
+            console.info("Using the built-in rigid-body solver as requested by ?physics=custom.");
+        else
+        {
+            try
+            {
+                await this.Bodies.InitializeJolt();
+            }
+            catch (Failure)
+            {
+                console.warn("Jolt Physics for Web could not initialise; using the built-in rigid-body solver.", Failure);
+            }
+        }
         this.Vehicle.Support = this.Bodies;
         this.Cones = new ConeSequence(this);
         this.ReportProgress("Baking fracture patterns", 0.72);
         this.Fracture = new FractureSequence(this);
 
         // ⑤ every remaining stage
-        this.ReportProgress("Compiling lighting programs", 0.76);
+        this.ReportProgress("Compiling lighting and plume programs", 0.76);
         this.Atmosphere = new AtmosphereIntegrator(this.Exchange, this.Shaders);
         await this.Atmosphere.ConstructResources();
+        this.Plume = new PlumeSpace(this.Exchange, this.Shaders, PlumeGrades[this.Settings.PlumeGrade]);
+        await this.Plume.ConstructResources(this.Distance.TraversalLayout, this.OccupantRecords);
+        this.PlumeSources = new PlumeSourceProjection();
+        this.FireLight = { Position: [0.0, 0.0, 0.0], Intensity: 0.0, Colour: [1.0, 0.52, 0.18] };
         this.Shadow = new ShadowProjection(this.Exchange, this.Shaders, this.Grade.ShadowExtent);
         await this.Shadow.ConstructResources(this.OccupantRecords);
         await this.Cards.ConstructResources(this.FrameRecords, this.OccupantRecords, this.MaterialRecords, this.Distance.TraversalLayout);
@@ -296,13 +323,14 @@ class IlluminationHost
         await this.Cabin.ConstructResources({ FrameRecords: this.FrameRecords, OccupantRecords: this.OccupantRecords, MaterialRecords: this.MaterialRecords,
                                               EffectRecords: this.Effects.Records, VehicleRecords: this.VehicleRecords, Shadow: this.Shadow,
                                               Atmosphere: this.Atmosphere, Scene: this.Scene });
-        this.ReportProgress("Compiling drift smoke programs", 0.91);
+        this.CabinProjection = new CabinProjection(this.Exchange, this.Shaders);
+        await this.CabinProjection.ConstructPrograms(this.FrameRecords, this.Scene, this.Cabin);
+        this.Cabin.HmiProjection = this.CabinProjection;
+        this.CabinProjection.Advance(this.Vehicle, this.Settings.HmiScale);
+        this.ReportProgress("Preparing tyre thermal sources", 0.91);
         this.Thermal = new TyreThermalSolver(4);
-        this.BurstPuffs = [];
         this.HeadYaw = 0.0;
         this.HeadPitch = 0.0;
-        this.Smoke = new SmokeSequence(this.Exchange, this.Shaders, this.GradeName);
-        await this.Smoke.ConstructPrograms(this.FrameRecords, this.Distance.TraversalLayout, this.Atmosphere);
         this.Metrics = new HardwareMetrics(this.Exchange, PassNames);
 
         this.ReportProgress("Capturing surface cards", 0.94);
@@ -367,8 +395,12 @@ class IlluminationHost
             this.Stress.Assign(this.Stress.QueryCapacity());
         else if (Key === "StressMotion")
             this.Stress.AssignMotion(this.Settings.StressMotion);
-        else if (Key === "SmokeResolution")
-            this.Smoke.ConstructScreenTargets(this.ScreenExtent, this.Surface, this.Display, this.Settings.SmokeResolution);
+        else if (Key === "PlumeGrade")
+        {
+            this.Plume.ReconstructGrade(PlumeGrades[this.Settings.PlumeGrade]);
+            this.PlumeSources.Reset();
+            this.ReconstructScreenTargets(true);
+        }
         else if (Key === "CoolTyres")
             this.RestoreTyres();
         else if (Key === "TyrePressure")
@@ -376,7 +408,11 @@ class IlluminationHost
         else if (Key === "SeeThroughGlass" && this.Cabin)
             this.Cabin.Settings.SeeThroughGlass = !!this.Settings.SeeThroughGlass;
         else if (Key === "ClearSmoke")
-            this.Smoke.Clear();
+        {
+            this.Settings.TestPlume = 0;
+            this.PlumeSources.Reset();
+            this.Plume.Clear();
+        }
         else if (Key === "Quality")
         {
             const Query = new URLSearchParams(location.search);
@@ -559,7 +595,8 @@ class IlluminationHost
         const Transform = this.Vehicle.QueryWheelTransform(Burst.Wheel);
         this.Effects.BurstTyre(Transform, [0.46, 0.17, 0.46], this.Vehicle.LinearVelocity);
         const Hub = Transform.slice(12, 15);
-        this.BurstPuffs.push({ Position: [Hub[0], Hub[1], Math.max(0.05, Hub[2] - 0.35)], Seconds: 0.15 });
+        this.PlumeSources.QueueBurst({ Position: Hub, Radius: 0.45, Velocity: [0.0, 0.0, 2.5],
+                                       Smoke: 160.0, Heat: 30.0, Flame: 0.0, Soot: 10.0, Seconds: 0.35 });
         this.BurstCount = (this.BurstCount || 0) + 1;
     }
 
@@ -569,21 +606,6 @@ class IlluminationHost
         const Names = ["front left", "front right", "rear left", "rear right"];
         this.Shell.Announce(`${Names[Wheel]} tyre shredded — on the rim`);
         this.Effects.BurstTyre(this.Vehicle.QueryWheelTransform(Wheel), [0.44, 0.15, 0.44], this.Vehicle.LinearVelocity);
-    }
-
-    // 📝 The burst puffs as smoke sources: a short dense pulse at the wheel.
-    ResolveBurstPuffs(Seconds)
-    {
-        const Emissions = [];
-        for (const Puff of this.BurstPuffs)
-        {
-            Puff.Seconds -= Seconds;
-            Emissions.push({ Active: true, Burning: false, Strength: 1.2, Position: Puff.Position, Hub: Puff.Position, Radius: 0.4,
-                             Expansion: 4.0, SmokeRate: 40.0, SootRate: 0.0, FlameRate: 0.0, HeatRate: 0.5, Velocity: [0.0, 0.0, 0.8],
-                             Plume: null, CombustionPower: 0.0, Tread: [0.0, 0.0, 0.0] });
-        }
-        this.BurstPuffs = this.BurstPuffs.filter((Puff) => Puff.Seconds > 0.0);
-        return Emissions;
     }
 
     // 📝 What the HMI shows live: speed, revs, gear, and the four tyres.
@@ -823,8 +845,8 @@ class IlluminationHost
                                       [this.Resampling.Views.Irradiance, this.Resampling.Views.Irradiance], this.Resampling.Views.Guides);
         this.Glossy.ConstructTargets(this.TraceExtent, this.ScreenExtent, this.Surface,
                                      [this.Resampling.Views.Reflection, this.Resampling.Views.Reflection], this.Resampling.Views.Guides);
-        this.Display.ConstructTargets(this.ScreenExtent, this.Surface, this.Resampling, this.Diffuse, this.Glossy, this.Cards);
-        this.Smoke.ConstructScreenTargets(this.ScreenExtent, this.Surface, this.Display, this.Settings.SmokeResolution);
+        this.Plume.ConstructTargets(this.TraceExtent, this.FrameRecords, this.Surface, this.Shadow, this.Atmosphere);
+        this.Display.ConstructTargets(this.ScreenExtent, this.Surface, this.Resampling, this.Diffuse, this.Glossy, this.Cards, this.Plume);
         this.PriorValid = false;
         if (this.Capture)
         {
@@ -854,28 +876,35 @@ class IlluminationHost
             this.Scene.AssignOccupantTransform(this.Scene.VehicleOccupants.Wheels[Wheel], this.Vehicle.QueryWheelTransform(Wheel));
     }
 
-    // 📝 The Smoke + Fire editor's test emitter: a steady smoke source, or a burning one, 3 m ahead of the car — so
-    //    every slider can be judged without driving. It is one more emission beside the four tyres.
+    // 📝 One power-weighted warm key light for the surface pass; each tyre still has its own light inside the plume.
+    ResolveFireLight(Emissions)
+    {
+        const Centre = [0.0, 0.0, 0.0];
+        let Power = 0.0;
+        const Time = this.FrameIndex * (this.FixedStep || 1.0 / 60.0);
+        const Flicker = 0.78 + 0.12 * Math.sin(Time * 17.0) + 0.07 * Math.sin(Time * 31.0 + 1.3) + 0.05 * Math.sin(Time * 7.3);
+        for (const Emission of Emissions)
+        {
+            if (!Emission.Burning)
+                continue;
+            const Intensity = Emission.CombustionPower * 6.0e-5 * Flicker * this.Settings.PlumeFireLight;
+            const Position = [Emission.Hub[0], Emission.Hub[1], Emission.Hub[2] + 0.3];
+            for (let Axis = 0; Axis < 3; ++Axis)
+                Centre[Axis] += Position[Axis] * Intensity;
+            Power += Intensity;
+        }
+        this.FireLight.Intensity = Power;
+        if (Power > 0.0)
+            this.FireLight.Position = Centre.map((Component) => Component / Power);
+    }
+
+    // 📝 The Smoke + Fire editor's independent test source: steady smoke or burning soot, 3 m ahead of the car.
     ResolveTestPlume(Burning)
     {
         const Forward = this.Vehicle.QueryForward();
-        const Point = [this.Vehicle.Position[0] + 3.0 * Forward[0], this.Vehicle.Position[1] + 3.0 * Forward[1], 0.05];
-        // 📝 The fire matches one burning tyre of TyreThermalSolver (60 kW: 2 g/s of rubber at 30 MJ/kg) — the flame
-        //    at the hub and the soot plume 0.55 m above it, with the same rates — so what is tuned here is what burns.
-        return {
-            Active: true, Burning, Strength: 1.6,
-            Position: Burning ? [Point[0], Point[1], 0.25] : Point,
-            Hub: [Point[0], Point[1], 0.35],
-            Radius: Burning ? 0.45 : 0.35,
-            Expansion: Burning ? 5.0 : 0.6,
-            SmokeRate: Burning ? 0.0 : 26.0,
-            SootRate: 0.0,
-            FlameRate: Burning ? 12.0 : 0.0,
-            HeatRate: Burning ? 39.0 : 1.2,
-            Velocity: [0.0, 0.0, Burning ? 1.2 : 0.35],
-            Plume: Burning ? { Offset: [0.0, 0.0, 0.65], Radius: 0.45, SmokeRate: 12.0, SootRate: 18.0, HeatRate: 21.0, Expansion: 2.5 } : null,
-            CombustionPower: Burning ? 60000.0 : 0.0
-        };
+        const Position = [this.Vehicle.Position[0] + 3.0 * Forward[0], this.Vehicle.Position[1] + 3.0 * Forward[1], Burning ? 0.25 : 0.05];
+        return { Position, Radius: Burning ? 0.45 : 0.35, Velocity: [0.0, 0.0, Burning ? 1.2 : 0.35],
+                 Smoke: Burning ? 12.0 : 26.0, Heat: Burning ? 39.0 : 1.2, Flame: Burning ? 12.0 : 0.0, Soot: Burning ? 18.0 : 0.0 };
     }
 
     ResolveCamera(Δτ)
@@ -965,6 +994,8 @@ class IlluminationHost
             Features &= ~(FeatureBits.TemporalReuse);
             Features |= TemporalRestartBit;
         }
+        if (this.Settings.PlumeEnabled && this.Plume.Resident && !this.Omitted.has("Plume"))
+            Features |= FeaturePlumeBit;
         Integers[103] = Features;
         Integers[104] = this.Settings.Inspection;
         Scalars[105] = this.Settings.TemporalTallyLimit;
@@ -978,10 +1009,9 @@ class IlluminationHost
         Integers[115] = this.Settings.DistanceInspection;
         Scalars.set(this.Focus, 116);
         Integers[119] = (this.Dock ? this.Dock.InsetDrawn : this.Settings.InsetEnabled) ? 1 : 0;
-        const Fire = this.Smoke.FireLight;
-        Scalars.set(Fire.Position, 120);
-        Scalars[123] = this.Settings.SmokeEnabled ? Fire.Intensity : 0.0;
-        Scalars.set(Fire.Colour, 124);
+        Scalars.set(this.FireLight.Position, 120);
+        Scalars[123] = this.Settings.PlumeEnabled ? this.FireLight.Intensity : 0.0;
+        Scalars.set(this.FireLight.Colour, 124);
         Scalars[127] = FireLightReach;
         this.Exchange.Device.queue.writeBuffer(this.FrameRecords, 0, Bytes);
     }
@@ -1048,15 +1078,31 @@ class IlluminationHost
         this.Carcass.Advance(this.Vehicle.QueryCarcassContacts(), Step);
         Device.queue.writeBuffer(this.VehicleRecords, 0, this.Carcass.EncodeRecord(this.QueryCabinHeader(), this.Settings.TyreDeformation));
         const Pumped = this.Cabin.Advance(Δτ, this.QueryTyreLive());
+        this.CabinProjection.Advance(this.Vehicle, this.Settings.HmiScale);
         if (Pumped !== null)
         {
             this.InflateTyres(Pumped, Pumped);
             this.Shell.Announce(`Tyres pumped to ${Pumped} kPa`);
         }
         const Emissions = this.Thermal.ResolveEmissions(Readings, Readings[0].Seconds);
-        Emissions.push(...this.ResolveBurstPuffs(Step));
-        if (this.Settings.TestPlume > 0)
-            Emissions.push(this.ResolveTestPlume(this.Settings.TestPlume === 2));
+        this.ResolveFireLight(Emissions);
+        const PlumeTelemetry = {
+            Wheels: Readings.map((Reading, Index) =>
+            {
+                const Thermal = this.Thermal.Wheels[Index], Wheel = this.Vehicle.Wheels[Index];
+                return { InContact: Reading.ContactFraction > 0.5, ContactPoint: Reading.ContactPoint, ContactVelocity: Reading.ContactVelocity,
+                         HubPosition: Reading.HubPosition, SlidingPower: Thermal.SlidingPower, SlipSpeed: Reading.SlipSpeed,
+                         Thermal, Longitudinal: Reading.Longitudinal, SurfaceSpeed: Reading.SurfaceSpeed, Radius: Reading.Radius,
+                         Burst: Thermal.Burst, Driven: Wheel.Driven, Pinched: Wheel.Pinched, Shredded: Wheel.Shredded };
+            }),
+            Exhausts: [], AfterfireSeconds: 0.0, Velocity: this.Vehicle.LinearVelocity, Position: this.Vehicle.Position
+        };
+        this.PlumeSources.Project(PlumeTelemetry, Step, {
+            Afterfire: false, EmissionRate: this.Settings.PlumeEmissionRate, SmokeYield: this.Settings.PlumeDensity,
+            HeatYield: this.Settings.PlumeHeat, SootYield: this.Settings.PlumeSoot, FireLight: this.Settings.PlumeFireLight,
+            Embers: this.Settings.PlumeEmbers,
+            TestSource: this.Settings.TestPlume > 0 ? this.ResolveTestPlume(this.Settings.TestPlume === 2) : null
+        });
         this.Marks.Advance(Readings, { Enabled: this.Settings.TyreMarks, Strength: this.Settings.TyreMarkStrength });
 
         // ② camera, light, cascade focus
@@ -1076,9 +1122,8 @@ class IlluminationHost
             }
         }
         this.PriorLight = { Direction: Light.Direction.slice(), Brightness };
-        this.Smoke.Advance(this.FixedStep ? this.FixedStep : Δτ, {
-            Enabled: this.Settings.SmokeEnabled, Emissions, Vehicle: this.Vehicle, Light, SkyScale: this.Settings.SkyScale,
-            Gas: this.Settings.Gas });
+        this.Plume.Schedule(Step, Δτ, PlumeTelemetry.Position, this.PlumeSources, this.Settings, Light.Direction);
+        this.Plume.AssignFireLights(this.Settings.PlumeEnabled ? this.PlumeSources.Lights : []);
         this.EncodeFrameRecord(Camera, Light);
         Device.queue.writeBuffer(this.OccupantRecords, 0, this.Scene.EncodeOccupantRecords(this.Volumes, this.Scene.DynamicCount));
 
@@ -1097,8 +1142,8 @@ class IlluminationHost
         this.Volumes.RecordFragments(Encoder);
         if (Included("Union"))
             this.Distance.RecordUnion(Encoder, this.Scene.QueryUnionCount(), this.FrameIndex, this.Metrics.QueryWrites("Distance union"));
-        if (Included("Smoke"))
-            this.Smoke.RecordTransport(Encoder, this.Distance.TraversalGroup, this.Metrics.QueryWrites("Smoke transport"));
+        if (Included("Plume"))
+            this.Plume.RecordTransport(Encoder, this.Distance.TraversalGroup, this.Metrics.QueryWrites("Plume transport"));
         if (Included("Shadow"))
             this.Shadow.RecordCascades(Encoder, this.Scene, this.VertexRecords, this.Metrics.QueryWrites("Shadow"));
         if (Included("Cards"))
@@ -1109,6 +1154,8 @@ class IlluminationHost
             this.Cabin.RecordViews(Encoder, this.Scene, this.VertexRecords, this.Vehicle.QueryBodyTransform(), this.QueryMirrorsVisible());
         if (Included("Direct"))
             this.Surface.RecordDirect(Encoder, this.Distance.TraversalGroup, this.Metrics.QueryWrites("Direct"));
+        if (Included("Plume") && this.Settings.PlumeEnabled)
+            this.Plume.RecordMarch(Encoder, this.Metrics.QueryWrites("Plume march"));
         if (this.Settings.Indirect && Included("Resampling"))
         {
             this.Resampling.RecordResampling(Encoder, Parity, this.Distance.TraversalGroup, this.SamplingGroup, this.Metrics.QueryWrites("ReSTIR GI"));
@@ -1124,17 +1171,17 @@ class IlluminationHost
             this.Display.RecordInspection(Encoder, this.Distance.TraversalGroup, this.SamplingGroup);
         if (Included("Resolve"))
         {
-            // 📝 The smoke composes after temporal antialiasing; with no smoke resident nothing extra is recorded.
-            const Composer = this.Smoke.Resident && Included("Smoke")
-                           ? (Target, TaaParity) => this.Smoke.RecordComposition(Target, TaaParity,
-                                 { Inspection: this.Settings.Inspection }, this.Metrics.QueryWrites("Smoke render"))
-                           : null;
-            // 📝 The cabin (glass, screens, mirrors) draws before the antialiasing; sparks after it.
+            // 📝 Depth-aware Slate smoke/fire is composed into Recombined before temporal antialiasing; cabin follows it, sparks stay post-TAA.
             const Overlay = this.Settings.Inspection === 0 && Included("Cabin")
-                          ? (Target, View) => this.Cabin.RecordOverlay(Target, View, this.Surface.Views.Depth) : null;
+                          ? (Command, Target) =>
+                            {
+                                this.CabinProjection.Record(Command, Target, this.Surface.Views.Depth);
+                                this.Cabin.RecordOverlay(Command, Target, this.Surface.Views.Depth, true);
+                            }
+                          : null;
             const PostOverlay = this.Sparks.Live > 0 && this.Settings.Inspection === 0 && Included("Sparks")
                               ? (Target, View) => this.Sparks.Record(Target, View, this.Surface.Views.Depth) : null;
-            this.Display.RecordResolve(Encoder, Parity, this.Metrics.QueryWrites("Resolve"), Composer, Overlay, PostOverlay);
+            this.Display.RecordResolve(Encoder, Parity, this.Metrics.QueryWrites("Resolve"), null, Overlay, PostOverlay);
         }
         let CaptureReady = false;
         if (Included("Present"))
@@ -1208,14 +1255,14 @@ class IlluminationHost
             Lines.push(`Stress objects  ${this.Stress.QueryActive()} (${this.Stress.Moving.length} moving) · ${this.Scene.DrawRuns.length} draw runs`);
         if (this.Fracture.Metrics.ActiveFragments > 0)
             Lines.push(`Fragments  ${this.Fracture.Metrics.ActiveFragments} live (${this.Fracture.Metrics.Sleeping} asleep, ${this.Fracture.Metrics.InField || 0} in the field) · last cut ${this.Fracture.Metrics.LastMilliseconds.toFixed(1)} ms`);
-        if (this.Bodies.Metrics.Awake > 0)
-            Lines.push(`Rigid bodies  ${this.Bodies.Metrics.Awake} awake of ${this.Bodies.Metrics.Bodies} · ${this.Bodies.Metrics.Contacts} contacts · ${this.Bodies.Metrics.Milliseconds.toFixed(2)} ms`);
+        if (this.Bodies.Metrics.Bodies > 0)
+            Lines.push(`Rigid bodies  ${this.Bodies.Metrics.Backend} · ${this.Bodies.Metrics.Awake} awake of ${this.Bodies.Metrics.Bodies} · ${this.Bodies.Metrics.Contacts} contacts · ${this.Bodies.Metrics.Milliseconds.toFixed(2)} ms`);
         const Hottest = Math.max(...this.Thermal.Wheels.map((Wheel) => Wheel.Surface));
-        if (Hottest > 323.15 || this.Smoke.Resident)
+        if (Hottest > 323.15 || this.Plume.Resident)
         {
             const Names = ["FL", "FR", "RL", "RR"];
             const Tyres = this.Thermal.Wheels.map((Wheel, Index) => `${Names[Index]} ${(Wheel.Surface - 273.15).toFixed(0)}°C${Wheel.Ignited ? " 🔥" : ""}`);
-            Lines.push(`Tyres  ${Tyres.join("  ")}${this.Smoke.Resident ? `  · smoke ${this.Smoke.Metrics.Sources} sources` : ""}`);
+            Lines.push(`Tyres  ${Tyres.join("  ")}${this.Plume.Resident ? `  · smoke ${this.PlumeSources.Count} sources` : ""}`);
         }
         if (this.Metrics.Enabled)
         {

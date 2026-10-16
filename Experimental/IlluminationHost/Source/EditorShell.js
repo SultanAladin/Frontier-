@@ -376,7 +376,7 @@ export class EditorShell
         Items.Quality.textContent = Host.GradeName;
         Items.Sun.textContent = `${Host.Settings.SunElevation.toFixed(1)}°`;
         Items.Speed.textContent = `${Math.abs(Telemetry.Speed * 3.6).toFixed(0)} km/h${Telemetry.Burnout ? " · burnout" : ""}`;
-        Items.Smoke.textContent = Host.Smoke.Resident ? `resident · ${Host.Smoke.Metrics.Sources} src` : "idle";
+        Items.Smoke.textContent = Host.Plume.Resident ? `resident · ${Host.PlumeSources.Count} src` : "idle";
         Items.Fragments.textContent = String(Host.Fracture.Metrics.ActiveFragments);
         const Eye = Host.CameraEye || [0, 0, 0];
         Items.Camera.textContent = Eye.map((Component) => Component.toFixed(0)).join(", ");

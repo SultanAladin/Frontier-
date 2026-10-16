@@ -21,7 +21,7 @@
 //    split positional projection. Bodies sleep once settled and cost nothing until something with real momentum
 //    reaches them; a cone at rest is a sleeping body, so a hundred and thirty of them are free until the car arrives.
 
-import { ResolveCourseHeight, ResolveCourseNormal } from "./CourseStructure.js";
+import { ResolveCourseHeight, ResolveCourseNormal, CourseConstants, KerbConstants } from "./CourseStructure.js";
 import { HullSpheres } from "./VehicleSolver.js";
 import { VehicleGeometry, ResolveInertia } from "./VehicleSpecification.js";
 import { AddVector, SubtractVector, ScaleVector, DotVector, CrossVector, LengthVector, NormalizeVector, MultiplyAddVector,
@@ -58,8 +58,15 @@ export class RigidBodyWorld
         this.Settings    = { ...RigidSettingsDefaults };
         this.NextId      = 1;
         this.Support     = [];   // heavy bodies near the car, refreshed per frame for QuerySupport
-        this.Metrics     = { Bodies: 0, Awake: 0, Contacts: 0, Pairs: 0, Milliseconds: 0.0 };
+        this.Metrics     = { Bodies: 0, Awake: 0, Contacts: 0, Pairs: 0, Milliseconds: 0.0, Backend: "custom" };
         this.VehicleInertia = ResolveInertia();
+        this.Jolt         = null;
+        this.JoltInterface = null;
+        this.JoltBodies  = null;
+        this.JoltStaticIds = [];
+        this.JoltCourseIds = [];
+        this.JoltScratch = null;
+        this.JoltObjectLayer = { Static: 0, Dynamic: 1 };
     }
 
     //--------------------------------------------------------------------------------------------------------------------
@@ -76,6 +83,8 @@ export class RigidBodyWorld
         const Samples = Spec.Samples || ConstructContactSamples(Spec.Points, Spec.Planes);
         const Body = {
             Id:             this.NextId++,
+            JoltId:         null,
+            JoltState:      null,
             Kind:           Spec.Kind || "debris",
             Owner:          Spec.Owner || null,
             Position:       Spec.Position.slice(),
@@ -103,6 +112,8 @@ export class RigidBodyWorld
             Moved:          !Spec.Sleeping
         };
         this.RefreshBody(Body);
+        if (this.JoltInterface)
+            Body.JoltId = this.CreateJoltBody(Body, Spec);
         this.Bodies.push(Body);
         return Body;
     }
@@ -111,7 +122,13 @@ export class RigidBodyWorld
     {
         const Index = this.Bodies.indexOf(Body);
         if (Index >= 0)
+        {
+            if (Body.JoltId !== null && this.JoltBodies)
+                this.RemoveJoltBody(Body.JoltId);
+            Body.JoltId = null;
+            Body.JoltState = null;
             this.Bodies.splice(Index, 1);
+        }
     }
 
     // 📝 Puts a body somewhere, at rest and asleep (a cone rezzed back onto its mark).
@@ -125,6 +142,8 @@ export class RigidBodyWorld
         Body.Still = 0.0;
         Body.Moved = true;
         this.RefreshBody(Body);
+        if (Body.JoltId !== null && this.JoltBodies)
+            this.SyncBodyToJolt(Body, !Sleeping);
     }
 
     Wake(Body)
@@ -133,6 +152,8 @@ export class RigidBodyWorld
         {
             Body.Sleeping = false;
             Body.Woke = true;
+            if (Body.JoltId !== null && this.JoltBodies)
+                this.JoltBodies.ActivateBody(Body.JoltId);
         }
         Body.Still = 0.0;
     }
@@ -141,6 +162,394 @@ export class RigidBodyWorld
     AssignObstacles(Boxes)
     {
         this.Obstacles = Boxes;
+        if (this.JoltInterface)
+            this.RebuildJoltObstacles();
+    }
+
+    //--------------------------------------------------------------------------------------------------------------------
+    //                                               JOLT FOR WEB
+    //--------------------------------------------------------------------------------------------------------------------
+
+    // 📝 Jolt owns the shared dynamic-body simulation; the host keeps the JS body records as the stable API for support
+    //    casts, occupants and the custom vehicle-contact bridge. The package is loaded from Tools after npm install, and
+    //    the custom solver remains the fallback when an adapter cannot initialise WebAssembly.
+    async InitializeJolt()
+    {
+        if (this.JoltInterface)
+            return this;
+        const Package = await import("../Tools/node_modules/jolt-physics/dist/jolt-physics.wasm-compat.js");
+        const Jolt = await Package.default();
+        this.Jolt = Jolt;
+        try
+        {
+            const ObjectLayers = new Jolt.ObjectLayerPairFilterTable(2);
+            ObjectLayers.EnableCollision(this.JoltObjectLayer.Static, this.JoltObjectLayer.Dynamic);
+            ObjectLayers.EnableCollision(this.JoltObjectLayer.Dynamic, this.JoltObjectLayer.Dynamic);
+            const BroadPhase = new Jolt.BroadPhaseLayerInterfaceTable(2, 2);
+            const StaticBroadPhase = new Jolt.BroadPhaseLayer(0), DynamicBroadPhase = new Jolt.BroadPhaseLayer(1);
+            BroadPhase.MapObjectToBroadPhaseLayer(this.JoltObjectLayer.Static, StaticBroadPhase);
+            BroadPhase.MapObjectToBroadPhaseLayer(this.JoltObjectLayer.Dynamic, DynamicBroadPhase);
+            Jolt.destroy(StaticBroadPhase);
+            Jolt.destroy(DynamicBroadPhase);
+
+            const Settings = new Jolt.JoltSettings();
+            Settings.mMaxBodies = 8192;
+            Settings.mMaxBodyPairs = 32768;
+            Settings.mMaxContactConstraints = 16384;
+            Settings.mMaxWorkerThreads = 1;
+            Settings.mObjectLayerPairFilter = ObjectLayers;
+            Settings.mBroadPhaseLayerInterface = BroadPhase;
+            Settings.mObjectVsBroadPhaseLayerFilter = new Jolt.ObjectVsBroadPhaseLayerFilterTable(BroadPhase, 2, ObjectLayers, 2);
+            this.JoltInterface = new Jolt.JoltInterface(Settings);
+            Jolt.destroy(Settings);
+            this.PhysicsSystem = this.JoltInterface.GetPhysicsSystem();
+            this.JoltBodies = this.PhysicsSystem.GetBodyInterface();
+            const GravityVector = new Jolt.Vec3(0.0, 0.0, -Gravity);
+            this.PhysicsSystem.SetGravity(GravityVector);
+            Jolt.destroy(GravityVector);
+            this.JoltScratch = {
+                Position: new Jolt.RVec3(), Rotation: new Jolt.Quat(), Linear: new Jolt.Vec3(), Angular: new Jolt.Vec3(),
+                WritePosition: new Jolt.RVec3(), WriteRotation: new Jolt.Quat(), WriteLinear: new Jolt.Vec3(), WriteAngular: new Jolt.Vec3()
+            };
+            this.CreateJoltCourse();
+            this.RebuildJoltObstacles();
+            for (const Body of this.Bodies)
+                Body.JoltId = this.CreateJoltBody(Body, Body);
+            this.Metrics = { ...this.Metrics, Backend: "Jolt Physics for Web" };
+            return this;
+        }
+        catch (Failure)
+        {
+            this.DestroyJolt();
+            throw Failure;
+        }
+    }
+
+    DestroyJolt()
+    {
+        const Jolt = this.Jolt;
+        if (!Jolt)
+            return;
+        if (this.JoltBodies)
+        {
+            for (const Body of this.Bodies)
+            {
+                if (Body.JoltId === null)
+                    continue;
+                this.RemoveJoltBody(Body.JoltId);
+                Body.JoltId = null;
+                Body.JoltState = null;
+            }
+            for (const Id of [...this.JoltStaticIds, ...this.JoltCourseIds])
+                this.RemoveJoltBody(Id);
+        }
+        this.JoltStaticIds = [];
+        this.JoltCourseIds = [];
+        if (this.JoltScratch)
+            for (const Value of Object.values(this.JoltScratch))
+                Jolt.destroy(Value);
+        this.JoltScratch = null;
+        if (this.JoltInterface)
+            Jolt.destroy(this.JoltInterface);
+        this.JoltInterface = null;
+        this.JoltBodies = null;
+        this.PhysicsSystem = null;
+        this.Jolt = null;
+        this.Metrics = { ...this.Metrics, Backend: "custom" };
+    }
+
+    CreateJoltShape(ShapeSettings)
+    {
+        const Jolt = this.Jolt;
+        let Result = null;
+        try
+        {
+            Result = ShapeSettings.Create();
+            if (!Result.IsValid())
+            {
+                const Detail = Result.HasError() ? Result.GetError() : null;
+                const Message = Detail ? Detail.c_str() : "invalid shape settings";
+                if (Detail) Jolt.destroy(Detail);
+                throw new Error(`Jolt could not create a convex shape: ${Message}`);
+            }
+            const Shape = Result.Get();
+            Result.Clear();
+            Shape.AddRef();
+            return Shape;
+        }
+        finally
+        {
+            if (Result) Jolt.destroy(Result);
+            Jolt.destroy(ShapeSettings);
+        }
+    }
+
+    CreateJoltShapeBody(ShapeSettings, Position, Orientation, MotionType, ObjectLayer, Activation, Spec = null)
+    {
+        const Jolt = this.Jolt;
+        const Shape = this.CreateJoltShape(ShapeSettings);
+        const JoltPosition = new Jolt.RVec3(Position[0], Position[1], Position[2]);
+        const JoltRotation = new Jolt.Quat(Orientation[0], Orientation[1], Orientation[2], Orientation[3]);
+        let Creation = null, ShapeOwned = true;
+        try
+        {
+            Creation = new Jolt.BodyCreationSettings(Shape, JoltPosition, JoltRotation, MotionType, ObjectLayer);
+            Shape.Release();
+            ShapeOwned = false;
+            Creation.mFriction = Spec ? Spec.Friction : 0.85;
+            Creation.mRestitution = Spec ? Spec.Restitution : 0.0;
+            if (Spec)
+            {
+                Creation.mOverrideMassProperties = Jolt.EOverrideMassProperties_CalculateInertia;
+                Creation.mMassPropertiesOverride.mMass = Spec.Mass;
+                const Linear = new Jolt.Vec3(...(Spec.Linear || [0.0, 0.0, 0.0]));
+                const Angular = new Jolt.Vec3(...(Spec.Angular || [0.0, 0.0, 0.0]));
+                Creation.mLinearVelocity = Linear;
+                Creation.mAngularVelocity = Angular;
+                Jolt.destroy(Linear);
+                Jolt.destroy(Angular);
+                Creation.mAllowSleeping = true;
+                Creation.mLinearDamping = 0.025;
+                Creation.mAngularDamping = 0.08;
+            }
+            const TemporaryId = this.JoltBodies.CreateAndAddBody(Creation, Activation);
+            const Id = new Jolt.BodyID(TemporaryId.GetIndexAndSequenceNumber());
+            Jolt.destroy(TemporaryId);
+            return Id;
+        }
+        finally
+        {
+            if (ShapeOwned)
+                Shape.Release();
+            Jolt.destroy(JoltPosition);
+            Jolt.destroy(JoltRotation);
+            if (Creation) Jolt.destroy(Creation);
+        }
+    }
+
+    CreateJoltBody(Body, Spec)
+    {
+        const Hull = new this.Jolt.ConvexHullShapeSettings();
+        Hull.mMaxConvexRadius = 0.015;
+        for (const [X, Y, Z] of Spec.Points)
+        {
+            const Point = new this.Jolt.Vec3(X, Y, Z);
+            Hull.mPoints.push_back(Point);
+            this.Jolt.destroy(Point);
+        }
+        const Id = this.CreateJoltShapeBody(Hull, Body.Position, Body.Orientation, this.Jolt.EMotionType_Dynamic,
+                                            this.JoltObjectLayer.Dynamic, Body.Sleeping ? this.Jolt.EActivation_DontActivate : this.Jolt.EActivation_Activate,
+                                            Spec);
+        Body.JoltState = this.CopyJoltState(Body);
+        return Id;
+    }
+
+    CreateJoltBox(Position, HalfExtent, Friction = 0.85)
+    {
+        const Half = new this.Jolt.Vec3(Math.max(0.005, HalfExtent[0]), Math.max(0.005, HalfExtent[1]), Math.max(0.005, HalfExtent[2]));
+        const Shape = new this.Jolt.BoxShapeSettings(Half, Math.min(0.02, Math.min(HalfExtent[0], HalfExtent[1], HalfExtent[2]) * 0.25), null);
+        this.Jolt.destroy(Half);
+        const Id = this.CreateJoltShapeBody(Shape, Position, [0.0, 0.0, 0.0, 1.0], this.Jolt.EMotionType_Static,
+                                            this.JoltObjectLayer.Static, this.Jolt.EActivation_DontActivate);
+        this.JoltBodies.SetFriction(Id, Friction);
+        return Id;
+    }
+
+    CreateJoltCourse()
+    {
+        const Course = CourseConstants;
+        this.JoltCourseIds.push(this.CreateJoltBox([0.0, 0.0, Course.SurroundHeight - 0.05], [600.0, 600.0, 0.05]));
+        this.JoltCourseIds.push(this.CreateJoltBox([(Course.PadMinimum[0] + Course.PadMaximum[0]) * 0.5,
+                                                   (Course.PadMinimum[1] + Course.PadMaximum[1]) * 0.5, -0.05],
+                                                   [(Course.PadMaximum[0] - Course.PadMinimum[0]) * 0.5,
+                                                    (Course.PadMaximum[1] - Course.PadMinimum[1]) * 0.5, 0.05]));
+        for (const [X0, X1, Y0, Y1] of KerbConstants.Strips)
+            this.JoltCourseIds.push(this.CreateJoltBox([(X0 + X1) * 0.5, (Y0 + Y1) * 0.5, KerbConstants.Height * 0.5],
+                                                       [(X1 - X0) * 0.5, (Y1 - Y0) * 0.5, KerbConstants.Height * 0.5]));
+        const Near = Course.RampNearX, Far = Near + Course.RampRunX, Low = Course.RampCentreY - Course.RampHalfWidth;
+        const High = Course.RampCentreY + Course.RampHalfWidth, Rise = Course.RampRise;
+        const Ramp = new this.Jolt.ConvexHullShapeSettings();
+        Ramp.mMaxConvexRadius = 0.005;
+        for (const Point of [[Near, Low, 0.0], [Near, High, 0.0], [Far, Low, 0.0], [Far, High, 0.0],
+                             [Far, Low, Rise], [Far, High, Rise]])
+        {
+            const Vertex = new this.Jolt.Vec3(...Point);
+            Ramp.mPoints.push_back(Vertex);
+            this.Jolt.destroy(Vertex);
+        }
+        this.JoltCourseIds.push(this.CreateJoltShapeBody(Ramp, [0.0, 0.0, 0.0], [0.0, 0.0, 0.0, 1.0],
+                                                         this.Jolt.EMotionType_Static, this.JoltObjectLayer.Static,
+                                                         this.Jolt.EActivation_DontActivate));
+    }
+
+    RebuildJoltObstacles()
+    {
+        if (!this.JoltBodies)
+            return;
+        for (const Id of this.JoltStaticIds)
+            this.RemoveJoltBody(Id);
+        this.JoltStaticIds = [];
+        for (const Box of this.Obstacles)
+        {
+            const Minimum = Box.Minimum, Maximum = Box.Maximum;
+            const Half = [0, 1, 2].map((Axis) => Math.max(0.005, 0.5 * (Maximum[Axis] - Minimum[Axis])));
+            const Centre = [0, 1, 2].map((Axis) => 0.5 * (Maximum[Axis] + Minimum[Axis]));
+            this.JoltStaticIds.push(this.CreateJoltBox(Centre, Half, 0.8));
+        }
+    }
+
+    RemoveJoltBody(Id)
+    {
+        if (!this.JoltBodies || Id === null || Id === undefined)
+            return;
+        this.JoltBodies.RemoveBody(Id);
+        this.JoltBodies.DestroyBody(Id);
+    }
+
+    CopyJoltState(Body)
+    {
+        return { Position: Body.Position.slice(), Orientation: Body.Orientation.slice(), Linear: Body.Linear.slice(),
+                 Angular: Body.Angular.slice(), Sleeping: Body.Sleeping };
+    }
+
+    JoltStateDiffers(Body)
+    {
+        const State = Body.JoltState;
+        if (!State || State.Sleeping !== Body.Sleeping)
+            return true;
+        const Changed = (Left, Right) => Left.some((Value, Index) => Math.abs(Value - Right[Index]) > 1.0e-6);
+        return Changed(Body.Position, State.Position) || Changed(Body.Orientation, State.Orientation)
+            || Changed(Body.Linear, State.Linear) || Changed(Body.Angular, State.Angular);
+    }
+
+    SyncBodyToJolt(Body, Activate = !Body.Sleeping)
+    {
+        if (!this.JoltBodies || Body.JoltId === null)
+            return;
+        const Scratch = this.JoltScratch;
+        Scratch.WritePosition.Set(...Body.Position);
+        Scratch.WriteRotation.Set(...Body.Orientation);
+        Scratch.WriteLinear.Set(...Body.Linear);
+        Scratch.WriteAngular.Set(...Body.Angular);
+        this.JoltBodies.SetPositionRotationAndVelocity(Body.JoltId, Scratch.WritePosition, Scratch.WriteRotation,
+                                                       Scratch.WriteLinear, Scratch.WriteAngular);
+        if (Activate)
+            this.JoltBodies.ActivateBody(Body.JoltId);
+        else
+            this.JoltBodies.DeactivateBody(Body.JoltId);
+        Body.Sleeping = !Activate;
+        Body.JoltState = this.CopyJoltState(Body);
+        Body.Moved = true;
+        this.RefreshBody(Body);
+    }
+
+    ReadBodyFromJolt(Body, WasSleeping)
+    {
+        if (!this.JoltBodies || Body.JoltId === null)
+            return false;
+        if (!this.JoltBodies.IsActive(Body.JoltId))
+        {
+            Body.Sleeping = true;
+            Body.JoltState = this.CopyJoltState(Body);
+            return false;
+        }
+        const Scratch = this.JoltScratch;
+        this.JoltBodies.GetPositionAndRotation(Body.JoltId, Scratch.Position, Scratch.Rotation);
+        this.JoltBodies.GetLinearAndAngularVelocity(Body.JoltId, Scratch.Linear, Scratch.Angular);
+        const Prior = Body.JoltState;
+        Body.Position = [Scratch.Position.GetX(), Scratch.Position.GetY(), Scratch.Position.GetZ()];
+        Body.Orientation = [Scratch.Rotation.GetX(), Scratch.Rotation.GetY(), Scratch.Rotation.GetZ(), Scratch.Rotation.GetW()];
+        Body.Linear = [Scratch.Linear.GetX(), Scratch.Linear.GetY(), Scratch.Linear.GetZ()];
+        Body.Angular = [Scratch.Angular.GetX(), Scratch.Angular.GetY(), Scratch.Angular.GetZ()];
+        Body.Sleeping = false;
+        if (WasSleeping)
+            Body.Woke = true;
+        const Changed = (Left, Right) => !Right || Left.some((Value, Index) => Math.abs(Value - Right[Index]) > 1.0e-6);
+        const Moved = Changed(Body.Position, Prior?.Position) || Changed(Body.Orientation, Prior?.Orientation);
+        Body.Moved = Body.Moved || Moved;
+        Body.JoltState = this.CopyJoltState(Body);
+        if (Moved)
+            this.RefreshBody(Body);
+        return Moved;
+    }
+
+    SyncJoltMaterial(Body)
+    {
+        if (Body.JoltId === null || !this.JoltBodies)
+            return;
+        const Friction = Math.max(0.0, Body.Friction * this.Settings.Friction);
+        const Restitution = Math.max(0.0, Body.Restitution * this.Settings.Bounce);
+        if (Body.JoltFriction !== Friction)
+        {
+            this.JoltBodies.SetFriction(Body.JoltId, Friction);
+            Body.JoltFriction = Friction;
+        }
+        if (Body.JoltRestitution !== Restitution)
+        {
+            this.JoltBodies.SetRestitution(Body.JoltId, Restitution);
+            Body.JoltRestitution = Restitution;
+        }
+    }
+
+    AdvanceJolt(Seconds, Vehicle)
+    {
+        const Started = performance.now();
+        for (const Body of this.Bodies)
+        {
+            Body.Moved = false;
+            this.SyncJoltMaterial(Body);
+        }
+        this.Accumulator = Math.min(this.Accumulator + Math.max(0.0, Seconds), SubstepSeconds * SubstepCeiling);
+        const Steps = Math.floor(this.Accumulator / SubstepSeconds);
+        this.Accumulator -= Steps * SubstepSeconds;
+        this.ApplySupportLoads(Vehicle);
+        for (const Body of this.Bodies)
+            if (this.JoltStateDiffers(Body))
+                this.SyncBodyToJolt(Body, !Body.Sleeping);
+        const Car = Vehicle && this.Settings.Vehicle && !Vehicle.Hidden ? this.ConstructVehicleProxy(Vehicle) : null;
+        let Awake = this.Bodies.reduce((Count, Body) => Count + (Body.Sleeping ? 0 : 1), 0);
+        if (Steps === 0 || (Awake === 0 && !(Car && this.AnyNear(Car.Position, VehicleReach + 1.5))))
+        {
+            this.Metrics = { ...this.Metrics, Bodies: this.Bodies.length, Awake, Contacts: 0, Pairs: 0,
+                             Milliseconds: performance.now() - Started };
+            this.RefreshSupport(Vehicle);
+            return;
+        }
+        let Contacts = 0;
+        for (let Step = 0; Step < Steps; ++Step)
+        {
+            const Sleeping = this.Bodies.map((Body) => Body.Sleeping);
+            for (const Body of this.Bodies)
+                Body.Touching = false;
+            this.JoltInterface.Step(SubstepSeconds, 1);
+            for (let Index = 0; Index < this.Bodies.length; ++Index)
+                this.ReadBodyFromJolt(this.Bodies[Index], Sleeping[Index]);
+
+            if (Car)
+            {
+                const Manifold = [];
+                this.CollectVehicleContacts(Car, Manifold);
+                Contacts += Manifold.length;
+                const Bounce = this.Settings.Bounce, Grip = this.Settings.Friction;
+                for (let Iteration = 0; Iteration < Iterations; ++Iteration)
+                    for (const Contact of Manifold)
+                        this.ResolveContact(Contact, Iteration === 0, Bounce, Grip, Car);
+                for (const Body of this.Bodies)
+                    Body.Shift = null;
+                for (const Contact of Manifold)
+                    this.ProjectContact(Contact);
+                const Modified = new Set(Manifold.map((Contact) => Contact.A));
+                for (const Body of Modified)
+                    this.SyncBodyToJolt(Body, !Body.Sleeping);
+            }
+        }
+        if (Car)
+            this.ReturnVehicleProxy(Car, Vehicle);
+        Awake = this.Bodies.reduce((Count, Body) => Count + (Body.Sleeping ? 0 : 1), 0);
+        this.Metrics = { ...this.Metrics, Bodies: this.Bodies.length, Awake,
+                         Contacts: Steps > 0 ? Math.round(Contacts / Steps) : 0, Pairs: 0,
+                         Milliseconds: performance.now() - Started };
+        this.RefreshSupport(Vehicle);
     }
 
     // 📝 Rotation matrix, world points and world planes of a body at its current pose.
@@ -185,6 +594,11 @@ export class RigidBodyWorld
     //    and pulled through its velocities only — its pose was already advanced this frame.
     Advance(Seconds, Vehicle)
     {
+        if (this.JoltInterface)
+        {
+            this.AdvanceJolt(Seconds, Vehicle);
+            return;
+        }
         const Started = performance.now();
         for (const Body of this.Bodies)
             Body.Moved = false;
@@ -200,7 +614,7 @@ export class RigidBodyWorld
         // 📝 Nothing awake and no car among the bodies: nothing can change.
         if (Awake === 0 && !(Car && this.AnyNear(Car.Position, VehicleReach + 1.5)))
         {
-            this.Metrics = { ...this.Metrics, Bodies: this.Bodies.length, Awake: 0, Contacts: 0, Pairs: 0,
+            this.Metrics = { ...this.Metrics, Bodies: this.Bodies.length, Awake: 0, Contacts: 0, Pairs: 0, Backend: "custom",
                              Milliseconds: performance.now() - Started };
             this.RefreshSupport(Vehicle);
             return;
@@ -219,7 +633,7 @@ export class RigidBodyWorld
             if (!Body.Sleeping)
                 Awake++;
         this.Metrics = { Bodies: this.Bodies.length, Awake, Contacts: Steps > 0 ? Math.round(Contacts / Steps) : 0,
-                         Pairs: Steps > 0 ? Math.round(Pairs / Steps) : 0, Milliseconds: performance.now() - Started };
+                         Pairs: Steps > 0 ? Math.round(Pairs / Steps) : 0, Milliseconds: performance.now() - Started, Backend: "custom" };
         this.RefreshSupport(Vehicle);
     }
 

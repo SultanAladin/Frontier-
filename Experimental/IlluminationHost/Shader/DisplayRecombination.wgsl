@@ -24,6 +24,7 @@
 @group(0) @binding(9) var CardFinal                : texture_2d<f32>;
 @group(0) @binding(10) var RecombinedTarget         : texture_storage_2d<rgba16float, write>;
 @group(0) @binding(11) var<storage, read> Occupants : array<OccupantRecord>;   // [0]: the car body, for its cabin
+@group(0) @binding(12) var PlumeRadiance           : texture_2d<f32>;
 
 // 📝 Of the traced indirect light the enclosed cabin keeps (CabinVolume.wgsl). Its surfaces lie inside the body's own
 //    distance volume, so their rays "hit" at once and gather the sunlit exterior's cards — several times the open road's
@@ -40,6 +41,52 @@ const InspectionDistance   : u32 = 6u;
 const InspectionCards      : u32 = 7u;
 const InspectionNormal     : u32 = 8u;
 const InspectionAlbedo     : u32 = 9u;
+const InspectionPlume      : u32 = 10u;
+
+// 📝 The Slate volume march is at trace resolution and stores premultiplied radiance plus transmittance. Four depth-
+//    aware taps keep smoke behind the car from bleeding onto its silhouette when the trace is upscaled.
+fn ResolvePlume(Pixel: vec2i, ViewDepth: f32) -> vec4f
+{
+    let Extent = vec2i(Frame.TraceExtent);
+    let Continuous = (vec2f(Pixel) + 0.5) / f32(Frame.TraceScale) - 0.5;
+    let Corner = vec2i(floor(Continuous));
+    let Fraction = Continuous - vec2f(Corner);
+    var Sum = vec4f(0.0);
+    var Weights = 0.0;
+    var Nearest = vec4f(0.0, 0.0, 0.0, 1.0);
+    var NearestError = 1.0e9;
+    for (var Tap = 0u; Tap < 4u; Tap++)
+    {
+        let Offset = vec2i(i32(Tap & 1u), i32(Tap >> 1u));
+        let Trace = clamp(Corner + Offset, vec2i(0), Extent - vec2i(1));
+        let Screen = min(Trace * i32(Frame.TraceScale), vec2i(Frame.ScreenExtent) - vec2i(1));
+        let TapDepth = textureLoad(SurfaceDepth, Screen, 0);
+        let TapView = select(1.0e5, ResolveViewDepth(ReconstructWorldPosition(vec2f(Screen) + 0.5, TapDepth)), TapDepth > 0.0);
+        let Error = abs(TapView - ViewDepth) / max(min(TapView, ViewDepth), 0.1);
+        let Bilinear = select(1.0 - Fraction.x, Fraction.x, Offset.x == 1) * select(1.0 - Fraction.y, Fraction.y, Offset.y == 1);
+        let Weight = Bilinear * exp(-Error * 16.0);
+        let Sample = textureLoad(PlumeRadiance, Trace, 0);
+        Sum += Sample * Weight;
+        Weights += Weight;
+        if (Error < NearestError)
+        {
+            NearestError = Error;
+            Nearest = Sample;
+        }
+    }
+    return select(Nearest, Sum / max(Weights, 1.0e-6), Weights > 1.0e-3);
+}
+
+fn ComposePlumeTerm(Pixel: vec2i, Colour: vec3f, Depth: f32) -> vec3f
+{
+    if (!FeatureEnabled(Frame, FeaturePlume) || (Frame.InspectionMode != InspectionFinal && Frame.InspectionMode != InspectionPlume))
+    {
+        return Colour;
+    }
+    let ViewDepth = select(1.0e5, ResolveViewDepth(ReconstructWorldPosition(vec2f(Pixel) + 0.5, Depth)), Depth > 0.0);
+    let Plume = ResolvePlume(Pixel, ViewDepth);
+    return Colour * Plume.a + Plume.rgb;
+}
 
 @compute @workgroup_size(8, 8)
 fn ResolveRecombination(@builtin(global_invocation_id) Invocation: vec3u)
@@ -71,7 +118,8 @@ fn ResolveRecombination(@builtin(global_invocation_id) Invocation: vec3u)
     let Depth = textureLoad(SurfaceDepth, Pixel, 0);
     if (Depth <= 0.0)
     {
-        textureStore(RecombinedTarget, Pixel, vec4f(Direct.rgb, 1.0));
+        let Sky = select(Direct.rgb, vec3f(0.0), Frame.InspectionMode == InspectionPlume);
+        textureStore(RecombinedTarget, Pixel, vec4f(ComposePlumeTerm(Pixel, Sky, Depth), 1.0));
         return;
     }
     let Attributes = textureLoad(SurfaceAttributes, Pixel, 0);
@@ -125,7 +173,8 @@ fn ResolveRecombination(@builtin(global_invocation_id) Invocation: vec3u)
         case 5u: { Colour = Specular; }
         case 8u: { Colour = Normal * 0.5 + 0.5; }
         case 9u: { Colour = Surface.Albedo; }
+        case 10u: { Colour = vec3f(0.0); }
         default: { }
     }
-    textureStore(RecombinedTarget, Pixel, vec4f(Colour, 1.0));
+    textureStore(RecombinedTarget, Pixel, vec4f(ComposePlumeTerm(Pixel, Colour, Depth), 1.0));
 }

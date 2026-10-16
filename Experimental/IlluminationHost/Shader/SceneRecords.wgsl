@@ -58,6 +58,7 @@ const FeatureDirectShadow      : u32 = 256u;
 const FeatureAutoExposure      : u32 = 512u;
 const FeatureRadianceRefresh   : u32 = 1024u;
 const FeatureTemporalRestart      : u32 = 2048u;   // [-] set for one frame: every temporal history restarts
+const FeaturePlume               : u32 = 4096u;   // [-] smoke and fire volume is resident and enabled
 
 fn FeatureEnabled(Frame: FrameRecord, Bit: u32) -> bool
 {

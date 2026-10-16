@@ -3,15 +3,11 @@
 //============================================================================================================================================
 // 🧩 The cabin's live surfaces: the TabletPanel HMI and cluster as textures, the mirrors' reflected views, the Garage's car, the glass.
 
-// 📝 The HMI is the accepted TabletPanel prototype (Experimental/TabletPanel, arena/215a6f39-frontier), copied as is
-//    into Source/Cabin: its launcher, twelve applications and five launcher designs draw into one 2D canvas (1200 × 750
-//    logical at 1.6×, 16:10), the cluster into another (the hexagon outline, 30 Hz). Here those canvases become GPU
-//    textures (copyExternalImageToTexture, only when they have redrawn) and the cabin overlay draws them on the
-//    centre-stack tablet and the column binnacle. A click on the tablet is a ray from the camera to the glass, turned
-//    into the panel's own coordinates and handed to its hit regions, exactly as the prototype's touch did.
-//
-//    Live data replaces the prototype's demonstration values: the cluster shows the car's speed, revs, gear and tyre
-//    pressures, the Telemetry and Tyres applications the solver's readings, and the Tyres slider pumps the tyres.
+// 📝 Slate's HMI modules (Source/HMI, commit 3c987f33c71c2477bd73ca29c69d5bd0ee484d1a) provide the launcher,
+//    cluster, applications and iconography. Their 2D canvases are uploaded only when dirty; CabinProjection maps them
+//    onto Slate's physical steering-wheel binnacle and centre-stack tablet. Frontier keeps its Garage material preview,
+//    live tyre/vehicle telemetry, mirror views and touch routing. Tablet rays map through the same HMI-only scale as the
+//    display quads, so resizing the display never scales the wheel, seats, dashboard or seated camera.
 //
 //    The Garage application shows the car. The prototype rendered a three.js model into 640 × 400 and read it back;
 //    here the exhibit's own facets are drawn by ForwardRaster.wgsl's studio mode into a texture the overlay composites
@@ -61,6 +57,7 @@ export class CabinSequence
         this.Metrics  = { TabletUploads: 0, ClusterUploads: 0, MirrorPasses: 0, PreviewPasses: 0, Hmi: "starting" };
         this.LiveRevision = -1;
         this.PumpedPressure = null;
+        this.HmiProjection = null;
     }
 
     //--------------------------------------------------------------------------------------------------------------------
@@ -88,6 +85,8 @@ export class CabinSequence
             for (const Corner of Facet.Corners)
                 Push(Corner, KindGlass, Normal, 0, 0, 0);
         }
+        const VertexCount = () => Vertices.length / OverlayFloats;
+        this.OverlayRanges = { Glass: { First: 0, Count: VertexCount() } };
         const Rectangle = (Fixture, Kind, Layer, Flip) =>
         {
             const Corner = (X, Y) => AddVector(AddVector(Fixture.Centre, ScaleVector(Fixture.Right, X * Fixture.Width * 0.5)), ScaleVector(Fixture.Up, Y * Fixture.Height * 0.5));
@@ -96,13 +95,18 @@ export class CabinSequence
                 Push(Corner(X, Y), Kind, Fixture.Normal, Layer, ...Coordinate(X, Y));
         };
         Rectangle(this.Layout.Tablet, KindTablet, 0, false);
+        this.OverlayRanges.Tablet = { First: this.OverlayRanges.Glass.Count, Count: VertexCount() - this.OverlayRanges.Glass.Count };
         const Cluster = this.Layout.Cluster;
         const Hexagon = ClusterHexagon.map(([X, Y]) => ({ X, Y, Position: AddVector(AddVector(Cluster.Centre, ScaleVector(Cluster.Right, X * Cluster.Width * 0.5)),
                                                                                     ScaleVector(Cluster.Up, Y * Cluster.Height * 0.5)) }));
         for (let Index = 1; Index < 5; ++Index)
             for (const Point of [Hexagon[0], Hexagon[Index], Hexagon[Index + 1]])
                 Push(Point.Position, KindCluster, Cluster.Normal, 0, 0.5 + 0.5 * Point.X, 0.5 - 0.5 * Point.Y);
+        this.OverlayRanges.Cluster = { First: this.OverlayRanges.Tablet.First + this.OverlayRanges.Tablet.Count,
+                                       Count: VertexCount() - this.OverlayRanges.Tablet.First - this.OverlayRanges.Tablet.Count };
+        this.OverlayRanges.Mirrors = { First: VertexCount(), Count: 0 };
         this.Layout.Mirrors.forEach((Mirror, Index) => Rectangle(Mirror, KindMirror, Index, true));
+        this.OverlayRanges.Mirrors.Count = VertexCount() - this.OverlayRanges.Mirrors.First;
         const Bytes = new ArrayBuffer(Vertices.length * 4);
         const Scalars = new Float32Array(Bytes), Integers = new Uint32Array(Bytes);
         Vertices.forEach((Value, Index) => { if (Index % OverlayFloats === 3) Integers[Index] = Value; else Scalars[Index] = Value; });
@@ -174,8 +178,9 @@ export class CabinSequence
             ForwardDescriptor("rgba8unorm-srgb", { Topology: "line-list", DepthWrite: false, DepthCompare: "less-equal", Blend: true }),
             [this.ForwardLayout]);
 
-        // ⑤ the HMI itself, when this host can draw 2D canvases (the headless harness cannot)
-        this.ConstructHmi().catch((Failure) => { this.Metrics.Hmi = `unavailable: ${Failure && Failure.message ? Failure.message : Failure}`; });
+        // ⑤ Slate's HMI assets with the local live-telemetry and Garage material/preview extensions. A headless host
+        //    keeps the cleared textures and reports HMI unavailable rather than failing bring-up.
+        await this.ConstructHmi().catch((Failure) => { this.Metrics.Hmi = `unavailable: ${Failure && Failure.message ? Failure.message : Failure}`; });
     }
 
     ClearCanvasTextures()
@@ -199,7 +204,7 @@ export class CabinSequence
         if (!TabletCanvas.getContext || !TabletCanvas.getContext("2d"))
             throw new Error("no 2D canvas in this host");
         const [{ ScreenSequence }, { ClusterSequence }, { Applications }, { ConstructIconImages }] = await Promise.all([
-            import("./Cabin/ScreenSequence.js"), import("./Cabin/ClusterSequence.js"), import("./Cabin/AppSpecification.js"), import("./Cabin/IconDepot.js")]);
+            import("./HMI/ScreenSequence.js"), import("./HMI/ClusterSequence.js"), import("./HMI/AppSpecification.js"), import("./HMI/IconDepot.js")]);
         if (document.fonts && document.fonts.load)
             await Promise.all([document.fonts.load('300 20px "DM Sans"'), document.fonts.load('400 20px "DM Sans"')]).catch(() => null);
         const Icons = await ConstructIconImages(Applications);
@@ -485,7 +490,7 @@ export class CabinSequence
     }
 
     // 📝 Over the recombined radiance, before the antialiasing; the surface depth read only.
-    RecordOverlay(Encoder, TargetView, DepthView)
+    RecordOverlay(Encoder, TargetView, DepthView, ExternalHmi = false)
     {
         if (!this.OverlayProgram)
             return;
@@ -509,7 +514,14 @@ export class CabinSequence
         Pass.setPipeline(this.OverlayProgram);
         Pass.setBindGroup(0, this.OverlayGroup);
         Pass.setVertexBuffer(0, this.OverlayRecords);
-        Pass.draw(this.OverlayVertexCount);
+        if (ExternalHmi)
+        {
+            const Glass = this.OverlayRanges.Glass, Mirrors = this.OverlayRanges.Mirrors;
+            if (Glass.Count > 0) Pass.draw(Glass.Count, 1, Glass.First);
+            if (Mirrors.Count > 0) Pass.draw(Mirrors.Count, 1, Mirrors.First);
+        }
+        else
+            Pass.draw(this.OverlayVertexCount);
         Pass.end();
     }
 
@@ -520,6 +532,8 @@ export class CabinSequence
     // 📝 A world ray against the tablet's glass: the panel fraction (Across, Down ∈ [0, 1]) or null.
     QueryTabletHit(Origin, Direction, BodyTransform)
     {
+        if (this.HmiProjection)
+            return this.HmiProjection.QueryTabletHit(Origin, Direction);
         const Tablet = PlaceCockpitFixture(this.Layout.Tablet, this.Cockpit);
         const Centre = TransformPoint(BodyTransform, Tablet.Centre);
         const Normal = NormalizeVector(TransformDirection(BodyTransform, Tablet.Normal));
