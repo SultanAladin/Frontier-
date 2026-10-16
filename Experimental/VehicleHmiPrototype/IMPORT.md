@@ -61,3 +61,14 @@ python3 Tools/Build/VerifyVehicleArchive.py
 The existing SolidArc changes and shader-editor archive are preserved in the
 first-parent commit immediately before this import. Neither application is
 connected to the vehicle archive.
+
+## Existing destination update preserved
+
+The destination branch also contained user commit
+`66e358850689cd65c7dbcef12d2183d9e684385a` (“RESTIR DEMO + HMI”), based on
+`ebd757e`. Its 20 configurator files are byte-identical to this pinned snapshot;
+its `Experimental/01a141bc-a4a3-72ce-8295-398724231feb.patch` is retained as
+supplied. That patch is historical evidence, not a substitute for the complete
+vehicle application: some of its vehicle geometry entries are binary-diff
+notices, whereas this archive includes the actual facet files. The destination
+history is merged without rolling back the newer, tested SolidArc implementation.
