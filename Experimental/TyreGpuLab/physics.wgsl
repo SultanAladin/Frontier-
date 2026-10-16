@@ -4,7 +4,7 @@ struct Tet { ids: vec4u, b0: vec4f, b1: vec4f, b2: vec4f }
 struct Params { dt: f32, angle: f32, height: f32, speed: f32,
   edgeCompliance: f32, volumeCompliance: f32, strainCompliance: f32, friction: f32,
   nodes: u32, edges: u32, tets: u32, model: u32,
-  reserved: f32, obstacle: f32, batchStart: u32, batchCount: u32 }
+  substepIndex: u32, obstacle: f32, batchStart: u32, batchCount: u32 }
 @group(0) @binding(0) var<storage,read_write> nodes: array<Node>;
 @group(0) @binding(1) var<storage,read> edges: array<Edge>;
 @group(0) @binding(2) var<storage,read> tets: array<Tet>;
@@ -13,6 +13,7 @@ struct Params { dt: f32, angle: f32, height: f32, speed: f32,
 @group(0) @binding(5) var<uniform> u: Params;
 @group(0) @binding(6) var<storage,read_write> stats: array<vec4f>;
 @group(0) @binding(7) var<storage,read_write> rotations: array<vec4f>;
+@group(0) @binding(8) var<storage,read_write> tickContacts: array<vec4f>;
 fn quatMatrix(q:vec4f)->mat3x3f {
  let x=q.x;let y=q.y;let z=q.z;let w=q.w;
  return mat3x3f(vec3f(1-2*(y*y+z*z),2*(x*y+w*z),2*(x*z-w*y)),
@@ -22,27 +23,32 @@ fn hub(r:vec3f)->vec3f {
  let a=-u.angle; let c=cos(a); let s=sin(a);
  return vec3f(c*r.x-s*r.y,s*r.x+c*r.y+u.height,r.z);
 }
-fn ground(x:f32)->f32 { return u.obstacle*exp(-pow((x-.08)/.09,2.0)); }
+fn ground(x:f32)->f32 { if(u.obstacle==0){return 0;}let t=(x-.08)/.09;return u.obstacle*exp(-t*t); }
 // Project the belt immediately after every coloured material update. This avoids
 // letting later constraints see penetrating nodes and prevents one end-of-sweep pop.
 fn applyPosition(i:u32, p:vec4f) {
- var n=nodes[i];n.p=p;
- if(p.w>0){let depth=max(0.0,ground(p.x)-p.y);n.p.y+=depth;n.info.x+=depth;}
- nodes[i]=n;
+ // Only positions and actual contact accumulation are modified here. Do not
+ // read/write the entire 80-byte node (rest/previous/velocity never change).
+ if(p.w==0){return;}
+ var v=p;let depth=max(0.0,ground(p.x)-p.y);
+ if(depth>0){v.y+=depth;nodes[i].info.x+=depth;}
+ nodes[i].p=v;
 }
 @compute @workgroup_size(64) fn predict(@builtin(global_invocation_id) gid:vec3u) {
- let i=gid.x; if(i>=u.nodes){return;}
+ let i=gid.x;
+ // Clearing multipliers is independent of the node prediction; fuse the dispatch.
+ if((u.model & 1u)==1u){if(i<u.tets){lambdas[u.edges+i]=vec2f(0);}}
+ else {if(i<u.edges+u.tets){lambdas[i]=vec2f(0);}}
+ if(i>=u.nodes){return;}
  var n=nodes[i]; n.previous=n.p; n.info=vec4f(0);
  if(n.p.w==0){n.p=vec4f(hub(n.rest.xyz),0);n.velocity=vec4f(0);}
  else {n.velocity.y-=9.81*u.dt; n.p=vec4f(n.p.xyz+n.velocity.xyz*u.dt,n.p.w);}
  nodes[i]=n;
 }
-@compute @workgroup_size(64) fn clearLambda(@builtin(global_invocation_id) gid:vec3u) {
- let i=gid.x; if(i<u.edges+u.tets){lambdas[i]=vec2f(0);}
-}
 @compute @workgroup_size(64) fn solveEdges(@builtin(global_invocation_id) gid:vec3u) {
  if(gid.x>=u.batchCount){return;}let i=schedule[u.batchStart+gid.x];
  let e=edges[i]; let a=nodes[e.ids.x].p; let b=nodes[e.ids.y].p;
+ if(a.w+b.w==0){return;}
  let d=a.xyz-b.xyz; let len=length(d); let alpha=u.edgeCompliance/(u.dt*u.dt);
  let dl=(-(len-e.length)-alpha*lambdas[i].x)/max(a.w+b.w+alpha,1e-9);
  lambdas[i].x+=dl; let g=d/max(len,1e-7);
@@ -52,7 +58,7 @@ fn applyPosition(i:u32, p:vec4f) {
  if(gid.x>=u.batchCount){return;}let i=schedule[u.batchStart+gid.x];
  let t=tets[i];var p0=nodes[t.ids.x].p;var p1=nodes[t.ids.y].p;var p2=nodes[t.ids.z].p;var p3=nodes[t.ids.w].p;
  let v0=t.b2.w;let li=u.edges+i;
- if(u.model==1u){
+ if((u.model & 1u)==1u){
    // Corotational energy: mu/2 * ||F-R||² + K/2 * (J-1)².
    // The proper polar rotation removes rigid motion from material strain.
    // F = Ds * inverse(Dm). Not a surface shader or a spring force.
@@ -66,6 +72,7 @@ fn applyPosition(i:u32, p:vec4f) {
      let omega=(cross(rotation[0],f0)+cross(rotation[1],f1)+cross(rotation[2],f2))/
        (abs(dot(rotation[0],f0)+dot(rotation[1],f1)+dot(rotation[2],f2))+1e-8);
      let angle=length(omega);
+     if(angle<=1e-6){break;}
      if(angle>1e-6){let a=min(angle,.5);let dq=vec4f(omega/angle*sin(a*.5),cos(a*.5));
        q=normalize(vec4f(dq.w*q.xyz+q.w*dq.xyz+cross(dq.xyz,q.xyz),dq.w*q.w-dot(dq.xyz,q.xyz)));
        rotation=quatMatrix(q);
@@ -99,9 +106,11 @@ fn applyPosition(i:u32, p:vec4f) {
  dl*=min(1.0,limit/max(displacement,1e-9));lambdas[li].x+=dl;
  applyPosition(t.ids.x,vec4f(p0.xyz+g0*dl*p0.w,p0.w));applyPosition(t.ids.y,vec4f(p1.xyz+g1*dl*p1.w,p1.w));
  applyPosition(t.ids.z,vec4f(p2.xyz+g2*dl*p2.w,p2.w));applyPosition(t.ids.w,vec4f(p3.xyz+g3*dl*p3.w,p3.w));
+ if((u.model & 2u)!=0u){
  let err=abs(vol/v0-1.0);
  nodes[t.ids.x].info.z=max(nodes[t.ids.x].info.z,err);nodes[t.ids.y].info.z=max(nodes[t.ids.y].info.z,err);
  nodes[t.ids.z].info.z=max(nodes[t.ids.z].info.z,err);nodes[t.ids.w].info.z=max(nodes[t.ids.w].info.z,err);
+ }
  // Each colour is a matching. No two invocations write the same node.
 }
 @compute @workgroup_size(64) fn contact(@builtin(global_invocation_id) gid:vec3u) {
@@ -119,19 +128,62 @@ fn applyPosition(i:u32, p:vec4f) {
  n.info.y=frictionTarget.x;n.info.w=frictionTarget.y;
  nodes[i]=n;
 }
+// Global admissibility filter. Constraints first propose a substep; acceptance is
+// measured against the LAST ACCEPTED mesh, not just the tet being solved.
+// For A=old Ds and B=delta Ds, ||alpha A^-1 B||_F <= eta < 1 keeps
+// det(I+alpha A^-1 B)>0 along the entire interpolation. The eta choice also
+// bounds J >= 0.1 in exact arithmetic. This is a safety limiter, not a physical
+// collision/energy solver. Limited reactions must not drive a chassis.
+var<workgroup> safeScratch: array<f32,64>;
+@compute @workgroup_size(64) fn guardPartials(@builtin(global_invocation_id) gid:vec3u,@builtin(local_invocation_id) lid:vec3u,@builtin(workgroup_id) group:vec3u) {
+ var safe=1.0;
+ if(gid.x<u.tets){
+  let t=tets[gid.x];let o0=nodes[t.ids.x].previous.xyz;
+  let a=nodes[t.ids.y].previous.xyz-o0;let b=nodes[t.ids.z].previous.xyz-o0;let c=nodes[t.ids.w].previous.xyz-o0;
+  let det=dot(a,cross(b,c));let j=det/(6*t.b2.w);
+  let d0=nodes[t.ids.x].p.xyz-o0;
+  let da=nodes[t.ids.y].p.xyz-nodes[t.ids.y].previous.xyz-d0;
+  let db=nodes[t.ids.z].p.xyz-nodes[t.ids.z].previous.xyz-d0;
+  let dc=nodes[t.ids.w].p.xyz-nodes[t.ids.w].previous.xyz-d0;
+  if(!(j>.099) || !all(abs(nodes[t.ids.x].p.xyz)<vec3f(20)) || !all(abs(nodes[t.ids.y].p.xyz)<vec3f(20)) || !all(abs(nodes[t.ids.z].p.xyz)<vec3f(20)) || !all(abs(nodes[t.ids.w].p.xyz)<vec3f(20)) || !all(abs(da)<vec3f(10)) || !all(abs(db)<vec3f(10)) || !all(abs(dc)<vec3f(10))){safe=0;}
+  else {
+   let r0=cross(b,c)/det;let r1=cross(c,a)/det;let r2=cross(a,b)/det;
+   let e0=vec3f(dot(r0,da),dot(r1,da),dot(r2,da));
+   let e1=vec3f(dot(r0,db),dot(r1,db),dot(r2,db));
+   let e2=vec3f(dot(r0,dc),dot(r1,dc),dot(r2,dc));
+   let norm=sqrt(dot(e0,e0)+dot(e1,e1)+dot(e2,e2));
+   let eta=min(.5,.8*max(0.0,1.0-pow(.1/max(j,.1),1.0/3.0)));
+   safe=min(1.0,eta/max(norm,1e-9));if(safe<1){safe*=.95;}
+  }
+ }
+ safeScratch[lid.x]=safe;workgroupBarrier();
+ for(var stride=32u;stride>0u;stride/=2u){if(lid.x<stride){safeScratch[lid.x]=min(safeScratch[lid.x],safeScratch[lid.x+stride]);}workgroupBarrier();}
+ if(lid.x==0u){stats[4+group.x*2]=vec4f(safeScratch[0],0,0,0);}
+}
+@compute @workgroup_size(1) fn guardReduce(){
+ var safe=1.0;let blocks=(u.tets+63u)/64u;
+ for(var i=0u;i<blocks;i++){safe=min(safe,stats[4+i*2].x);}
+ stats[2].x=safe;stats[1].w=min(stats[1].w,safe);
+}
 @compute @workgroup_size(64) fn finish(@builtin(global_invocation_id) gid:vec3u) {
- let i=gid.x;if(i>=u.nodes){return;}var n=nodes[i];
- n.velocity=vec4f((n.p.xyz-n.previous.xyz)/u.dt*.996,0);nodes[i]=n;
+ let i=gid.x;if(i>=u.nodes){return;}var n=nodes[i];let safe=stats[2].x;
+ // Branch, not mix: zero * NaN would still poison a rejected state.
+ if(safe<=0){n.p=vec4f(n.previous.xyz,n.p.w);n.info=vec4f(0);}else if(safe<1){n.p=vec4f(n.previous.xyz+safe*(n.p.xyz-n.previous.xyz),n.p.w);}
+ n.velocity=vec4f((n.p.xyz-n.previous.xyz)/u.dt*pow(.996,u.dt*240),0);nodes[i]=n;
+ var f=vec4f(0);
+ if(n.info.x>0 && n.p.w>0){let scale=1.0/n.p.w/(u.dt*u.dt);f=vec4f(n.info.y*scale,n.info.x*scale,n.info.w*scale,1);}
+ // Weighted average over a 1/60s tick; works for 4, 8 or 16 substeps.
+ let contribution=f*(60*u.dt);
+ if(u.substepIndex==0u){tickContacts[i]=contribution;}else{tickContacts[i]+=contribution;}
 }
 // Parallel block reduction; the final pass only visits O(block count) records.
 var<workgroup> forceScratch: array<vec4f,64>;
 var<workgroup> qualityScratch: array<vec4f,64>;
 @compute @workgroup_size(64) fn reducePartials(@builtin(global_invocation_id) gid:vec3u,@builtin(local_invocation_id) lid:vec3u,@builtin(workgroup_id) group:vec3u) {
  let i=gid.x;var f=vec4f(0);var q=vec4f(0,1,0,0);
- if(i<u.nodes){let n=nodes[i];
-  if(n.info.x>0){let scale=1.0/max(n.p.w,1e-9)/(u.dt*u.dt);f=vec4f(n.info.y,n.info.x,n.info.w,1)*vec4f(scale,scale,scale,1);}
-
+ if(i<u.nodes){let n=nodes[i];f=tickContacts[i];
   if(!all(abs(n.p.xyz)<vec3f(20))){q.z=1;}
+  q.w=max(0.0,ground(n.p.x)-n.p.y);
  }
  if(i<u.tets){let t=tets[i];let p=nodes[t.ids.x].p.xyz;
   q.y=dot(nodes[t.ids.y].p.xyz-p,cross(nodes[t.ids.z].p.xyz-p,nodes[t.ids.w].p.xyz-p))/(6*t.b2.w);q.x=abs(q.y-1.0);
@@ -139,16 +191,16 @@ var<workgroup> qualityScratch: array<vec4f,64>;
  forceScratch[lid.x]=f;qualityScratch[lid.x]=q;workgroupBarrier();
  for(var stride=32u;stride>0u;stride/=2u){
   if(lid.x<stride){forceScratch[lid.x]+=forceScratch[lid.x+stride];
-   let a=qualityScratch[lid.x];let b=qualityScratch[lid.x+stride];qualityScratch[lid.x]=vec4f(max(a.x,b.x),min(a.y,b.y),a.z+b.z,0);
+   let a=qualityScratch[lid.x];let b=qualityScratch[lid.x+stride];qualityScratch[lid.x]=vec4f(max(a.x,b.x),min(a.y,b.y),a.z+b.z,max(a.w,b.w));
   }workgroupBarrier();
  }
- if(lid.x==0u){stats[2+group.x*2]=forceScratch[0];stats[3+group.x*2]=qualityScratch[0];}
+ if(lid.x==0u){stats[4+group.x*2]=forceScratch[0];stats[5+group.x*2]=qualityScratch[0];}
 }
 @compute @workgroup_size(1) fn reduce() {
  var f=vec4f(0);var q=vec4f(0,1,0,0);
  let blocks=(max(u.nodes,u.tets)+63u)/64u;
  for(var i=0u;i<blocks;i++){
-  f+=stats[2+i*2];let b=stats[3+i*2];q=vec4f(max(q.x,b.x),min(q.y,b.y),q.z+b.z,0);
+  f+=stats[4+i*2];let b=stats[5+i*2];q=vec4f(max(q.x,b.x),min(q.y,b.y),q.z+b.z,max(q.w,b.w));
  }
- stats[0]+=f;stats[1]=q;
+ stats[0]=f;stats[3].x=q.w;stats[1]=vec4f(q.xyz,stats[1].w);
 }

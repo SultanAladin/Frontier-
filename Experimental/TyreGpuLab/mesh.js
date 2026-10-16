@@ -1,5 +1,16 @@
 // A periodic annular solid. Units are metres, kilograms, seconds.
 export function makeTyre(segments = 64, radial = 4, across = 7) {
+  if (
+    !Number.isInteger(segments) ||
+    segments < 8 ||
+    segments % 2 ||
+    !Number.isInteger(radial) ||
+    radial < 2 ||
+    !Number.isInteger(across) ||
+    across < 3 ||
+    across % 2 === 0
+  )
+    throw new Error("Expected even segments >=8, radial >=2, odd across >=3");
   const rest = [],
     tets = [],
     edges = [],
@@ -102,16 +113,38 @@ export function makeTyre(segments = 64, radial = 4, across = 7) {
       d / 6,
     );
   }
-  // Greedy graph colouring: constraints within a batch never share a node.
+  // Deterministic saturation-degree graph colouring (asset-cook work, not physics).
+  // Higher saturation first reduces tiny tail batches: default 15 edge/26 tet colours.
   function colour(constraints) {
-    const batches = [],
-      used = Array.from({ length: rest.length }, () => new Set());
-    constraints.forEach((ids, index) => {
+    const incident = Array.from({ length: rest.length }, () => []);
+    constraints.forEach((ids, i) => ids.forEach((v) => incident[v].push(i)));
+    const adjacent = Array.from(
+      { length: constraints.length },
+      () => new Set(),
+    );
+    for (const ids of incident)
+      for (const a of ids) for (const b of ids) if (a !== b) adjacent[a].add(b);
+    const colours = new Int32Array(constraints.length).fill(-1),
+      saturation = constraints.map(() => new Set()),
+      batches = [];
+    for (let k = 0; k < constraints.length; k++) {
+      let pick = -1;
+      for (let i = 0; i < constraints.length; i++)
+        if (
+          colours[i] < 0 &&
+          (pick < 0 ||
+            saturation[i].size > saturation[pick].size ||
+            (saturation[i].size === saturation[pick].size &&
+              adjacent[i].size > adjacent[pick].size))
+        )
+          pick = i;
       let c = 0;
-      while (ids.some((i) => used[i].has(c))) c++;
-      (batches[c] ??= []).push(index);
-      ids.forEach((i) => used[i].add(c));
-    });
+      while (saturation[pick].has(c)) c++;
+      colours[pick] = c;
+      (batches[c] ??= []).push(pick);
+      for (const neighbour of adjacent[pick])
+        if (colours[neighbour] < 0) saturation[neighbour].add(c);
+    }
     return batches;
   }
   const edgeBatches = colour(edges),

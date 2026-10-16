@@ -31,9 +31,10 @@
         <aside class="controls">
           <div class="panel-title"><span>01</span> SOLVER CONFIGURATION</div>
           <div class="model-tabs">
-            <button id="xpbd" class="active">
-              XPBD<span>EDGE CARCASS</span></button
-            ><button id="flesh">VOLUMETRIC<span>COROTATED FEM</span></button>
+            <button id="xpbd">XPBD<span>EDGE CARCASS</span></button
+            ><button id="flesh" class="active">
+              VOLUMETRIC<span>COROTATED FEM</span>
+            </button>
           </div>
           <p class="model-description" id="model-description">
             Distance-constrained carcass with tetrahedral volume preservation.
@@ -56,7 +57,7 @@
               id="speed"
               type="range"
               min="0"
-              max="3"
+              max="5"
               value="0"
               step="0.1"
           /></label>
@@ -96,8 +97,12 @@
               value="4"
               step="1"
           /></label>
+          <label class="check"
+            ><input id="adaptive" type="checkbox" /> Adaptive substeps · 4 / 8 /
+            16</label
+          >
           <div class="small-row">
-            <span>Fixed simulation tick</span><b>60 Hz · 4 substeps</b>
+            <span>Fixed simulation tick</span><b>60 Hz · 4 base substeps</b>
           </div>
           <div class="section-label">VISUAL DIAGNOSTICS</div>
           <select id="view">
@@ -163,6 +168,8 @@
             </div>
           </div>
           <div class="telemetry">
+            <span>SAFE STEP <b id="safe-step">—</b></span>
+            <span>CPU ENCODE <b id="cpu-encode">—</b></span>
             <span>CONTACT NODES <b id="contacts">—</b></span
             ><span>MIN J <b id="min-j">—</b></span
             ><span>MAX |J−1| <b id="error-j">—</b></span

@@ -1,7 +1,12 @@
 import { makeTyre } from "./mesh.js";
+import {
+  makeSolverPlan,
+  substepsFor,
+  assertSolverInputs,
+} from "./solver-plan.js";
 const $ = (id) => document.getElementById(id);
 const state = {
-  model: 0,
+  model: 1,
   compression: 38,
   speed: 0,
   stiffness: 1,
@@ -12,6 +17,7 @@ const state = {
   view: 0,
   wire: false,
   ghost: false,
+  adaptive: false,
 };
 let resetRequested = false,
   stepsRequested = 0;
@@ -20,6 +26,8 @@ const mesh = makeTyre(),
   N = mesh.rest.length,
   E = mesh.edges.length,
   T = mesh.tets.length;
+let activeSubsteps = 4,
+  cpuEncodeMs = 0;
 let device,
   adapter,
   ready = false,
@@ -87,7 +95,7 @@ $("cleat").onclick = () => {
   $("flat").classList.remove("active");
 };
 $("view").onchange = () => (state.view = Number($("view").value));
-for (const k of ["wire", "ghost"])
+for (const k of ["wire", "ghost", "adaptive"])
   $(k).onchange = () => (state[k] = $(k).checked);
 function pause() {
   state.paused = !state.paused;
@@ -291,6 +299,7 @@ $("capture").onclick = () => {
     adapter: window.tyreLab.adapter,
     lastGpuSample: lastStats,
     gpuSolverMs: gpuMs,
+    runtime: window.tyreLab.diagnostics?.(),
     simulationTime: simTime,
     simulationTick: simTicks,
     readbackCaptureAgeMs: lastStats ? performance.now() - readAt : null,
@@ -338,6 +347,9 @@ async function init() {
     );
   window.tyreLab.adapter = {
     description: adapterInfo?.description,
+    vendor: adapterInfo?.vendor,
+    device: adapterInfo?.device,
+    architecture: adapterInfo?.architecture,
     software,
     validation,
   };
@@ -376,25 +388,26 @@ async function init() {
       storage,
     ),
     lambda = buffer((E + T) * 8, storage),
-    stats = buffer(32 + Math.ceil(Math.max(N, T) / 64) * 32, storage);
-  // Each colour/substep has an immutable aligned dynamic uniform record.
-  const batches = [
-    ...mesh.edgeBatches.map((ids) => ({
-      kind: "solveEdges",
-      count: ids.length,
-    })),
-    ...mesh.tetBatches.map((ids) => ({ kind: "solveTets", count: ids.length })),
-  ];
-  let start = 0;
-  batches.forEach((b) => {
-    b.start = start;
-    start += b.count;
-  });
-  const records = 1 + batches.length;
+    stats = buffer(64 + Math.ceil(Math.max(N, T) / 64) * 32, storage);
+  // Reused staging, one immutable aligned record per colour/substep; only active bytes upload.
+  const plan = makeSolverPlan(
+    mesh,
+    device.limits.minUniformBufferOffsetAlignment,
+  );
+  const { batches, records } = plan;
   const params = buffer(
-    4 * records * records * 256,
+    plan.bytes,
     GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
   );
+  const tickContacts = buffer(N * 16, storage);
+  window.tyreLab.plan = {
+    records,
+    alignment: plan.alignment,
+    capacityBytes: plan.bytes,
+    get uploadBytes() {
+      return plan.activeBytes(activeSubsteps);
+    },
+  };
   const physicsCode = await (await fetch("./physics.wgsl")).text(),
     renderCode = await (await fetch("./render.wgsl")).text();
   const computeModule = device.createShaderModule({ code: physicsCode }),
@@ -411,7 +424,7 @@ async function init() {
   }
   const rotationBuffer = buffer(T * 16, storage);
   const layout = device.createBindGroupLayout({
-    entries: Array.from({ length: 8 }, (_, binding) => ({
+    entries: Array.from({ length: 9 }, (_, binding) => ({
       binding,
       visibility: GPUShaderStage.COMPUTE,
       buffer:
@@ -433,6 +446,7 @@ async function init() {
     params,
     stats,
     rotationBuffer,
+    tickContacts,
   ];
   const bind = device.createBindGroup({
     layout,
@@ -445,20 +459,24 @@ async function init() {
       bindGroupLayouts: [layout],
     }),
     pipelines = {};
-  for (const entry of [
-    "predict",
-    "clearLambda",
-    "solveEdges",
-    "solveTets",
-    "contact",
-    "finish",
-    "reducePartials",
-    "reduce",
-  ])
-    pipelines[entry] = await device.createComputePipelineAsync({
-      layout: pipelineLayout,
-      compute: { module: computeModule, entryPoint: entry },
-    });
+  await Promise.all(
+    [
+      "predict",
+      "solveEdges",
+      "solveTets",
+      "contact",
+      "guardPartials",
+      "guardReduce",
+      "finish",
+      "reducePartials",
+      "reduce",
+    ].map(async (entry) => {
+      pipelines[entry] = await device.createComputePipelineAsync({
+        layout: pipelineLayout,
+        compute: { module: computeModule, entryPoint: entry },
+      });
+    }),
+  );
   const context = canvas.getContext("webgpu"),
     format = navigator.gpu.getPreferredCanvasFormat();
   context.configure({ device, format, alphaMode: "opaque" });
@@ -545,9 +563,27 @@ async function init() {
     lastHeight = 0.48,
     lastObstacle = 0,
     readSerial = 0,
-    epoch = 0;
+    epoch = 0,
+    activeWallTime = 0,
+    cpuSamples = [],
+    sampleSubsteps = 4,
+    submissionFrame = 0,
+    lastUi = 0;
+  const resetStats = new Float32Array(16);
+  resetStats[7] = 1;
+  let inFlight = 0;
+  const parameterInput = {
+    dt: 0,
+    angle: 0,
+    height: 0,
+    speed: 0,
+    stiffness: 1,
+    friction: 0.8,
+    model: 1,
+    obstacle: 0,
+  };
   const readback = buffer(
-    48,
+    80,
     GPUBufferUsage.MAP_READ | GPUBufferUsage.COPY_DST,
   );
   const query = timestamps
@@ -558,6 +594,10 @@ async function init() {
     : null;
   function reset() {
     epoch++;
+    stepsRequested = 0;
+    activeWallTime = 0;
+    cpuSamples = [];
+    history.frame = [];
     const data = new Float32Array(N * 20);
     const w = N / 30;
     mesh.rest.forEach((p, i) => {
@@ -582,6 +622,15 @@ async function init() {
     resetRequested = false;
   }
   reset();
+  model(1);
+  resetRequested = false;
+  window.tyreLab.flush = () => device.queue.onSubmittedWorkDone();
+  window.tyreLab.diagnostics = () => ({
+    activeSubsteps,
+    cpuEncodeMs,
+    inFlight,
+    uploadBytes: plan.activeBytes(activeSubsteps),
+  });
   window.tyreLab.snapshot = async () => {
     const b = buffer(N * 80, GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ),
       e = device.createCommandEncoder();
@@ -610,11 +659,20 @@ async function init() {
   function frame(now) {
     if (!ready) return;
     try {
+      const encodeStart = performance.now();
       const dtFrame = (now - last) / 1000;
       last = now;
       history.frame.push(dtFrame * 1000);
       if (history.frame.length > 120) history.frame.shift();
       if (resetRequested) reset();
+      if (!state.paused) {
+        accumulator += Math.min(dtFrame, 0.05);
+        activeWallTime += dtFrame;
+      }
+      if (inFlight >= 2) {
+        requestAnimationFrame(frame);
+        return;
+      }
       const width = Math.max(
           1,
           Math.round(canvas.clientWidth * Math.min(devicePixelRatio, 2)),
@@ -636,57 +694,52 @@ async function init() {
       }
       const encoder = device.createCommandEncoder();
       // Fixed 1/60s tick; at most one per animation frame. Never hide slowdown by changing dt.
-      if (!state.paused) accumulator += Math.min(dtFrame, 0.05);
       const advance =
-        stepsRequested > 0 || (!state.paused && accumulator >= 1 / 60);
+        inFlight < 2 &&
+        (stepsRequested > 0 || (!state.paused && accumulator >= 1 / 60));
       let requestRead = false;
       if (advance) {
+        assertSolverInputs(state);
         if (stepsRequested) stepsRequested--;
         else accumulator = Math.min(accumulator - 1 / 60, 1 / 60);
         simTicks++;
-        device.queue.writeBuffer(stats, 0, new Float32Array(8));
-        const step = 1 / 240,
-          raw = new ArrayBuffer(4 * records * records * 256),
-          v = new DataView(raw);
+        device.queue.writeBuffer(stats, 0, resetStats);
+        activeSubsteps = substepsFor(state.speed, state.adaptive);
+        const step = 1 / (60 * activeSubsteps);
         const targetHeight = 0.48 - state.compression / 1000;
-        for (let s = 0; s < 4; s++) {
+        Object.assign(parameterInput, {
+          dt: step,
+          speed: state.speed,
+          stiffness: state.stiffness,
+          friction: state.friction,
+          model: state.model,
+          view: state.view,
+        });
+        for (let s = 0; s < activeSubsteps; s++) {
           simTime += step;
           simAngle += (step * state.speed) / 0.48;
           lastHeight += Math.max(
-            -0.00025,
-            Math.min(0.00025, targetHeight - lastHeight),
+            -0.06 * step,
+            Math.min(0.06 * step, targetHeight - lastHeight),
           );
           lastObstacle += Math.max(
-            -0.0002,
-            Math.min(0.0002, state.obstacle - lastObstacle),
+            -0.048 * step,
+            Math.min(0.048 * step, state.obstacle - lastObstacle),
           );
-          const floats = [
-            step,
-            simAngle,
-            lastHeight,
-            state.speed,
-            1 / (1.5e5 * state.stiffness),
-            1 / (2e6 * state.stiffness),
-            1 / (3e5 * state.stiffness),
-            state.friction,
-          ];
-          floats.forEach((x, i) =>
-            v.setFloat32(s * records * 256 + i * 4, x, true),
-          );
-          [N, E, T, state.model].forEach((x, i) =>
-            v.setUint32(s * records * 256 + 32 + i * 4, x, true),
-          );
-          v.setFloat32(s * records * 256 + 48, 0, true);
-          v.setFloat32(s * records * 256 + 52, lastObstacle, true);
-          const base = new Uint8Array(raw, s * records * 256, 64);
-          batches.forEach((b, i) => {
-            const at = (s * records + i + 1) * 256;
-            new Uint8Array(raw, at, 64).set(base);
-            v.setUint32(at + 56, b.start, true);
-            v.setUint32(at + 60, b.count, true);
+          Object.assign(parameterInput, {
+            angle: simAngle,
+            height: lastHeight,
+            obstacle: lastObstacle,
           });
+          plan.writeStep(s, parameterInput);
         }
-        device.queue.writeBuffer(params, 0, raw);
+        device.queue.writeBuffer(
+          params,
+          0,
+          plan.staging,
+          0,
+          plan.activeBytes(activeSubsteps),
+        );
         const pass = encoder.beginComputePass(
           timestamps
             ? {
@@ -698,39 +751,50 @@ async function init() {
               }
             : {},
         );
+        let currentPipeline = null;
         function dispatch(name, n) {
-          pass.setPipeline(pipelines[name]);
+          if (currentPipeline !== name) {
+            pass.setPipeline(pipelines[name]);
+            currentPipeline = name;
+          }
           pass.dispatchWorkgroups(Math.ceil(n / 64));
         }
-        for (let s = 0; s < 4; s++) {
-          const base = s * records * 256;
-          pass.setBindGroup(0, bind, [base]);
-          dispatch("predict", N);
-          dispatch("clearLambda", E + T);
+        for (let s = 0; s < activeSubsteps; s++) {
+          const base = s * records * plan.alignment;
+          pass.setBindGroup(0, bind, plan.dynamicOffsets, s * records, 1);
+          dispatch("predict", Math.max(N, state.model === 1 ? T : E + T));
           for (let j = 0; j < state.iterations; j++) {
             batches.forEach((b, i) => {
               if (state.model === 1 && b.kind === "solveEdges") return;
-              pass.setBindGroup(0, bind, [base + (i + 1) * 256]);
+              pass.setBindGroup(
+                0,
+                bind,
+                plan.dynamicOffsets,
+                s * records + i + 1,
+                1,
+              );
               dispatch(b.kind, b.count);
             });
-            pass.setBindGroup(0, bind, [base]);
+            pass.setBindGroup(0, bind, plan.dynamicOffsets, s * records, 1);
             dispatch("contact", N);
           }
+          dispatch("guardPartials", T);
+          dispatch("guardReduce", 1);
           dispatch("finish", N);
-          dispatch("reducePartials", Math.max(N, T));
-          pass.setPipeline(pipelines.reduce);
-          pass.dispatchWorkgroups(1);
         }
+        dispatch("reducePartials", Math.max(N, T));
+        dispatch("reduce", 1);
         pass.end();
         if (timestamps) encoder.resolveQuerySet(query, 0, 2, resolve, 0);
         if (!pending && now - lastRead > 130) {
-          encoder.copyBufferToBuffer(stats, 0, readback, 0, 32);
+          encoder.copyBufferToBuffer(stats, 0, readback, 0, 64);
           if (timestamps)
-            encoder.copyBufferToBuffer(resolve, 0, readback, 32, 16);
+            encoder.copyBufferToBuffer(resolve, 0, readback, 64, 16);
           pending = true;
           requestRead = true;
           lastRead = now;
           readSerial = simTicks;
+          sampleSubsteps = activeSubsteps;
         }
       }
       const cam = camera(width / height);
@@ -746,7 +810,7 @@ async function init() {
           lastHeight,
           lastObstacle,
           -simAngle,
-          0,
+          N / 2 + 3,
           0,
           0,
         ]),
@@ -786,6 +850,16 @@ async function init() {
       }
       rp.end();
       device.queue.submit([encoder.finish()]);
+      // Bound queued work: never build a many-frame physics backlog on a slow GPU.
+      inFlight++;
+      device.queue
+        .onSubmittedWorkDone()
+        .then(() => inFlight--)
+        .catch(fatal);
+      cpuEncodeMs = performance.now() - encodeStart;
+      cpuSamples.push(cpuEncodeMs);
+      if (cpuSamples.length > 120) cpuSamples.shift();
+      submissionFrame++;
       if (requestRead) {
         const thisEpoch = epoch,
           capturedAt = now;
@@ -793,20 +867,25 @@ async function init() {
           .mapAsync(GPUMapMode.READ)
           .then(() => {
             const data = readback.getMappedRange();
-            const f = new Float32Array(data, 0, 8);
+            const f = new Float32Array(data, 0, 16);
             if (thisEpoch === epoch) {
               lastStats = {
-                normal: f[1] / 4,
-                tangent: f[0] / 4,
-                lateral: f[2] / 4,
-                contacts: f[3] / 4,
+                normal: f[1],
+                tangent: f[0],
+                lateral: f[2],
+                contacts: f[3],
                 maxError: f[4],
                 minJ: f[5],
                 invalid: f[6],
                 tick: readSerial,
+                minAcceptedStep: f[7],
+                maxPenetration: f[12],
+                substeps: sampleSubsteps,
+                validReaction:
+                  f[7] > 0.9999 && f[5] > 0.1 && f[6] === 0 && f[12] < 0.001,
               };
               if (timestamps) {
-                const ts = new BigUint64Array(data, 32, 2);
+                const ts = new BigUint64Array(data, 64, 2);
                 gpuMs = Number(ts[1] - ts[0]) / 1e6;
               }
               readAt = capturedAt;
@@ -818,7 +897,8 @@ async function init() {
           })
           .catch(fatal);
       }
-      if (now - lastRead < 40 || now % 200 < 20) {
+      if (now - lastUi >= 200) {
+        lastUi = now;
         metric(
           "frame-time",
           (
@@ -828,9 +908,19 @@ async function init() {
         );
         if (gpuMs !== null) metric("gpu-time", gpuMs.toFixed(2), "ms");
         $("budget").textContent =
-          `4 × ${state.iterations} iterations · ${simTicks ? ((simTime / ((now - window.tyreStart) / 1000)) * 100).toFixed(0) : 0}% real-time`;
+          `${activeSubsteps} × ${state.iterations} sweeps · ${activeWallTime ? ((simTime / activeWallTime) * 100).toFixed(0) : 0}% real-time`;
         if (lastStats) {
-          metric("load", Math.round(lastStats.normal).toLocaleString(), "N");
+          metric(
+            "load",
+            Math.round(lastStats.normal).toLocaleString(),
+            lastStats.validReaction ? "N" : "N · LIMITED",
+          );
+          $("safe-step").textContent =
+            (100 * lastStats.minAcceptedStep).toFixed(0) + "%";
+          $("cpu-encode").textContent =
+            (cpuSamples.reduce((a, b) => a + b, 0) / cpuSamples.length).toFixed(
+              2,
+            ) + " ms";
           $("contacts").textContent = lastStats.contacts.toFixed(0);
           $("min-j").textContent = lastStats.minJ.toFixed(3);
           $("error-j").textContent =
@@ -838,9 +928,12 @@ async function init() {
           $("read-age").textContent = Math.round(now - readAt) + " ms";
           $("tangent").textContent = Math.round(lastStats.tangent) + " N";
           $("quality").hidden =
-            lastStats.maxError < 0.25 && lastStats.minJ > 0.25;
-          $("quality").textContent =
-            lastStats.minJ <= 0
+            lastStats.validReaction &&
+            lastStats.maxError < 0.25 &&
+            lastStats.minJ > 0.25;
+          $("quality").textContent = !lastStats.validReaction
+            ? `GPU SAFETY LIMIT — ${(lastStats.minAcceptedStep * 100).toFixed(0)}% of requested step; reaction NOT valid for chassis coupling. Reduce load/speed or enable adaptive substeps.`
+            : lastStats.minJ <= 0
               ? "INVERTED ELEMENTS — reaction is not trustworthy. Reset or reduce compression."
               : `HIGH LOCAL VOLUME ERROR · ${(lastStats.maxError * 100).toFixed(0)}% — increase iterations or reduce compression.`;
           if (lastStats.invalid)

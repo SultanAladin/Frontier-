@@ -1,20 +1,8 @@
 // Optional end-to-end test. Start the lab separately, then npm run test:gpu.
 // PLAYWRIGHT_MODULE can point to an existing Playwright installation.
 import assert from "node:assert/strict";
-const { chromium } = await import(
-  process.env.PLAYWRIGHT_MODULE || "playwright"
-);
-const args = JSON.parse(process.env.CHROMIUM_ARGS || "[]");
-const browser = await chromium.launch({
-  headless: true,
-  args,
-  ...(process.env.CHROMIUM_EXECUTABLE_PATH
-    ? { executablePath: process.env.CHROMIUM_EXECUTABLE_PATH }
-    : {}),
-  ...(process.env.CHROMIUM_IGNORE_DEFAULTS === "1"
-    ? { ignoreDefaultArgs: true }
-    : {}),
-});
+import { launchTestBrowser } from "./browser-tools.mjs";
+const browser = await launchTestBrowser();
 const page = await browser.newPage({ viewport: { width: 1440, height: 1200 } });
 const errors = [];
 page.on("pageerror", (e) => errors.push(String(e)));
@@ -50,9 +38,35 @@ try {
           maxPosition = Math.max(maxPosition, Math.abs(a[i + j]));
         }
       }
+      // Independent CPU assertion over a readback; never part of the runtime solver.
+      if (!window.__testTopology)
+        window.__testTopology = (await import("./mesh.js")).makeTyre();
+      let snapshotMinJ = Infinity;
+      for (let t = 0; t < window.__testTopology.tets.length; t++) {
+        const ids = window.__testTopology.tets[t],
+          at = ids[0] * 20;
+        const v = ids
+          .slice(1)
+          .map((i) => [
+            a[i * 20] - a[at],
+            a[i * 20 + 1] - a[at + 1],
+            a[i * 20 + 2] - a[at + 2],
+          ]);
+        const [x, y, z] = v;
+        const det =
+          x[0] * (y[1] * z[2] - y[2] * z[1]) -
+          x[1] * (y[0] * z[2] - y[2] * z[0]) +
+          x[2] * (y[0] * z[1] - y[1] * z[0]);
+        snapshotMinJ = Math.min(
+          snapshotMinJ,
+          det / (6 * window.__testTopology.tetData[t * 16 + 15]),
+        );
+      }
       return {
+        snapshotMinJ,
         adapter: tyreLab.adapter,
         stats: tyreLab.stats,
+        diagnostics: tyreLab.diagnostics(),
         gpuMs: tyreLab.gpuMs,
         tick: tyreLab.ticks,
         error: tyreLab.error,
@@ -66,9 +80,12 @@ try {
     assert(sample.finite);
     assert(sample.minY >= -1e-5);
     assert(sample.stats && sample.stats.normal > 0);
-    assert(sample.stats.minJ > 0);
+    assert(sample.stats.minJ >= 0.099);
+    assert(sample.snapshotMinJ >= 0.099);
     assert(sample.maxPosition < 2);
   }
+  await page.evaluate(() => tyreLab.setModel(0));
+  await page.waitForFunction(() => tyreLab.ticks === 0);
   await run("XPBD edge carcass / 100 ticks", 100);
   await page.click("#flesh");
   await page.waitForFunction(() => tyreLab.ticks === 0);
@@ -82,6 +99,33 @@ try {
     el.dispatchEvent(new Event("input", { bubbles: true }));
   });
   await run("Corotated rolling + cleat / 60 ticks", 60);
+  // The reported failure configuration: soft carcass, deep compression and rolling cleat.
+  await page.evaluate(() =>
+    Object.assign(tyreLab.state, {
+      compression: 92,
+      stiffness: 0.25,
+      speed: 3,
+    }),
+  );
+  await run("Severe soft tyre / 92 mm / 3 m/s", 100);
+  await page.evaluate(() => (tyreLab.state.speed = 5));
+  await run("Severe soft tyre / 5 m/s", 60);
+  await page.check("#adaptive");
+  await run("Adaptive / 5 m/s / 16 substeps", 8);
+  assert.equal(
+    await page.evaluate(() => tyreLab.diagnostics().activeSubsteps),
+    16,
+  );
+  const guardCases = await page.evaluate(async () => {
+    const { runGuardCases } = await import("./guard-browser.js");
+    return runGuardCases();
+  });
+  for (const c of guardCases) {
+    assert(c.finite);
+    assert(c.j >= 0.099);
+    if (c.reject) assert(c.safe < 1);
+  }
+  console.log("Isolated GPU guard cases", JSON.stringify(guardCases));
   const download = page.waitForEvent("download");
   await page.click("#capture");
   assert((await download).suggestedFilename().endsWith(".json"));

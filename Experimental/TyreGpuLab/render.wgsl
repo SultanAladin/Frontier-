@@ -11,7 +11,12 @@ struct Out { @builtin(position) clip:vec4f, @location(0) world:vec3f, @location(
  var o:Out;o.world=vec3f(c*r.x-s*r.y,s*r.x+c*r.y+cam.options.z,r.z);o.clip=cam.vp*vec4f(o.world,1);o.data=vec4f(0);o.local=r;return o;
 }
 @vertex fn environment(@location(0) p:vec4f)->Out {
- var o:Out;var v=p.xyz;if(p.w>1.5){v.y+=cam.options.z;}else{v.y+=cam.options.w*exp(-pow((v.x-.08)/.09,2.0));}
+ var o:Out;var v=p.xyz;if(p.w>1.5){
+ // Rim follows the ACCEPTED GPU attachments, not the requested kinematic pose.
+ let a=nodes[3u].p.xyz;let b=nodes[u32(cam.settings.y)].p.xyz;
+ let center=(a+b)*.5;let axis=normalize(a-b);let tangent=vec3f(-axis.y,axis.x,0);
+ v=center+axis*p.x+tangent*p.y+vec3f(0,0,p.z);
+ }else{v.y+=cam.options.w*exp(-pow((v.x-.08)/.09,2.0));}
  o.world=v;o.clip=cam.vp*vec4f(v,1);o.data=vec4f(0,0,p.w,0);o.local=p.xyz;return o;
 }
 fn palette(t:f32)->vec3f {return mix(vec3f(.22,.59,.53),vec3f(1,.39,.16),clamp(t,0,1));}

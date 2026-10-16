@@ -64,12 +64,23 @@ test("every graph colour is a matching: race-free in-place GPU writes", () => {
     }
     assert.equal(covered.size, constraints.length);
   }
-  assert.equal(m.edgeBatches.length, 16);
-  assert.equal(m.tetBatches.length, 32);
+  assert.equal(m.edgeBatches.length, 15);
+  assert.equal(m.tetBatches.length, 26);
 });
 test("reduced topology remains valid for mesh experiments", () => {
   const small = makeTyre(16, 3, 5);
   assert.equal(small.tets.length, 16 * 2 * 4 * 6);
   assert.equal(small.rest.length, 16 * 3 * 5);
   assert(small.tetData.every(Number.isFinite));
+});
+
+test("invalid topology dimensions fail explicitly", () => {
+  for (const args of [
+    [7, 4, 7],
+    [63, 4, 7],
+    [64, 1, 7],
+    [64, 4, 6],
+    [64, 4, NaN],
+  ])
+    assert.throws(() => makeTyre(...args));
 });

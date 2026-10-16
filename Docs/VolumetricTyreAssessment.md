@@ -3,6 +3,8 @@
 **Date:** 16 October 2026  
 **Scope:** assessment of the current WebGPU tyre lab, the three supplied screenshots, and the checked-in Frontier interfaces. This is a report, not a native integration or a new hardware benchmark.
 
+> **Subsequent implementation update:** this report assessed baseline commit `807559c`. The uniform-upload bug and several scheduling costs have since been fixed, and a GPU admissibility filter and severe-load tests were added. Read [TyreGpuHardening.md](TyreGpuHardening.md) for the current changes, measurements and safety limitations. The original assessment below is retained as baseline evidence.
+
 ## Executive decision
 
 **Proceed with the corotational volumetric tyre as an experimental GPU subsystem and native test-rig project. Do not yet use its output as authoritative vehicle-handling physics.**
