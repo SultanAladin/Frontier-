@@ -1,4 +1,4 @@
-import { fetchShader } from "./runtime-assets.js?release=tyre-gpu-20261016-r2";
+import { fetchShader } from "./runtime-assets.js?release=tyre-gpu-20261016-r3";
 // Browser-only isolated tests of the ACTUAL WGSL acceptance kernels, not a CPU solver.
 export async function runGuardCases() {
   const adapter = await navigator.gpu.requestAdapter();
@@ -18,7 +18,7 @@ export async function runGuardCases() {
     params = buf(64, GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST),
     stats = buf(96),
     rotations = buf(16),
-    contact = buf(64);
+    contact = buf((2 * 4 + 3) * 16);
   const td = new ArrayBuffer(64),
     tv = new DataView(td);
   [0, 1, 2, 3].forEach((v, i) => tv.setUint32(i * 4, v, true));
@@ -66,7 +66,7 @@ export async function runGuardCases() {
     code: await fetchShader("physics.wgsl"),
   });
   const pipelines = await Promise.all(
-    ["guardPartials", "guardReduce", "finish"].map((entryPoint) =>
+    ["guardPartials", "guardReduce", "commitRig", "finish"].map((entryPoint) =>
       device.createComputePipelineAsync({
         layout: device.createPipelineLayout({ bindGroupLayouts: [layout] }),
         compute: { module, entryPoint },
@@ -125,6 +125,10 @@ export async function runGuardCases() {
       }
       const sd = new Float32Array(24);
       sd[7] = 1;
+      const rig = new Float32Array((2 * 4 + 3) * 4);
+      rig.set([0, 1, 0, 0], 2 * 4 * 4);
+      rig.set([0, 1, 0, 0], (2 * 4 + 1) * 4);
+      device.queue.writeBuffer(contact, 0, rig);
       device.queue.writeBuffer(node, 0, n);
       device.queue.writeBuffer(stats, 0, sd);
       const e = device.createCommandEncoder(),

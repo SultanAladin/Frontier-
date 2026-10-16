@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1" />
     <title>Frontier / Tyre Dynamics Lab</title>
-    <link rel="stylesheet" href="style.css?release=tyre-gpu-20261016-r2" />
+    <link rel="stylesheet" href="style.css?release=tyre-gpu-20261016-r3" />
   </head>
   <body>
     <header>
@@ -42,7 +42,7 @@
           </p>
           <div class="section-label">TEST RIG <span>KINEMATIC HUB</span></div>
           <label
-            >Radial compression <output id="compression-out">38 mm</output
+            >Requested compression <output id="compression-out">38 mm</output
             ><input
               id="compression"
               type="range"
@@ -52,7 +52,7 @@
               step="1"
           /></label>
           <label
-            >Belt speed <output id="speed-out">0.0 m/s</output
+            >Requested belt speed <output id="speed-out">0.0 m/s</output
             ><input
               id="speed"
               type="range"
@@ -84,7 +84,7 @@
           <div class="section-label">ENVIRONMENT</div>
           <div class="segmented">
             <button id="flat" class="active">Flat belt</button
-            ><button id="cleat">Rounded cleat</button>
+            ><button id="cleat">Moving rounded cleat</button>
           </div>
           <div class="section-label">SOLVER BUDGET</div>
           <label
@@ -108,16 +108,20 @@
           <select id="view">
             <option value="0">Carcass · shaded surface</option>
             <option value="1">Volume error · |J − 1|</option>
-            <option value="2">Contact · vertical impulse</option>
+            <option value="2">Contact · normal impulse</option>
           </select>
           <label class="check"
             ><input id="wire" type="checkbox" /> Tetrahedral surface edges
             <span>W</span></label
           >
           <label class="check"
-            ><input id="ghost" type="checkbox" /> Undeformed envelope
+            ><input id="ghost" type="checkbox" /> Undeformed · accepted rim
             <span>G</span></label
           >
+          <p class="rig-help">
+            Orange stripe = solved tyre material. The ghost follows the accepted
+            rim, not requested motion.
+          </p>
           <div class="actions">
             <button id="pause">Ⅱ Pause</button
             ><button id="reset">↺ Reset</button>
@@ -136,6 +140,7 @@
             <canvas id="scene"></canvas>
             <div class="viewport-top">
               <span class="live-dot"></span><b>TYRE / 01</b
+              ><span id="surface-state">FLAT MOVING BELT</span
               ><span id="mesh-info">BUILDING VOLUME MESH</span>
             </div>
             <div id="quality" hidden></div>
@@ -157,8 +162,12 @@
             </div>
             <div>
               <span
-                >GPU SOLVER <small id="timer-type">TIMESTAMP QUERY</small></span
+                >GPU SOLVER · p50
+                <small id="timer-type">TIMESTAMP QUERY</small></span
               ><strong id="gpu-time">—<em>ms</em></strong>
+              <div class="metric-foot" id="gpu-spread">
+                Last / p95 after first sample
+              </div>
               <div class="metric-foot" id="budget">Waiting for adapter</div>
             </div>
             <div>
@@ -169,7 +178,10 @@
           </div>
           <div class="telemetry">
             <span>SAFE STEP <b id="safe-step">—</b></span>
-            <span>CPU ENCODE <b id="cpu-encode">—</b></span>
+            <span>VOLUME BARRIER <b id="barrier-state">—</b></span
+            ><span>CPU ENCODE <b id="cpu-encode">—</b></span>
+            <span>ACTUAL BELT <b id="actual-speed">—</b></span
+            ><span>ACTUAL COMPRESSION <b id="actual-compression">—</b></span>
             <span>CONTACT NODES <b id="contacts">—</b></span
             ><span>MIN J <b id="min-j">—</b></span
             ><span>MAX |J−1| <b id="error-j">—</b></span
@@ -204,6 +216,6 @@
         ><a href="README.md">Technical notes ↗</a>
       </footer>
     </main>
-    <script type="module" src="app.js?release=tyre-gpu-20261016-r2"></script>
+    <script type="module" src="app.js?release=tyre-gpu-20261016-r3"></script>
   </body>
 </html>

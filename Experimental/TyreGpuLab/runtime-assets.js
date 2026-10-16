@@ -1,12 +1,16 @@
 // Bump the release key AND the versioned module URLs when the JS/WGSL ABI changes.
-export const ASSET_RELEASE = "tyre-gpu-20261016-r2";
+export const ASSET_RELEASE = "tyre-gpu-20261016-r3";
 export const COMPUTE_ENTRIES = Object.freeze([
+  "beginStep",
   "predict",
   "solveEdges",
   "solveTets",
   "contact",
   "guardPartials",
   "guardReduce",
+  "prepareRepair",
+  "solveBarrier",
+  "commitRig",
   "finish",
   "reducePartials",
   "reduce",
@@ -28,11 +32,18 @@ export function verifyShaderSource(source, name) {
   }
   return source;
 }
-export async function fetchShader(name) {
+let sharedTerrain;
+async function fetchSource(name) {
   const url = new URL(name, import.meta.url);
   url.searchParams.set("release", ASSET_RELEASE);
   const response = await fetch(url, { cache: "no-store" });
   if (!response.ok)
     throw new Error(`Cannot load ${name}: HTTP ${response.status}`);
   return verifyShaderSource(await response.text(), name);
+}
+export async function fetchShader(name) {
+  const source = await fetchSource(name);
+  if (name === "terrain.wgsl") return source;
+  sharedTerrain ??= fetchSource("terrain.wgsl");
+  return source + "\n" + (await sharedTerrain);
 }

@@ -10,7 +10,7 @@ See [the hardware-screenshot assessment and Frontier integration plan](../../Doc
 
 The entry module, dependencies and shaders carry a shared release key. Shader fetches bypass HTTP caching and validate their release marker/compute entry points before pipeline creation. `server.py` sends `Cache-Control: no-store` and returns fresh bytes even for old Last-Modified validators. Use this server (or `npm run dev`) rather than a generic caching static server during iteration. After upgrading an already-open old preview once, reload it with **Ctrl+Shift+R** if necessary. A missing `clearLambda` error means mixed old JS/new WGSL, not unsupported GPU hardware; clearing is fused into `predict` now.
 
-For an ABI-changing update, bump `ASSET_RELEASE`, both WGSL release markers and the versioned module/CSS URLs together. `npm test` checks the manifest against shader entries and document/import URLs. `npm run test:assets` tests same-browser version-mismatch detection and reload recovery against the lab server.
+For an ABI-changing update, bump `ASSET_RELEASE`, all WGSL release markers (including shared `terrain.wgsl`) and the versioned module/CSS URLs together. `npm test` checks the manifest against shader entries and document/import URLs. `npm run test:assets` tests same-browser version-mismatch detection and reload recovery against the lab server.
 
 ## Hardening / optimization update
 
@@ -26,7 +26,7 @@ python3 server.py --port 8080
 
 Runtime has **zero npm/CDN dependencies**. Use a current browser with hardware WebGPU enabled. HTTPS or localhost is required. Unsupported devices stop with an explicit error; known software/fallback adapters are rejected. Browser/driver adapter reporting is ultimately the browser's responsibility; a web page cannot guarantee which physical device a driver chooses. The status tooltip identifies the reported adapter. Missing timestamp-query support disables the GPU timing number, **not** GPU physics.
 
-Drag to orbit; scroll to zoom. Space pauses, R resets, W toggles edges, G toggles the undeformed envelope (shortcuts do not intercept form inputs). A model switch resets the tyre, retaining test settings. Compression and the cleat height ramp in gradually. Rim rotation integrates belt speed; changing speed does not teleport the rim. Export downloads a diagnostic JSON sample.
+Drag to orbit; scroll to zoom. Space pauses, R resets, W toggles edges, G toggles the undeformed envelope (shortcuts do not intercept form inputs). A model switch resets the tyre, retaining test settings. Requested compression and cleat height ramp from accepted GPU state. Rim rotation and conveyor phase integrate from the accepted pose; a safety-limited frame cannot accumulate a hidden CPU-clock pose offset. Actual speed/compression are shown separately from requests. Export downloads a diagnostic JSON sample.
 
 ## What is being compared?
 
@@ -37,7 +37,7 @@ Drag to orbit; scroll to zoom. Space pauses, R resets, W toggles edges, G toggle
 | Edge carcass | Rest-length constraints on the tetrahedral edge network plus per-tet volume constraints. No explicit spring forces. |
 | Volumetric / flesh-inspired | Corotational tetrahedral strain plus per-tet volume. No distance constraints. `F = Ds inverse(Dm)`, strain `C = ||F − R||`, volume `C = J − 1`. Energy is `V0 [mu/2 ||F−R||² + K/2 (J−1)²]`. |
 
-The latter is **inspired by volumetric flesh simulation**, not Epic's Chaos Flesh implementation, not Chaos Vehicles, and not an imported Unreal component. A persistent quaternion per tetrahedron approximately extracts the proper polar rotation with four bounded iterations (avoids inverting nearly singular deformed elements). Element-relative trust regions limit local nonlinear corrections; applied multiplier changes are limited by the same factor. The local material projections alone are not inversion-proof. A separate global GPU acceptance filter now limits proposed motion against the last accepted mesh; see the safety section below. It is not a self-collision or physical recovery solver.
+The latter is **inspired by volumetric flesh simulation**, not Epic's Chaos Flesh implementation, not Chaos Vehicles, and not an imported Unreal component. A persistent quaternion per tetrahedron approximately extracts the proper polar rotation with four bounded iterations (avoids inverting nearly singular deformed elements). Element-relative trust regions limit local nonlinear corrections; applied multiplier changes are limited by the same factor. The local material projections alone are not inversion-proof. A separate global GPU acceptance filter now limits proposed motion against the last accepted mesh; see the safety section below. Before global acceptance, an additional GPU unilateral minimum-volume barrier activates when a proposed element has `J < 0.30`. Two race-free colour sweeps push compressed elements toward `J = 0.35`; the unchanged global guard still certifies the final result. This is a numerical inversion-resistance constraint, not calibrated tyre elasticity or self-collision. The UI/export exposes `barrierActive`; do not interpret its extra stiffness as measured material response.
 
 The 64 × 4 × 7 periodic annular mesh has **1,792 nodes, 6,912 positive-rest-volume tetrahedra, 9,856 unique edges**, a 0.48 m outer radius, and a 0.31 m section width. Inner nodes at radius 0.265 m are prescribed rim attachments. Effective nodal mass is 30 kg distributed across all nodes (including attachments). This is a **filled effective carcass**, not a detailed hollow pneumatic tyre. The tread pattern is surface colour only; it does not generate the silhouette, deformation, or contact.
 
@@ -51,8 +51,8 @@ CPU work: mesh and graph construction once, UI/camera, prescribed rig inputs, co
 2. Predict GPU nodes under gravity; apply kinematic rim boundary conditions.
 3. Reset substep XPBD multipliers. Solve `deltaLambda = (−C − alphaTilde lambda) / (sum(w |gradC|²) + alphaTilde)`.
 4. Graph-coloured in-place Gauss–Seidel: 15 edge colours and 26 tet colours; nodes within a colour never overlap. Each dispatch boundary orders dependent colours. No float atomics, cross-workgroup barriers, or concurrent writes to a node.
-5. Project vertical belt/height-field contacts after material updates. Apply accumulated tangential displacement projected onto a Coulomb disk after each sweep.
-6. Compute a conservative globally admissible interpolation factor for all proposed tetrahedra; accept limited GPU positions, then reconstruct velocity. Numerical damping is `0.996^(240 h)` per substep.
+5. Project along the shared height-field normal after material updates (up to three normal iterations); apply accumulated 3D tangent displacement projected onto a Coulomb disk.
+6. Reduce candidate quality and a conservative global interpolation bound. GPU-written indirect arguments activate two local volume-barrier sweeps only for low-J proposals, then redo contact/acceptance. Accept mesh and rig together, then reconstruct velocity. Numerical damping is `0.996^(240 h)` per substep.
 7. Accumulate contact reactions in a GPU node buffer over the tick. Run one final parallel/block reduction for tick-averaged reactions and final accepted element quality, not four repeated force reductions.
 8. Draw boundary triangles directly from the solved node buffer.
 
@@ -65,28 +65,28 @@ The frame loop advances at most one fixed tick per animation frame and permits a
 The GPU sums the actual positional contact corrections. For a free node of mass `m` and substep duration `h`:
 
 ```
-vertical reaction estimate = m * accumulatedContactDeltaY / h²
+contact reaction vector estimate = m * accumulatedContactDeltaXYZ / h²
 ```
 
-Equivalently, contact impulse is `m * deltaY / h`. This lab averages four substep reactions for the reported tick. The ground receives the opposite reaction. Tangential corrections are reduced in the same units. Reduction output stays GPU-resident and **can be consumed by another GPU rigid-body pass without readback**.
+Equivalently, contact impulse is `m * deltaXYZ / h`. This lab averages active substep reactions for the reported tick. The ground receives the opposite reaction. Tangential corrections are reduced in the same units. Reduction output stays GPU-resident and **can be consumed by another GPU rigid-body pass without readback**.
 
 For CPU consumers, the lab copies only 64 bytes of statistics/safety flags plus 16 bytes of optional timestamps into one asynchronous staging buffer, about every 130 ms. It never synchronously maps the live simulation buffer or waits in the frame loop. **Readback age includes GPU queue/map latency**, measured from capture submission. The UI intentionally samples slowly; a production readback ring could sample each tick, but still has nonzero latency.
 
 **Belt reaction is not automatically hub load.** This is a displacement-controlled, kinematic rim rig. During transients, carcass inertia, gravity, and rim reactions matter. It does not sum bead-constraint reaction forces or couple a moving chassis. A CPU vehicle must not use these slowly sampled numbers as zero-latency suspension forces. A real integration would compute full bead impulses/torques and use same-GPU rigid-body coupling or explicitly handle delayed CPU feedback.
 
-The cleat uses a **vertical gap projection**, not exact signed-distance normals. `Fy` remains vertical support; it is not a fully resolved sloped-surface normal force. Friction is an approximate positional Coulomb model. The cleat is a stationary height-field obstacle while the belt velocity is prescribed. The rig is not a moving road conveyor with physically transported obstacles.
+The finite 3 m × 0.63 m belt, rounded Gaussian cleat and surrounding lower floor share **one WGSL profile and analytic normal** between rendering and collision. The cleat and belt markings follow the accepted conveyor phase; this is a prescribed moving height-field, not a simulated flexible conveyor. Normal projection is iterative, not an exact signed-distance solve. Reaction XYZ includes the normal and tangent corrections; the headline `normal` remains **vertical support Fy**, not the scalar force along a slope. Friction is still an approximate positional Coulomb model.
 
 ## Debug / timing
 
-- Shaded actual geometry; surface edge overlay; undeformed reference envelope.
-- Contact heatmap: accumulated vertical position correction (impulse-proportional for equal node masses).
+- Shaded solved geometry; surface edge overlay; accepted-pose undeformed reference envelope. A unique orange sidewall witness is fixed in material/rest coordinates, not world space. Repeating tread can still exhibit wagon-wheel aliasing; follow the witness to see actual rubber motion. A unique pale stripe also witnesses the flat belt phase.
+- Contact heatmap: accumulated normal position correction (impulse-proportional for equal node masses).
 - Volume heatmap (computed only when selected): peak incident-element `|J−1|` encountered during the last substep before local volume projections. Conservative/transient, **not a stress-in-Pascals plot**.
 - Numerical telemetry: final accepted last-substep minimum `J`, maximum `|J−1|`, averaged contact-node count, tangential force, sample age. `J <= 0` means inverted material. High local errors trigger a visible quality warning rather than being hidden.
-- GPU solver milliseconds: optional hardware timestamp query around the complete compute pass, including contact and diagnostic reduction, excluding render/readback and CPU command encoding. It is a sampled tick, not a calibrated benchmark.
+- GPU solver milliseconds: optional hardware timestamp query around the complete compute pass, including contact and diagnostic reduction, excluding render/readback and CPU command encoding. It is a sampled tick, not a calibrated benchmark. The headline shows rolling p50 of up to 60 asynchronous samples, plus raw last/p95/sample count. Barrier activation and optional substep changes alter GPU work; browser scheduling/render work affect frame intervals separately. A timing change alone does not mean texture or physics motion stopped.
 - CPU encode: rolling mean wall time of the submitted frame command construction/upload/submit, excluding synchronous GPU waits (there are none). It is not CPU tyre-solver time.
 - Safety-step telemetry: minimum accepted fraction over the sampled tick; `N · LIMITED` flags reactions from a limited/penetrating/invalid numerical state.
 - Frame interval: rolling average of requestAnimationFrame intervals, including browser scheduling. This is **not CPU solver time**. Plot auto-scales.
-- The debug-only `window.tyreLab.snapshot()` reads all node data on demand for tests; normal operation never does this.
+- The debug-only `window.tyreLab.snapshot()` reads all node data (`rigSnapshot()` reads accepted/trial/start rig records) on demand for tests; normal operation never does this.
 
 ## Verification
 

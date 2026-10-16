@@ -638,3 +638,25 @@ footer a {
   line-height: 1.6;
   pointer-events: none;
 }
+#gpu-spread {
+  margin-top: 8px;
+  font:
+    7px ui-monospace,
+    monospace;
+}
+#budget {
+  margin-top: 5px;
+}
+#surface-state {
+  color: #bdceae;
+  font:
+    8px ui-monospace,
+    monospace;
+}
+
+.rig-help {
+  font-size: 8px;
+  color: var(--muted);
+  line-height: 1.6;
+  margin: 12px 0 0;
+}

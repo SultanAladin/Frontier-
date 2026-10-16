@@ -1,24 +1,30 @@
-// tyre-lab-release: tyre-gpu-20261016-r2
+// tyre-lab-release: tyre-gpu-20261016-r3
 struct Node { p:vec4f, previous:vec4f, velocity:vec4f, rest:vec4f, info:vec4f }
 struct Camera { vp:mat4x4f, eye:vec4f, options:vec4f, settings:vec4f }
 @group(0) @binding(0) var<storage,read> nodes:array<Node>;
 @group(0) @binding(1) var<uniform> cam:Camera;
+@group(0) @binding(2) var<storage,read> rigData:array<vec4f>;
+fn acceptedRig()->vec4f{return rigData[2*u32(cam.settings.z)];}
+fn rimTransform(p:vec3f)->vec3f{
+ let a=nodes[3u].p.xyz;let b=nodes[u32(cam.settings.y)].p.xyz;
+ let center=(a+b)*.5;let axis=normalize(a-b);let tangent=vec3f(-axis.y,axis.x,0);
+ return center+axis*p.x+tangent*p.y+vec3f(0,0,p.z);
+}
 struct Out { @builtin(position) clip:vec4f, @location(0) world:vec3f, @location(1) data:vec4f, @location(2) local:vec3f }
 @vertex fn tyre(@builtin(vertex_index) i:u32)->Out {
  let n=nodes[i];var o:Out;o.world=n.p.xyz;o.clip=cam.vp*vec4f(o.world,1);o.data=vec4f(n.info.x,n.info.z,0,0);o.local=n.rest.xyz;return o;
 }
 @vertex fn ghost(@builtin(vertex_index) i:u32)->Out {
- let r=nodes[i].rest.xyz;let a=cam.settings.x;let c=cos(a);let s=sin(a);
- var o:Out;o.world=vec3f(c*r.x-s*r.y,s*r.x+c*r.y+cam.options.z,r.z);o.clip=cam.vp*vec4f(o.world,1);o.data=vec4f(0);o.local=r;return o;
+ let r=nodes[i].rest.xyz;var o:Out;
+ // Undeformed geometry at the ACCEPTED rim pose. Never animate a requested
+ // rotation on top of a stationary rejected tyre: that suggested fake motion.
+ o.world=rimTransform(r);o.clip=cam.vp*vec4f(o.world,1);o.data=vec4f(0);o.local=r;return o;
 }
 @vertex fn environment(@location(0) p:vec4f)->Out {
- var o:Out;var v=p.xyz;if(p.w>1.5){
- // Rim follows the ACCEPTED GPU attachments, not the requested kinematic pose.
- let a=nodes[3u].p.xyz;let b=nodes[u32(cam.settings.y)].p.xyz;
- let center=(a+b)*.5;let axis=normalize(a-b);let tangent=vec3f(-axis.y,axis.x,0);
- v=center+axis*p.x+tangent*p.y+vec3f(0,0,p.z);
- }else{v.y+=cam.options.w*exp(-pow((v.x-.08)/.09,2.0));}
- o.world=v;o.clip=cam.vp*vec4f(v,1);o.data=vec4f(0,0,p.w,0);o.local=p.xyz;return o;
+ var o:Out;var v=p.xyz;let rig=acceptedRig();var profile=vec3f(0);
+ if(p.w==2){v=rimTransform(p.xyz);}
+ if(p.w==3){profile=roadProfile(p.xz,rig.z,rig.w);v.y=profile.x;}
+ o.world=v;o.clip=cam.vp*vec4f(v,1);o.data=vec4f(profile.x,rig.z,p.w,rig.w);o.local=p.xyz;return o;
 }
 fn palette(t:f32)->vec3f {return mix(vec3f(.22,.59,.53),vec3f(1,.39,.16),clamp(t,0,1));}
 @fragment fn surface(v:Out,@builtin(front_facing) front:bool)->@location(0) vec4f {
@@ -28,26 +34,40 @@ fn palette(t:f32)->vec3f {return mix(vec3f(.22,.59,.53),vec3f(1,.39,.16),clamp(t
  var base=vec3f(.12,.155,.17);
  if(v.data.z<.5){
   let a=atan2(v.local.y,v.local.x);let radius=length(v.local.xy);
-  let tread=step(.16,fract(a*30.56+abs(v.local.z)*18));
+  let tread=step(.23,fract(a*7.63944+abs(v.local.z)*12));
   base=mix(vec3f(.047,.067,.077),vec3f(.16,.19,.20),tread);
   if(radius<.42){base=vec3f(.085,.11,.125);}
   if(abs(v.local.z)>.148 && radius>.35 && radius<.36){base=vec3f(.42,.47,.42);}
+  // A unique rest/material-space witness stripe makes real rotation visible;
+  // repetitive fine treads alone alias at high speed (wagon-wheel effect).
+  let witness=1-smoothstep(.06,.10,abs(wrapSigned(a-.4,6.28318530718)));
+  if(abs(v.local.z)>.14 && radius>.35 && radius<.43){base=mix(base,vec3f(.96,.48,.13),witness);}
   if(cam.options.x>0.5 && cam.options.x<1.5){base=palette(v.data.y*4);}
   if(cam.options.x>1.5){base=mix(vec3f(.10,.19,.22),vec3f(1,.48,.18),clamp(v.data.x*2000,0,1));}
  }else if(v.data.z<1.5){
   let grid=abs(fract(v.world.xz*5+.5)-.5)/max(gridDerivative,vec2f(.001));
   let line=1-min(min(grid.x,grid.y),1.0);base=mix(vec3f(.057,.083,.102),vec3f(.13,.18,.21),line*.8);
   let belt=1-smoothstep(.21,.215,abs(v.world.z));base+=vec3f(.015)*belt;
- }else{
+ }else if(v.data.z<2.5){
   base=vec3f(.37,.43,.46);let a=atan2(v.local.y,v.local.x);
   if(length(v.local.xy)<.23){base=mix(vec3f(.05,.075,.09),vec3f(.34,.40,.42),step(.72,abs(cos(a*5))));}
   if(length(v.local.xy)<.072){base=vec3f(.55,.61,.56);}
+ }else{
+  // Belt slats/chevrons move with the SAME accepted material phase as the cleat.
+  let materialX=v.local.x+v.data.w;
+  let slat=step(.10,fract(materialX/.12));base=mix(vec3f(.035,.055,.065),vec3f(.12,.17,.19),slat);
+  if(abs(v.local.z)>.235 && abs(v.local.z)<.255){base=vec3f(.63,.60,.26);}
+  let chevron=step(.72,fract(materialX/.36+abs(v.local.z)*4));
+  if(abs(v.local.z)<.20){base=mix(base,vec3f(.20,.28,.29),chevron*.35);}
+  let beltWitness=1-smoothstep(.025,.04,abs(wrapSigned(materialX-.65,3.0)));
+  if(abs(v.local.z)<.26){base=mix(base,vec3f(.68,.85,.67),beltWitness);}
+  if(v.data.x>.003 && v.data.y>.003){base=mix(base,vec3f(.85,.34,.09),smoothstep(.003,.015,v.data.x));}
  }
  let hemi=.28+.72*light;let view=normalize(cam.eye.xyz-v.world);
  let spec=pow(max(0.0,dot(reflect(-normalize(vec3f(-.5,1,1)),normal),view)),40.0);
  var color=base*hemi+vec3f(spec*.19);
  // Soft visual grounding only; contact is solved by compute, not this shading.
- if(v.data.z>.5 && v.data.z<1.5){color*=1.0-.45*exp(-dot(v.world.xz*vec2f(2,3),v.world.xz*vec2f(2,3)));}
+ if((v.data.z>.5 && v.data.z<1.5) || v.data.z>2.5){color*=1.0-.45*exp(-dot(v.world.xz*vec2f(2,3),v.world.xz*vec2f(2,3)));}
  color=mix(color,vec3f(.055,.083,.105),1-exp(-length(cam.eye.xyz-v.world)*.025));
  return vec4f(pow(color,vec3f(1/2.2)),1);
 }

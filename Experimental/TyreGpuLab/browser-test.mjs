@@ -62,8 +62,12 @@ try {
           det / (6 * window.__testTopology.tetData[t * 16 + 15]),
         );
       }
+      const rig = await tyreLab.rigSnapshot();
       return {
+        rig,
         snapshotMinJ,
+        markerPosition: Array.from(a.slice(139 * 20, 139 * 20 + 3)),
+        markerRest: Array.from(a.slice(139 * 20 + 12, 139 * 20 + 15)),
         adapter: tyreLab.adapter,
         stats: tyreLab.stats,
         diagnostics: tyreLab.diagnostics(),
@@ -78,11 +82,12 @@ try {
     console.log(label, JSON.stringify(sample));
     assert(!sample.error);
     assert(sample.finite);
-    assert(sample.minY >= -1e-5);
+    assert(sample.minY >= -0.035 - 1e-5);
     assert(sample.stats && sample.stats.normal > 0);
     assert(sample.stats.minJ >= 0.099);
     assert(sample.snapshotMinJ >= 0.099);
     assert(sample.maxPosition < 2);
+    return sample;
   }
   await page.evaluate(() => tyreLab.setModel(0));
   await page.waitForFunction(() => tyreLab.ticks === 0);
@@ -94,11 +99,38 @@ try {
   await page.check("#wire");
   await page.check("#ghost");
   await page.click("#cleat");
+  const parked = await run("Parked rounded cleat / actual height", 70);
+  assert(parked.rig[2] > 0.035);
+  assert(parked.stats.normal > 500);
   await page.locator("#speed").evaluate((el) => {
     el.value = "1";
     el.dispatchEvent(new Event("input", { bubbles: true }));
   });
-  await run("Corotated rolling + cleat / 60 ticks", 60);
+  const rolling = await run("Corotated rolling + moving cleat / 60 ticks", 60);
+  assert(
+    Math.abs(rolling.rig[0] - parked.rig[0]) > 0.2,
+    "accepted tyre must rotate",
+  );
+  assert(
+    Math.abs(rolling.rig[3] - parked.rig[3]) > 0.2,
+    "cleat and belt phase must advance",
+  );
+  assert.deepEqual(
+    rolling.markerRest,
+    parked.markerRest,
+    "material coordinates must not be animated independently",
+  );
+  assert(
+    Math.hypot(
+      ...rolling.markerPosition.map((v, i) => v - parked.markerPosition[i]),
+    ) > 0.1,
+    "solved material marker must travel in world space",
+  );
+  await page.click("#flat");
+  const flat = await run("Return to flat moving belt", 60);
+  assert(flat.rig[2] < 0.001);
+  assert(flat.stats.actualBeltSpeed > 0.2);
+  await page.click("#cleat");
   // The reported failure configuration: soft carcass, deep compression and rolling cleat.
   await page.evaluate(() =>
     Object.assign(tyreLab.state, {
@@ -116,6 +148,36 @@ try {
     await page.evaluate(() => tyreLab.diagnostics().activeSubsteps),
     16,
   );
+  await page.uncheck("#adaptive");
+  await page.evaluate(() => {
+    Object.assign(tyreLab.state, {
+      compression: 95,
+      speed: 5,
+      stiffness: 0.25,
+      friction: 0.45,
+      obstacle: 0.045,
+    });
+    tyreLab.reset();
+  });
+  await page.waitForFunction(() => tyreLab.ticks === 0);
+  const exact = await run("Fresh max-input 95 mm / 5 m/s / soft cleat", 120);
+  assert(
+    Math.abs(exact.rig[0]) > 0.05 || Math.abs(exact.rig[3]) > 0.05,
+    "accepted rig must not remain at initial pose",
+  );
+  const roadCases = await page.evaluate(async () => {
+    const { runRoadCases } = await import("./road-browser.js");
+    return runRoadCases();
+  });
+  assert(Math.abs(roadCases[0].height) < 1e-6);
+  assert(Math.abs(roadCases[1].height - 0.045) < 1e-6);
+  assert(Math.abs(roadCases[2].height - 0.045) < 1e-6);
+  assert(Math.abs(roadCases[5].height - 0.045) < 1e-6);
+  assert(roadCases[3].dx < -0.3);
+  assert(Math.abs(roadCases[4].height + 0.035) < 1e-6);
+  for (const c of roadCases)
+    assert(Math.abs(Math.hypot(...c.normal) - 1) < 1e-6);
+  console.log("Shared GPU road profile", JSON.stringify(roadCases));
   const guardCases = await page.evaluate(async () => {
     const { runGuardCases } = await import("./guard-browser.js");
     return runGuardCases();

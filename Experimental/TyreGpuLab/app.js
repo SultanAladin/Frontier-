@@ -2,13 +2,13 @@ import {
   ASSET_RELEASE,
   COMPUTE_ENTRIES,
   fetchShader,
-} from "./runtime-assets.js?release=tyre-gpu-20261016-r2";
-import { makeTyre } from "./mesh.js?release=tyre-gpu-20261016-r2";
+} from "./runtime-assets.js?release=tyre-gpu-20261016-r3";
+import { makeTyre } from "./mesh.js?release=tyre-gpu-20261016-r3";
 import {
   makeSolverPlan,
   substepsFor,
   assertSolverInputs,
-} from "./solver-plan.js?release=tyre-gpu-20261016-r2";
+} from "./solver-plan.js?release=tyre-gpu-20261016-r3";
 const $ = (id) => document.getElementById(id);
 const state = {
   model: 1,
@@ -37,13 +37,12 @@ let device,
   adapter,
   ready = false,
   simTime = 0,
-  simAngle = 0,
   simTicks = 0,
   readAt = 0,
   lastStats = null,
   gpuMs = null,
   pending = false;
-const history = { load: [], frame: [] };
+const history = { load: [], frame: [], gpu: [] };
 function fatal(e) {
   console.error(e);
   $("error").hidden = false;
@@ -227,12 +226,18 @@ function environmentMesh() {
   const tri = (a, b, c, m) => {
     for (const p of [a, b, c]) out.push(...p, m);
   };
-  for (let i = 0; i < 180; i++) {
-    const a = -4 + (i * 8) / 180,
-      b = -4 + ((i + 1) * 8) / 180;
-    tri([a, -0.001, -4], [b, -0.001, -4], [b, -0.001, 4], 1);
-    tri([a, -0.001, -4], [b, -0.001, 4], [a, -0.001, 4], 1);
-  }
+  // Workshop floor (static) and a densely sampled finite belt (GPU profile).
+  tri([-4, -0.035, -4], [4, -0.035, -4], [4, -0.035, 4], 1);
+  tri([-4, -0.035, -4], [4, -0.035, 4], [-4, -0.035, 4], 1);
+  for (let i = 0; i < 300; i++)
+    for (let z = 0; z < 24; z++) {
+      const a = -1.5 + i * 0.01,
+        b = a + 0.01,
+        c = -0.315 + (z * 0.63) / 24,
+        d = c + 0.63 / 24;
+      tri([a, 0, c], [b, 0, c], [b, 0, d], 3);
+      tri([a, 0, c], [b, 0, d], [a, 0, d], 3);
+    }
   for (const z of [-0.158, 0.158])
     for (let i = 0; i < 96; i++) {
       const a = (i / 96) * Math.PI * 2,
@@ -390,7 +395,11 @@ async function init() {
   const edgeBuffer = buffer(new Uint8Array(edgeData), storage),
     tetBuffer = buffer(new Uint8Array(tetData), storage),
     schedule = buffer(
-      new Uint32Array([...mesh.edgeBatches.flat(), ...mesh.tetBatches.flat()]),
+      new Uint32Array([
+        ...mesh.edgeBatches.flat(),
+        ...mesh.tetBatches.flat(),
+        ...mesh.tetBatches.map((ids) => Math.ceil(ids.length / 64)),
+      ]),
       storage,
     ),
     lambda = buffer((E + T) * 8, storage),
@@ -405,7 +414,7 @@ async function init() {
     plan.bytes,
     GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
   );
-  const tickContacts = buffer(N * 16, storage);
+  const tickContacts = buffer((2 * N + 3) * 16, storage);
   window.tyreLab.plan = {
     records,
     alignment: plan.alignment,
@@ -431,6 +440,10 @@ async function init() {
       );
   }
   const rotationBuffer = buffer(T * 16, storage);
+  const repairArgs = buffer(
+    (mesh.tetBatches.length + 3) * 16,
+    GPUBufferUsage.STORAGE | GPUBufferUsage.INDIRECT,
+  );
   const layout = device.createBindGroupLayout({
     entries: Array.from({ length: 9 }, (_, binding) => ({
       binding,
@@ -461,6 +474,16 @@ async function init() {
     entries: resources.map((b, binding) => ({
       binding,
       resource: { buffer: b, ...(binding === 5 ? { size: 64 } : {}) },
+    })),
+  });
+  const prepareRepairBind = device.createBindGroup({
+    layout,
+    entries: resources.map((b, binding) => ({
+      binding,
+      resource: {
+        buffer: binding === 7 ? repairArgs : b,
+        ...(binding === 5 ? { size: 64 } : {}),
+      },
     })),
   });
   const pipelineLayout = device.createPipelineLayout({
@@ -494,6 +517,11 @@ async function init() {
         visibility: GPUShaderStage.VERTEX | GPUShaderStage.FRAGMENT,
         buffer: { type: "uniform" },
       },
+      {
+        binding: 2,
+        visibility: GPUShaderStage.VERTEX,
+        buffer: { type: "read-only-storage" },
+      },
     ],
   });
   const rb = device.createBindGroup({
@@ -501,6 +529,7 @@ async function init() {
     entries: [
       { binding: 0, resource: { buffer: nodes } },
       { binding: 1, resource: { buffer: cameraBuffer } },
+      { binding: 2, resource: { buffer: tickContacts } },
     ],
   });
   const blend = {
@@ -558,8 +587,6 @@ async function init() {
     last = performance.now(),
     lastRead = 0,
     accumulator = 0,
-    lastHeight = 0.48,
-    lastObstacle = 0,
     readSerial = 0,
     epoch = 0,
     activeWallTime = 0,
@@ -608,15 +635,17 @@ async function init() {
     const rotations = new Float32Array(T * 4);
     for (let i = 0; i < T; i++) rotations[i * 4 + 3] = 1;
     device.queue.writeBuffer(rotationBuffer, 0, rotations);
+    const rig = new Float32Array((2 * N + 3) * 4);
+    rig.set([0, 0.48, 0, 0], 2 * N * 4);
+    device.queue.writeBuffer(tickContacts, 0, rig);
     simTime = 0;
-    simAngle = 0;
     simTicks = 0;
-    lastHeight = 0.48;
-    lastObstacle = 0;
     window.tyreStart = performance.now();
     accumulator = 0;
     history.load = [];
     lastStats = null;
+    history.gpu = [];
+    gpuMs = null;
     resetRequested = false;
   }
   reset();
@@ -629,6 +658,17 @@ async function init() {
     inFlight,
     uploadBytes: plan.activeBytes(activeSubsteps),
   });
+  window.tyreLab.rigSnapshot = async () => {
+    const b = buffer(48, GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ),
+      e = device.createCommandEncoder();
+    e.copyBufferToBuffer(tickContacts, 2 * N * 16, b, 0, 48);
+    device.queue.submit([e.finish()]);
+    await b.mapAsync(GPUMapMode.READ);
+    const result = new Float32Array(b.getMappedRange().slice(0));
+    b.unmap();
+    b.destroy();
+    return Array.from(result);
+  };
   window.tyreLab.snapshot = async () => {
     const b = buffer(N * 80, GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ),
       e = device.createCommandEncoder();
@@ -715,19 +755,10 @@ async function init() {
         });
         for (let s = 0; s < activeSubsteps; s++) {
           simTime += step;
-          simAngle += (step * state.speed) / 0.48;
-          lastHeight += Math.max(
-            -0.06 * step,
-            Math.min(0.06 * step, targetHeight - lastHeight),
-          );
-          lastObstacle += Math.max(
-            -0.048 * step,
-            Math.min(0.048 * step, state.obstacle - lastObstacle),
-          );
           Object.assign(parameterInput, {
-            angle: simAngle,
-            height: lastHeight,
-            obstacle: lastObstacle,
+            angle: 0, // Reserved ABI slot; accepted angle is GPU-owned.
+            height: targetHeight,
+            obstacle: state.obstacle,
           });
           plan.writeStep(s, parameterInput);
         }
@@ -760,6 +791,7 @@ async function init() {
         for (let s = 0; s < activeSubsteps; s++) {
           const base = s * records * plan.alignment;
           pass.setBindGroup(0, bind, plan.dynamicOffsets, s * records, 1);
+          dispatch("beginStep", 1);
           dispatch("predict", Math.max(N, state.model === 1 ? T : E + T));
           for (let j = 0; j < state.iterations; j++) {
             batches.forEach((b, i) => {
@@ -778,6 +810,53 @@ async function init() {
           }
           dispatch("guardPartials", T);
           dispatch("guardReduce", 1);
+          pass.setBindGroup(
+            0,
+            prepareRepairBind,
+            plan.dynamicOffsets,
+            s * records,
+            1,
+          );
+          dispatch("prepareRepair", mesh.tetBatches.length + 3);
+          for (let repair = 0; repair < 2; repair++) {
+            // Uniform GPU gate makes these no-ops when every proposed J >= .3.
+            for (let k = 0; k < batches.length; k++) {
+              const i = repair % 2 === 0 ? k : batches.length - 1 - k,
+                b = batches[i];
+              if (b.kind !== "solveTets") continue;
+              pass.setBindGroup(
+                0,
+                bind,
+                plan.dynamicOffsets,
+                s * records + i + 1,
+                1,
+              );
+              if (currentPipeline !== "solveBarrier") {
+                pass.setPipeline(pipelines.solveBarrier);
+                currentPipeline = "solveBarrier";
+              }
+              pass.dispatchWorkgroupsIndirect(
+                repairArgs,
+                (i - mesh.edgeBatches.length) * 16,
+              );
+            }
+          }
+          pass.setBindGroup(0, bind, plan.dynamicOffsets, s * records, 1);
+          for (const [j, entry] of [
+            "contact",
+            "guardPartials",
+            "guardReduce",
+          ].entries()) {
+            if (currentPipeline !== entry) {
+              pass.setPipeline(pipelines[entry]);
+              currentPipeline = entry;
+            }
+            pass.dispatchWorkgroupsIndirect(
+              repairArgs,
+              (mesh.tetBatches.length + j) * 16,
+            );
+          }
+          dispatch("commitRig", 1);
           dispatch("finish", N);
         }
         dispatch("reducePartials", Math.max(N, T));
@@ -805,11 +884,11 @@ async function init() {
           1,
           state.view,
           0,
-          lastHeight,
-          lastObstacle,
-          -simAngle,
-          N / 2 + 3,
+          0, // Reserved camera fields; pose comes from GPU buffers.
           0,
+          0,
+          N / 2 + 3,
+          N,
           0,
         ]),
       );
@@ -879,12 +958,20 @@ async function init() {
                 minAcceptedStep: f[7],
                 maxPenetration: f[12],
                 substeps: sampleSubsteps,
+                actualBeltSpeed: f[9],
+                achievedCompressionMm: f[10],
+                cleatHeight: f[11],
+                actualSpinRate: f[13],
+                beltPhase: f[14],
+                barrierActive: f[15] > 0,
                 validReaction:
                   f[7] > 0.9999 && f[5] > 0.1 && f[6] === 0 && f[12] < 0.001,
               };
               if (timestamps) {
                 const ts = new BigUint64Array(data, 64, 2);
                 gpuMs = Number(ts[1] - ts[0]) / 1e6;
+                history.gpu.push(gpuMs);
+                if (history.gpu.length > 60) history.gpu.shift();
               }
               readAt = capturedAt;
               history.load.push(lastStats.normal);
@@ -904,7 +991,14 @@ async function init() {
           ).toFixed(1),
           "ms",
         );
-        if (gpuMs !== null) metric("gpu-time", gpuMs.toFixed(2), "ms");
+        if (gpuMs !== null) {
+          const sorted = [...history.gpu].sort((a, b) => a - b);
+          const p50 = sorted[Math.floor((sorted.length - 1) * 0.5)],
+            p95 = sorted[Math.floor((sorted.length - 1) * 0.95)];
+          metric("gpu-time", p50.toFixed(2), "ms");
+          $("gpu-spread").textContent =
+            `last ${gpuMs.toFixed(2)} · p95 ${p95.toFixed(2)} ms · n=${sorted.length}`;
+        }
         $("budget").textContent =
           `${activeSubsteps} × ${state.iterations} sweeps · ${activeWallTime ? ((simTime / activeWallTime) * 100).toFixed(0) : 0}% real-time`;
         if (lastStats) {
@@ -919,6 +1013,17 @@ async function init() {
             (cpuSamples.reduce((a, b) => a + b, 0) / cpuSamples.length).toFixed(
               2,
             ) + " ms";
+          $("barrier-state").textContent = lastStats.barrierActive
+            ? "ACTIVE"
+            : "OFF";
+          $("actual-speed").textContent =
+            lastStats.actualBeltSpeed.toFixed(2) + " m/s";
+          $("actual-compression").textContent =
+            lastStats.achievedCompressionMm.toFixed(1) + " mm";
+          $("surface-state").textContent =
+            lastStats.cleatHeight > 0.001
+              ? `MOVING CLEAT · ${(lastStats.cleatHeight * 1000).toFixed(0)} mm`
+              : "FLAT MOVING BELT";
           $("contacts").textContent = lastStats.contacts.toFixed(0);
           $("min-j").textContent = lastStats.minJ.toFixed(3);
           $("error-j").textContent =
@@ -930,7 +1035,7 @@ async function init() {
             lastStats.maxError < 0.25 &&
             lastStats.minJ > 0.25;
           $("quality").textContent = !lastStats.validReaction
-            ? `GPU SAFETY LIMIT — ${(lastStats.minAcceptedStep * 100).toFixed(0)}% of requested step; reaction NOT valid for chassis coupling. Reduce load/speed or enable adaptive substeps.`
+            ? `GPU MOTION LIMITED — accepted belt ${lastStats.actualBeltSpeed.toFixed(2)} / ${state.speed.toFixed(1)} m/s, compression ${lastStats.achievedCompressionMm.toFixed(0)} / ${state.compression} mm. Reaction NOT valid for chassis coupling.`
             : lastStats.minJ <= 0
               ? "INVERTED ELEMENTS — reaction is not trustworthy. Reset or reduce compression."
               : `HIGH LOCAL VOLUME ERROR · ${(lastStats.maxError * 100).toFixed(0)}% — increase iterations or reduce compression.`;

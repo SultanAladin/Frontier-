@@ -1,5 +1,37 @@
 # GPU tyre hardening and optimization — 16 October 2026
 
+## Current release: r3 terrain and accepted motion
+
+`tyre-gpu-20261016-r3` supersedes the earlier static-ground display/contact path. Rendering and collision now include the same `terrain.wgsl`: finite flat conveyor, rounded moving cleat, analytic slope normals and lower surrounding floor. Contact resolves normal and 3D tangent corrections; reported `normal` is vertical Fy, not slope-normal magnitude.
+
+Rig angle, hub height, cleat height and belt phase now integrate **on the GPU from accepted state**, and commit with the same global fraction as the mesh. The undeformed ghost follows that accepted pose. The tyre's unique orange witness uses immutable material coordinates; a pale conveyor stripe follows accepted belt phase. Repeating treads can still alias at frame rate, but these unique witnesses disambiguate material motion.
+
+Accepted-state integration alone did **not** resolve the compressed-cleat stall: a local element approached the unchanged J=0.1 guard floor. A GPU unilateral volume barrier now runs before final acceptance when candidate minimum J<0.30. Two coloured sweeps (forward/reverse) push low-J elements toward 0.35; contact and the global guard are recomputed. This actually changes solved node positions, not the shader silhouette. **It adds numerical stiffness and is not a calibrated constitutive response.** The global guard is retained unchanged, and severe settings can still be limited. `barrierActive` is exported and displayed.
+
+Repair dispatch counts are GPU-generated, with no CPU physics decision/readback: zero workgroups when inactive. An alternate binding directs argument generation to a separate storage/indirect buffer, avoiding simultaneous writable-storage/indirect usage. For four sweeps/four substeps the solid path encodes **682 dispatch commands** (462 nonzero when repair is inactive); the edge path encodes 922 (702 nonzero inactive). Zero-sized indirect commands still have driver overhead. Upload remains 43,008 B. Do not apply the older 450-command count or ~30% software speedup to r3.
+
+GPU telemetry now shows rolling p50/p95 plus raw last/sample count. Active barrier work and 4/8/16 substeps change compute cost; frame interval additionally includes rendering and browser scheduling. No new hardware performance claim is made.
+
+### r3 verification (16 October 2026)
+
+14 unit tests, asset-cache/reload browser tests, and the full WebGPU browser regression pass on Chromium 131 / explicit SwiftShader validation. Dynamic physics remains GPU-only; independent CPU determinants are assertions over GPU readback, not a fallback solver.
+
+| Sequential case | Ticks | Snapshot minimum J | Actual motion / qualification |
+|---|---:|---:|---|
+| Edge / flat / 38 mm | 100 | 0.670 | Positive support, full acceptance |
+| Solid / flat / 38 mm | 100 | 0.663 | Positive support, full acceptance |
+| Parked 45 mm rounded cleat | +70 | 0.350 | Cleat reaches 45 mm; barrier active; support ≈4.13 kN, uncalibrated |
+| Then requested 1 m/s | +60 | 0.679 | Accepted travel ≈1.000 m, angle ≈2.083 rad; no stalled pose |
+| Then flat belt, 1 m/s | +60 | 0.654 | Cleat reaches zero; actual speed ≈1.000 m/s |
+| Soft / 92 mm / 3 m/s cleat | +100 | 0.326 | Sampled actual ≈2.96 m/s; reaction flagged LIMITED |
+| Then requested 5 m/s | +60 | 0.329 | Sampled actual ≈1.39 m/s; LIMITED, not a successful 5 m/s physical solve |
+| Then adaptive 16 substeps | +8 | 0.395 | Sampled actual ≈4.97 m/s; still LIMITED/uncalibrated |
+| Reset: soft / 95 mm / 5 m/s cleat | 120 | 0.349 | Compression reaches ≈95 mm; sampled actual ≈1.59 m/s; LIMITED |
+
+Six isolated GPU terrain samples verify flat height, rounded peak, translated peak, analytic slope/normal, outside floor and phase periodicity. Six independent GPU guard fixtures pass identity/rotation/reflection/crush/shear/nonfinite checks. Regression checks visible material coordinates remain unchanged while solved material positions move. These finite runs do not establish sustained high-speed accuracy or self-collision safety.
+
+The remaining sections describe the **historical r1/r2 optimization** and unchanged guard math; their benchmark and stress numbers are not r3 measurements.
+
 ## Scope and result
 
 The WebGPU lab was hardened and optimized **before a native port**. The native engine has not been modified. Tyre state and safety decisions remain on the GPU, with no CPU tyre solver or shader-deformation substitute.
@@ -32,7 +64,7 @@ Baseline source is commit **`807559c`**. This update corrects the upload bug ide
 - Fuse independent multiplier clearing into prediction. In volumetric mode, clear only tetrahedral multipliers.
 - Accumulate each node's time-weighted contact reaction over a tick on the GPU; reduce forces once at tick end instead of repeating the full reaction reduction after every substep.
 
-For the default four sweeps/four substeps, volumetric dispatch count is **450 versus 548** previously, despite adding the acceptance filter. The count is `4 * [1 prediction + 4*(26 material + 1 contact) + 2 guard + 1 finish] + 2 final reductions`. The edge path is 690 versus 804. These are command counts, not guaranteed timing ratios.
+For historical r1/r2, with four sweeps/four substeps, volumetric dispatch count was **450 versus 548** previously, despite adding the acceptance filter. The count is `4 * [1 prediction + 4*(26 material + 1 contact) + 2 guard + 1 finish] + 2 final reductions`. The edge path is 690 versus 804. These are command counts, not guaranteed timing ratios.
 
 ### Controls/diagnostics
 
@@ -109,11 +141,11 @@ BASELINE_DIR="../../build/tyre-baseline/Experimental/TyreGpuLab" \
 
 ## Verification performed
 
-### Unit tests: 10 passing
+### Historical unit tests: 10 passing (r3 has 14)
 
 Positive rest volumes and inverse matrices; manifold/periodic mesh; complete race-free new colour schedules; reduced topology; invalid mesh dimensions; linear active-byte packing/reused staging; immutable nonaliasing substep records; bounded adaptive budgets; rejection of bad settings; and heatmap/model flag separation.
 
-### Browser tests: actual WGSL and GPU buffers
+### Historical r1/r2 browser tests: actual WGSL and GPU buffers
 
 The following sequential runs passed WebGPU validation, finite-node checks and independent CPU determinant assertions over read-back **accepted GPU** snapshots (the CPU calculation is a test assertion, never a solver fallback):
 
