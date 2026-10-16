@@ -4,6 +4,7 @@ These browser design studies are separate from the native C++ editor.
 
 | Prototype | Entry point |
 | --- | --- |
+| Vehicle illumination prototype — WebGPU GI, driving, live HMI materials and ghost/wireframe | [VehicleIlluminationPrototype/index.html](VehicleIlluminationPrototype/index.html) |
 | Frontier Editor — outliner, inspector and sliding Construct menu | [FrontierEditor/index.html](FrontierEditor/index.html) |
 | SVG icon gallery | [FrontierEditor/icons.html](FrontierEditor/icons.html) |
 | Collection-icon options | [FrontierEditor/collection-icon-options.html](FrontierEditor/collection-icon-options.html) |
