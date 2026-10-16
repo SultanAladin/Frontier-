@@ -1052,6 +1052,33 @@ export class VehicleSolver
         return RotateVector(this.Orientation, [1.0, 0.0, 0.0]);
     }
 
+    // 📝 Caster + pneumatic-trail self-aligning steering target: when the front wheels roll with road contact, lateral
+    //    force at the contact patches pulls the steering toward the front axle's velocity vector (counter-steering into
+    //    any slide and returning to 0° when rolling straight), damped by chassis yaw rate to prevent tank-slapping.
+    QueryAligningSteer()
+    {
+        const Forward = RotateVector(this.Orientation, [1.0, 0.0, 0.0]);
+        const Left    = RotateVector(this.Orientation, [0.0, 1.0, 0.0]);
+        const Up      = RotateVector(this.Orientation, [0.0, 0.0, 1.0]);
+        const ForwardSpeed = DotVector(this.LinearVelocity, Forward);
+        const LateralSpeed = DotVector(this.LinearVelocity, Left);
+        const YawRate      = DotVector(this.AngularVelocity, Up);
+        const Speed        = LengthVector(this.LinearVelocity);
+        const FrontContact = 0.5 * ((this.Wheels[0].Contact ? 1.0 : 0.0) + (this.Wheels[1].Contact ? 1.0 : 0.0));
+        const SpeedFactor  = ClampScalar((Math.abs(ForwardSpeed) - 0.5) / 5.5, 0.0, 1.0) * FrontContact;
+        if (ForwardSpeed <= 0.8 || FrontContact <= 0.0)
+            return { AlignSteer: 0.0, SpeedFactor, SlideSeverity: 0.0 };
+        const Lock = ChassisSheet.MaxSteerAngleRad / (1.0 + Math.max(0.0, Speed - 8.0) / 22.0);
+        const FrontLateral = LateralSpeed + 1.546 * YawRate;
+        const FrontSlipAngle = Math.atan2(FrontLateral, Math.max(2.5, ForwardSpeed));
+        const ChassisSlipAngle = Math.atan2(LateralSpeed, Math.max(2.5, ForwardSpeed));
+        const YawLead = 0.085 * YawRate * ClampScalar((ForwardSpeed - 2.0) / 8.0, 0.0, 1.0);
+        const DesiredAngle = ClampScalar(FrontSlipAngle + YawLead, -Lock, Lock);
+        const AlignSteer = ClampScalar(DesiredAngle / Math.max(Lock, 1.0e-3), -1.0, 1.0);
+        const SlideSeverity = ClampScalar((Math.abs(ChassisSlipAngle) - 0.045) / 0.32, 0.0, 1.0) * FrontContact;
+        return { AlignSteer, SpeedFactor, SlideSeverity };
+    }
+
     QueryTelemetry()
     {
         const Forward = this.QueryForward();

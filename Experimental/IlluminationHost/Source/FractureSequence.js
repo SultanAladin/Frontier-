@@ -290,7 +290,7 @@ export class FractureSequence
         const Excess = Math.max(0.0, (Impact.Energy || 0.0) - Prop.Recipe.Threshold);
         const Burst = Math.min(9.0, Math.sqrt(2.0 * (0.15 * Excess + 40.0) / Math.max(Prop.Mass, 1.0))) * this.Settings.Separation;
         const Reach = Math.max(0.4, 0.8 * Placement.Radius);
-        const Albedo = this.ResolveFallbackAlbedo(Material);
+        const Albedo = this.ResolveFallbackAlbedo(Material, 1.4);
         const FieldRadius = this.Settings.FieldRadius * (this.Host.Distance ? this.Host.Distance.Clips[0].VoxelExtent : 0.125);
         Prop.Pieces = Fragments.map((Fragment, Slot) =>
         {
@@ -339,14 +339,63 @@ export class FractureSequence
     }
 
     // 📐 The albedo a traced ray reads off a card-less fragment: the mean of the material's skin and interior, packed
-    //    as linear RGBA8 into the occupant's FirstCard word.
-    ResolveFallbackAlbedo(Material)
+    //    as linear RGBA8 into the occupant's FirstCard word. The alpha byte encodes emissive boost (255 = 0, lower = brighter).
+    ResolveFallbackAlbedo(Material, EmissiveBoost = 0.0)
     {
         const Specification = this.Host.Materials || [];
-        const Skin = (Specification[Material.Skin] || { Albedo: [0.5, 0.5, 0.5] }).Albedo;
-        const Interior = (Specification[Material.Interior] || { Albedo: Skin }).Albedo;
-        const Channel = (Axis) => Math.max(0, Math.min(255, Math.round(127.5 * (Skin[Axis] + Interior[Axis]))));
-        return (Channel(0) | (Channel(1) << 8) | (Channel(2) << 16) | (255 << 24)) >>> 0;
+        const Skin = (Specification[Material.Skin] || { Albedo: [0.5, 0.5, 0.5], Emission: [0, 0, 0] });
+        const Interior = (Specification[Material.Interior] || { Albedo: Skin.Albedo, Emission: [0, 0, 0] });
+        const Channel = (Axis) => Math.max(0, Math.min(255, Math.round(127.5 * (Skin.Albedo[Axis] + Interior.Albedo[Axis]))));
+        const MaterialEmission = Math.max(...(Skin.Emission || [0, 0, 0]), ...(Interior.Emission || [0, 0, 0]));
+        const Boost = Math.min(1.0, Math.max(EmissiveBoost, MaterialEmission * 0.25) / 6.0);
+        const Alpha = Math.max(1, Math.min(255, Math.round((1.0 - Boost) * 255.0)));
+        return (Channel(0) | (Channel(1) << 8) | (Channel(2) << 16) | (Alpha << 24)) >>> 0;
+    }
+
+    // 📝 Dynamic emissive light from freshly shattered or kinetic debris fragments in the scene.
+    QueryDebrisLight()
+    {
+        let TotalWeight = 0.0;
+        const Centre = [0.0, 0.0, 0.0];
+        const Colour = [0.0, 0.0, 0.0];
+        const Specification = this.Host.Materials || [];
+        for (const Prop of this.Props)
+        {
+            if (Prop.State !== "broken" || Prop.Pieces.length === 0)
+                continue;
+            const Age = Math.max(0.0, this.Clock - Prop.BrokenAt);
+            const ImpactGlow = Math.exp(-Age / 1.6) * 2.2;
+            const Material = FractureMaterials[Prop.Recipe.Material] || FractureMaterials.concrete;
+            const Skin = Specification[Material.Skin] || { Albedo: [0.7, 0.6, 0.5], Emission: [0, 0, 0] };
+            const BaseTint = [
+                Math.min(1.0, Skin.Albedo[0] * 1.4 + 0.35),
+                Math.min(1.0, Skin.Albedo[1] * 1.2 + 0.25),
+                Math.min(1.0, Skin.Albedo[2] * 1.1 + 0.18)
+            ];
+            for (const Piece of Prop.Pieces)
+            {
+                if (!Piece.Body)
+                    continue;
+                const Kinetic = Piece.Body.Sleeping ? 0.0 : Math.min(1.2, 0.14 * LengthVector(Piece.Body.Linear));
+                const Power = (ImpactGlow + Kinetic) * Math.min(1.0, Piece.Fragment.Radius * 2.2);
+                if (Power <= 0.02)
+                    continue;
+                for (let Axis = 0; Axis < 3; ++Axis)
+                {
+                    Centre[Axis] += Piece.Body.Position[Axis] * Power;
+                    Colour[Axis] += BaseTint[Axis] * Power;
+                }
+                TotalWeight += Power;
+            }
+        }
+        if (TotalWeight <= 0.02)
+            return null;
+        return {
+            Position:  Centre.map((Component) => Component / TotalWeight),
+            Intensity: Math.min(5.5, TotalWeight * 0.28),
+            Colour:    Colour.map((Component) => Component / TotalWeight),
+            Reach:     8.5
+        };
     }
 
     // 📝 A fragment joins the scene distance field: a pool volume (computed on the device before this frame's union)

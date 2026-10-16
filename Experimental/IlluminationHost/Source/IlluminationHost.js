@@ -79,7 +79,7 @@ const TemporalRestartBit = 2048;   // [-] FeatureTemporalRestart in SceneRecords
 const PassNames = ["Distance union", "Card lighting", "Shadow", "Surface", "Direct", "ReSTIR GI", "Diffuse reconstruction",
                    "Reflection", "Glossy reconstruction", "Resolve", "Smoke transport", "Smoke render"];
 
-const FrameRecordExtent = 512;   // [B] FrameRecord in SceneRecords.wgsl
+const FrameRecordExtent = 576;   // [B] FrameRecord in SceneRecords.wgsl
 const FireLightReach    = 14.0;  // [m] influence radius of a tyre fire's light
 
 //------------------------------------------------------------------------------------------------------------------------
@@ -108,9 +108,10 @@ class IlluminationHost
             Antialias: true, TraceScale: 2, FreezeDistance: false, CardRadiosity: true, CardTileBudget: this.Grade.TileBudget,
             Quality: ["low", "medium", "high"].indexOf(this.GradeName),
             RenderScale: this.Grade.RenderScale, LightingPreset: "Custom", TestPlume: 0,
-            // 📝 Tyres: cold pressures per axle [kPa], the carcass deformation and its visual exaggeration, wear and failure.
-            TyrePressureFront: 220, TyrePressureRear: 220, TyreDeformation: true, DeformationScale: 1.0,
+            // 📝 Tyres & steering: cold pressures per axle [kPa], wear, failure, sparks and caster self-aligning steering assist.
+            TyrePressureFront: 220, TyrePressureRear: 220, TyreDeformation: false, DeformationScale: 1.0,
             TyreWear: true, WearScale: 1.0, TyreFailure: true, Sparks: true,
+            SteerAutoCorrect: true, SteerAutoCorrectStrength: 0.70,
             // 📝 Cockpit size (Cabin · HMI): the interior's scale about its anchor and its offset [m] (CabinStructure.js);
             //    ?cockpit=0.9 starts it scaled.
             ...CockpitDefaults,
@@ -219,6 +220,7 @@ class IlluminationHost
             TyreMarkExtentY:       { Type: "f32", Value: TyreMarkLayout.Extent[1] },
             TyreMarkPatchWidth:    { Type: "f32", Value: TyreMarkLayout.PatchWidth },
             TyreMarkFamily:        { Type: "u32", Value: CourseMaterial.TyreRubber },
+            RimMarkFamily:         { Type: "u32", Value: CourseMaterial.RimScrape },
             MarkedFamilyFirst:     { Type: "u32", Value: MarkedFamilyFirst },
             MarkedFamilyLast:      { Type: "u32", Value: MarkedFamilyLast },
             MarkedFamilyExtraFirst: { Type: "u32", Value: MarkedFamilyExtraFirst },
@@ -1033,6 +1035,30 @@ class IlluminationHost
         Scalars[123] = this.Settings.SmokeEnabled ? Fire.Intensity : 0.0;
         Scalars.set(Fire.Colour, 124);
         Scalars[127] = FireLightReach;
+        const SparkLight = this.Sparks ? this.Sparks.SparkLight : null;
+        if (SparkLight && this.Settings.Sparks && SparkLight.Intensity > 0.0)
+        {
+            Scalars.set(SparkLight.Position, 128);
+            Scalars[131] = SparkLight.Intensity * this.Settings.EmissionScale;
+            Scalars.set(SparkLight.Colour, 132);
+            Scalars[135] = SparkLight.Reach || 9.0;
+        }
+        const EffectLight = this.Effects ? this.Effects.DebrisLight : null;
+        const FractureLight = this.Fracture ? this.Fracture.QueryDebrisLight() : null;
+        const EffectPower = EffectLight && EffectLight.Intensity > 0.0 ? EffectLight.Intensity : 0.0;
+        const FracturePower = FractureLight && FractureLight.Intensity > 0.0 ? FractureLight.Intensity : 0.0;
+        const TotalDebrisPower = EffectPower + FracturePower;
+        if (TotalDebrisPower > 0.0)
+        {
+            const DebrisPos = [0, 1, 2].map((Axis) => ((EffectLight ? EffectLight.Position[Axis] * EffectPower : 0.0)
+                                                     + (FractureLight ? FractureLight.Position[Axis] * FracturePower : 0.0)) / TotalDebrisPower);
+            const DebrisCol = [0, 1, 2].map((Axis) => ((EffectLight ? EffectLight.Colour[Axis] * EffectPower : 0.0)
+                                                     + (FractureLight ? FractureLight.Colour[Axis] * FracturePower : 0.0)) / TotalDebrisPower);
+            Scalars.set(DebrisPos, 136);
+            Scalars[139] = Math.min(7.5, TotalDebrisPower) * this.Settings.EmissionScale;
+            Scalars.set(DebrisCol, 140);
+            Scalars[143] = Math.max(EffectLight ? EffectLight.Reach : 0.0, FractureLight ? FractureLight.Reach : 0.0, 9.5);
+        }
         this.Exchange.Device.queue.writeBuffer(this.FrameRecords, 0, Bytes);
     }
 
@@ -1058,7 +1084,9 @@ class IlluminationHost
 
         // ① drive: keyboard (or a scripted command) through the input ramps into the vehicle solver
         const Keys = this.FreeCamera ? new Set(["Space"]) : this.Keys;
-        let Command = this.ScriptedInput ? this.ScriptedInput : this.Driver.Advance(Keys, Δτ);
+        let Command = this.ScriptedInput
+            ? this.ScriptedInput
+            : this.Driver.Advance(Keys, Δτ, this.Vehicle, this.Settings.SteerAutoCorrect, this.Settings.SteerAutoCorrectStrength);
         // 📝 Derezzing with momentum: the car carries on under the solver with nobody at the controls.
         if (this.Vehicle.Coasting)
             Command = { Throttle: 0.0, Brake: 0.0, Steer: 0.0, Handbrake: false };
@@ -1083,7 +1111,7 @@ class IlluminationHost
         Object.assign(this.Thermal.Options, { Wear: this.Settings.TyreWear, WearScale: this.Settings.WearScale, Failure: this.Settings.TyreFailure });
         this.Thermal.Advance(Readings, Readings[0].Seconds, Ignition);
         this.Vehicle.AssignGrip(this.Settings.ThermalGrip ? this.Thermal.Wheels.map((Wheel) => Wheel.Grip) : [1.0, 1.0, 1.0, 1.0]);
-        // 📝 Pressure from the gas law feeds the soft tyre; pinch cuts leak; bursts and shreds throw rubber; scrapes spark.
+        // 📝 Pressure from the gas law feeds the tyre spring; pinch cuts leak; bursts and shreds throw rubber; scrapes spark.
         for (const Pinch of VehicleEvents.Pinches)
             if (this.Thermal.Puncture(Pinch.Wheel, false, "pinch cut"))
                 this.Shell.Announce(`${["FL", "FR", "RL", "RR"][Pinch.Wheel]} pinch cut — leaking`);
@@ -1094,10 +1122,10 @@ class IlluminationHost
             this.OnTyreShred(Wheel);
         this.Sparks.Settings.Enabled = this.Settings.Sparks;
         this.Sparks.Emit(VehicleEvents.Sparks, Step);
-        this.Sparks.Advance(Step);
+        this.Sparks.Advance(Step, this.Bodies);
         this.Carcass.Advance(this.Vehicle.QueryCarcassContacts(), Step);
         const Pumped = this.Cabin.Advance(Δτ, this.QueryTyreLive());
-        Device.queue.writeBuffer(this.VehicleRecords, 0, this.Carcass.EncodeRecord(this.QueryCabinHeader(), this.Settings.TyreDeformation));
+        Device.queue.writeBuffer(this.VehicleRecords, 0, this.Carcass.EncodeRecord(this.QueryCabinHeader()));
         if (Pumped !== null)
         {
             this.InflateTyres(Pumped, Pumped);

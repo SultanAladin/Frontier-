@@ -105,5 +105,15 @@ fn IntegrateDirectRadiance(@builtin(global_invocation_id) Invocation: vec3u)
     {
         Radiance += Fire.Illuminance * ResolveDirectReflectance(Surface, Normal, View, Fire.Direction);
     }
+    let Spark = ResolveSparkArrival(Position, Normal);
+    if (any(Spark.Illuminance > vec3f(0.0)))
+    {
+        Radiance += Spark.Illuminance * ResolveDirectReflectance(Surface, Normal, View, Spark.Direction);
+    }
+    let Debris = ResolveDebrisArrival(Position, Normal);
+    if (any(Debris.Illuminance > vec3f(0.0)))
+    {
+        Radiance += Debris.Illuminance * ResolveDirectReflectance(Surface, Normal, View, Debris.Direction);
+    }
     textureStore(DirectTarget, vec2i(Pixel), vec4f(Radiance, 1.0));
 }

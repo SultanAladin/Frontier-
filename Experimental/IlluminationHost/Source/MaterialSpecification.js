@@ -96,7 +96,8 @@ export const CourseMaterial = Object.freeze({
     CabinCarpet:     77,
     MirrorTrim:      78,    // the rear-view mirror's housing and stem: CabinTrim's finish, fixed to the shell, not the cockpit
     BodyCoatPrevious:79,    // prior paint finish during an expanding HMI material ripple
-    HubPrevious:     80     // prior wheel rim finish during an expanding HMI material ripple
+    HubPrevious:     80,    // prior wheel rim finish during an expanding HMI material ripple
+    RimScrape:       81     // abraded asphalt + metallic alloy transfer left by a shredded tyre's bare rim
 });
 
 export const MarkedFamilyFirst = CourseMaterial.Asphalt;   // [-]
@@ -286,6 +287,10 @@ export function ConstructMaterialSpecification()
                                                    Emission: Materials[CourseMaterial.BodyCoat].Emission.slice() };
     Materials[CourseMaterial.HubPrevious]      = { ...Materials[CourseMaterial.Hub], Albedo: Materials[CourseMaterial.Hub].Albedo.slice(),
                                                    Emission: Materials[CourseMaterial.Hub].Emission.slice() };
+    const RimScrape = Dielectric(0.38, 0.40, 0.44, 0.34);
+    RimScrape.Metalness = 0.52;
+    RimScrape.SpecularLevel = 0.08;
+    Materials[CourseMaterial.RimScrape]        = RimScrape;
     return Materials;
 }
 

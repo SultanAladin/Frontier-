@@ -67,6 +67,7 @@ export class EffectSequence
         this.Bounds   = { Minimum: [-2.5, -1.0, -0.6], Maximum: [2.5, 1.0, 0.9] };
         this.Records  = Exchange.ConstructRecords(RecordExtent, GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST, "Effect record");
         this.Metrics  = { Emitted: 0, Live: 0 };
+        this.DebrisLight = { Position: [0.0, 0.0, 0.0], Intensity: 0.0, Colour: [0.32, 0.82, 1.0], Reach: 10.0 };
         // 📝 The car's motion through a derez, sampled at 60 Hz on the effect clock (EffectPose).
         this.Poses     = new Float32Array(PoseCapacity * PoseFloats);
         this.PoseCount = 0;
@@ -344,6 +345,10 @@ export class EffectSequence
             this.PoseFlushed = this.PoseCount;
         }
         let Live = 0;
+        let LightPower = 0.0;
+        const LightCentre = [0.0, 0.0, 0.0];
+        const LightColour = [0.0, 0.0, 0.0];
+        const GlowLinear = ParseColour(this.Settings.Glow || "#35d6ff");
         for (let Slot = 0; Slot < EmitterSlots; ++Slot)
         {
             const Emitter = this.Emitters[Slot];
@@ -354,9 +359,35 @@ export class EffectSequence
             else if (this.Clock > Emitter.End)
                 this.Emitters[Slot] = null;
             else
+            {
                 Live++;
+                const Span = Math.max(0.2, Emitter.End - Emitter.Start);
+                const Progress = Math.max(0.0, Math.min(1.0, (this.Clock - Emitter.Start) / Span));
+                const Envelope = Math.sin(Math.PI * Progress) * Math.max(0.2, this.Settings.Intensity);
+                const Scale = (Emitter.Kind === EffectKind.VehicleDerez || Emitter.Kind === EffectKind.VehicleRez) ? 3.4 : 1.45;
+                const Power = Envelope * Scale;
+                const Elapsed = Math.max(0.0, this.Clock - Emitter.Start);
+                const WorldPos = [
+                    Emitter.Transform[12] + Emitter.Centre[0] + Emitter.Velocity[0] * Math.min(Elapsed, 0.6) * 0.4,
+                    Emitter.Transform[13] + Emitter.Centre[1] + Emitter.Velocity[1] * Math.min(Elapsed, 0.6) * 0.4,
+                    Math.max(0.35, Emitter.Transform[14] + Emitter.Centre[2] + 0.45)
+                ];
+                const Tint = Emitter.Kind === EffectKind.Debris ? [1.0, 0.62, 0.28] : GlowLinear;
+                for (let Axis = 0; Axis < 3; ++Axis)
+                {
+                    LightCentre[Axis] += WorldPos[Axis] * Power;
+                    LightColour[Axis] += Tint[Axis] * Power;
+                }
+                LightPower += Power;
+            }
         }
         this.Metrics.Live = Live;
+        this.DebrisLight.Intensity = LightPower;
+        if (LightPower > 0.0)
+        {
+            this.DebrisLight.Position = LightCentre.map((Component) => Component / LightPower);
+            this.DebrisLight.Colour = LightColour.map((Component) => Component / LightPower);
+        }
         this.Upload();
     }
 

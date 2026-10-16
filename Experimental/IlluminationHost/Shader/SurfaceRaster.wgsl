@@ -76,17 +76,17 @@ fn SurfaceVertex(@location(0) Position: vec3f, @location(1) Family: u32, @locati
     return Varying;
 }
 
-// 📝 Rubber on a marked road pixel, from the two-channel deposit: the deposit is filtered bilinearly, the lateral
-//    coordinate among touched texels only (an untouched neighbour has no idea where any tread was), and the result
-//    is cut to the tread — 0 ≤ lateral ≤ 1, antialiased over a pixel — with the tread's four grooves taken out of it.
-fn SampleTyreRubber(World: vec2f, PixelFootprint: f32) -> f32
+// 📝 Road marks on a marked road pixel, from the two-channel deposit: the deposit is filtered bilinearly, the lateral
+//    coordinate among touched texels only (G = 1..127 for 5-rib rubber tread, G = 128..255 for twin-flange bare-rim
+//    scrape marks when a tyre is shredded). Returns vec2f(Deposit, IsRimMark).
+fn SampleRoadMark(World: vec2f, PixelFootprint: f32) -> vec2f
 {
     let Extent = vec2f(TyreMarkExtentX, TyreMarkExtentY);
     let Texels = vec2f(textureDimensions(TyreMarks));
     let Coordinates = (World - vec2f(TyreMarkOriginX, TyreMarkOriginY)) / Extent;
     if (any(Coordinates <= vec2f(0.0)) || any(Coordinates >= vec2f(1.0)))
     {
-        return 0.0;
+        return vec2f(0.0, 0.0);
     }
     let Position = Coordinates * Texels - 0.5;
     let Corner = vec2i(floor(Position));
@@ -94,6 +94,7 @@ fn SampleTyreRubber(World: vec2f, PixelFootprint: f32) -> f32
     var Deposit = 0.0;
     var Lateral = 0.0;
     var LateralWeight = 0.0;
+    var RimWeight = 0.0;
     for (var Tap = 0u; Tap < 4u; Tap++)
     {
         let Offset = vec2i(i32(Tap & 1u), i32(Tap >> 1u));
@@ -103,26 +104,38 @@ fn SampleTyreRubber(World: vec2f, PixelFootprint: f32) -> f32
         Deposit += Value.x * Weight;
         if (Value.y > 0.5 / 255.0)
         {
-            Lateral += ((Value.y * 255.0 - 1.0) / 254.0 * 1.5 - 0.25) * Weight;
+            let IsRim = Value.y >= 127.5 / 255.0;
+            let Norm = select((Value.y * 255.0 - 1.0) / 126.0, (Value.y * 255.0 - 128.0) / 127.0, IsRim);
+            Lateral += (Norm * 1.5 - 0.25) * Weight;
             LateralWeight += Weight;
+            RimWeight += select(0.0, Weight, IsRim);
         }
     }
     if (LateralWeight <= 1.0e-4 || Deposit <= 0.0)
     {
-        return 0.0;
+        return vec2f(0.0, 0.0);
     }
     Lateral /= LateralWeight;
     // 📝 Edges: a pixel's footprint in lateral units, so the edge is one pixel wide at any distance.
     let Soft = max(PixelFootprint / (TyreMarkPatchWidth), 0.02);
     let Inside = smoothstep(-Soft, Soft, Lateral) * smoothstep(-Soft, Soft, 1.0 - Lateral);
+    let Normalised = clamp(Deposit / max(LateralWeight, 0.25), 0.0, 1.0);
+    if (RimWeight >= 0.5 * LateralWeight)
+    {
+        // 📝 Bare alloy rim scrape: twin sharp outer flange rails at 0.14 and 0.86 plus a scored inner barrel path.
+        let RailWidth = max(0.075, Soft * 1.1);
+        let LeftRail = exp(-pow((Lateral - 0.14) / RailWidth, 2.0));
+        let RightRail = exp(-pow((Lateral - 0.86) / RailWidth, 2.0));
+        let InnerScore = 0.42 * smoothstep(0.10, 0.18, Lateral) * smoothstep(0.10, 0.18, 1.0 - Lateral);
+        return vec2f(Normalised * Inside * max(max(LeftRail, RightRail), InnerScore), 1.0);
+    }
     var Grooves = 0.0;
     for (var Groove = 0u; Groove < 4u; Groove++)
     {
         let Centre = 0.2 + 0.2 * f32(Groove);
         Grooves = max(Grooves, 1.0 - smoothstep(0.022, 0.022 + Soft, abs(Lateral - Centre)));
     }
-    let Normalised = Deposit / max(LateralWeight, 0.25);
-    return clamp(Normalised, 0.0, 1.0) * Inside * (1.0 - 0.55 * Grooves);
+    return vec2f(Normalised * Inside * (1.0 - 0.55 * Grooves), 0.0);
 }
 
 fn ProjectScreenPixel(Clip: vec4f) -> vec2f
@@ -134,10 +147,8 @@ fn ProjectScreenPixel(Clip: vec4f) -> vec2f
 @fragment
 fn SurfaceFragment(Varying: SurfaceVarying) -> SurfaceTargets
 {
-    // 📝 Derivatives first, in uniform control flow: the pixel's footprint on the ground for the tyre-mark edges, and
-    //    the facet's own orientation for the soft tyre's guard below.
+    // 📝 Derivatives first, in uniform control flow: the pixel's footprint on the ground for the road-mark edges.
     let Footprint = length(fwidth(Varying.WorldPosition.xy));
-    let Across = cross(dpdx(Varying.WorldPosition), dpdy(Varying.WorldPosition));
     var Normal = normalize(Varying.Normal);
     let View = normalize(Frame.CameraPosition - Varying.WorldPosition);
     // 📝 Every surface shades two-sided: an open facet seen from behind turns its normal toward the viewer.
@@ -145,19 +156,8 @@ fn SurfaceFragment(Varying: SurfaceVarying) -> SurfaceTargets
     {
         Normal = -Normal;
     }
-    // 📝 A soft tyre squashed nearly to its rim folds tighter than its facets can follow: where the deformed shading
-    //    normal turns more than ~80° from the facet it lies on, it is bent back toward the facet's own orientation.
-    if (Varying.Vehicle == 1u && Varying.Family == TyreFamily && dot(Across, Across) > 1.0e-20)
-    {
-        let Facet = normalize(Across) * select(1.0, -1.0, dot(Across, View) < 0.0);
-        if (dot(Normal, Facet) < 0.17)
-        {
-            Normal = normalize(mix(Facet, Normal, 0.3));
-        }
-    }
-    // 📝 Tyre rubber: a road pixel becomes the rubber family with probability equal to the deposit under it. The
-    //    threshold is an interleaved gradient that changes every frame, so temporal antialiasing averages the coin
-    //    flips into a smooth darkening — and no lighting program needs to know the marks exist.
+    // 📝 Road marks: a road pixel becomes TyreRubber (intact tyre) or RimScrape (shredded tyre on bare rim) with
+    //    probability equal to the deposit under it.
     var Family = Varying.Family;
     var Glow = 0.0;
     let Pixel = Varying.Position.xy + vec2f(5.588238 * f32(Frame.FrameIndex % 32u));
@@ -201,10 +201,10 @@ fn SurfaceFragment(Varying: SurfaceVarying) -> SurfaceTargets
     let Marked = (Family >= MarkedFamilyFirst && Family <= MarkedFamilyLast) || (Family >= MarkedFamilyExtraFirst && Family <= MarkedFamilyExtraLast);
     if (Marked)
     {
-        let Deposit = SampleTyreRubber(Varying.WorldPosition.xy, Footprint);
-        if (Deposit > Threshold)
+        let RoadMark = SampleRoadMark(Varying.WorldPosition.xy, Footprint);
+        if (RoadMark.x > Threshold)
         {
-            Family = TyreMarkFamily;
+            Family = select(TyreMarkFamily, RimMarkFamily, RoadMark.y > 0.5);
         }
     }
     // 📝 The derez mask: a car pixel whose cell has been released is gone (its cubes have left, EffectRaster), and the

@@ -7,6 +7,7 @@
 //! include "DistanceTraversal.wgsl"
 //! include "SkyProjection.wgsl"
 //! include "CardProjection.wgsl"
+//! include "FireIllumination.wgsl"
 
 // 📝 Group 2 is the card depot as the tracers see it: occupants, cards, card depth (2.0+ marks a vacant texel) and the
 //    card final radiance, plus the sky-view radiance a ray that escapes reads instead.
@@ -155,7 +156,9 @@ fn SampleCardRadiance(Position: vec3f, Normal: vec3f, Identity: u32, Tolerance: 
 //    L = ρ/π · (E_sun · cosθ · V + π · L_sky(n') · (½ + ½ n_z)). Rough, and enough for a second bounce.
 fn ResolveFallbackRadiance(Occupant: OccupantRecord, Position: vec3f, Normal: vec3f) -> vec3f
 {
-    let Albedo = unpack4x8unorm(Occupant.FirstCard).rgb;
+    let Packed = unpack4x8unorm(Occupant.FirstCard);
+    let Albedo = Packed.rgb;
+    let EmissiveBoost = max(0.0, (1.0 - Packed.a) * 6.0);
     var Irradiance = vec3f(0.0);
     let Cosine = dot(Normal, Frame.SunDirection);
     if (Cosine > 0.0)
@@ -163,9 +166,15 @@ fn ResolveFallbackRadiance(Occupant: OccupantRecord, Position: vec3f, Normal: ve
         let Bias = ResolveSurfaceBias(Position);
         Irradiance += Frame.SunIlluminance * Cosine * TraverseSceneShadow(Position + Normal * Bias, Frame.SunDirection, 0.5 * Bias, 60.0, 6.0);
     }
+    let Fire = ResolveFireArrival(Position, Normal);
+    Irradiance += Fire.Illuminance * max(dot(Normal, Fire.Direction), 0.0);
+    let Spark = ResolveSparkArrival(Position, Normal);
+    Irradiance += Spark.Illuminance * max(dot(Normal, Spark.Direction), 0.0);
+    let Debris = ResolveDebrisArrival(Position, Normal);
+    Irradiance += Debris.Illuminance * max(dot(Normal, Debris.Direction), 0.0);
     let Upward = normalize(Normal + vec3f(0.0, 0.0, 1.0));
     Irradiance += 3.14159265 * SampleSkyRadiance(Upward) * (0.5 + 0.5 * Normal.z);
-    return Albedo * InversePi * Irradiance;
+    return Albedo * InversePi * Irradiance + Albedo * EmissiveBoost * Frame.EmissionScale;
 }
 
 // 📝 Tolerance for a hit answered by cascade Level: one and a half of its voxels, never below 6 cm.

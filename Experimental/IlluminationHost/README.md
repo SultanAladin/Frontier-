@@ -187,36 +187,35 @@ model in the dynamics and a deformation in the vertex stage.
   and shreds at 20–30 m/s and a weave on soft and flat tyres (upright, never airborne), donuts both ways (each
   corner's sliding work mirrors its partner's) and coasting backwards on a bare rim (the AMT's clutch opens when the
   wheels turn against the gear, so engine braking no longer spins them up).
-* **What you see** is a 96-node flexible ring on an elastic foundation per wheel (tension and support from the
-  pressure, the steel belt's bending), integrated at 3.6 kHz against the road: it flattens into a contact patch,
-  shifts sideways under cornering and trails a standing wave past ~210 km/h (~55 km/h flat). The tyre vertices take
-  the ring's deflection by their share of the sidewall height — the bead stays on the rim — and the sidewalls bow out
-  where the belt is squashed, as an inextensible wall does (√(3·h·w/8), at most the 0.36·h such an arc reaches; a
-  quarter of that while the air carries the load). The normal is the deformed surface's own (finite differences
-  along the tangent plane), so the patch, the bulge and the squashed sidewall light as they bend. **Deformation ×**
-  (Vehicle → Tyres) exaggerates what the road does not fix — roll-in and roll-out, the standing wave, the bulge, the
-  sideways shift — and keeps every patch on the road (the dynamics never see it); the **Tyre FL / Tyre RL** camera
-  rigs look at the patch. The rim is hard-shaded: each of its facets takes its own flat normal.
+* **What you see**: intact tyres render round with their authored smooth normals, while a shredded tyre strips its
+  tread and sidewalls onto the rim barrel (`Shader/TyreCarcass.wgsl`). When a tyre is shredded, `Source/TyreMarkDepot.js`
+  and `Shader/SurfaceRaster.wgsl` switch from 5-rib rubber skid marks (`CourseMaterial.TyreRubber`) to twin-flange
+  metallic **rim scrape marks** (`CourseMaterial.RimScrape`).
+* **Steering auto-correct** (`Source/VehicleSolver.js`, `Source/DriverInputIntegrator.js`): caster and pneumatic-trail
+  self-aligning torque scales with rolling speed and front tyre contact, counter-steering into slides/drifts (damped by
+  chassis yaw rate to prevent tank-slapping) and smoothly returning the steering wheel to centre as the car straightens out.
 * **Pressure** is the gas law of the thermal model — air mass, gas temperature, leaks: set cold pressures per axle,
   or from the HMI's Tyres app. **Failure**: sliding work abrades the 1.1 kg tread (faster when hot); a tyre bursts
   when its tread is worn through, its carcass cooks past 220 °C or hot gas drives it past 650 kPa — a blowout empties
   it in a fraction of a second, with rubber chunks thrown from the wheel and a puff of smoke. A hard pinch cuts the
   carcass (a slow leak); the buttons puncture, blow out or shred any tyre. A flat rolled 150 m sheds its rubber: the
-  wheel runs on its rim (radius 0.357 m, a third of the grip) and grinds sparks. The rez brings fresh tyres.
+  wheel runs on its rim (radius 0.357 m, a third of the grip), scores metallic rim marks and grinds sparks. The rez brings fresh tyres.
 
-## Sparks and the body's hull
+## Sparks, debris illumination and the body's hull
 
-`Source/SparkSequence.js`, `Shader/SparkRaster.wgsl`, `Source/HullStructure.js`. The body no longer meets the road
+`Source/SparkSequence.js`, `Shader/SparkRaster.wgsl`, `Shader/FireIllumination.wgsl`, `Source/HullStructure.js`. The body no longer meets the road
 and the boxes as seventeen 0.32 m spheres: ~700 points ray-cast from its own facets (underside, top, flanks, nose,
 tail, mirrors, every crease vertex) are projected out of the course and the obstacle boxes, so the car sits on what
 it actually touches — no gaps for a crate to nose between, no resting on air above a kerb. Every point sliding faster
-than 2 m/s scrapes, and so does a rim on the road (pinched through a flat, or bare). Each scrape throws sparks at
-1500–2100 K: a hull point's leave along the slide, fanned and kicked off the surface; a rim's leave its edge a little
-behind the patch, where the metal has just left the road, at that point's own velocity (slip + S(1 − cos α)·F +
-|S| sin α·N, S = Spin·r) — up off the trailing edge, streaming back from a rolling wheel, forward along the slide
-from a locked one, back off a spinning one. They fall, cool radiatively and skip off the road, drawn after the
-antialiasing as thin additive blackbody streaks (2.2 mm, at least a pixel) from where the camera saw them a frame ago
-to where it sees them now, depth-tested against the scene.
+than 2 m/s scrapes, and so does a rim on the road (pinched through a flat, or bare). Each scrape throws incandescent
+carbon-steel / alloy sparks at 2450–3400 K: a hull point's leave along the slide, fanned and kicked off the surface;
+a rim's leave its edge a little behind the patch, where the metal has just left the road, at that point's own velocity
+(slip + S(1 − cos α)·F + |S| sin α·N, S = Spin·r). Sparks cool via physical Stefan–Boltzmann $T^4$ radiation and air
+convection from an incandescent white-hot core through warm straw-gold and amber to deep cherry-red embers (with
+terminal carbon-oxidation micro-bursts), collide and ricochet off the course relief (`ResolveCourseNormal`), static
+world obstacle AABBs (`World.Obstacles`) and dynamic rigid-body convex hulls (`World.Bodies`), and cast dynamic
+shadowed point illumination (`SparkLight` and `DebrisLight` in `Shader/FireIllumination.wgsl`) into both direct
+screen lighting (`DirectRadiance.wgsl`) and GI surface cards (`CardDirect.wgsl`, `CardSampling.wgsl`).
 
 ## The cabin and the HMI
 

@@ -58,5 +58,9 @@ fn IntegrateCardDirect(@builtin(workgroup_id) Group: vec3u, @builtin(local_invoc
     }
     let Fire = ResolveFireArrival(Position, Normal);
     Irradiance += Fire.Illuminance * max(dot(Normal, Fire.Direction), 0.0);
+    let Spark = ResolveSparkArrival(Position, Normal);
+    Irradiance += Spark.Illuminance * max(dot(Normal, Spark.Direction), 0.0);
+    let Debris = ResolveDebrisArrival(Position, Normal);
+    Irradiance += Debris.Illuminance * max(dot(Normal, Debris.Direction), 0.0);
     textureStore(CardDirectTarget, Texel, vec4f(Irradiance, 1.0));
 }

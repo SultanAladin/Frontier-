@@ -43,6 +43,14 @@ struct FrameRecord
     FireLightIntensity               : f32,       // [-]    point intensity; 0 when nothing burns
     FireLightColour                  : vec3f,     // [-]    chromaticity of the flame light
     FireLightReach                   : f32,       // [m]    influence radius
+    SparkLightPosition               : vec3f,     // [m]    power-weighted centre of live incandescent sparks
+    SparkLightIntensity              : f32,       // [-]    point intensity; 0 when no sparks fly
+    SparkLightColour                 : vec3f,     // [-]    chromaticity of the spark shower
+    SparkLightReach                  : f32,       // [m]    influence radius
+    DebrisLightPosition              : vec3f,     // [m]    power-weighted centre of glowing derez/fracture debris
+    DebrisLightIntensity             : f32,       // [-]    point intensity; 0 when no emissive debris is active
+    DebrisLightColour                : vec3f,     // [-]    chromaticity of the glowing debris
+    DebrisLightReach                 : f32,       // [m]    influence radius
 }
 
 // 📝 FeatureBit — the toggles the control panel exposes, read by the programs that honour them.

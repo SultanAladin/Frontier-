@@ -12,22 +12,22 @@
 
 struct FireArrival
 {
-    Direction   : vec3f,   // [-]  toward the fire
+    Direction   : vec3f,   // [-]  toward the emitter
     Illuminance : vec3f,   // [-]  arriving at normal incidence, shadowed and windowed
 }
 
-fn ResolveFireArrival(Position: vec3f, Normal: vec3f) -> FireArrival
+fn ResolvePointArrival(LightPosition: vec3f, LightIntensity: f32, LightColour: vec3f, Reach: f32, SelfRadius: f32,
+                       Position: vec3f, Normal: vec3f) -> FireArrival
 {
     var Arrival: FireArrival;
     Arrival.Direction = vec3f(0.0, 0.0, 1.0);
     Arrival.Illuminance = vec3f(0.0);
-    if (Frame.FireLightIntensity <= 0.0)
+    if (LightIntensity <= 0.0 || Reach <= 0.0)
     {
         return Arrival;
     }
-    let Toward = Frame.FireLightPosition - Position;
+    let Toward = LightPosition - Position;
     let Squared = dot(Toward, Toward);
-    let Reach = Frame.FireLightReach;
     if (Squared >= Reach * Reach)
     {
         return Arrival;
@@ -41,11 +41,26 @@ fn ResolveFireArrival(Position: vec3f, Normal: vec3f) -> FireArrival
     let Ratio = Squared / (Reach * Reach);
     let Window = (1.0 - Ratio * Ratio) * (1.0 - Ratio * Ratio);
     var Visibility = 1.0;
-    if (FeatureEnabled(Frame, FeatureDirectShadow))
+    if (FeatureEnabled(Frame, FeatureDirectShadow) && Range > SelfRadius + 0.1)
     {
         let Bias = ResolveSurfaceBias(Position);
-        Visibility = TraverseSceneShadow(Position + Normal * Bias, Arrival.Direction, 0.5 * Bias, max(Range - 0.6, 0.0), 4.0);
+        Visibility = TraverseSceneShadow(Position + Normal * Bias, Arrival.Direction, 0.5 * Bias, max(Range - SelfRadius, 0.0), 4.0);
     }
-    Arrival.Illuminance = Frame.FireLightColour * Frame.FireLightIntensity * Window * Visibility / max(Squared, 0.25);
+    Arrival.Illuminance = LightColour * LightIntensity * Window * Visibility / max(Squared, 0.18);
     return Arrival;
+}
+
+fn ResolveFireArrival(Position: vec3f, Normal: vec3f) -> FireArrival
+{
+    return ResolvePointArrival(Frame.FireLightPosition, Frame.FireLightIntensity, Frame.FireLightColour, Frame.FireLightReach, 0.6, Position, Normal);
+}
+
+fn ResolveSparkArrival(Position: vec3f, Normal: vec3f) -> FireArrival
+{
+    return ResolvePointArrival(Frame.SparkLightPosition, Frame.SparkLightIntensity, Frame.SparkLightColour, Frame.SparkLightReach, 0.35, Position, Normal);
+}
+
+fn ResolveDebrisArrival(Position: vec3f, Normal: vec3f) -> FireArrival
+{
+    return ResolvePointArrival(Frame.DebrisLightPosition, Frame.DebrisLightIntensity, Frame.DebrisLightColour, Frame.DebrisLightReach, 0.75, Position, Normal);
 }

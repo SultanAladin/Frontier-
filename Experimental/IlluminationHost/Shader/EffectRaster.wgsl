@@ -266,7 +266,7 @@ fn ResolveCube(Emitter: EffectEmitter, Particle: u32, Child: u32, Clock: f32) ->
         if (Faces || Debris)
         {
             Cube.Family = FaceFamily;
-            Cube.Glow = select(ResolveFaceGlow(Flight, Effect.Colour.y), 0.0, Debris);
+            Cube.Glow = select(ResolveFaceGlow(Flight, Effect.Colour.y), ResolveFaceGlow(Flight, max(Effect.Colour.y * 0.45, 2.2)), Debris);
         }
         return Cube;
     }
@@ -294,7 +294,7 @@ fn ResolveCube(Emitter: EffectEmitter, Particle: u32, Child: u32, Clock: f32) ->
     {
         // 📝 The shards keep the colour of what they broke from, a last ember of the glow fading as they shrink.
         Cube.Family = FaceFamily;
-        Cube.Glow = select(0.4 * Effect.Colour.y * exp(-ChildTime / 0.4), 0.0, Debris);
+        Cube.Glow = 0.4 * select(Effect.Colour.y, max(Effect.Colour.y * 0.45, 2.0), Debris) * exp(-ChildTime / 0.4);
     }
     return Cube;
 }

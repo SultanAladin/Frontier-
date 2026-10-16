@@ -129,19 +129,15 @@ fn ShredTyre(Wheel: u32, Position: vec3f, Normal: vec3f) -> DeformedVertex
     return Deformed;
 }
 
-// 📝 Position only, for the shadow pass.
+// 📝 Position only, for the shadow pass. Intact tyres stay rigid and round; only a shredded tyre collapses onto its rim.
 fn DeformTyrePosition(Wheel: u32, Position: vec3f) -> vec3f
 {
     let Shape = VehicleState.Carcasses[Wheel].Shape;
-    if (length(Position.xz) <= Shape.y)
+    if (length(Position.xz) <= Shape.y || Shape.w <= 0.5)
     {
         return Position;
     }
-    if (Shape.w > 0.5)
-    {
-        return ShredTyre(Wheel, Position, vec3f(1.0, 0.0, 0.0)).Position;
-    }
-    return DisplaceTyre(Wheel, Position);
+    return ShredTyre(Wheel, Position, vec3f(1.0, 0.0, 0.0)).Position;
 }
 
 fn DeformTyre(Wheel: u32, Position: vec3f, Normal: vec3f) -> DeformedVertex
@@ -150,27 +146,11 @@ fn DeformTyre(Wheel: u32, Position: vec3f, Normal: vec3f) -> DeformedVertex
     Deformed.Position = Position;
     Deformed.Normal = Normal;
     let Shape = VehicleState.Carcasses[Wheel].Shape;
-    if (length(Position.xz) <= Shape.y)
+    if (length(Position.xz) <= Shape.y || Shape.w <= 0.5)
     {
-        return Deformed;   // the rim, the hub and the bead seat are rigid
+        return Deformed;   // intact tyres and the rim stay rigid with their authored smooth normals
     }
-    if (Shape.w > 0.5)
-    {
-        return ShredTyre(Wheel, Position, Normal);
-    }
-    // 📐 Finite differences along the tangent plane: T1 × T2 = N, so the crossed displaced tangents keep the
-    //    surface's orientation, and undeformed they return N itself.
-    let Helper = select(vec3f(0.0, 1.0, 0.0), vec3f(1.0, 0.0, 0.0), abs(Normal.y) > 0.9);
-    let T1 = normalize(cross(Helper, Normal));
-    let T2 = cross(Normal, T1);
-    let Step = 0.008;
-    let P0 = DisplaceTyre(Wheel, Position);
-    let P1 = DisplaceTyre(Wheel, Position + T1 * Step);
-    let P2 = DisplaceTyre(Wheel, Position + T2 * Step);
-    let Turned = cross(P1 - P0, P2 - P0);
-    Deformed.Position = P0;
-    Deformed.Normal = select(Normal, normalize(Turned), dot(Turned, Turned) > 1.0e-16);
-    return Deformed;
+    return ShredTyre(Wheel, Position, Normal);
 }
 
 // 📐 Rodrigues: Vector turned by Angle about the unit Axis.

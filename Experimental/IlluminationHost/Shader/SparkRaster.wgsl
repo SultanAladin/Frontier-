@@ -18,6 +18,7 @@ struct SparkVarying
     @builtin(position) Position : vec4f,
     @location(0) Radiance       : vec3f,
     @location(1) Profile        : vec2f,   // x across [-1, 1], y along [0 tail, 1 head]
+    @location(2) Thermal        : vec2f,   // x hotness [0, 1], y core whiteness [0, 1]
 }
 
 fn ProjectPixels(Clip: vec4f) -> vec2f
@@ -44,7 +45,7 @@ fn SparkVertex(@builtin(vertex_index) VertexIndex: u32, @location(0) Head: vec4f
     let Up = vec3f(Frame.View[0].y, Frame.View[1].y, Frame.View[2].y);
     let HeadPixels = ProjectPixels(HeadClip);
     var TailPixels = ProjectPixels(TailClip);
-    let Width = max(length(ProjectPixels(Frame.UnjitteredViewProjection * vec4f(Head.xyz + Up * Head.w, 1.0)) - HeadPixels), 1.0);
+    let Width = max(length(ProjectPixels(Frame.UnjitteredViewProjection * vec4f(Head.xyz + Up * Head.w, 1.0)) - HeadPixels), 1.35);
     var Along = HeadPixels - TailPixels;
     let Longest = 0.2 * Frame.ScreenExtent.y;
     if (length(Along) > Longest)
@@ -66,15 +67,27 @@ fn SparkVertex(@builtin(vertex_index) VertexIndex: u32, @location(0) Head: vec4f
     Varying.Position = vec4f(Pixels / (0.5 * Frame.ScreenExtent) * HeadClip.w, HeadClip.z, HeadClip.w);
     // 📝 Energy: a spark's light spread over a streak longer than its width is shared out along it.
     let Spread = Width / max(Length + Width, Width);
-    Varying.Radiance = Radiance.rgb * mix(0.35, 1.0, Spread) * Frame.EmissionScale;
+    Varying.Radiance = Radiance.rgb * mix(0.38, 1.0, Spread) * Frame.EmissionScale;
     Varying.Profile = vec2f(Corner.y, Corner.x);
+    Varying.Thermal = vec2f(Tail.w, Radiance.w);
     return Varying;
 }
 
 @fragment
 fn SparkFragment(Varying: SparkVarying) -> @location(0) vec4f
 {
-    let Across = 1.0 - Varying.Profile.x * Varying.Profile.x;
-    let Head = mix(0.45, 1.0, Varying.Profile.y);
-    return vec4f(Varying.Radiance * Across * Head, 0.0);
+    let Radial = abs(Varying.Profile.x);
+    let Across = max(0.0, 1.0 - Radial * Radial);
+    let Spine = exp(-Radial * Radial * 5.8);
+    let Head = smoothstep(0.0, 1.0, Varying.Profile.y);
+    let Envelope = Across * mix(0.28, 1.0, Head);
+
+    // 📝 Physical incandescent structure: the hot head & narrow spine desaturate toward brilliant incandescent white,
+    //    while the outer corona and trailing wake cool along the Planckian locus toward amber / cherry-red.
+    let Peak = max(Varying.Radiance.r, max(Varying.Radiance.g, Varying.Radiance.b));
+    let IncandescentCore = vec3f(1.0, 0.96, 0.90) * Peak * 1.15;
+    let TrailingCool = Varying.Radiance * vec3f(1.0, mix(0.58, 1.0, Head), mix(0.28, 1.0, Head * Head));
+    let CoreMix = clamp(Spine * (0.35 + 0.65 * Head) * (0.45 + 0.55 * Varying.Thermal.x), 0.0, 0.92);
+    let Colour = mix(TrailingCool, IncandescentCore, CoreMix);
+    return vec4f(Colour * Envelope, 0.0);
 }

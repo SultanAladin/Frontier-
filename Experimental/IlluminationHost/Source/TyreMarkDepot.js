@@ -63,7 +63,13 @@ export class TyreMarkDepot
         Readings.forEach((Reading, Wheel) =>
         {
             const Contact = Reading.ContactFraction > 0.5 && !Reading.OnDebris;
-            const Power = Reading.SlidingPower - L.PowerFloor;
+            const Shredded = !!Reading.Shredded;
+            const Moving = Math.hypot(Reading.ContactVelocity[0], Reading.ContactVelocity[1]);
+            // 📝 An intact tyre lays dark rubber when sliding power exceeds the floor; a shredded tyre has no rubber
+            //    left and instead scores metallic rim marks whenever the bare rim grinds or slides over the asphalt.
+            const Power = Shredded
+                ? Math.max(Reading.SlidingPower, Moving > 1.2 ? Moving * 1650.0 : 0.0)
+                : (Reading.SlidingPower - L.PowerFloor);
             if (!Settings.Enabled || !Contact || Power <= 0.0 || Reading.Seconds <= 0.0)
             {
                 this.Previous[Wheel] = null;
@@ -74,15 +80,14 @@ export class TyreMarkDepot
             const Length = Math.hypot(Point[0] - From[0], Point[1] - From[1]);
             // 📝 The tread's axis: the patch's path when it travels, the wheel's own slip direction when it spins on
             //    the spot (a burnout) — so the grooves run along the mark either way.
-            const Moving = Math.hypot(Reading.ContactVelocity[0], Reading.ContactVelocity[1]);
             const Along = Moving > 0.5 ? Reading.ContactVelocity : Reading.TreadVelocity;
             const AlongLength = Math.hypot(Along[0], Along[1]);
             const Direction = AlongLength > 1.0e-4 ? [Along[0] / AlongLength, Along[1] / AlongLength] : [1.0, 0.0];
             // 📐 Energy per unit area of this frame's sweep: P·Δt / (w · max(ℓ, patch length)).
-            const Swept = L.PatchWidth * Math.max(Length, L.PatchLength);
-            const Amount = Settings.Strength * Power * Reading.Seconds / Swept / L.SaturationEnergy;
+            const Swept = L.PatchWidth * (Shredded ? 0.80 : 1.0) * Math.max(Length, L.PatchLength);
+            const Amount = Settings.Strength * Power * Reading.Seconds / Swept / L.SaturationEnergy * (Shredded ? 1.35 : 1.0);
             if (Length < 4.0)
-                this.StampSegment(From, Point, Direction, Amount);
+                this.StampSegment(From, Point, Direction, Amount, Shredded);
             this.Metrics.LaidMetres += Length;
             this.Previous[Wheel] = Point.slice();
         });
@@ -103,13 +108,14 @@ export class TyreMarkDepot
 
     // 📝 The tread's rectangle from A to B (world x, y), its axis Direction: texels within the tread gain Amount (soft
     //    over the outer tenth), and every texel within a texel and a half of the tread records its lateral coordinate.
-    StampSegment(A, B, Direction, Amount)
+    //    Channel G encodes 5-rib rubber tread in 1..127 and twin-flange bare-rim scrape marks in 128..255.
+    StampSegment(A, B, Direction, Amount, RimMark = false)
     {
         const L = TyreMarkLayout;
         const Scale = L.Texels[0] / L.Extent[0];
         const Ax = (A[0] - L.Origin[0]) * Scale, Ay = (A[1] - L.Origin[1]) * Scale;
         const Bx = (B[0] - L.Origin[0]) * Scale, By = (B[1] - L.Origin[1]) * Scale;
-        const Half = 0.5 * L.PatchWidth * Scale, Cap = 0.5 * L.PatchLength * Scale, Margin = 1.5;
+        const Half = 0.5 * L.PatchWidth * (RimMark ? 0.80 : 1.0) * Scale, Cap = 0.5 * L.PatchLength * Scale, Margin = 1.5;
         const [Ux, Uy] = Direction;
         const Vx = -Uy, Vy = Ux;
         // 📝 The rectangle spans the sweep along U (plus half a patch at each end) and the tread across V, centred on
@@ -154,7 +160,11 @@ export class TyreMarkDepot
                 // 📝 The newest pass owns the lateral coordinate, except where an older, darker mark already lies
                 //    and this one only grazes it.
                 if (Inside || Tile.Bytes[Local * 2 + 1] === 0)
-                    Tile.Bytes[Local * 2 + 1] = Math.max(1, Math.min(255, Math.round((Across + 0.25) / 1.5 * 254.0) + 1));
+                {
+                    Tile.Bytes[Local * 2 + 1] = RimMark
+                        ? Math.max(128, Math.min(255, Math.round(128.0 + (Across + 0.25) / 1.5 * 127.0)))
+                        : Math.max(1, Math.min(127, Math.round(1.0 + (Across + 0.25) / 1.5 * 126.0)));
+                }
             }
         }
         this.Dirty = this.Dirty ? [Math.min(this.Dirty[0], X0), Math.min(this.Dirty[1], Y0), Math.max(this.Dirty[2], X1), Math.max(this.Dirty[3], Y1)]
