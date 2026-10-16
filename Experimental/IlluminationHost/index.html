@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<!--
+==============================================================================================================================================
+                                                                  INDEX.HTML
+==============================================================================================================================================
+ 🧩 Frontier editor workspace over the distance-field GI exhibit: the drift yard, tyre smoke and fire, fracture, the ControlVehicle.
+-->
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Frontier · IlluminationHost — drift yard · smoke &amp; fire · fracture · distance-field GI</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&amp;display=swap" rel="stylesheet">
+<link rel="stylesheet" href="Source/WorkspacePanel.css">
+</head>
+<body>
+    <div id="workspace" class="workspace">
+        <aside class="dock left">
+            <div class="tab-strip"><div class="document-tab active">Outliner</div></div>
+            <div class="outliner-heading"><h1>Outliner</h1><small id="outliner-count"></small></div>
+            <div class="outliner-search"><input id="outliner-search" type="search" placeholder="Search scene" aria-label="Search scene"></div>
+            <div class="filter-chips" id="filter-chips">
+                <button data-filter="all" aria-pressed="true">All</button><button data-filter="vehicle">Vehicle</button>
+                <button data-filter="effects">Effects</button><button data-filter="breakables">Breakables</button>
+                <button data-filter="lights">Lights</button><button data-filter="render">Render</button>
+            </div>
+            <div class="outliner-rows" id="outliner-rows"></div>
+            <div class="outliner-footer" id="outliner-footer"></div>
+        </aside>
+        <main class="dock centre">
+            <div class="tab-strip"><div class="document-tab active">Viewport</div><div class="notch"><b>Frontier</b> · IlluminationHost</div></div>
+            <header class="viewport-header">
+                <div class="scene-title"><b>Drift yard</b><small>Slate GI · Project-Drive ControlVehicle</small></div>
+                <span class="badge live">LIVE</span>
+                <div class="segmented" id="camera-mode"><button data-mode="chase">Chase</button><button data-mode="free">Free · F8</button></div>
+                <span class="spacer"></span>
+                <button id="burnout-button" title="Line lock: hold B, or latch it here">Burnout · B</button>
+                <button id="respawn-button" title="Put the car back at the burnout box">Respawn · R</button>
+                <button id="bare-button" title="Hide every panel and debug window">Bare view · H</button>
+            </header>
+            <div id="stage">
+                <canvas id="viewport"></canvas>
+                <canvas id="capture" class="capture"></canvas>
+                <div id="hud">Starting…</div>
+                <div id="inset-legend">GDF slice · blue inside · amber outside · magenta = rewritten by the moving car · teal = scrolled · green = cascade 0</div>
+                <div id="bring-up">
+                    <h2>Frontier · drift yard</h2>
+                    <div class="bring-up-caption">Starting</div>
+                    <div class="bring-up-bar"><div></div></div>
+                </div>
+                <div id="failure" class="hidden"></div>
+                <button id="overlay-restore" class="hidden" title="Show the editor and the debug windows again (H)">Show the editor (H)</button>
+            </div>
+            <footer class="viewport-footer" id="viewport-footer"></footer>
+        </main>
+        <aside class="dock right">
+            <div class="tab-strip"><div class="document-tab active">Inspector</div></div>
+            <div class="inspector-scroll" id="inspector"></div>
+            <div class="inspector-footer"><span id="inspector-subject"></span><span id="inspector-status">Changes apply live</span></div>
+        </aside>
+    </div>
+    <p id="adapter" class="hidden"></p>
+    <script type="module" src="Source/IlluminationHost.js"></script>
+</body>
+</html>
