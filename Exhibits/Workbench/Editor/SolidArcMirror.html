@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>SolidArc — native C++ proof mirror</title>
+<style>html,body{margin:0;background:#080808;color:#bbb;font:13px system-ui}header{padding:10px 16px;border-bottom:1px solid #292929;display:flex;gap:18px;align-items:center}strong{color:#eee}span{color:#edb965}main{display:flex;justify-content:center;padding:12px}img{display:block;width:min(1280px,100%);height:auto;aspect-ratio:16/9;touch-action:none;outline:none}footer{padding:0 16px 12px;color:#888}a{color:#a7c9ff}nav{display:flex;flex-wrap:wrap;gap:10px;padding:14px 16px}nav button,nav a{border:1px solid #444;border-radius:12px;padding:12px 18px;background:#202020;color:#eee;text-decoration:none;cursor:pointer;font:inherit}nav button[aria-pressed=true]{background:#eee;color:#111}.proof-panel{max-width:1280px;margin:0 auto;padding:0 16px 24px}.proof-panel img{width:100%;aspect-ratio:auto;border:1px solid #333;border-radius:12px}.proof-panel h2{color:#eee}.proof-panel p{line-height:1.6}.proof-panel small{color:#aaa}[hidden]{display:none!important}</style></head>
+<body><header><strong>SolidArc · actual native editor</strong><span>CPU proof — not a Vulkan/GPU execution claim</span><output id="state" role="status">Connecting…</output><button id="retry-connection" type="button" hidden>Reconnect</button></header>
+<nav aria-label="Editor and visible evidence"><button data-panel="views" aria-pressed="false">View grids + drawing</button><button data-panel="orbit" aria-pressed="false">▶ Orbit GIF</button><button data-panel="construct" aria-pressed="false">Construct + drawing</button><button data-panel="native" aria-pressed="true">Live native C++ (CPU reference)</button><button id="cylinder-sphere-proofs-button" data-panel="bevel" aria-pressed="false">Cylinder / sphere bevel proof</button><button id="broad-geometry-proofs-button" data-panel="broad" aria-pressed="false">64-case geometry audit</button><a href="/gpu/">Open GPU drawing editor ↗</a><a href="/gpu/?example=operations">Solidify · Pipe · Revolve demos ↗</a><a href="/gpu/?example=fender">Open fender example ↗</a><a href="/gpu/?example=booleans3d">3D boolean example</a><a href="/proofs/booleans3d">3D boolean proofs</a><a href="/proofs/booleans2d" target="_self">2D boolean proofs</a> · <a href="/gpu/?example=booleans2d" target="_self">2D boolean example</a> · <a href="/proofs/operations">C++ operation proofs</a><a href="/proofs">All proof renders</a></nav>
+<section class="proof-panel" id="views" hidden><h2>View grids and drawing — HTML first, C++ counterpart second</h2><p>Top / Bottom: <strong>XY</strong>. Front / Back: <strong>XZ</strong>. Right / Left: <strong>YZ</strong>. World axes: <strong>X red · Y green · Z blue</strong>. Drawing follows the mouse on the visible grid; orbit / isometric retain the active workplane.</p><p><a href="/gpu/">Try the HTML GPU editor ↗</a> — select a view, then Construct → Sketch Draw. Named view changes cancel an incomplete profile.</p><h2>HTML WebGL2 · views and mouse drawing</h2><img data-evidence="/evidence/SolidArcHtmlViewGrids.gif" width="1440" height="900" alt="HTML all-view grid and mouse rectangle drawing"><h2>Native C++ counterpart · same shared shader, CPU reference</h2><img data-evidence="/evidence/SolidArcNativeViewGrids.gif" width="1280" height="720" alt="Native C++ all-view grid and mouse rectangle drawing"><p>Automated browser capture uses software WebGL2. The native capture is CPU reference, not Vulkan proof.</p></section>
+<section class="proof-panel" id="orbit" hidden><h2>Simulated mouse orbit — looping GIF</h2><p>Actual native C++ scene, grid, gizmo and Inspector: RMB held during 32 mouse movements, approximately 50° orbit. This animation is CPU reference evidence, <strong>not GPU footage</strong>.</p><img data-evidence="/evidence/SolidArcOrbit.gif" alt="Looping native mouse orbit GIF" width="1280" height="720"><p><a href="/evidence/SolidArcOrbit.gif" target="_blank">Open / download the GIF directly</a> · <a href="/evidence/SolidArcOrbitProof.json">Orbit test results</a></p></section>
+<section class="proof-panel" id="construct" hidden><h2>Construct menu → shape drawing</h2><p>GPU editor recording below: actual menu clicks, rectangle preview and completion, circle preview and completion. Browser WebGL2 draws geometry, grid and overlays from C++ geometry; no CPU scene image is uploaded. Automated capture uses a software WebGL driver in this sandbox, not physical-GPU evidence.</p><img data-evidence="/evidence/SolidArcGpuDrawing.gif" alt="Construct menu and WebGL2 shape drawing animation" width="1440" height="900"><p><a href="/gpu/">Open the interactive GPU drawing editor</a> · <a href="/evidence/SolidArcGpuDrawing.json">Renderer and input results</a></p><h2>Native C++ Construct menu (CPU reference)</h2><img data-evidence="/evidence/EditorProof_SolidArc_Construct.png" alt="Actual native C++ Construct catalogue"><h2>Native C++ rectangle mouse drawing (CPU reference)</h2><img data-evidence="/evidence/SolidArcMouseMotion.png" alt="Animated native rectangle mouse drawing"></section>
+<section class="proof-panel" id="bevel" hidden><h2>Cylinder / sphere subtraction → native bevel</h2><p>Actual native ImGui own-mouse and HTML B / Apply evidence. <a href="/proofs/cylinder-sphere-bevel">Open full report</a></p><iframe title="Cylinder sphere bevel proof" src="/proofs/cylinder-sphere-bevel" style="width:100%;height:78vh;border:1px solid #444"></iframe></section><section class="proof-panel" id="broad" hidden><h2>Broad native geometry audit · successes and gaps</h2><p>16 shape pairings, 64 Booleans, all sampled bevel outcomes. <a href="/proofs">Open full coverage report</a></p><iframe id="broad-geometry-frame" data-src="/proofs" title="Broad geometry coverage" style="width:100%;height:80vh;border:1px solid #444"></iframe></section><main id="native"><img id="view" src="/frame" width="1280" height="720" tabindex="0" draggable="false" alt="The real SolidArc C++ editor, including shared Frontier panels, grid, geometry and transform gizmo"></main>
+<footer><a href="/proofs" target="_blank" rel="noopener">Open embedded C++ proof renders</a> · Native build <code>__NATIVE_BUILD__</code><br>This HTML contains no replacement UI or modelling/shader logic. Input runs in the same native C++ host that produces the PNG proofs. LMB selects/drags the transform gizmo; RMB orbits; MMB or Shift+RMB pans; wheel zooms. This is a server-backed CPU mirror, not a standalone WebAssembly or WebGPU build.</footer>
+<script>
+// Preserve the workspace at the preview entry; examples are explicit links.
+if(location.pathname==='/')location.replace('/gpu/');
+async function refreshEvidence(){
+ try{
+  const response=await fetch('/evidence-manifest',{cache:'no-store'});
+  if(!response.ok)throw Error('Evidence index unavailable');
+  const available=await response.json();
+  for(const image of document.querySelectorAll('img[data-evidence]')){
+   let note=image.nextElementSibling;
+   if(!note?.classList.contains('evidence-unavailable')){note=document.createElement('p');note.className='evidence-unavailable';note.setAttribute('role','status');image.after(note);}
+   const present=available[image.dataset.evidence]===true;
+   image.hidden=!present;note.hidden=present;
+   note.textContent='This recording is not available in this workspace. Open the live native C++ tab to use the editor; missing recordings are never replaced with unrelated images.';
+   if(present&&!image.hasAttribute('src'))image.src=image.dataset.evidence;
+  }
+ }catch(error){state.textContent='Evidence: '+error.message;}
+}
+for(const button of document.querySelectorAll('button[data-panel]'))button.onclick=()=>{
+ const chosen=button.dataset.panel;
+ if(chosen==='broad'){const frame=document.querySelector('#broad-geometry-frame');if(!frame.src)frame.src=frame.dataset.src;}
+ if(chosen!=='native')refreshEvidence();
+ for(const id of ['views','orbit','construct','bevel','broad','native'])document.getElementById(id).hidden=id!==chosen;
+ for(const item of document.querySelectorAll('button[data-panel]'))item.setAttribute('aria-pressed',String(item===button));
+};
+const view=document.querySelector('#view'), state=document.querySelector('#state');
+let x=-1,y=-1,buttons=0,mods=0,busy=false,queue=[],url;
+let keyMap={};
+async function loadKeys(){const r=await fetch('/keys');if(!r.ok)throw Error('Connection unavailable (HTTP '+r.status+').');keyMap=await r.json();}
+loadKeys().catch(()=>{state.textContent='Native service unavailable. Use Reconnect when the preview is ready.';document.querySelector('#retry-connection').hidden=false;});
+document.querySelector('#retry-connection').onclick=async()=>{buttons=0;mods=0;queue=[];try{await loadKeys();send();}catch(e){state.textContent=e.message;}};
+function position(e){const r=view.getBoundingClientRect();x=(e.clientX-r.left)*1280/r.width;y=(e.clientY-r.top)*720/r.height;mods=(e.shiftKey?1:0)|(e.ctrlKey?2:0)|(e.altKey?4:0)}
+function send(wheel=0,key=0,down=0,move=false,character=0){
+ const event={x,y,buttons,mods,wheel,key,down,character};
+ if(move&&queue.length&&queue.at(-1).move)queue[queue.length-1]={event,move};else queue.push({event,move});
+ drain();
+}
+async function drain(){if(busy)return;busy=true;try{while(queue.length){const {event}=queue.shift();const t=performance.now();const r=await fetch('/input',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(event)});if(!r.ok)throw Error('Native service unavailable (HTTP '+r.status+'). Use Reconnect when the preview is ready.');if(!r.headers.get('content-type')?.startsWith('image/png'))throw Error('Native service returned an invalid frame. Use Reconnect.');const next=URL.createObjectURL(await r.blob());await new Promise((ok,no)=>{view.onload=ok;view.onerror=no;view.src=next});if(url)URL.revokeObjectURL(url);url=next;state.textContent=`Native C++ frame · ${Math.round(performance.now()-t)} ms`;document.querySelector('#retry-connection').hidden=true;}}catch(e){state.textContent=e.message||'Native frame unavailable. Use Reconnect.';document.querySelector('#retry-connection').hidden=false;queue=[]}finally{busy=false}}
+// Browser buttons use right=2 and middle=4; native ImGui uses right=bit 1 and middle=bit 2 too.
+view.onpointermove=e=>{position(e);send(0,0,0,true)};
+view.onpointerdown=e=>{e.preventDefault();view.focus();view.setPointerCapture(e.pointerId);position(e);buttons=e.buttons;send()};
+view.onpointerup=e=>{position(e);buttons=e.buttons;send();if(!buttons&&view.hasPointerCapture(e.pointerId))view.releasePointerCapture(e.pointerId)};
+view.onpointercancel=e=>{buttons=0;send()};
+view.oncontextmenu=e=>e.preventDefault();
+view.addEventListener('wheel',e=>{e.preventDefault();position(e);send(-Math.sign(e.deltaY))},{passive:false});
+for(const type of ['keydown','keyup'])view.addEventListener(type,e=>{const key=keyMap[e.code]||0;if(!key&&e.key.length!==1)return;e.preventDefault();mods=(e.shiftKey?1:0)|(e.ctrlKey?2:0)|(e.altKey?4:0);send(0,key,type==='keydown'?1:0,false,e.key.length===1&&!e.ctrlKey&&!e.altKey?e.key.charCodeAt(0):0)});
+window.addEventListener('blur',()=>{buttons=0;mods=0;send()});
+view.addEventListener('error',()=>{state.textContent='Native frame unavailable — retrying…';setTimeout(()=>send(),1500);});
+send();
+refreshEvidence();
+</script></body></html>

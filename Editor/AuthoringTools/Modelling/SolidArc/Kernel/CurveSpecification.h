@@ -66,6 +66,7 @@ public:
     [[nodiscard]] static Deliver<NurbsCurve> Rectangle(const Workplane& Plane, Vec2 CornerA, Vec2 CornerB, double CornerRadius = 0.0) noexcept;
     [[nodiscard]] static Deliver<NurbsCurve> Polygon(const Workplane& Plane, Vec2 Centre, double Radius, int Sides, double Rotation, bool Inscribed) noexcept;
     [[nodiscard]] static Deliver<NurbsCurve> Slot(const Workplane& Plane, Vec2 CentreA, Vec2 CentreB, double Radius) noexcept;
+    [[nodiscard]] static Deliver<NurbsCurve> PolylineSlot(const Workplane& Plane, const std::vector<Vec2>& Spine, double Radius) noexcept;
     [[nodiscard]] static Deliver<NurbsCurve> Bezier(const std::vector<Vec3>& ControlPoints) noexcept;
     [[nodiscard]] static Deliver<NurbsCurve> ControlPoints(int Degree, const std::vector<Vec3>& Points, bool Periodic) noexcept;
     [[nodiscard]] static Deliver<NurbsCurve> Interpolate(const std::vector<Vec3>& Through, int Degree = 3, bool Closed = false) noexcept;

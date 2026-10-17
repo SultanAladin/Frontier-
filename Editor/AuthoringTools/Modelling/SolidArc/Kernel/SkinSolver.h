@@ -55,6 +55,7 @@ struct LoftGuideOptions
 struct SkinSolver
 {
     // Sections in flow order. Returns a sheet (open sections) or a body (closed sections and Solid) through `Body`.
+    [[nodiscard]] static bool CoplanarClosedSections(const std::vector<NurbsCurve>& Sections) noexcept;
     struct Skin { NurbsSurface Sheet; BrepBody Body; bool IsBody = false; };
     [[nodiscard]] static Deliver<Skin> Loft(const std::vector<NurbsCurve>& Sections, const LoftOptions& Options) noexcept;
     // Multi-loop sections: Sections[i] holds the loops of station i (same count per station, loop k ↔ loop k).
@@ -69,6 +70,12 @@ struct SkinSolver
     //    poles are clamped, so the sheet's edges are preserved exactly; interior poles bend. Iterative (3 rounds by
     //    default) — each round re-projects the closest (u,v) so the bend follows the surface as it moves.
     [[nodiscard]] static NurbsSurface ProjectGuides(NurbsSurface Sheet, const LoftGuideOptions& Options) noexcept;
+
+    // Two open longitudinal rails plus ordered start/interior/end cross-profiles.
+    // Builds one C0 tensor-product sheet; rational rails are fitted by CoonsPatch
+    // to the supplied tolerance, not claimed to remain analytic circles.
+    [[nodiscard]] static Deliver<NurbsSurface> ProfileLoft(NurbsCurve RailA, NurbsCurve RailB,
+        std::vector<NurbsCurve> Profiles, double Tolerance=1e-5) noexcept;
 
     // Coons patch over 3 or 4 boundaries (any order / sense; ends must meet within Tolerance).
     [[nodiscard]] static Deliver<NurbsSurface> CoonsPatch(std::vector<NurbsCurve> Boundaries, double Tolerance = ScalarCriteria::MergeTolerance) noexcept;
@@ -87,6 +94,14 @@ struct SkinSolver
     [[nodiscard]] static std::vector<NurbsCurve> RingOrder(std::vector<NurbsCurve> Pieces, double Tolerance) noexcept;
     // Curve for one face loop of a body (coedges joined in loop order); rejects when the pieces do not chain.
     [[nodiscard]] static Deliver<NurbsCurve> LoopCurve(const BrepBody& Body, int Loop) noexcept;
+
+    // Face loft (Phase 34a/34f/35d/36b): one solid from two closed solids, two distinct faces of one B-rep that owns
+    //    disconnected hulls, the verified opposite-cap identity of a canonical axis-aligned prism, the exact identity of
+    //    a native cylinder/cone cap pair, or the bounded non-identity replacement of a hole-free prismatic extrusion.
+    //    In bridge routes, selected boundary loops become least-twist ruled skin; connected extrusion routes retain the
+    //    two end caps and replace only native extrusion sides. Adjacent, holed, seam-bearing, analytic-side and ambiguous
+    //    selections refuse rather than overlapping. Sources are never modified and results must validate as one positive-volume solid.
+    [[nodiscard]] static Deliver<BrepBody> LoftFaces(const BrepBody& A, int FaceA, const BrepBody& B, int FaceB) noexcept;
 };
 
 } // namespace Frontier

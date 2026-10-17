@@ -19,6 +19,7 @@ public:
     struct Entry
     {
         std::string   Label;                                                            // [-] command text that caused the change
+        size_t       GeometryBytes = 0;                                               // [byte] retained numerical geometry and topology payload
         SceneDocument Before;                                                           // [-] document as it was before that command
     };
 
@@ -40,6 +41,10 @@ public:
     [[nodiscard]] const std::deque<Entry>& RedoEntries() const noexcept { return RedoStack; }
     void Clear() noexcept { UndoStack.clear(); RedoStack.clear(); Pending = false; }
     void Cap(size_t Steps) noexcept { Limit = Steps; }
+    // 📝 Bound retained numerical payload, not total allocator/RSS usage; always retain the latest snapshot.
+    void CapGeometry(size_t Bytes) noexcept { GeometryLimit = Bytes; }
+    [[nodiscard]] size_t RetainedGeometryBytes() const noexcept;
+    [[nodiscard]] static size_t GeometryBytes(const SceneDocument& Scene) noexcept;
 
 private:
     std::deque<Entry> UndoStack;
@@ -48,6 +53,8 @@ private:
     uint64_t          PendingFingerprint = 0;
     bool              Pending = false;
     size_t            Limit = 200;
+    size_t            GeometryLimit = 64u * 1024u * 1024u;                               // [byte] retained numerical payload
+    void TrimGeometry(bool PreserveUndo) noexcept;
 };
 
 } // namespace Frontier

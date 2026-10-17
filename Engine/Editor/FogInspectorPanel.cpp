@@ -34,7 +34,7 @@ void Update(Profile& P,const Models& M,float Range){const auto& F=M.Fog;const au
 void Axes(Panel& U,float X,float Y,float W,const char* N,const char* Caption){auto& P=*Find(U.Sheet,N);U.Text(X,Y,Caption,11,Muted);ImGui::SetCursorScreenPos(U.At(X,Y+24));ImGui::BeginChild(N,{W,32},ImGuiChildFlags_None,ImGuiWindowFlags_NoScrollbar|ImGuiWindowFlags_NoScrollWithMouse);U.Controls.AxisVec3("##axes",P.Axes,1,true);ImGui::EndChild();}
 }
 void RecordFogInspector(ControlPanel& Controls,EditorInstance&,EditorSheet& Sheet){
- RecordWindBindingControls(Sheet);
+ RecordWindBindingControls(Controls,Sheet);
  if(!Find(Sheet,"Density")||!Find(Sheet,"Enabled")){ImGui::TextUnformatted("Fog properties unavailable");return;}
  auto* Font=ImGui::GetFont();for(auto* F:ImGui::GetIO().Fonts->Fonts)if(!std::strcmp(F->GetDebugName(),"Sun reference / regular"))Font=F;ImGui::PushFont(Font,14);ImGui::PushID(static_cast<int>(Sheet.Appearance));ImVec2 O=ImGui::GetCursorScreenPos();O.x+=20;O.y+=20;float W=std::max(240.f,ImGui::GetContentRegionAvail().x-40);Panel U{Controls,Sheet,ImGui::GetWindowDrawList(),O,Font};Models M=Read(Sheet);char Text[160];
  U.Text(0,8,"Inspector / Environment",8,Muted);U.Text(0,48,"Fog",25);U.Text(0,83,M.Local?"LOCAL VOLUMETRIC FOG · bounded medium":M.Aerial?"AERIAL PERSPECTIVE · surface-distance fog":"HEIGHT FOG · exponential vertical density",10,Muted);

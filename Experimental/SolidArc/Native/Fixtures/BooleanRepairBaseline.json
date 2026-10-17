@@ -1,0 +1,1937 @@
+{
+  "description": "2026-10-17 first generic Boolean split/assembly repair batch; periodic audit limitations remain open.",
+  "nativeBinarySha256": "220aa5b55d73e9efe4795805d976f79f476dd1c726504bf29dcfea4e7ca5ba1c",
+  "broadSummary": {
+    "accepted": 56,
+    "executed": 64,
+    "newAcceptances": [
+      "cone-box-intersect",
+      "cone-box-subtract-ab",
+      "cone-box-subtract-ba",
+      "cone-box-union",
+      "torus-box-intersect",
+      "torus-box-subtract-ab",
+      "torus-box-subtract-ba"
+    ],
+    "newRefusals": [
+      "torus-box-union"
+    ],
+    "nativeBinarySha256": "220aa5b55d73e9efe4795805d976f79f476dd1c726504bf29dcfea4e7ca5ba1c",
+    "seconds": 92.63
+  },
+  "cases": [
+    {
+      "id": "offset-boxes-union",
+      "fixture": "offset-boxes",
+      "operation": "union",
+      "commands": [
+        "box (-1,-1,-1) (1,1,1) --name=A",
+        "box (0,-.6,-.4) (1.7,1.3,1.4) --name=B"
+      ],
+      "command": "boolean union A -- B --select-result --name=Result",
+      "lines": [
+        "> boolean union A -- B --select-result --name=Result",
+        "\u00b7 boolean union A B  \u00b7  0 intersection curve(s), pieces 6 + 6, kept 0 + 0 (inside 0 / 0)  \u00b7  0.003 s",
+        "\u00b7 #3   Result             solid    V44 E84 F42  \u03c7=2 genus 0  vol 11.5740  area 32.9400  bounds [-1.00 -1.00 -1.00]\u2013[1.70 1.30 1.40]",
+        "> dim auto",
+        "\u00b7 dim auto: re-emitted (7 total)"
+      ],
+      "accepted": true,
+      "owner": 3,
+      "topology": {
+        "solid": true,
+        "volume": 11.574,
+        "summary": "\u00b7 Result solid  V44 E84 F42 L42  hulls 1  \u03c7=2 genus 0  closed yes manifold yes oriented yes  volume 11.574000  area 32.940000"
+      },
+      "undoRedo": true,
+      "saveReopen": true
+    },
+    {
+      "id": "offset-boxes-intersect",
+      "fixture": "offset-boxes",
+      "operation": "intersect",
+      "commands": [
+        "box (-1,-1,-1) (1,1,1) --name=A",
+        "box (0,-.6,-.4) (1.7,1.3,1.4) --name=B"
+      ],
+      "command": "boolean intersect A -- B --select-result --name=Result",
+      "lines": [
+        "> boolean intersect A -- B --select-result --name=Result",
+        "\u00b7 boolean intersect A B  \u00b7  0 intersection curve(s), pieces 6 + 6, kept 6 + 6 (inside 0 / 0)  \u00b7  0.000 s",
+        "\u00b7 #3   Result             solid    V8 E12 F6  \u03c7=2 genus 0  vol 2.2400  area 10.4800  bounds [0.00 -0.60 -0.40]\u2013[1.00 1.00 1.00]",
+        "> dim auto",
+        "\u00b7 dim auto: re-emitted (7 total)"
+      ],
+      "accepted": true,
+      "owner": 3,
+      "topology": {
+        "solid": true,
+        "volume": 2.24,
+        "summary": "\u00b7 Result solid  V8 E12 F6 L6  hulls 1  \u03c7=2 genus 0  closed yes manifold yes oriented yes  volume 2.240000  area 10.480000"
+      },
+      "undoRedo": true,
+      "saveReopen": true
+    },
+    {
+      "id": "offset-boxes-subtract-ab",
+      "fixture": "offset-boxes",
+      "operation": "subtract-ab",
+      "commands": [
+        "box (-1,-1,-1) (1,1,1) --name=A",
+        "box (0,-.6,-.4) (1.7,1.3,1.4) --name=B"
+      ],
+      "command": "boolean subtract A -- B --select-result --name=Result",
+      "lines": [
+        "> boolean subtract A -- B --select-result --name=Result",
+        "\u00b7 boolean subtract A B  \u00b7  0 intersection curve(s), pieces 6 + 6, kept 0 + 0 (inside 0 / 0)  \u00b7  0.001 s",
+        "\u00b7 #3   Result             solid    V26 E48 F24  \u03c7=2 genus 0  vol 5.7600  area 24.0000  bounds [-1.00 -1.00 -1.00]\u2013[1.00 1.00 1.00]",
+        "> dim auto",
+        "\u00b7 dim auto: re-emitted (7 total)"
+      ],
+      "accepted": true,
+      "owner": 3,
+      "topology": {
+        "solid": true,
+        "volume": 5.76,
+        "summary": "\u00b7 Result solid  V26 E48 F24 L24  hulls 1  \u03c7=2 genus 0  closed yes manifold yes oriented yes  volume 5.760000  area 24.000000"
+      },
+      "undoRedo": true,
+      "saveReopen": true
+    },
+    {
+      "id": "offset-boxes-subtract-ba",
+      "fixture": "offset-boxes",
+      "operation": "subtract-ba",
+      "commands": [
+        "box (-1,-1,-1) (1,1,1) --name=A",
+        "box (0,-.6,-.4) (1.7,1.3,1.4) --name=B"
+      ],
+      "command": "boolean subtract B -- A --select-result --name=Result",
+      "lines": [
+        "> boolean subtract B -- A --select-result --name=Result",
+        "\u00b7 boolean subtract B A  \u00b7  0 intersection curve(s), pieces 6 + 6, kept 0 + 0 (inside 0 / 0)  \u00b7  0.002 s",
+        "\u00b7 #3   Result             solid    V26 E48 F24  \u03c7=2 genus 0  vol 3.5740  area 19.4200  bounds [0.00 -0.60 -0.40]\u2013[1.70 1.30 1.40]",
+        "> dim auto",
+        "\u00b7 dim auto: re-emitted (7 total)"
+      ],
+      "accepted": true,
+      "owner": 3,
+      "topology": {
+        "solid": true,
+        "volume": 3.574,
+        "summary": "\u00b7 Result solid  V26 E48 F24 L24  hulls 1  \u03c7=2 genus 0  closed yes manifold yes oriented yes  volume 3.574000  area 19.420000"
+      },
+      "undoRedo": true,
+      "saveReopen": true
+    },
+    {
+      "id": "rotated-boxes-union",
+      "fixture": "rotated-boxes",
+      "operation": "union",
+      "commands": [
+        "box (-1,-1,-1) (1,1,1) --name=A",
+        "box (-.7,-.8,-.6) (1.3,1.2,1.4) --name=B",
+        "transform B --rotate=(17,23,31) --pivot=(0,0,0)"
+      ],
+      "command": "boolean union A -- B --select-result --name=Result",
+      "lines": [
+        "> boolean union A -- B --select-result --name=Result",
+        "\u00b7 boolean union A B  \u00b7  16 intersection curve(s), pieces 14 + 15, kept 8 + 10 (inside 6 / 5)  \u00b7  0.003 s",
+        "\u00b7 #3   Result             solid    V30 E45 F18  \u03c7=2 genus 0  vol 11.0037  area 30.8983  bounds [-1.31 -1.12 -1.25]\u2013[2.00 1.71 1.83]",
+        "> dim auto",
+        "\u00b7 dim auto: re-emitted (7 total)"
+      ],
+      "accepted": true,
+      "owner": 3,
+      "topology": {
+        "solid": true,
+        "volume": 11.003651,
+        "summary": "\u00b7 Result solid  V30 E45 F18 L19  hulls 1  \u03c7=2 genus 0  closed yes manifold yes oriented yes  volume 11.003651  area 30.898323"
+      },
+      "undoRedo": true,
+      "saveReopen": true
+    },
+    {
+      "id": "rotated-boxes-intersect",
+      "fixture": "rotated-boxes",
+      "operation": "intersect",
+      "commands": [
+        "box (-1,-1,-1) (1,1,1) --name=A",
+        "box (-.7,-.8,-.6) (1.3,1.2,1.4) --name=B",
+        "transform B --rotate=(17,23,31) --pivot=(0,0,0)"
+      ],
+      "command": "boolean intersect A -- B --select-result --name=Result",
+      "lines": [
+        "> boolean intersect A -- B --select-result --name=Result",
+        "\u00b7 boolean intersect A B  \u00b7  16 intersection curve(s), pieces 14 + 15, kept 6 + 5 (inside 6 / 5)  \u00b7  0.005 s",
+        "\u00b7 #3   Result             solid    V18 E27 F11  \u03c7=2 genus 0  vol 4.9963  area 17.1017  bounds [-1.00 -1.00 -1.00]\u2013[1.00 1.00 1.00]",
+        "> dim auto",
+        "\u00b7 dim auto: re-emitted (7 total)"
+      ],
+      "accepted": true,
+      "owner": 3,
+      "topology": {
+        "solid": true,
+        "volume": 4.996349,
+        "summary": "\u00b7 Result solid  V18 E27 F11 L11  hulls 1  \u03c7=2 genus 0  closed yes manifold yes oriented yes  volume 4.996349  area 17.101677"
+      },
+      "undoRedo": true,
+      "saveReopen": true
+    },
+    {
+      "id": "rotated-boxes-subtract-ab",
+      "fixture": "rotated-boxes",
+      "operation": "subtract-ab",
+      "commands": [
+        "box (-1,-1,-1) (1,1,1) --name=A",
+        "box (-.7,-.8,-.6) (1.3,1.2,1.4) --name=B",
+        "transform B --rotate=(17,23,31) --pivot=(0,0,0)"
+      ],
+      "command": "boolean subtract A -- B --select-result --name=Result",
+      "lines": [
+        "> boolean subtract A -- B --select-result --name=Result",
+        "\u00b7 boolean subtract A B  \u00b7  16 intersection curve(s), pieces 14 + 15, kept 8 + 5 (inside 6 / 5)  \u00b7  0.003 s",
+        "\u00b7 #3   Result             solid    V24 E36 F13  \u03c7=0 genus 1  vol 3.0037  area 24.1508  bounds [-1.00 -1.00 -1.00]\u2013[1.00 1.00 1.00]",
+        "> dim auto",
+        "\u00b7 dim auto: re-emitted (7 total)"
+      ],
+      "accepted": true,
+      "owner": 3,
+      "topology": {
+        "solid": true,
+        "volume": 3.003651,
+        "summary": "\u00b7 Result solid  V24 E36 F13 L14  hulls 1  \u03c7=0 genus 1  closed yes manifold yes oriented yes  volume 3.003651  area 24.150791"
+      },
+      "undoRedo": true,
+      "saveReopen": true
+    },
+    {
+      "id": "rotated-boxes-subtract-ba",
+      "fixture": "rotated-boxes",
+      "operation": "subtract-ba",
+      "commands": [
+        "box (-1,-1,-1) (1,1,1) --name=A",
+        "box (-.7,-.8,-.6) (1.3,1.2,1.4) --name=B",
+        "transform B --rotate=(17,23,31) --pivot=(0,0,0)"
+      ],
+      "command": "boolean subtract B -- A --select-result --name=Result",
+      "lines": [
+        "> boolean subtract B -- A --select-result --name=Result",
+        "\u00b7 boolean subtract B A  \u00b7  16 intersection curve(s), pieces 15 + 14, kept 10 + 6 (inside 5 / 6)  \u00b7  0.005 s",
+        "\u00b7 #3   Result             solid    V24 E36 F16  \u03c7=4 genus 0  vol 3.0037  area 23.8492  bounds [-1.31 -1.12 -1.25]\u2013[2.00 1.71 1.83]",
+        "> dim auto",
+        "\u00b7 dim auto: re-emitted (7 total)"
+      ],
+      "accepted": true,
+      "owner": 3,
+      "topology": {
+        "solid": true,
+        "volume": 3.003651,
+        "summary": "\u00b7 Result solid  V24 E36 F16 L16  hulls 2  \u03c7=4 genus 0  closed yes manifold yes oriented yes  volume 3.003651  area 23.849209"
+      },
+      "undoRedo": true,
+      "saveReopen": true
+    },
+    {
+      "id": "box-cylinder-union",
+      "fixture": "box-cylinder",
+      "operation": "union",
+      "commands": [
+        "box (-1,-1,-1) (1,1,1) --name=A",
+        "cylinder (.25,.1,-1.5) .6 3 --name=B"
+      ],
+      "command": "boolean union A -- B --select-result --name=Result",
+      "lines": [
+        "> boolean union A -- B --select-result --name=Result",
+        "\u00b7 boolean union A B  \u00b7  2 intersection curve(s), pieces 8 + 5, kept 6 + 4 (inside 2 / 1)  \u00b7  0.093 s",
+        "\u00b7 #3   Result             solid    V12 E18 F10  \u03c7=2 genus 0  vol 9.1308  area 27.7698  bounds [-1.00 -1.00 -1.50]\u2013[1.00 1.00 1.50]",
+        "> dim auto",
+        "\u00b7 dim auto: re-emitted (5 total)"
+      ],
+      "accepted": true,
+      "owner": 3,
+      "topology": {
+        "solid": true,
+        "volume": 9.130761,
+        "summary": "\u00b7 Result solid  V12 E18 F10 L12  hulls 1  \u03c7=2 genus 0  closed yes manifold yes oriented yes  volume 9.130761  area 27.769831"
+      },
+      "undoRedo": true,
+      "saveReopen": true
+    },
+    {
+      "id": "box-cylinder-intersect",
+      "fixture": "box-cylinder",
+      "operation": "intersect",
+      "commands": [
+        "box (-1,-1,-1) (1,1,1) --name=A",
+        "cylinder (.25,.1,-1.5) .6 3 --name=B"
+      ],
+      "command": "boolean intersect A -- B --select-result --name=Result",
+      "lines": [
+        "> boolean intersect A -- B --select-result --name=Result",
+        "\u00b7 boolean intersect A B  \u00b7  2 intersection curve(s), pieces 8 + 5, kept 2 + 1 (inside 2 / 1)  \u00b7  0.042 s",
+        "\u00b7 #3   Result             solid    V2 E3 F3  \u03c7=2 genus 0  vol 2.2610  area 9.8002  bounds [-0.35 -0.50 -1.50]\u2013[0.85 0.70 1.50]",
+        "> dim auto",
+        "\u00b7 dim auto: re-emitted (5 total)"
+      ],
+      "accepted": true,
+      "owner": 3,
+      "topology": {
+        "solid": true,
+        "volume": 2.260997,
+        "summary": "\u00b7 Result solid  V2 E3 F3 L3  hulls 1  \u03c7=2 genus 0  closed yes manifold yes oriented yes  volume 2.260997  area 9.800181"
+      },
+      "undoRedo": true,
+      "saveReopen": true
+    },
+    {
+      "id": "box-cylinder-subtract-ab",
+      "fixture": "box-cylinder",
+      "operation": "subtract-ab",
+      "commands": [
+        "box (-1,-1,-1) (1,1,1) --name=A",
+        "cylinder (.25,.1,-1.5) .6 3 --name=B"
+      ],
+      "command": "boolean subtract A -- B --select-result --name=Result",
+      "lines": [
+        "> boolean subtract A -- B --select-result --name=Result",
+        "\u00b7 boolean subtract A B  \u00b7  2 intersection curve(s), pieces 8 + 5, kept 6 + 1 (inside 2 / 1)  \u00b7  0.061 s",
+        "\u00b7 #3   Result             solid    V10 E15 F7  \u03c7=0 genus 1  vol 5.7390  area 29.2783  bounds [-1.00 -1.00 -1.50]\u2013[1.00 1.00 1.50]",
+        "> dim auto",
+        "\u00b7 dim auto: re-emitted (5 total)"
+      ],
+      "accepted": true,
+      "owner": 3,
+      "topology": {
+        "solid": true,
+        "volume": 5.739003,
+        "summary": "\u00b7 Result solid  V10 E15 F7 L9  hulls 1  \u03c7=0 genus 1  closed yes manifold yes oriented yes  volume 5.739003  area 29.278326"
+      },
+      "undoRedo": true,
+      "saveReopen": true
+    },
+    {
+      "id": "box-cylinder-subtract-ba",
+      "fixture": "box-cylinder",
+      "operation": "subtract-ba",
+      "commands": [
+        "box (-1,-1,-1) (1,1,1) --name=A",
+        "cylinder (.25,.1,-1.5) .6 3 --name=B"
+      ],
+      "command": "boolean subtract B -- A --select-result --name=Result",
+      "lines": [
+        "> boolean subtract B -- A --select-result --name=Result",
+        "\u00b7 boolean subtract B A  \u00b7  2 intersection curve(s), pieces 5 + 8, kept 4 + 2 (inside 1 / 2)  \u00b7  0.086 s",
+        "\u00b7 #3   Result             solid    V4 E6 F6  \u03c7=4 genus 0  vol 1.1307  area 8.2920  bounds [-0.35 -0.50 -1.50]\u2013[0.85 0.70 1.50]",
+        "> dim auto",
+        "\u00b7 dim auto: re-emitted (5 total)"
+      ],
+      "accepted": true,
+      "owner": 3,
+      "topology": {
+        "solid": true,
+        "volume": 1.130688,
+        "summary": "\u00b7 Result solid  V4 E6 F6 L6  hulls 2  \u03c7=4 genus 0  closed yes manifold yes oriented yes  volume 1.130688  area 8.292017"
+      },
+      "undoRedo": true,
+      "saveReopen": true
+    },
+    {
+      "id": "box-tilted-cylinder-union",
+      "fixture": "box-tilted-cylinder",
+      "operation": "union",
+      "commands": [
+        "box (-1,-1,-1) (1,1,1) --name=A",
+        "cylinder (-1.1,0,-1.1) .6 3.2 --axis=(.7071067811865476,0,.7071067811865476) --name=B"
+      ],
+      "command": "boolean union A -- B --select-result --name=Result",
+      "lines": [
+        "> boolean union A -- B --select-result --name=Result",
+        "\u2717 boolean union: Unsupported \u2014 intersection runs into a surface singularity or seam corner (non-generic: nudge or rotate one body)",
+        "> dim auto",
+        "\u00b7 dim auto: re-emitted (4 total)"
+      ],
+      "accepted": false,
+      "refusalPreserved": true
+    },
+    {
+      "id": "box-tilted-cylinder-intersect",
+      "fixture": "box-tilted-cylinder",
+      "operation": "intersect",
+      "commands": [
+        "box (-1,-1,-1) (1,1,1) --name=A",
+        "cylinder (-1.1,0,-1.1) .6 3.2 --axis=(.7071067811865476,0,.7071067811865476) --name=B"
+      ],
+      "command": "boolean intersect A -- B --select-result --name=Result",
+      "lines": [
+        "> boolean intersect A -- B --select-result --name=Result",
+        "\u2717 boolean intersect: Unsupported \u2014 intersection runs into a surface singularity or seam corner (non-generic: nudge or rotate one body)",
+        "> dim auto",
+        "\u00b7 dim auto: re-emitted (4 total)"
+      ],
+      "accepted": false,
+      "refusalPreserved": true
+    },
+    {
+      "id": "box-tilted-cylinder-subtract-ab",
+      "fixture": "box-tilted-cylinder",
+      "operation": "subtract-ab",
+      "commands": [
+        "box (-1,-1,-1) (1,1,1) --name=A",
+        "cylinder (-1.1,0,-1.1) .6 3.2 --axis=(.7071067811865476,0,.7071067811865476) --name=B"
+      ],
+      "command": "boolean subtract A -- B --select-result --name=Result",
+      "lines": [
+        "> boolean subtract A -- B --select-result --name=Result",
+        "\u2717 boolean subtract: Unsupported \u2014 intersection runs into a surface singularity or seam corner (non-generic: nudge or rotate one body)",
+        "> dim auto",
+        "\u00b7 dim auto: re-emitted (4 total)"
+      ],
+      "accepted": false,
+      "refusalPreserved": true
+    },
+    {
+      "id": "box-tilted-cylinder-subtract-ba",
+      "fixture": "box-tilted-cylinder",
+      "operation": "subtract-ba",
+      "commands": [
+        "box (-1,-1,-1) (1,1,1) --name=A",
+        "cylinder (-1.1,0,-1.1) .6 3.2 --axis=(.7071067811865476,0,.7071067811865476) --name=B"
+      ],
+      "command": "boolean subtract B -- A --select-result --name=Result",
+      "lines": [
+        "> boolean subtract B -- A --select-result --name=Result",
+        "\u2717 boolean subtract: Unsupported \u2014 intersection runs into a surface singularity or seam corner (non-generic: nudge or rotate one body)",
+        "> dim auto",
+        "\u00b7 dim auto: re-emitted (4 total)"
+      ],
+      "accepted": false,
+      "refusalPreserved": true
+    },
+    {
+      "id": "sphere-box-union",
+      "fixture": "sphere-box",
+      "operation": "union",
+      "commands": [
+        "sphere (0,0,0) 1.2 --name=A",
+        "box (0,-.8,-.7) (1.6,1,1) --name=B"
+      ],
+      "command": "boolean union A -- B --select-result --name=Result",
+      "lines": [
+        "> boolean union A -- B --select-result --name=Result",
+        "\u00b7 boolean union A B  \u00b7  9 intersection curve(s), pieces 3 + 13, kept 1 + 8 (inside 2 / 5)  \u00b7  1.342 s",
+        "\u00b7 #3   Result             solid    V18 E25 F9  \u03c7=2 genus 0  vol 9.3194  area 24.1635  bounds [-1.20 -1.20 -1.20]\u2013[1.60 1.20 1.20]",
+        "> dim auto",
+        "\u00b7 dim auto: re-emitted (5 total)"
+      ],
+      "accepted": true,
+      "owner": 3,
+      "topology": {
+        "solid": true,
+        "volume": 9.319414,
+        "summary": "\u00b7 Result solid  V18 E25 F9 L9  hulls 1  \u03c7=2 genus 0  closed yes manifold yes oriented yes  volume 9.319414  area 24.163534"
+      },
+      "undoRedo": true,
+      "saveReopen": true
+    },
+    {
+      "id": "sphere-box-intersect",
+      "fixture": "sphere-box",
+      "operation": "intersect",
+      "commands": [
+        "sphere (0,0,0) 1.2 --name=A",
+        "box (0,-.8,-.7) (1.6,1,1) --name=B"
+      ],
+      "command": "boolean intersect A -- B --select-result --name=Result",
+      "lines": [
+        "> boolean intersect A -- B --select-result --name=Result",
+        "\u00b7 boolean intersect A B  \u00b7  9 intersection curve(s), pieces 3 + 13, kept 2 + 5 (inside 2 / 5)  \u00b7  1.265 s",
+        "\u00b7 #3   Result             solid    V10 E15 F7  \u03c7=2 genus 0  vol 2.8057  area 11.2386  bounds [-1.20 -1.20 -1.20]\u2013[1.20 1.20 1.20]",
+        "> dim auto",
+        "\u00b7 dim auto: re-emitted (5 total)"
+      ],
+      "accepted": true,
+      "owner": 3,
+      "topology": {
+        "solid": true,
+        "volume": 2.805669,
+        "summary": "\u00b7 Result solid  V10 E15 F7 L7  hulls 1  \u03c7=2 genus 0  closed yes manifold yes oriented yes  volume 2.805669  area 11.238575"
+      },
+      "undoRedo": true,
+      "saveReopen": true
+    },
+    {
+      "id": "sphere-box-subtract-ab",
+      "fixture": "sphere-box",
+      "operation": "subtract-ab",
+      "commands": [
+        "sphere (0,0,0) 1.2 --name=A",
+        "box (0,-.8,-.7) (1.6,1,1) --name=B"
+      ],
+      "command": "boolean subtract A -- B --select-result --name=Result",
+      "lines": [
+        "> boolean subtract A -- B --select-result --name=Result",
+        "\u00b7 boolean subtract A B  \u00b7  9 intersection curve(s), pieces 3 + 13, kept 1 + 5 (inside 2 / 5)  \u00b7  1.389 s",
+        "\u00b7 #3   Result             solid    V12 E16 F6  \u03c7=2 genus 0  vol 4.4234  area 20.8307  bounds [-1.20 -1.20 -1.20]\u2013[1.20 1.20 1.20]",
+        "> dim auto",
+        "\u00b7 dim auto: re-emitted (5 total)"
+      ],
+      "accepted": true,
+      "owner": 3,
+      "topology": {
+        "solid": true,
+        "volume": 4.423414,
+        "summary": "\u00b7 Result solid  V12 E16 F6 L6  hulls 1  \u03c7=2 genus 0  closed yes manifold yes oriented yes  volume 4.423414  area 20.830680"
+      },
+      "undoRedo": true,
+      "saveReopen": true
+    },
+    {
+      "id": "sphere-box-subtract-ba",
+      "fixture": "sphere-box",
+      "operation": "subtract-ba",
+      "commands": [
+        "sphere (0,0,0) 1.2 --name=A",
+        "box (0,-.8,-.7) (1.6,1,1) --name=B"
+      ],
+      "command": "boolean subtract B -- A --select-result --name=Result",
+      "lines": [
+        "> boolean subtract B -- A --select-result --name=Result",
+        "\u00b7 boolean subtract B A  \u00b7  9 intersection curve(s), pieces 13 + 3, kept 8 + 2 (inside 5 / 2)  \u00b7  1.256 s",
+        "\u00b7 #3   Result             solid    V16 E24 F10  \u03c7=2 genus 0  vol 2.0900  area 14.5720  bounds [-1.20 -1.20 -1.20]\u2013[1.60 1.20 1.20]",
+        "> dim auto",
+        "\u00b7 dim auto: re-emitted (5 total)"
+      ],
+      "accepted": true,
+      "owner": 3,
+      "topology": {
+        "solid": true,
+        "volume": 2.090048,
+        "summary": "\u00b7 Result solid  V16 E24 F10 L10  hulls 1  \u03c7=2 genus 0  closed yes manifold yes oriented yes  volume 2.090048  area 14.571995"
+      },
+      "undoRedo": true,
+      "saveReopen": true
+    },
+    {
+      "id": "sphere-cylinder-union",
+      "fixture": "sphere-cylinder",
+      "operation": "union",
+      "commands": [
+        "sphere (0,0,0) 1.2 --name=A",
+        "cylinder (.2,.1,0) .65 2 --name=B"
+      ],
+      "command": "boolean union A -- B --select-result --name=Result",
+      "lines": [
+        "> boolean union A -- B --select-result --name=Result",
+        "\u00b7 boolean union A B  \u00b7  2 intersection curve(s), pieces 2 + 4, kept 1 + 2 (inside 1 / 2)  \u00b7  1.032 s",
+        "\u00b7 #3   Result             solid    V4 E5 F3  \u03c7=2 genus 0  vol 8.4485  area 22.1020  bounds [-1.20 -1.20 -1.20]\u2013[1.20 1.20 2.00]",
+        "> dim auto",
+        "\u00b7 dim auto: re-emitted (3 total)"
+      ],
+      "accepted": true,
+      "owner": 3,
+      "topology": {
+        "solid": true,
+        "volume": 8.448504,
+        "summary": "\u00b7 Result solid  V4 E5 F3 L3  hulls 1  \u03c7=2 genus 0  closed yes manifold yes oriented yes  volume 8.448504  area 22.102009"
+      },
+      "undoRedo": true,
+      "saveReopen": true
+    },
+    {
+      "id": "sphere-cylinder-intersect",
+      "fixture": "sphere-cylinder",
+      "operation": "intersect",
+      "commands": [
+        "sphere (0,0,0) 1.2 --name=A",
+        "cylinder (.2,.1,0) .65 2 --name=B"
+      ],
+      "command": "boolean intersect A -- B --select-result --name=Result",
+      "lines": [
+        "> boolean intersect A -- B --select-result --name=Result",
+        "\u00b7 boolean intersect A B  \u00b7  2 intersection curve(s), pieces 2 + 4, kept 1 + 2 (inside 1 / 2)  \u00b7  0.820 s",
+        "\u00b7 #3   Result             solid    V4 E5 F3  \u03c7=2 genus 0  vol 1.4342  area 6.8008  bounds [-1.20 -1.20 -1.20]\u2013[1.20 1.20 2.00]",
+        "> dim auto",
+        "\u00b7 dim auto: re-emitted (3 total)"
+      ],
+      "accepted": true,
+      "owner": 3,
+      "topology": {
+        "solid": true,
+        "volume": 1.434206,
+        "summary": "\u00b7 Result solid  V4 E5 F3 L3  hulls 1  \u03c7=2 genus 0  closed yes manifold yes oriented yes  volume 1.434206  area 6.800789"
+      },
+      "undoRedo": true,
+      "saveReopen": true
+    },
+    {
+      "id": "sphere-cylinder-subtract-ab",
+      "fixture": "sphere-cylinder",
+      "operation": "subtract-ab",
+      "commands": [
+        "sphere (0,0,0) 1.2 --name=A",
+        "cylinder (.2,.1,0) .65 2 --name=B"
+      ],
+      "command": "boolean subtract A -- B --select-result --name=Result",
+      "lines": [
+        "> boolean subtract A -- B --select-result --name=Result",
+        "\u00b7 boolean subtract A B  \u00b7  2 intersection curve(s), pieces 2 + 4, kept 1 + 2 (inside 1 / 2)  \u00b7  0.993 s",
+        "\u00b7 #3   Result             solid    V4 E5 F3  \u03c7=2 genus 0  vol 5.7948  area 21.9219  bounds [-1.20 -1.20 -1.20]\u2013[1.20 1.20 2.00]",
+        "> dim auto",
+        "\u00b7 dim auto: re-emitted (3 total)"
+      ],
+      "accepted": true,
+      "owner": 3,
+      "topology": {
+        "solid": true,
+        "volume": 5.794841,
+        "summary": "\u00b7 Result solid  V4 E5 F3 L3  hulls 1  \u03c7=2 genus 0  closed yes manifold yes oriented yes  volume 5.794841  area 21.921894"
+      },
+      "undoRedo": true,
+      "saveReopen": true
+    },
+    {
+      "id": "sphere-cylinder-subtract-ba",
+      "fixture": "sphere-cylinder",
+      "operation": "subtract-ba",
+      "commands": [
+        "sphere (0,0,0) 1.2 --name=A",
+        "cylinder (.2,.1,0) .65 2 --name=B"
+      ],
+      "command": "boolean subtract B -- A --select-result --name=Result",
+      "lines": [
+        "> boolean subtract B -- A --select-result --name=Result",
+        "\u00b7 boolean subtract B A  \u00b7  2 intersection curve(s), pieces 4 + 2, kept 2 + 1 (inside 2 / 1)  \u00b7  0.720 s",
+        "\u00b7 #3   Result             solid    V4 E5 F3  \u03c7=2 genus 0  vol 1.2194  area 6.9809  bounds [-1.20 -1.20 -1.20]\u2013[1.20 1.20 2.00]",
+        "> dim auto",
+        "\u00b7 dim auto: re-emitted (3 total)"
+      ],
+      "accepted": true,
+      "owner": 3,
+      "topology": {
+        "solid": true,
+        "volume": 1.219449,
+        "summary": "\u00b7 Result solid  V4 E5 F3 L3  hulls 1  \u03c7=2 genus 0  closed yes manifold yes oriented yes  volume 1.219449  area 6.980938"
+      },
+      "undoRedo": true,
+      "saveReopen": true
+    },
+    {
+      "id": "sphere-sphere-union",
+      "fixture": "sphere-sphere",
+      "operation": "union",
+      "commands": [
+        "sphere (0,0,0) 1.2 --name=A",
+        "sphere (.9,.2,.1) 1 --name=B"
+      ],
+      "command": "boolean union A -- B --select-result --name=Result",
+      "lines": [
+        "> boolean union A -- B --select-result --name=Result",
+        "\u00b7 boolean union A B  \u00b7  2 intersection curve(s), pieces 3 + 2, kept 1 + 1 (inside 2 / 1)  \u00b7  2.358 s",
+        "\u00b7 #3   Result             solid    V6 E5 F2  \u03c7=2 genus 0  vol 9.2114  area 22.0193  bounds [-1.20 -1.20 -1.20]\u2013[1.90 1.20 1.20]",
+        "> dim auto",
+        "\u00b7 dim auto: re-emitted (3 total)"
+      ],
+      "accepted": true,
+      "owner": 3,
+      "topology": {
+        "solid": true,
+        "volume": 9.211418,
+        "summary": "\u00b7 Result solid  V6 E5 F2 L3  hulls 1  \u03c7=2 genus 0  closed yes manifold yes oriented yes  volume 9.211418  area 22.019255"
+      },
+      "undoRedo": true,
+      "saveReopen": true
+    },
+    {
+      "id": "sphere-sphere-intersect",
+      "fixture": "sphere-sphere",
+      "operation": "intersect",
+      "commands": [
+        "sphere (0,0,0) 1.2 --name=A",
+        "sphere (.9,.2,.1) 1 --name=B"
+      ],
+      "command": "boolean intersect A -- B --select-result --name=Result",
+      "lines": [
+        "> boolean intersect A -- B --select-result --name=Result",
+        "\u00b7 boolean intersect A B  \u00b7  2 intersection curve(s), pieces 3 + 2, kept 2 + 1 (inside 2 / 1)  \u00b7  2.143 s",
+        "\u00b7 #3   Result             solid    V2 E3 F3  \u03c7=2 genus 0  vol 2.2008  area 8.6186  bounds [-1.20 -1.20 -1.20]\u2013[1.90 1.20 1.20]",
+        "> dim auto",
+        "\u00b7 dim auto: re-emitted (3 total)"
+      ],
+      "accepted": true,
+      "owner": 3,
+      "topology": {
+        "solid": true,
+        "volume": 2.200814,
+        "summary": "\u00b7 Result solid  V2 E3 F3 L3  hulls 1  \u03c7=2 genus 0  closed yes manifold yes oriented yes  volume 2.200814  area 8.618577"
+      },
+      "undoRedo": true,
+      "saveReopen": true
+    },
+    {
+      "id": "sphere-sphere-subtract-ab",
+      "fixture": "sphere-sphere",
+      "operation": "subtract-ab",
+      "commands": [
+        "sphere (0,0,0) 1.2 --name=A",
+        "sphere (.9,.2,.1) 1 --name=B"
+      ],
+      "command": "boolean subtract A -- B --select-result --name=Result",
+      "lines": [
+        "> boolean subtract A -- B --select-result --name=Result",
+        "\u00b7 boolean subtract A B  \u00b7  2 intersection curve(s), pieces 3 + 2, kept 1 + 1 (inside 2 / 1)  \u00b7  2.126 s",
+        "\u00b7 #3   Result             solid    V4 E4 F2  \u03c7=2 genus 0  vol 5.0282  area 19.1768  bounds [-1.20 -1.20 -1.20]\u2013[1.90 1.20 1.20]",
+        "> dim auto",
+        "\u00b7 dim auto: re-emitted (3 total)"
+      ],
+      "accepted": true,
+      "owner": 3,
+      "topology": {
+        "solid": true,
+        "volume": 5.028244,
+        "summary": "\u00b7 Result solid  V4 E4 F2 L2  hulls 1  \u03c7=2 genus 0  closed yes manifold yes oriented yes  volume 5.028244  area 19.176755"
+      },
+      "undoRedo": true,
+      "saveReopen": true
+    },
+    {
+      "id": "sphere-sphere-subtract-ba",
+      "fixture": "sphere-sphere",
+      "operation": "subtract-ba",
+      "commands": [
+        "sphere (0,0,0) 1.2 --name=A",
+        "sphere (.9,.2,.1) 1 --name=B"
+      ],
+      "command": "boolean subtract B -- A --select-result --name=Result",
+      "lines": [
+        "> boolean subtract B -- A --select-result --name=Result",
+        "\u00b7 boolean subtract B A  \u00b7  2 intersection curve(s), pieces 2 + 3, kept 1 + 2 (inside 1 / 2)  \u00b7  2.407 s",
+        "\u00b7 #3   Result             solid    V4 E4 F3  \u03c7=2 genus 0  vol 1.9826  area 11.4607  bounds [-1.20 -1.20 -1.20]\u2013[1.90 1.20 1.20]",
+        "> dim auto",
+        "\u00b7 dim auto: re-emitted (3 total)"
+      ],
+      "accepted": true,
+      "owner": 3,
+      "topology": {
+        "solid": true,
+        "volume": 1.982621,
+        "summary": "\u00b7 Result solid  V4 E4 F3 L4  hulls 1  \u03c7=2 genus 0  closed yes manifold yes oriented yes  volume 1.982621  area 11.460743"
+      },
+      "undoRedo": true,
+      "saveReopen": true
+    },
+    {
+      "id": "cross-cylinders-union",
+      "fixture": "cross-cylinders",
+      "operation": "union",
+      "commands": [
+        "cylinder (0,0,-1.3) .9 2.6 --name=A",
+        "cylinder (-1.4,.2,.1) .65 2.8 --axis=(1,0,0) --name=B"
+      ],
+      "command": "boolean union A -- B --select-result --name=Result",
+      "lines": [
+        "> boolean union A -- B --select-result --name=Result",
+        "\u00b7 boolean union A B  \u00b7  4 intersection curve(s), pieces 6 + 5, kept 3 + 4 (inside 3 / 1)  \u00b7  0.118 s",
+        "\u00b7 #3   Result             solid    V8 E12 F7  \u03c7=2 genus 0  vol 8.1897  area 24.9149  bounds [-1.40 -0.90 -1.30]\u2013[1.40 0.90 1.30]",
+        "> dim auto",
+        "\u00b7 dim auto: re-emitted (3 total)"
+      ],
+      "accepted": true,
+      "owner": 3,
+      "topology": {
+        "solid": true,
+        "volume": 8.189668,
+        "summary": "\u00b7 Result solid  V8 E12 F7 L8  hulls 1  \u03c7=2 genus 0  closed yes manifold yes oriented yes  volume 8.189668  area 24.914910"
+      },
+      "undoRedo": true,
+      "saveReopen": true
+    },
+    {
+      "id": "cross-cylinders-intersect",
+      "fixture": "cross-cylinders",
+      "operation": "intersect",
+      "commands": [
+        "cylinder (0,0,-1.3) .9 2.6 --name=A",
+        "cylinder (-1.4,.2,.1) .65 2.8 --axis=(1,0,0) --name=B"
+      ],
+      "command": "boolean intersect A -- B --select-result --name=Result",
+      "lines": [
+        "> boolean intersect A -- B --select-result --name=Result",
+        "\u00b7 boolean intersect A B  \u00b7  4 intersection curve(s), pieces 6 + 5, kept 3 + 1 (inside 3 / 1)  \u00b7  0.083 s",
+        "\u00b7 #3   Result             solid    V4 E6 F4  \u03c7=2 genus 0  vol 2.1393  area 8.9620  bounds [-1.40 -0.90 -1.30]\u2013[1.40 0.90 1.30]",
+        "> dim auto",
+        "\u00b7 dim auto: re-emitted (3 total)"
+      ],
+      "accepted": true,
+      "owner": 3,
+      "topology": {
+        "solid": true,
+        "volume": 2.139338,
+        "summary": "\u00b7 Result solid  V4 E6 F4 L4  hulls 1  \u03c7=2 genus 0  closed yes manifold yes oriented yes  volume 2.139338  area 8.961992"
+      },
+      "undoRedo": true,
+      "saveReopen": true
+    },
+    {
+      "id": "cross-cylinders-subtract-ab",
+      "fixture": "cross-cylinders",
+      "operation": "subtract-ab",
+      "commands": [
+        "cylinder (0,0,-1.3) .9 2.6 --name=A",
+        "cylinder (-1.4,.2,.1) .65 2.8 --axis=(1,0,0) --name=B"
+      ],
+      "command": "boolean subtract A -- B --select-result --name=Result",
+      "lines": [
+        "> boolean subtract A -- B --select-result --name=Result",
+        "\u00b7 boolean subtract A B  \u00b7  4 intersection curve(s), pieces 6 + 5, kept 3 + 1 (inside 3 / 1)  \u00b7  0.074 s",
+        "\u00b7 #3   Result             solid    V6 E9 F4  \u03c7=0 genus 1  vol 4.4745  area 22.6393  bounds [-1.40 -0.90 -1.30]\u2013[1.40 0.90 1.30]",
+        "> dim auto",
+        "\u00b7 dim auto: re-emitted (3 total)"
+      ],
+      "accepted": true,
+      "owner": 3,
+      "topology": {
+        "solid": true,
+        "volume": 4.474488,
+        "summary": "\u00b7 Result solid  V6 E9 F4 L5  hulls 1  \u03c7=0 genus 1  closed yes manifold yes oriented yes  volume 4.474488  area 22.639265"
+      },
+      "undoRedo": true,
+      "saveReopen": true
+    },
+    {
+      "id": "cross-cylinders-subtract-ba",
+      "fixture": "cross-cylinders",
+      "operation": "subtract-ba",
+      "commands": [
+        "cylinder (0,0,-1.3) .9 2.6 --name=A",
+        "cylinder (-1.4,.2,.1) .65 2.8 --axis=(1,0,0) --name=B"
+      ],
+      "command": "boolean subtract B -- A --select-result --name=Result",
+      "lines": [
+        "> boolean subtract B -- A --select-result --name=Result",
+        "\u00b7 boolean subtract B A  \u00b7  4 intersection curve(s), pieces 5 + 6, kept 4 + 3 (inside 1 / 3)  \u00b7  0.071 s",
+        "\u00b7 #3   Result             solid    V6 E9 F7  \u03c7=4 genus 0  vol 1.5757  area 11.2381  bounds [-1.40 -0.90 -1.30]\u2013[1.40 0.90 1.30]",
+        "> dim auto",
+        "\u00b7 dim auto: re-emitted (3 total)"
+      ],
+      "accepted": true,
+      "owner": 3,
+      "topology": {
+        "solid": true,
+        "volume": 1.575665,
+        "summary": "\u00b7 Result solid  V6 E9 F7 L7  hulls 2  \u03c7=4 genus 0  closed yes manifold yes oriented yes  volume 1.575665  area 11.238141"
+      },
+      "undoRedo": true,
+      "saveReopen": true
+    },
+    {
+      "id": "cone-box-union",
+      "fixture": "cone-box",
+      "operation": "union",
+      "commands": [
+        "cone (0,0,-1) 1.2 .45 2.2 --name=A",
+        "box (0,-.8,-.6) (1.5,.9,1.6) --name=B"
+      ],
+      "command": "boolean union A -- B --select-result --name=Result",
+      "lines": [
+        "> boolean union A -- B --select-result --name=Result",
+        "\u00b7 boolean union A B  \u00b7  7 intersection curve(s), pieces 6 + 10, kept 3 + 6 (inside 3 / 4)  \u00b7  0.024 s",
+        "\u00b7 #3   Result             solid    V14 E21 F9  \u03c7=2 genus 0  vol 8.9785  area 27.4341  bounds [-1.20 -1.20 -1.00]\u2013[1.50 1.20 1.60]",
+        "> dim auto",
+        "\u00b7 dim auto: re-emitted (5 total)"
+      ],
+      "accepted": true,
+      "owner": 3,
+      "topology": {
+        "solid": true,
+        "volume": 8.978525,
+        "summary": "\u00b7 Result solid  V14 E21 F9 L9  hulls 1  \u03c7=2 genus 0  closed yes manifold yes oriented yes  volume 8.978525  area 27.434116"
+      },
+      "undoRedo": true,
+      "saveReopen": true
+    },
+    {
+      "id": "cone-box-intersect",
+      "fixture": "cone-box",
+      "operation": "intersect",
+      "commands": [
+        "cone (0,0,-1) 1.2 .45 2.2 --name=A",
+        "box (0,-.8,-.6) (1.5,.9,1.6) --name=B"
+      ],
+      "command": "boolean intersect A -- B --select-result --name=Result",
+      "lines": [
+        "> boolean intersect A -- B --select-result --name=Result",
+        "\u00b7 boolean intersect A B  \u00b7  7 intersection curve(s), pieces 6 + 10, kept 3 + 4 (inside 3 / 4)  \u00b7  0.030 s",
+        "\u00b7 #3   Result             solid    V10 E15 F7  \u03c7=2 genus 0  vol 1.6577  area 8.9516  bounds [-1.20 -1.20 -1.00]\u2013[1.20 1.20 1.20]",
+        "> dim auto",
+        "\u00b7 dim auto: re-emitted (5 total)"
+      ],
+      "accepted": true,
+      "owner": 3,
+      "topology": {
+        "solid": true,
+        "volume": 1.657665,
+        "summary": "\u00b7 Result solid  V10 E15 F7 L7  hulls 1  \u03c7=2 genus 0  closed yes manifold yes oriented yes  volume 1.657665  area 8.951645"
+      },
+      "undoRedo": true,
+      "saveReopen": true
+    },
+    {
+      "id": "cone-box-subtract-ab",
+      "fixture": "cone-box",
+      "operation": "subtract-ab",
+      "commands": [
+        "cone (0,0,-1) 1.2 .45 2.2 --name=A",
+        "box (0,-.8,-.6) (1.5,.9,1.6) --name=B"
+      ],
+      "command": "boolean subtract A -- B --select-result --name=Result",
+      "lines": [
+        "> boolean subtract A -- B --select-result --name=Result",
+        "\u00b7 boolean subtract A B  \u00b7  7 intersection curve(s), pieces 6 + 10, kept 3 + 4 (inside 3 / 4)  \u00b7  0.045 s",
+        "\u00b7 #3   Result             solid    V10 E15 F7  \u03c7=2 genus 0  vol 3.3685  area 17.6521  bounds [-1.20 -1.20 -1.00]\u2013[1.20 1.20 1.20]",
+        "> dim auto",
+        "\u00b7 dim auto: re-emitted (5 total)"
+      ],
+      "accepted": true,
+      "owner": 3,
+      "topology": {
+        "solid": true,
+        "volume": 3.368525,
+        "summary": "\u00b7 Result solid  V10 E15 F7 L7  hulls 1  \u03c7=2 genus 0  closed yes manifold yes oriented yes  volume 3.368525  area 17.652135"
+      },
+      "undoRedo": true,
+      "saveReopen": true
+    },
+    {
+      "id": "cone-box-subtract-ba",
+      "fixture": "cone-box",
+      "operation": "subtract-ba",
+      "commands": [
+        "cone (0,0,-1) 1.2 .45 2.2 --name=A",
+        "box (0,-.8,-.6) (1.5,.9,1.6) --name=B"
+      ],
+      "command": "boolean subtract B -- A --select-result --name=Result",
+      "lines": [
+        "> boolean subtract B -- A --select-result --name=Result",
+        "\u00b7 boolean subtract B A  \u00b7  7 intersection curve(s), pieces 10 + 6, kept 6 + 3 (inside 4 / 3)  \u00b7  0.019 s",
+        "\u00b7 #3   Result             solid    V14 E21 F9  \u03c7=2 genus 0  vol 3.9523  area 18.7332  bounds [-1.20 -1.20 -1.00]\u2013[1.50 1.20 1.60]",
+        "> dim auto",
+        "\u00b7 dim auto: re-emitted (5 total)"
+      ],
+      "accepted": true,
+      "owner": 3,
+      "topology": {
+        "solid": true,
+        "volume": 3.9523,
+        "summary": "\u00b7 Result solid  V14 E21 F9 L9  hulls 1  \u03c7=2 genus 0  closed yes manifold yes oriented yes  volume 3.952300  area 18.733209"
+      },
+      "undoRedo": true,
+      "saveReopen": true
+    },
+    {
+      "id": "cone-sphere-union",
+      "fixture": "cone-sphere",
+      "operation": "union",
+      "commands": [
+        "cone (0,0,-1) 1.2 .45 2.2 --name=A",
+        "sphere (.5,.1,.2) .9 --name=B"
+      ],
+      "command": "boolean union A -- B --select-result --name=Result",
+      "lines": [
+        "> boolean union A -- B --select-result --name=Result",
+        "\u00b7 boolean union A B  \u00b7  3 intersection curve(s), pieces 5 + 2, kept 3 + 1 (inside 2 / 1)  \u00b7  0.611 s",
+        "\u00b7 #3   Result             solid    V6 E8 F4  \u03c7=2 genus 0  vol 6.2718  area 19.6430  bounds [-1.20 -1.20 -1.00]\u2013[1.40 1.20 1.20]",
+        "> dim auto",
+        "\u00b7 dim auto: re-emitted (3 total)"
+      ],
+      "accepted": true,
+      "owner": 3,
+      "topology": {
+        "solid": true,
+        "volume": 6.27177,
+        "summary": "\u00b7 Result solid  V6 E8 F4 L4  hulls 1  \u03c7=2 genus 0  closed yes manifold yes oriented yes  volume 6.271770  area 19.643034"
+      },
+      "undoRedo": true,
+      "saveReopen": true
+    },
+    {
+      "id": "cone-sphere-intersect",
+      "fixture": "cone-sphere",
+      "operation": "intersect",
+      "commands": [
+        "cone (0,0,-1) 1.2 .45 2.2 --name=A",
+        "sphere (.5,.1,.2) .9 --name=B"
+      ],
+      "command": "boolean intersect A -- B --select-result --name=Result",
+      "lines": [
+        "> boolean intersect A -- B --select-result --name=Result",
+        "\u00b7 boolean intersect A B  \u00b7  3 intersection curve(s), pieces 5 + 2, kept 2 + 1 (inside 2 / 1)  \u00b7  0.528 s",
+        "\u00b7 #3   Result             solid    V4 E5 F3  \u03c7=2 genus 0  vol 1.8041  area 7.7330  bounds [-1.20 -1.20 -1.00]\u2013[1.40 1.20 1.20]",
+        "> dim auto",
+        "\u00b7 dim auto: re-emitted (3 total)"
+      ],
+      "accepted": true,
+      "owner": 3,
+      "topology": {
+        "solid": true,
+        "volume": 1.804061,
+        "summary": "\u00b7 Result solid  V4 E5 F3 L3  hulls 1  \u03c7=2 genus 0  closed yes manifold yes oriented yes  volume 1.804061  area 7.733006"
+      },
+      "undoRedo": true,
+      "saveReopen": true
+    },
+    {
+      "id": "cone-sphere-subtract-ab",
+      "fixture": "cone-sphere",
+      "operation": "subtract-ab",
+      "commands": [
+        "cone (0,0,-1) 1.2 .45 2.2 --name=A",
+        "sphere (.5,.1,.2) .9 --name=B"
+      ],
+      "command": "boolean subtract A -- B --select-result --name=Result",
+      "lines": [
+        "> boolean subtract A -- B --select-result --name=Result",
+        "\u00b7 boolean subtract A B  \u00b7  3 intersection curve(s), pieces 5 + 2, kept 3 + 1 (inside 2 / 1)  \u00b7  0.604 s",
+        "\u00b7 #3   Result             solid    V6 E8 F4  \u03c7=2 genus 0  vol 3.2222  area 18.8617  bounds [-1.20 -1.20 -1.00]\u2013[1.40 1.20 1.20]",
+        "> dim auto",
+        "\u00b7 dim auto: re-emitted (3 total)"
+      ],
+      "accepted": true,
+      "owner": 3,
+      "topology": {
+        "solid": true,
+        "volume": 3.222229,
+        "summary": "\u00b7 Result solid  V6 E8 F4 L4  hulls 1  \u03c7=2 genus 0  closed yes manifold yes oriented yes  volume 3.222229  area 18.861742"
+      },
+      "undoRedo": true,
+      "saveReopen": true
+    },
+    {
+      "id": "cone-sphere-subtract-ba",
+      "fixture": "cone-sphere",
+      "operation": "subtract-ba",
+      "commands": [
+        "cone (0,0,-1) 1.2 .45 2.2 --name=A",
+        "sphere (.5,.1,.2) .9 --name=B"
+      ],
+      "command": "boolean subtract B -- A --select-result --name=Result",
+      "lines": [
+        "> boolean subtract B -- A --select-result --name=Result",
+        "\u00b7 boolean subtract B A  \u00b7  3 intersection curve(s), pieces 2 + 5, kept 1 + 2 (inside 1 / 2)  \u00b7  0.653 s",
+        "\u00b7 #3   Result             solid    V4 E5 F3  \u03c7=2 genus 0  vol 1.2454  area 8.5137  bounds [-1.20 -1.20 -1.00]\u2013[1.40 1.20 1.20]",
+        "> dim auto",
+        "\u00b7 dim auto: re-emitted (3 total)"
+      ],
+      "accepted": true,
+      "owner": 3,
+      "topology": {
+        "solid": true,
+        "volume": 1.245377,
+        "summary": "\u00b7 Result solid  V4 E5 F3 L3  hulls 1  \u03c7=2 genus 0  closed yes manifold yes oriented yes  volume 1.245377  area 8.513663"
+      },
+      "undoRedo": true,
+      "saveReopen": true
+    },
+    {
+      "id": "torus-box-union",
+      "fixture": "torus-box",
+      "operation": "union",
+      "commands": [
+        "torus (0,0,0) 1.2 .4 --name=A",
+        "box (0,-1.6,-.7) (1.8,1.6,.7) --name=B"
+      ],
+      "command": "boolean union A -- B --select-result --name=Result",
+      "lines": [
+        "> boolean union A -- B --select-result --name=Result",
+        "\u2717 boolean union: Unsupported \u2014 intersection boundary is not shared by two result faces",
+        "> dim auto",
+        "\u00b7 dim auto: re-emitted (5 total)"
+      ],
+      "accepted": false,
+      "refusalPreserved": true
+    },
+    {
+      "id": "torus-box-intersect",
+      "fixture": "torus-box",
+      "operation": "intersect",
+      "commands": [
+        "torus (0,0,0) 1.2 .4 --name=A",
+        "box (0,-1.6,-.7) (1.8,1.6,.7) --name=B"
+      ],
+      "command": "boolean intersect A -- B --select-result --name=Result",
+      "lines": [
+        "> boolean intersect A -- B --select-result --name=Result",
+        "\u00b7 boolean intersect A B  \u00b7  2 intersection curve(s), pieces 3 + 8, kept 2 + 2 (inside 2 / 2)  \u00b7  2.207 s",
+        "\u00b7 #3   Result             solid    V3 E5 F4  \u03c7=2 genus 0  vol 1.9051  area 10.9980  bounds [-1.60 -1.60 -0.40]\u2013[1.60 1.60 0.40]",
+        "> dim auto",
+        "\u00b7 dim auto: re-emitted (6 total)"
+      ],
+      "accepted": true,
+      "owner": 3,
+      "topology": {
+        "solid": true,
+        "volume": 1.905057,
+        "summary": "\u00b7 Result solid  V3 E5 F4 L4  hulls 1  \u03c7=2 genus 0  closed yes manifold yes oriented yes  volume 1.905057  area 10.997997"
+      },
+      "undoRedo": true,
+      "saveReopen": true
+    },
+    {
+      "id": "torus-box-subtract-ab",
+      "fixture": "torus-box",
+      "operation": "subtract-ab",
+      "commands": [
+        "torus (0,0,0) 1.2 .4 --name=A",
+        "box (0,-1.6,-.7) (1.8,1.6,.7) --name=B"
+      ],
+      "command": "boolean subtract A -- B --select-result --name=Result",
+      "lines": [
+        "> boolean subtract A -- B --select-result --name=Result",
+        "\u00b7 boolean subtract A B  \u00b7  2 intersection curve(s), pieces 3 + 8, kept 1 + 2 (inside 2 / 2)  \u00b7  1.572 s",
+        "\u00b7 #3   Result             solid    V2 E3 F3  \u03c7=2 genus 0  vol 1.9051  area 10.9980  bounds [-1.60 -1.60 -0.40]\u2013[1.60 1.60 0.40]",
+        "> dim auto",
+        "\u00b7 dim auto: re-emitted (6 total)"
+      ],
+      "accepted": true,
+      "owner": 3,
+      "topology": {
+        "solid": true,
+        "volume": 1.905057,
+        "summary": "\u00b7 Result solid  V2 E3 F3 L3  hulls 1  \u03c7=2 genus 0  closed yes manifold yes oriented yes  volume 1.905057  area 10.997997"
+      },
+      "undoRedo": true,
+      "saveReopen": true
+    },
+    {
+      "id": "torus-box-subtract-ba",
+      "fixture": "torus-box",
+      "operation": "subtract-ba",
+      "commands": [
+        "torus (0,0,0) 1.2 .4 --name=A",
+        "box (0,-1.6,-.7) (1.8,1.6,.7) --name=B"
+      ],
+      "command": "boolean subtract B -- A --select-result --name=Result",
+      "lines": [
+        "> boolean subtract B -- A --select-result --name=Result",
+        "\u00b7 boolean subtract B A  \u00b7  2 intersection curve(s), pieces 8 + 3, kept 6 + 2 (inside 2 / 2)  \u00b7  2.226 s",
+        "\u00b7 #3   Result             solid    V11 E17 F8  \u03c7=0 genus 1  vol 6.1589  area 34.5097  bounds [-1.60 -1.60 -0.70]\u2013[1.80 1.60 0.70]",
+        "> dim auto",
+        "\u00b7 dim auto: re-emitted (6 total)"
+      ],
+      "accepted": true,
+      "owner": 3,
+      "topology": {
+        "solid": true,
+        "volume": 6.158942,
+        "summary": "\u00b7 Result solid  V11 E17 F8 L10  hulls 1  \u03c7=0 genus 1  closed yes manifold yes oriented yes  volume 6.158942  area 34.509732"
+      },
+      "undoRedo": true,
+      "saveReopen": true
+    },
+    {
+      "id": "torus-cylinder-union",
+      "fixture": "torus-cylinder",
+      "operation": "union",
+      "commands": [
+        "torus (0,0,0) 1.2 .4 --name=A",
+        "cylinder (1,0,-.8) .7 1.6 --name=B"
+      ],
+      "command": "boolean union A -- B --select-result --name=Result",
+      "lines": [
+        "> boolean union A -- B --select-result --name=Result",
+        "\u2717 boolean union: Unsupported \u2014 boolean assembly is not a closed, manifold, oriented positive-volume solid",
+        "> dim auto",
+        "\u00b7 dim auto: re-emitted (3 total)"
+      ],
+      "accepted": false,
+      "refusalPreserved": true
+    },
+    {
+      "id": "torus-cylinder-intersect",
+      "fixture": "torus-cylinder",
+      "operation": "intersect",
+      "commands": [
+        "torus (0,0,0) 1.2 .4 --name=A",
+        "cylinder (1,0,-.8) .7 1.6 --name=B"
+      ],
+      "command": "boolean intersect A -- B --select-result --name=Result",
+      "lines": [
+        "> boolean intersect A -- B --select-result --name=Result",
+        "\u2717 boolean intersect: Unsupported \u2014 boolean assembly is not a closed, manifold, oriented positive-volume solid",
+        "> dim auto",
+        "\u00b7 dim auto: re-emitted (3 total)"
+      ],
+      "accepted": false,
+      "refusalPreserved": true
+    },
+    {
+      "id": "torus-cylinder-subtract-ab",
+      "fixture": "torus-cylinder",
+      "operation": "subtract-ab",
+      "commands": [
+        "torus (0,0,0) 1.2 .4 --name=A",
+        "cylinder (1,0,-.8) .7 1.6 --name=B"
+      ],
+      "command": "boolean subtract A -- B --select-result --name=Result",
+      "lines": [
+        "> boolean subtract A -- B --select-result --name=Result",
+        "\u2717 boolean subtract: Unsupported \u2014 boolean assembly is not a closed, manifold, oriented positive-volume solid",
+        "> dim auto",
+        "\u00b7 dim auto: re-emitted (3 total)"
+      ],
+      "accepted": false,
+      "refusalPreserved": true
+    },
+    {
+      "id": "torus-cylinder-subtract-ba",
+      "fixture": "torus-cylinder",
+      "operation": "subtract-ba",
+      "commands": [
+        "torus (0,0,0) 1.2 .4 --name=A",
+        "cylinder (1,0,-.8) .7 1.6 --name=B"
+      ],
+      "command": "boolean subtract B -- A --select-result --name=Result",
+      "lines": [
+        "> boolean subtract B -- A --select-result --name=Result",
+        "\u00b7 boolean subtract B A  \u00b7  2 intersection curve(s), pieces 5 + 3, kept 3 + 2 (inside 2 / 2)  \u00b7  2.276 s",
+        "\u00b7 #3   Result             solid    V5 E8 F5  \u03c7=0 genus 1  vol 1.7601  area 12.0655  bounds [-1.60 -1.60 -0.80]\u2013[1.70 1.60 0.80]",
+        "> dim auto",
+        "\u00b7 dim auto: re-emitted (4 total)"
+      ],
+      "accepted": true,
+      "owner": 3,
+      "topology": {
+        "solid": true,
+        "volume": 1.760077,
+        "summary": "\u00b7 Result solid  V5 E8 F5 L7  hulls 1  \u03c7=0 genus 1  closed yes manifold yes oriented yes  volume 1.760077  area 12.065471"
+      },
+      "undoRedo": true,
+      "saveReopen": true
+    },
+    {
+      "id": "extruded-hexagon-union",
+      "fixture": "extruded-hexagon",
+      "operation": "union",
+      "commands": [
+        "polygon (0,0) 1.2 6 --name=Profile",
+        "extrude Profile 2 --name=A",
+        "hide Profile",
+        "box (-.3,-1,-.3) (.9,1,1.2) --name=B"
+      ],
+      "command": "boolean union A -- B --select-result --name=Result",
+      "lines": [
+        "> boolean union A -- B --select-result --name=Result",
+        "\u00b7 boolean union A B  \u00b7  10 intersection curve(s), pieces 12 + 12, kept 9 + 7 (inside 3 / 5)  \u00b7  0.003 s",
+        "\u00b7 #4   Result             solid    V28 E42 F16  \u03c7=2 genus 0  vol 8.3623  area 24.5562  bounds [-1.20 -1.04 -0.30]\u2013[1.20 1.04 2.00]",
+        "> dim auto",
+        "\u00b7 dim auto: re-emitted (6 total)"
+      ],
+      "accepted": true,
+      "owner": 4,
+      "topology": {
+        "solid": true,
+        "volume": 8.362341,
+        "summary": "\u00b7 Result solid  V28 E42 F16 L16  hulls 1  \u03c7=2 genus 0  closed yes manifold yes oriented yes  volume 8.362341  area 24.556212"
+      },
+      "undoRedo": true,
+      "saveReopen": true
+    },
+    {
+      "id": "extruded-hexagon-intersect",
+      "fixture": "extruded-hexagon",
+      "operation": "intersect",
+      "commands": [
+        "polygon (0,0) 1.2 6 --name=Profile",
+        "extrude Profile 2 --name=A",
+        "hide Profile",
+        "box (-.3,-1,-.3) (.9,1,1.2) --name=B"
+      ],
+      "command": "boolean intersect A -- B --select-result --name=Result",
+      "lines": [
+        "> boolean intersect A -- B --select-result --name=Result",
+        "\u00b7 boolean intersect A B  \u00b7  10 intersection curve(s), pieces 12 + 12, kept 3 + 5 (inside 3 / 5)  \u00b7  0.005 s",
+        "\u00b7 #4   Result             solid    V12 E18 F8  \u03c7=2 genus 0  vol 2.7201  area 11.7262  bounds [-0.30 -1.04 -0.00]\u2013[1.20 1.04 2.00]",
+        "> dim auto",
+        "\u00b7 dim auto: re-emitted (6 total)"
+      ],
+      "accepted": true,
+      "owner": 4,
+      "topology": {
+        "solid": true,
+        "volume": 2.720118,
+        "summary": "\u00b7 Result solid  V12 E18 F8 L8  hulls 1  \u03c7=2 genus 0  closed yes manifold yes oriented yes  volume 2.720118  area 11.726248"
+      },
+      "undoRedo": true,
+      "saveReopen": true
+    },
+    {
+      "id": "extruded-hexagon-subtract-ab",
+      "fixture": "extruded-hexagon",
+      "operation": "subtract-ab",
+      "commands": [
+        "polygon (0,0) 1.2 6 --name=Profile",
+        "extrude Profile 2 --name=A",
+        "hide Profile",
+        "box (-.3,-1,-.3) (.9,1,1.2) --name=B"
+      ],
+      "command": "boolean subtract A -- B --select-result --name=Result",
+      "lines": [
+        "> boolean subtract A -- B --select-result --name=Result",
+        "\u00b7 boolean subtract A B  \u00b7  10 intersection curve(s), pieces 12 + 12, kept 9 + 5 (inside 3 / 5)  \u00b7  0.003 s",
+        "\u00b7 #4   Result             solid    V24 E36 F14  \u03c7=2 genus 0  vol 4.7623  area 26.4126  bounds [-1.20 -1.04 -0.00]\u2013[1.20 1.04 2.00]",
+        "> dim auto",
+        "\u00b7 dim auto: re-emitted (6 total)"
+      ],
+      "accepted": true,
+      "owner": 4,
+      "topology": {
+        "solid": true,
+        "volume": 4.762341,
+        "summary": "\u00b7 Result solid  V24 E36 F14 L14  hulls 1  \u03c7=2 genus 0  closed yes manifold yes oriented yes  volume 4.762341  area 26.412614"
+      },
+      "undoRedo": true,
+      "saveReopen": true
+    },
+    {
+      "id": "extruded-hexagon-subtract-ba",
+      "fixture": "extruded-hexagon",
+      "operation": "subtract-ba",
+      "commands": [
+        "polygon (0,0) 1.2 6 --name=Profile",
+        "extrude Profile 2 --name=A",
+        "hide Profile",
+        "box (-.3,-1,-.3) (.9,1,1.2) --name=B"
+      ],
+      "command": "boolean subtract B -- A --select-result --name=Result",
+      "lines": [
+        "> boolean subtract B -- A --select-result --name=Result",
+        "\u00b7 boolean subtract B A  \u00b7  10 intersection curve(s), pieces 12 + 12, kept 7 + 3 (inside 5 / 3)  \u00b7  0.004 s",
+        "\u00b7 #4   Result             solid    V16 E24 F10  \u03c7=2 genus 0  vol 0.8799  area 9.8698  bounds [-0.30 -1.04 -0.30]\u2013[1.20 1.04 2.00]",
+        "> dim auto",
+        "\u00b7 dim auto: re-emitted (6 total)"
+      ],
+      "accepted": true,
+      "owner": 4,
+      "topology": {
+        "solid": true,
+        "volume": 0.879882,
+        "summary": "\u00b7 Result solid  V16 E24 F10 L10  hulls 1  \u03c7=2 genus 0  closed yes manifold yes oriented yes  volume 0.879882  area 9.869845"
+      },
+      "undoRedo": true,
+      "saveReopen": true
+    },
+    {
+      "id": "lofted-profiles-union",
+      "fixture": "lofted-profiles",
+      "operation": "union",
+      "commands": [
+        "circle (0,0,0) 1.1 --name=P0",
+        "circle (.25,.1,1) .9 --name=P1",
+        "circle (0,0,2) .6 --name=P2",
+        "loft P0 P1 P2 --name=A",
+        "hide P0 P1 P2",
+        "box (0,-.8,.4) (1.4,.8,1.6) --name=B"
+      ],
+      "command": "boolean union A -- B --select-result --name=Result",
+      "lines": [
+        "> boolean union A -- B --select-result --name=Result",
+        "\u00b7 boolean union A B  \u00b7  8 intersection curve(s), pieces 5 + 12, kept 3 + 7 (inside 2 / 5)  \u00b7  0.439 s",
+        "\u00b7 #6   Result             solid    V16 E24 F10  \u03c7=2 genus 0  vol 5.8925  area 19.6810  bounds [-1.10 -1.10 0.00]\u2013[1.44 1.14 2.00]",
+        "> dim auto",
+        "\u00b7 dim auto: re-emitted (11 total)"
+      ],
+      "accepted": true,
+      "owner": 6,
+      "topology": {
+        "solid": true,
+        "volume": 5.892475,
+        "summary": "\u00b7 Result solid  V16 E24 F10 L10  hulls 1  \u03c7=2 genus 0  closed yes manifold yes oriented yes  volume 5.892475  area 19.681035"
+      },
+      "undoRedo": true,
+      "saveReopen": true
+    },
+    {
+      "id": "lofted-profiles-intersect",
+      "fixture": "lofted-profiles",
+      "operation": "intersect",
+      "commands": [
+        "circle (0,0,0) 1.1 --name=P0",
+        "circle (.25,.1,1) .9 --name=P1",
+        "circle (0,0,2) .6 --name=P2",
+        "loft P0 P1 P2 --name=A",
+        "hide P0 P1 P2",
+        "box (0,-.8,.4) (1.4,.8,1.6) --name=B"
+      ],
+      "command": "boolean intersect A -- B --select-result --name=Result",
+      "lines": [
+        "> boolean intersect A -- B --select-result --name=Result",
+        "\u00b7 boolean intersect A B  \u00b7  8 intersection curve(s), pieces 5 + 12, kept 2 + 5 (inside 2 / 5)  \u00b7  0.259 s",
+        "\u00b7 #6   Result             solid    V10 E15 F7  \u03c7=2 genus 0  vol 1.8274  area 8.5957  bounds [-1.10 -1.10 0.00]\u2013[1.44 1.14 2.00]",
+        "> dim auto",
+        "\u00b7 dim auto: re-emitted (11 total)"
+      ],
+      "accepted": true,
+      "owner": 6,
+      "topology": {
+        "solid": true,
+        "volume": 1.827396,
+        "summary": "\u00b7 Result solid  V10 E15 F7 L7  hulls 1  \u03c7=2 genus 0  closed yes manifold yes oriented yes  volume 1.827396  area 8.595674"
+      },
+      "undoRedo": true,
+      "saveReopen": true
+    },
+    {
+      "id": "lofted-profiles-subtract-ab",
+      "fixture": "lofted-profiles",
+      "operation": "subtract-ab",
+      "commands": [
+        "circle (0,0,0) 1.1 --name=P0",
+        "circle (.25,.1,1) .9 --name=P1",
+        "circle (0,0,2) .6 --name=P2",
+        "loft P0 P1 P2 --name=A",
+        "hide P0 P1 P2",
+        "box (0,-.8,.4) (1.4,.8,1.6) --name=B"
+      ],
+      "command": "boolean subtract A -- B --select-result --name=Result",
+      "lines": [
+        "> boolean subtract A -- B --select-result --name=Result",
+        "\u00b7 boolean subtract A B  \u00b7  8 intersection curve(s), pieces 5 + 12, kept 3 + 5 (inside 2 / 5)  \u00b7  0.568 s",
+        "\u00b7 #6   Result             solid    V12 E18 F8  \u03c7=2 genus 0  vol 3.2045  area 19.7473  bounds [-1.10 -1.10 0.00]\u2013[1.44 1.14 2.00]",
+        "> dim auto",
+        "\u00b7 dim auto: re-emitted (11 total)"
+      ],
+      "accepted": true,
+      "owner": 6,
+      "topology": {
+        "solid": true,
+        "volume": 3.204475,
+        "summary": "\u00b7 Result solid  V12 E18 F8 L8  hulls 1  \u03c7=2 genus 0  closed yes manifold yes oriented yes  volume 3.204475  area 19.747347"
+      },
+      "undoRedo": true,
+      "saveReopen": true
+    },
+    {
+      "id": "lofted-profiles-subtract-ba",
+      "fixture": "lofted-profiles",
+      "operation": "subtract-ba",
+      "commands": [
+        "circle (0,0,0) 1.1 --name=P0",
+        "circle (.25,.1,1) .9 --name=P1",
+        "circle (0,0,2) .6 --name=P2",
+        "loft P0 P1 P2 --name=A",
+        "hide P0 P1 P2",
+        "box (0,-.8,.4) (1.4,.8,1.6) --name=B"
+      ],
+      "command": "boolean subtract B -- A --select-result --name=Result",
+      "lines": [
+        "> boolean subtract B -- A --select-result --name=Result",
+        "\u00b7 boolean subtract B A  \u00b7  8 intersection curve(s), pieces 12 + 5, kept 7 + 2 (inside 5 / 2)  \u00b7  0.341 s",
+        "\u00b7 #6   Result             solid    V14 E21 F9  \u03c7=2 genus 0  vol 0.8605  area 8.5290  bounds [-1.10 -1.10 0.00]\u2013[1.44 1.14 2.00]",
+        "> dim auto",
+        "\u00b7 dim auto: re-emitted (11 total)"
+      ],
+      "accepted": true,
+      "owner": 6,
+      "topology": {
+        "solid": true,
+        "volume": 0.860509,
+        "summary": "\u00b7 Result solid  V14 E21 F9 L9  hulls 1  \u03c7=2 genus 0  closed yes manifold yes oriented yes  volume 0.860509  area 8.528998"
+      },
+      "undoRedo": true,
+      "saveReopen": true
+    },
+    {
+      "id": "small-boxes-union",
+      "fixture": "small-boxes",
+      "operation": "union",
+      "commands": [
+        "box (-.1,-.1,-.1) (.1,.1,.1) --name=A",
+        "box (0,-.06,-.04) (.17,.13,.14) --name=B"
+      ],
+      "command": "boolean union A -- B --select-result --name=Result",
+      "lines": [
+        "> boolean union A -- B --select-result --name=Result",
+        "\u00b7 boolean union A B  \u00b7  0 intersection curve(s), pieces 6 + 6, kept 0 + 0 (inside 0 / 0)  \u00b7  0.002 s",
+        "\u00b7 #3   Result             solid    V44 E84 F42  \u03c7=2 genus 0  vol 0.0116  area 0.3294  bounds [-0.10 -0.10 -0.10]\u2013[0.17 0.13 0.14]",
+        "> dim auto",
+        "\u00b7 dim auto: re-emitted (7 total)"
+      ],
+      "accepted": true,
+      "owner": 3,
+      "topology": {
+        "solid": true,
+        "volume": 0.011574,
+        "summary": "\u00b7 Result solid  V44 E84 F42 L42  hulls 1  \u03c7=2 genus 0  closed yes manifold yes oriented yes  volume 0.011574  area 0.329400"
+      },
+      "undoRedo": true,
+      "saveReopen": true
+    },
+    {
+      "id": "small-boxes-intersect",
+      "fixture": "small-boxes",
+      "operation": "intersect",
+      "commands": [
+        "box (-.1,-.1,-.1) (.1,.1,.1) --name=A",
+        "box (0,-.06,-.04) (.17,.13,.14) --name=B"
+      ],
+      "command": "boolean intersect A -- B --select-result --name=Result",
+      "lines": [
+        "> boolean intersect A -- B --select-result --name=Result",
+        "\u00b7 boolean intersect A B  \u00b7  0 intersection curve(s), pieces 6 + 6, kept 6 + 6 (inside 0 / 0)  \u00b7  0.001 s",
+        "\u00b7 #3   Result             solid    V8 E12 F6  \u03c7=2 genus 0  vol 0.0022  area 0.1048  bounds [0.00 -0.06 -0.04]\u2013[0.10 0.10 0.10]",
+        "> dim auto",
+        "\u00b7 dim auto: re-emitted (7 total)"
+      ],
+      "accepted": true,
+      "owner": 3,
+      "topology": {
+        "solid": true,
+        "volume": 0.00224,
+        "summary": "\u00b7 Result solid  V8 E12 F6 L6  hulls 1  \u03c7=2 genus 0  closed yes manifold yes oriented yes  volume 0.002240  area 0.104800"
+      },
+      "undoRedo": true,
+      "saveReopen": true
+    },
+    {
+      "id": "small-boxes-subtract-ab",
+      "fixture": "small-boxes",
+      "operation": "subtract-ab",
+      "commands": [
+        "box (-.1,-.1,-.1) (.1,.1,.1) --name=A",
+        "box (0,-.06,-.04) (.17,.13,.14) --name=B"
+      ],
+      "command": "boolean subtract A -- B --select-result --name=Result",
+      "lines": [
+        "> boolean subtract A -- B --select-result --name=Result",
+        "\u00b7 boolean subtract A B  \u00b7  0 intersection curve(s), pieces 6 + 6, kept 0 + 0 (inside 0 / 0)  \u00b7  0.001 s",
+        "\u00b7 #3   Result             solid    V26 E48 F24  \u03c7=2 genus 0  vol 0.0058  area 0.2400  bounds [-0.10 -0.10 -0.10]\u2013[0.10 0.10 0.10]",
+        "> dim auto",
+        "\u00b7 dim auto: re-emitted (7 total)"
+      ],
+      "accepted": true,
+      "owner": 3,
+      "topology": {
+        "solid": true,
+        "volume": 0.00576,
+        "summary": "\u00b7 Result solid  V26 E48 F24 L24  hulls 1  \u03c7=2 genus 0  closed yes manifold yes oriented yes  volume 0.005760  area 0.240000"
+      },
+      "undoRedo": true,
+      "saveReopen": true
+    },
+    {
+      "id": "small-boxes-subtract-ba",
+      "fixture": "small-boxes",
+      "operation": "subtract-ba",
+      "commands": [
+        "box (-.1,-.1,-.1) (.1,.1,.1) --name=A",
+        "box (0,-.06,-.04) (.17,.13,.14) --name=B"
+      ],
+      "command": "boolean subtract B -- A --select-result --name=Result",
+      "lines": [
+        "> boolean subtract B -- A --select-result --name=Result",
+        "\u00b7 boolean subtract B A  \u00b7  0 intersection curve(s), pieces 6 + 6, kept 0 + 0 (inside 0 / 0)  \u00b7  0.001 s",
+        "\u00b7 #3   Result             solid    V26 E48 F24  \u03c7=2 genus 0  vol 0.0036  area 0.1942  bounds [0.00 -0.06 -0.04]\u2013[0.17 0.13 0.14]",
+        "> dim auto",
+        "\u00b7 dim auto: re-emitted (7 total)"
+      ],
+      "accepted": true,
+      "owner": 3,
+      "topology": {
+        "solid": true,
+        "volume": 0.003574,
+        "summary": "\u00b7 Result solid  V26 E48 F24 L24  hulls 1  \u03c7=2 genus 0  closed yes manifold yes oriented yes  volume 0.003574  area 0.194200"
+      },
+      "undoRedo": true,
+      "saveReopen": true
+    },
+    {
+      "id": "translated-sphere-cylinder-union",
+      "fixture": "translated-sphere-cylinder",
+      "operation": "union",
+      "commands": [
+        "sphere (10,-7,4) 2.4 --name=A",
+        "cylinder (10.4,-6.8,4) 1.3 4 --name=B"
+      ],
+      "command": "boolean union A -- B --select-result --name=Result",
+      "lines": [
+        "> boolean union A -- B --select-result --name=Result",
+        "\u00b7 boolean union A B  \u00b7  2 intersection curve(s), pieces 2 + 4, kept 1 + 2 (inside 1 / 2)  \u00b7  0.755 s",
+        "\u00b7 #3   Result             solid    V4 E5 F3  \u03c7=2 genus 0  vol 67.5963  area 88.4158  bounds [7.60 -9.40 1.60]\u2013[12.40 -4.60 8.00]",
+        "> dim auto",
+        "\u00b7 dim auto: re-emitted (3 total)"
+      ],
+      "accepted": true,
+      "owner": 3,
+      "topology": {
+        "solid": true,
+        "volume": 67.596325,
+        "summary": "\u00b7 Result solid  V4 E5 F3 L3  hulls 1  \u03c7=2 genus 0  closed yes manifold yes oriented yes  volume 67.596325  area 88.415768"
+      },
+      "undoRedo": true,
+      "saveReopen": true
+    },
+    {
+      "id": "translated-sphere-cylinder-intersect",
+      "fixture": "translated-sphere-cylinder",
+      "operation": "intersect",
+      "commands": [
+        "sphere (10,-7,4) 2.4 --name=A",
+        "cylinder (10.4,-6.8,4) 1.3 4 --name=B"
+      ],
+      "command": "boolean intersect A -- B --select-result --name=Result",
+      "lines": [
+        "> boolean intersect A -- B --select-result --name=Result",
+        "\u00b7 boolean intersect A B  \u00b7  2 intersection curve(s), pieces 2 + 4, kept 1 + 2 (inside 1 / 2)  \u00b7  0.472 s",
+        "\u00b7 #3   Result             solid    V4 E5 F3  \u03c7=2 genus 0  vol 11.4767  area 27.2112  bounds [7.60 -9.40 1.60]\u2013[12.40 -4.60 8.00]",
+        "> dim auto",
+        "\u00b7 dim auto: re-emitted (3 total)"
+      ],
+      "accepted": true,
+      "owner": 3,
+      "topology": {
+        "solid": true,
+        "volume": 11.476738,
+        "summary": "\u00b7 Result solid  V4 E5 F3 L3  hulls 1  \u03c7=2 genus 0  closed yes manifold yes oriented yes  volume 11.476738  area 27.211239"
+      },
+      "undoRedo": true,
+      "saveReopen": true
+    },
+    {
+      "id": "translated-sphere-cylinder-subtract-ab",
+      "fixture": "translated-sphere-cylinder",
+      "operation": "subtract-ab",
+      "commands": [
+        "sphere (10,-7,4) 2.4 --name=A",
+        "cylinder (10.4,-6.8,4) 1.3 4 --name=B"
+      ],
+      "command": "boolean subtract A -- B --select-result --name=Result",
+      "lines": [
+        "> boolean subtract A -- B --select-result --name=Result",
+        "\u00b7 boolean subtract A B  \u00b7  2 intersection curve(s), pieces 2 + 4, kept 1 + 2 (inside 1 / 2)  \u00b7  0.739 s",
+        "\u00b7 #3   Result             solid    V4 E5 F3  \u03c7=2 genus 0  vol 46.3659  area 87.6953  bounds [7.60 -9.40 1.60]\u2013[12.40 -4.60 8.00]",
+        "> dim auto",
+        "\u00b7 dim auto: re-emitted (3 total)"
+      ],
+      "accepted": true,
+      "owner": 3,
+      "topology": {
+        "solid": true,
+        "volume": 46.365911,
+        "summary": "\u00b7 Result solid  V4 E5 F3 L3  hulls 1  \u03c7=2 genus 0  closed yes manifold yes oriented yes  volume 46.365911  area 87.695295"
+      },
+      "undoRedo": true,
+      "saveReopen": true
+    },
+    {
+      "id": "translated-sphere-cylinder-subtract-ba",
+      "fixture": "translated-sphere-cylinder",
+      "operation": "subtract-ba",
+      "commands": [
+        "sphere (10,-7,4) 2.4 --name=A",
+        "cylinder (10.4,-6.8,4) 1.3 4 --name=B"
+      ],
+      "command": "boolean subtract B -- A --select-result --name=Result",
+      "lines": [
+        "> boolean subtract B -- A --select-result --name=Result",
+        "\u00b7 boolean subtract B A  \u00b7  2 intersection curve(s), pieces 4 + 2, kept 2 + 1 (inside 2 / 1)  \u00b7  0.543 s",
+        "\u00b7 #3   Result             solid    V4 E5 F3  \u03c7=2 genus 0  vol 9.7537  area 27.9317  bounds [7.60 -9.40 1.60]\u2013[12.40 -4.60 8.00]",
+        "> dim auto",
+        "\u00b7 dim auto: re-emitted (3 total)"
+      ],
+      "accepted": true,
+      "owner": 3,
+      "topology": {
+        "solid": true,
+        "volume": 9.753739,
+        "summary": "\u00b7 Result solid  V4 E5 F3 L3  hulls 1  \u03c7=2 genus 0  closed yes manifold yes oriented yes  volume 9.753739  area 27.931724"
+      },
+      "undoRedo": true,
+      "saveReopen": true
+    }
+  ],
+  "analyticAudit": {
+    "method": "Intended analytic cone/torus/box fields vs independent two-ray BVH of native result triangles. 16384 samples/result; 0.1% diagonal near-boundary exclusion; 0.5% occupancy allowance; 1% curved volume allowance. Finite, not exact CAD certification.",
+    "audits": [
+      {
+        "id": "cone-box-union",
+        "status": "sampled-check-passed",
+        "samples": 16384,
+        "checked": 16186,
+        "nearBoundary": 198,
+        "ambiguous": 0,
+        "mismatches": 0,
+        "mismatchLimit": 80,
+        "margin": 0.004450842616853578,
+        "referenceVolume": 8.979885225132634,
+        "volumeError": 0.0013602251326343406,
+        "volumeTolerance": 0.08979885225132633,
+        "examples": []
+      },
+      {
+        "id": "cone-box-intersect",
+        "status": "sampled-check-passed",
+        "samples": 16384,
+        "checked": 16309,
+        "nearBoundary": 75,
+        "ambiguous": 0,
+        "mismatches": 0,
+        "mismatchLimit": 81,
+        "margin": 0.004450842616853578,
+        "referenceVolume": 1.6582338169378312,
+        "volumeError": 0.0005688169378312846,
+        "volumeTolerance": 0.016582338169378312,
+        "examples": []
+      },
+      {
+        "id": "cone-box-subtract-ab",
+        "status": "sampled-check-passed",
+        "samples": 16384,
+        "checked": 16246,
+        "nearBoundary": 138,
+        "ambiguous": 0,
+        "mismatches": 0,
+        "mismatchLimit": 81,
+        "margin": 0.004450842616853578,
+        "referenceVolume": 3.3698852251326334,
+        "volumeError": 0.0013602251326334525,
+        "volumeTolerance": 0.033698852251326336,
+        "examples": []
+      },
+      {
+        "id": "cone-box-subtract-ba",
+        "status": "sampled-check-passed",
+        "samples": 16384,
+        "checked": 16249,
+        "nearBoundary": 135,
+        "ambiguous": 0,
+        "mismatches": 0,
+        "mismatchLimit": 81,
+        "margin": 0.004450842616853578,
+        "referenceVolume": 3.95176618306217,
+        "volumeError": 0.0005338169378301671,
+        "volumeTolerance": 0.0395176618306217,
+        "examples": []
+      },
+      {
+        "id": "torus-box-intersect",
+        "status": "inconclusive",
+        "samples": 16384,
+        "checked": 15728,
+        "nearBoundary": 106,
+        "ambiguous": 550,
+        "mismatches": 0,
+        "mismatchLimit": 78,
+        "margin": 0.004874423042781577,
+        "referenceVolume": 1.8949640450091572,
+        "volumeError": 0.01009295499084284,
+        "volumeTolerance": 0.018949640450091572,
+        "examples": []
+      },
+      {
+        "id": "torus-box-subtract-ab",
+        "status": "inconclusive",
+        "samples": 16384,
+        "checked": 15087,
+        "nearBoundary": 110,
+        "ambiguous": 1187,
+        "mismatches": 0,
+        "mismatchLimit": 75,
+        "margin": 0.004874423042781577,
+        "referenceVolume": 1.8949640450091572,
+        "volumeError": 0.01009295499084284,
+        "volumeTolerance": 0.018949640450091572,
+        "examples": []
+      },
+      {
+        "id": "torus-box-subtract-ba",
+        "status": "inconclusive",
+        "samples": 16384,
+        "checked": 15587,
+        "nearBoundary": 238,
+        "ambiguous": 559,
+        "mismatches": 0,
+        "mismatchLimit": 77,
+        "margin": 0.004874423042781577,
+        "referenceVolume": 6.169035954990843,
+        "volumeError": 0.010093954990843201,
+        "volumeTolerance": 0.06169035954990843,
+        "examples": []
+      }
+    ],
+    "passed": 4
+  },
+  "complexSummary": {
+    "fixtureCount": 24,
+    "plannedFinalBooleans": 144,
+    "attemptedFinalBooleans": 78,
+    "completedFinalBooleans": 78,
+    "engineAccepted": 27,
+    "constructionCommands": 196,
+    "constructionBodies": 127,
+    "constructionBlocked": 11,
+    "timeouts": 0,
+    "testFailures": 0,
+    "manifestSha256": "ec16d192437a2d122e6410c5a130a5f29f0bbaaafc20766e1834ee4d854ad3b0",
+    "nativeBinarySha256": "220aa5b55d73e9efe4795805d976f79f476dd1c726504bf29dcfea4e7ca5ba1c"
+  },
+  "complexAuditCounts": {
+    "stages": {
+      "total": 127,
+      "passed": 127,
+      "flagged": 0,
+      "inconclusive": 0
+    },
+    "sources": {
+      "total": 26,
+      "passed": 26,
+      "flagged": 0,
+      "inconclusive": 0
+    },
+    "finals": {
+      "total": 27,
+      "passed": 27,
+      "flagged": 0,
+      "inconclusive": 0
+    }
+  },
+  "nativeRegression": {
+    "checks": 92,
+    "failed": 0,
+    "beforeFixFailed": 59,
+    "scope": "18 ordered cone operations at scales 1, 0.1 and 2 plus periodic safety"
+  },
+  "legacy": [
+    {
+      "name": "IntersectionVerification",
+      "exitCode": 0,
+      "summary": "  47 checks, 0 failed \u2192 ALL PASS"
+    },
+    {
+      "name": "BooleanCylinderSeamVerification",
+      "exitCode": 0,
+      "summary": "  18 checks, 0 failed \u2192 ALL PASS"
+    },
+    {
+      "name": "BooleanIdentityVerification",
+      "exitCode": 0,
+      "summary": "  26 checks, 0 failed \u2192 ALL PASS"
+    },
+    {
+      "name": "BooleanEquivalenceVerification",
+      "exitCode": 0,
+      "summary": "  17 checks, 0 failed \u2192 ALL PASS"
+    },
+    {
+      "name": "BooleanContactVerification",
+      "exitCode": 0,
+      "summary": "  31 checks, 0 failed \u2192 ALL PASS"
+    },
+    {
+      "name": "BodyOpsVerification",
+      "exitCode": 0,
+      "summary": "  28 checks, 0 failed \u2192 ALL PASS"
+    }
+  ],
+  "nativeUI": [
+    {
+      "Apply": true,
+      "accepted": true,
+      "id": "repair-cone-box-union",
+      "operation": "union",
+      "operationButton": true,
+      "ownOutlinerMouse": true,
+      "shiftSelection": true,
+      "transactionChecked": true
+    },
+    {
+      "Apply": true,
+      "accepted": true,
+      "id": "repair-cone-box-intersect",
+      "operation": "intersect",
+      "operationButton": true,
+      "ownOutlinerMouse": true,
+      "shiftSelection": true,
+      "transactionChecked": true
+    },
+    {
+      "Apply": true,
+      "accepted": true,
+      "id": "repair-cone-box-subtract-ab",
+      "operation": "subtract-ab",
+      "operationButton": true,
+      "ownOutlinerMouse": true,
+      "shiftSelection": true,
+      "transactionChecked": true
+    },
+    {
+      "Apply": true,
+      "accepted": true,
+      "id": "repair-cone-box-subtract-ba",
+      "operation": "subtract-ba",
+      "operationButton": true,
+      "ownOutlinerMouse": true,
+      "shiftSelection": true,
+      "transactionChecked": true
+    },
+    {
+      "Apply": false,
+      "accepted": false,
+      "disabledBeforePopup": true,
+      "id": "repair-torus-box-union",
+      "operation": "union",
+      "operationButton": true,
+      "ownOutlinerMouse": true,
+      "shiftSelection": true,
+      "transactionChecked": true
+    }
+  ],
+  "htmlUI": [
+    {
+      "id": "repair-cone-box-union",
+      "accepted": true,
+      "mouseOutliner": true,
+      "shiftSelection": true,
+      "operationButton": true,
+      "Apply": true,
+      "transactionChecked": true
+    },
+    {
+      "id": "repair-cone-box-intersect",
+      "accepted": true,
+      "mouseOutliner": true,
+      "shiftSelection": true,
+      "operationButton": true,
+      "Apply": true,
+      "transactionChecked": true
+    },
+    {
+      "id": "repair-cone-box-subtract-ab",
+      "accepted": true,
+      "mouseOutliner": true,
+      "shiftSelection": true,
+      "operationButton": true,
+      "Apply": true,
+      "transactionChecked": true
+    },
+    {
+      "id": "repair-cone-box-subtract-ba",
+      "accepted": true,
+      "mouseOutliner": true,
+      "shiftSelection": true,
+      "operationButton": true,
+      "Apply": true,
+      "transactionChecked": true
+    },
+    {
+      "id": "repair-torus-box-union",
+      "accepted": false,
+      "mouseOutliner": true,
+      "shiftSelection": true,
+      "operationButton": true,
+      "Apply": false,
+      "disabledBeforePopup": true,
+      "reason": "intersection boundary is not shared by two result faces",
+      "transactionChecked": true
+    }
+  ]
+}

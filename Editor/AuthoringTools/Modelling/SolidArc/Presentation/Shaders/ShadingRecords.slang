@@ -15,6 +15,9 @@ struct ViewRecord
     float4   EyePosition;       // xyz = camera position [m], w = 1 for perspective / 0 for orthographic
     float4   Viewport;          // xy = size [px], zw = 1/size
     float4   LatticeStyle;         // x = minor cell [m], y = major every N cells, z = fade radius [m], w = line half-width [px]
+    float4   LatticeOrigin;     // xyz active drawing-plane origin
+    float4   LatticeAxisU;      // xyz unit first in-plane axis
+    float4   LatticeAxisV;      // xyz unit second in-plane axis
     float4   Illumination;      // xyz = key light direction (unit, world), w = ambient
     float4   DepthPolicy;       // x = line depth bias [clip z] (0.2 % of view depth toward the eye), yzw reserved
 };

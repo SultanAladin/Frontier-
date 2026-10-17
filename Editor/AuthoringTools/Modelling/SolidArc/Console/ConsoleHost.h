@@ -25,6 +25,39 @@ namespace Frontier
 class ConsoleHost
 {
 public:
+    struct BevelContext {
+        bool Available=false;unsigned Count=0;double SuggestedSize=.1;std::string Reason;
+        std::vector<std::pair<uint32_t,std::vector<int>>> Targets;
+    };
+    struct BevelSession {
+        bool Active=false,Valid=false,Chamfer=false;double Size=.1;
+        uint32_t EditOwner=0,EditFeature=0;uint64_t SourceFingerprint=0,Revision=0;
+        std::string Status,Canonical;
+        SceneDocument Preview;
+        std::vector<std::pair<uint32_t,std::vector<int>>> Targets;
+    };
+    [[nodiscard]] BevelContext BevelSelection() const;
+    [[nodiscard]] const BevelSession& CurrentBevel() const noexcept {return Bevel_;}
+    static std::optional<double> ParseBevelDistance(const std::string& Text) noexcept;
+    bool BeginBevel(bool Chamfer=false,uint32_t Owner=0,uint32_t Feature=0) noexcept;
+    bool PreviewBevel(double Size,bool Chamfer) noexcept;
+    bool ApplyBevel() noexcept;
+    void CancelBevel() noexcept;
+    bool ConsumeBevelOptionsRequest() noexcept {bool R=BevelOptionsRequested_;BevelOptionsRequested_=false;return R;}
+    struct FaceExtrusionContext {
+        unsigned Count=0;bool Available=false,Normal=false;std::string Reason;
+        std::vector<std::pair<uint32_t,std::vector<int>>> Targets;
+    };
+    [[nodiscard]] FaceExtrusionContext FaceExtrusionSelection() const;
+    struct SketchToolContext { bool Cut=false,Trim=false;std::string CutReason,TrimReason; };
+    [[nodiscard]] SketchToolContext SketchTools() const;
+    bool SketchEditAtPixel(bool Trim,double X,double Y,double Radius=10) noexcept;
+    void ClearSketchEditStatus() noexcept {SketchEditStatus_.clear();}
+    [[nodiscard]] const std::string& SketchEditStatus() const noexcept {return SketchEditStatus_;}
+    struct SelectionOperation { std::string Key, Label, Hint; bool Enabled=true; };
+    [[nodiscard]] std::vector<SelectionOperation> SelectionOperations() const;
+    ConsoleHost(std::string ProofFolder, std::unique_ptr<RasterExchange> Device) noexcept;
+
     // Phase 19: a parsed mirror spec — either a plane (origin + normal) or an axis (origin + direction).
     //    Filled in by ParseMirrorSpec. The actual reflection is done by MirrorSolver.cpp.
     struct MirrorSpec
@@ -41,6 +74,7 @@ public:
     explicit ConsoleHost(std::string ProofFolder, uint32_t Width = 1280, uint32_t Height = 800) noexcept;
 
     // Returns false on refusal; the reason is printed. Multiple commands per line are allowed.
+    bool ConsumeExtrudeOptionsRequest() noexcept {const bool Requested=ExtrudeOptionsRequested;ExtrudeOptionsRequested=false;return Requested;}
     bool Execute(std::string_view Line) noexcept;
     bool RunScript(const std::string& Path, bool ContinueOnRefusal) noexcept;
     int  RunInteractive(std::FILE* In) noexcept;
@@ -51,6 +85,12 @@ public:
     [[nodiscard]] const TransformGizmo& Gizmo() const noexcept { return GizmoRig; }
     [[nodiscard]] const UndoSequence&  Timeline() const noexcept { return Undo; }
     [[nodiscard]] SelectMode            CurrentSelectMode() const noexcept { return Mode; }
+    [[nodiscard]] ToolSession* ActiveToolSession() noexcept { return Tool.Active()? &Tool:nullptr; }
+    [[nodiscard]] bool                  HasActiveTool() const noexcept { return Tool.Active(); }
+    [[nodiscard]] const ToolPreview* ActiveToolPreview() const noexcept { return Tool.Active() ? &Tool.Preview() : nullptr; }
+    [[nodiscard]] std::string ActiveToolPrompt() const { return Tool.Active() ? std::string(ToolName(Tool.CurrentTool())) + " · " + Tool.CurrentPrompt().Label : ""; }
+    void StartEmptyDocument() noexcept;
+    void MoveToolPointer(double X, double Y, bool SuppressSnap) noexcept;
 
     // ---- Dimension public types (Phase 13) --------------------------------------------------
     // The free function that formats dim labels lives in ConsoleHost.cpp's anonymous namespace and needs
@@ -101,7 +141,49 @@ public:
     [[nodiscard]] const RasterExchange& Raster() const noexcept { return *Surface; }
     [[nodiscard]] const Workplane&     WorkPlane() const noexcept { return Plane; }
 
+    // The editor's view. The host seats the raster at the size the view draws (so no pixel is stretched) with a working
+    //    pixel count per visible pixel (the anti-aliasing), then selects through the pick plane at view pixels.
+    void SeatSurface(uint32_t Width, uint32_t Height, uint32_t Samples) noexcept;
+    bool ReceiveInput(const InputEvent& Event) noexcept;
+    void ResizeViewport(uint32_t Width, uint32_t Height) noexcept;
+    void AssignLatticeCell(double Metres) noexcept { if (Metres > 0.0 && Metres < 10.0) LatticeCell = Metres; }
+    bool SelectAtView(double X, double Y, bool Extend) noexcept { return SelectAtPixel(X, Y, Extend); }
+    int  SelectBoxAtView(double X0, double Y0, double X1, double Y1, bool Extend, bool Subtract) noexcept { return SelectInRectangle(X0, Y0, X1, Y1, Extend, Subtract); }
+    void HoverAtView(double X, double Y) noexcept { HoverAtPixel(X, Y); }
+    void HoverNothing() noexcept { HoverPick = 0; }
+    // Draws only when something the picture shows has changed since the last draw (the document, the camera, the hover, the
+    //    size); true when it drew. A full-size anti-aliased draw is far dearer than the hash that decides whether it is needed.
+    bool RenderIfChanged() noexcept;
+
+    // Browser gestures use the original analytic gizmo. Preview is reversible; release journals a world-space affine
+    // command, never screen coordinates, so save/replay is independent of the camera and viewport resolution.
+    bool BeginGizmoAtView(double Horizontal, double Vertical) noexcept;
+    bool DragGizmoAtView(double Horizontal, double Vertical, bool Snapping) noexcept;
+    bool FinishGizmoAtView(bool Cancel) noexcept;
+    int AimGizmoAtView(double Horizontal, double Vertical) noexcept;
+    void ResizeGizmoAtView(double Pixels) noexcept { GizmoRig.Resize(Pixels); }
+    [[nodiscard]] bool GizmoVisible() const noexcept { return GizmoShown; }
+
 private:
+    BevelSession Bevel_;
+    mutable uint64_t BevelContextFingerprint_=0;
+    mutable BevelContext BevelContextCache_;
+    [[nodiscard]] BevelContext ComputeBevelSelection() const;
+    bool BevelOptionsRequested_=false;
+    void RegisterBevel() noexcept;
+    bool ExecuteBevel(const CommandLine& C,SceneDocument& Work,std::string& Reason) const;
+    mutable bool BodyBooleansCached_=false;
+    mutable uint64_t BodyBooleansFingerprint_=0;
+    mutable std::vector<SelectionOperation> BodyBooleansCache_;
+    mutable bool ProfileBooleansCached_=false;
+    mutable uint64_t ProfileBooleansFingerprint_=0;
+    mutable std::vector<SelectionOperation> ProfileBooleansCache_;
+    mutable bool SketchToolsCached_=false;
+    mutable uint64_t SketchToolsFingerprint_=0;
+    mutable SketchToolContext SketchToolsCache_;
+    std::string SketchEditStatus_;
+    bool CommitSketchPieces(SceneFigure& Source,std::vector<NurbsCurve> Pieces,bool SelectResult) noexcept;
+    bool ExtrudeOptionsRequested=false;
     using Command = std::function<bool(const CommandLine&)>;
     void Register() noexcept;
     bool Refuse(const char* Format, ...) noexcept;
@@ -138,7 +220,7 @@ private:
     int  SelectInRectangle(double X0, double Y0, double X1, double Y1, bool Toggle, bool Subtract) noexcept;
     void HoverAtPixel(double X, double Y) noexcept;
     [[nodiscard]] Vec3 SelectionPivot() const noexcept;                                 // figure bounds centre or selected-pole centroid
-    void ApplyDeltaToSelection(const Mat4& Delta) noexcept;
+    bool ApplyDeltaToSelection(const Mat4& Delta) noexcept;
     void DrawToolPreview() noexcept;
     // ---- Dimension overlay (Phase 13) --------------------------------------------------------
     void DrawDimensions() noexcept;                                                     // render every non-hidden dim on the overlay pass
@@ -180,6 +262,7 @@ private:
     [[nodiscard]] SceneFigure&        AddEmpty(Vec3 Position, const std::string& Name) noexcept;
     // Toggle dim display (also flips Hidden on every dim). Used by tests + scripts.
 public:
+    [[nodiscard]] bool DimensionsVisible() const noexcept { return ShowDimensions; }
     void SetDimensionsVisible(bool Visible) noexcept { ShowDimensions = Visible; for (auto& D : Dimensions) D.Hidden = !Visible; }
 private:
     bool Dispatch(const InputEvent& Event) noexcept;                                    // tool first, then hotkey chart
@@ -192,7 +275,6 @@ private:
     bool                                 GizmoShown = true;                             // [-] drawn whenever a selection exists
     std::vector<std::pair<uint32_t, SceneFigure>> GizmoOriginals;                         // [-] figure as they were when the drag began
     void RefreshGizmoPivot() noexcept;
-    void ApplyGizmoDelta(const Mat4& Delta) noexcept;
     SnapSettings                         Snap;
     HotkeyChart                          Hotkeys = HotkeyChart::Defaults();
     double                               PointerX = 0.0, PointerY = 0.0;                // [px] synthetic pointer
@@ -215,7 +297,11 @@ private:
     int32_t                              HoverDimensionId = 0;                         // [-] dim id under the pointer, for click-to-edit
     int32_t                              EditDimensionId   = 0;                         // [-] dim awaiting a new value (numeric input in REPL)
 
-    std::unique_ptr<SoftwareRaster>      Surface;
+    std::unique_ptr<RasterExchange>      Surface;
+    [[nodiscard]] uint64_t               PictureSignature() const noexcept;
+    uint64_t                             DrawnSignature = 0;                           // [-] the picture's signature at the last RenderIfChanged
+    double                               LatticeCell = 1.0; // native editor overrides to 10 mm; scripts retain 1 m
+    uint32_t                             Revision = 0;                                 // [-] bumps on every command, which may change anything
     std::map<std::string, Command>       Commands;
     std::map<std::string, std::string>   Usage;
     int                                  Refusals = 0;
@@ -229,6 +315,8 @@ private:
     int                                  ExecuteDepth = 0;
     bool                                 ShowControlCages = false;
     bool                                 ShowIsoCurves = true;
+    bool                                 ShowFeatureCurves = true;                     // [-] independent feature-curve visibility
+    bool                                 ShowBoundaryEdges = true;                     // [-] B-rep edge overlay; geometry is unchanged
     bool                                 ShowDimensions = false;        // [Phase 13] dims hidden by default until the renderer is polished
     SurfaceShading                       Shading = SurfaceShading::Matcap;
 

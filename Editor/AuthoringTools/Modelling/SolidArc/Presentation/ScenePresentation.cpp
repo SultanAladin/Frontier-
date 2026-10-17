@@ -102,7 +102,7 @@ void ScenePresentation::DrawTriad(RasterExchange& Raster, double Length) noexcep
     }
 }
 
-void ScenePresentation::DrawEmpty(RasterExchange& Raster, Vec3 Position, double Size) noexcept
+void ScenePresentation::DrawEmpty(RasterExchange& Raster, Vec3 Position, double Size,uint32_t PickIdentity) noexcept
 {
     // Phase 19: an Empty is a transform handle with no geometry. We draw a small triad (3 short
     //    coloured lines, one per world axis) at the Empty's position so the user can see it.
@@ -112,12 +112,12 @@ void ScenePresentation::DrawEmpty(RasterExchange& Raster, Vec3 Position, double 
     {
         SegmentStream S; S.Append(Position, Position + Axes[A] * Size);
         DrawRecord D = Tinted(Colours[A][0], Colours[A][1], Colours[A][2]);
-        D.LineWidth = 2.0f;
+        D.LineWidth = 2.0f;D.PickIdentity=PickIdentity;
         Raster.DrawSegments(S, D);
     }
     PointStream P; P.Append(Position, PointGlyph::Disc);
     DrawRecord D = Tinted(0.95f, 0.95f, 0.40f);
-    D.PointSize = 6.0f;
+    D.PointSize = 6.0f;D.PickIdentity=PickIdentity;
     Raster.DrawPoints(P, D);
 }
 

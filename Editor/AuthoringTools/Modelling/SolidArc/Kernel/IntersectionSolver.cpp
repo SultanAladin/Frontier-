@@ -375,6 +375,36 @@ namespace
         return std::nullopt;
     }
 
+    // Exact boundary of a two-box coordinate arrangement. This covers partial
+    // face contacts and non-rectangular overlaps, including coplanar side faces
+    // that the general SSI trimming route cannot reliably sew. No mesh/voxel
+    // approximation: coordinates are analytic box planes and patches are NURBS.
+    Deliver<BrepBody> ArrangedBoxBoolean(const AxisAlignedBox& A,const AxisAlignedBox& B,double Epsilon,BodyOperation Operation) noexcept
+    {
+        std::vector<double> C[3]={{A.Low.X,A.High.X,B.Low.X,B.High.X},{A.Low.Y,A.High.Y,B.Low.Y,B.High.Y},{A.Low.Z,A.High.Z,B.Low.Z,B.High.Z}};
+        int N[3];for(int D=0;D<3;++D){std::sort(C[D].begin(),C[D].end());C[D].erase(std::unique(C[D].begin(),C[D].end(),[&](double X,double Y){return std::fabs(X-Y)<=Epsilon;}),C[D].end());N[D]=int(C[D].size())-1;}
+        bool Inside[3][3][3]{};
+        auto Has=[&](int X,int Y,int Z){return X>=0&&Y>=0&&Z>=0&&X<N[0]&&Y<N[1]&&Z<N[2]&&Inside[X][Y][Z];};
+        for(int X=0;X<N[0];++X)for(int Y=0;Y<N[1];++Y)for(int Z=0;Z<N[2];++Z){
+            Vec3 P{(C[0][X]+C[0][X+1])*.5,(C[1][Y]+C[1][Y+1])*.5,(C[2][Z]+C[2][Z+1])*.5};
+            const bool InA=P.X>A.Low.X-Epsilon&&P.X<A.High.X+Epsilon&&P.Y>A.Low.Y-Epsilon&&P.Y<A.High.Y+Epsilon&&P.Z>A.Low.Z-Epsilon&&P.Z<A.High.Z+Epsilon;
+            const bool InB=P.X>B.Low.X-Epsilon&&P.X<B.High.X+Epsilon&&P.Y>B.Low.Y-Epsilon&&P.Y<B.High.Y+Epsilon&&P.Z>B.Low.Z-Epsilon&&P.Z<B.High.Z+Epsilon;
+            Inside[X][Y][Z]=Operation==BodyOperation::Subtract ? InA&&!InB : InA||InB;
+        }
+        std::vector<NurbsSurface> Faces;const Vec3 Axes[]={Vec3::UnitX(),Vec3::UnitY(),Vec3::UnitZ()};
+        for(int X=0;X<N[0];++X)for(int Y=0;Y<N[1];++Y)for(int Z=0;Z<N[2];++Z)if(Inside[X][Y][Z]){
+            const int Index[]={X,Y,Z};
+            for(int D=0;D<3;++D)for(int Sign:{-1,1}){
+                int Next[]={X,Y,Z};Next[D]+=Sign;if(Has(Next[0],Next[1],Next[2]))continue;
+                double P[]={C[0][X],C[1][Y],C[2][Z]};P[D]=C[D][Index[D]+(Sign>0)];const int U=(D+1)%3,V=(D+2)%3;
+                auto F=NurbsSurface::Plane({P[0],P[1],P[2]},Axes[U],Axes[V],C[U][Index[U]+1]-C[U][Index[U]],C[V][Index[V]+1]-C[V][Index[V]]);
+                if(!F)return Deliver<BrepBody>::Reject(F.Denial.Reason,F.Denial.Detail);Faces.push_back(std::move(F.Payload));
+            }
+        }
+        auto R=BrepBody::Sew(Faces,ScalarCriteria::MergeTolerance,false);
+        if(R&&!R.Payload.Validate().Solid())return Deliver<BrepBody>::Reject(RefusalReason::Unsupported,"box arrangement could not form a closed manifold solid");return R;
+    }
+
     std::optional<Deliver<BrepBody>> AxisAlignedBoxBoolean(const BrepBody& A, const BrepBody& B, BodyOperation Operation, BooleanReport& Report) noexcept
     {
         AxisAlignedBox BoxA, BoxB;
@@ -403,7 +433,8 @@ namespace
                 Report.KeptA = static_cast<int>(A.Faces.size());
                 return Box(*Remainder);
             }
-            return std::nullopt;                                                        // cavity / L-shape: retain the general trimmed-face route
+            if (!BInA) return ArrangedBoxBoolean(BoxA,BoxB,Epsilon,Operation);
+            return std::nullopt;                                                        // enclosed cavity: retain inner-shell handling
         }
 
         if (AInB) { Report.KeptB = static_cast<int>(B.Faces.size()); return Deliver<BrepBody>::Accept(B); }
@@ -415,10 +446,14 @@ namespace
         }
         if (!HasVolume)
         {
+            const Vec3 D=Common.High-Common.Low;
+            const int Positive=int(D.X>Epsilon)+int(D.Y>Epsilon)+int(D.Z>Epsilon);
+            const bool Contact=D.X>=-Epsilon&&D.Y>=-Epsilon&&D.Z>=-Epsilon;
+            if(Contact&&Positive==2)return ArrangedBoxBoolean(BoxA,BoxB,Epsilon,Operation);
             Report.KeptA = static_cast<int>(A.Faces.size()); Report.KeptB = static_cast<int>(B.Faces.size());
             return Deliver<BrepBody>::Accept(IndependentUnion(A, B));
         }
-        return std::nullopt;                                                            // non-box-shaped overlap: retain the general SSI route
+        return ArrangedBoxBoolean(BoxA,BoxB,Epsilon,Operation);                          // exact non-rectangular box union
     }
 
     //------------------------------------------------------------------------------------------------------------------------
@@ -972,13 +1007,30 @@ namespace
                 Nodes.push_back({ A.P, A.Coedge, A.T, A.TNext, 1000000LL * static_cast<long long>(R) + static_cast<long long>(I), -1 });
                 if (A.Coedge < 0) continue;
                 const BrepCoedge& Ce = B.Coedges[A.Coedge]; const NurbsCurve& Ec = B.Edges[Ce.Edge].Curve;
+                // An exit can coincide with an existing tessellation/domain knot
+                // (e.g. a cone cap at a quarter circle). It is the SAME graph
+                // vertex as the cut endpoint, not a second, disconnected node.
+                // Keep the coedge in its identity: opposite periodic seam sides
+                // are distinct chart vertices despite sharing a world point.
+                const double ParameterEpsilon = 1e-10 * (Ec.DomainEnd() - Ec.DomainStart());
+                for (size_t X = 0; X < Exits.size(); ++X)
+                {
+                    if (Exits[X].Body != Body || Exits[X].Edge != Ce.Edge) continue;
+                    const double Tc = Ce.Reversed ? Ec.DomainStart() + Ec.DomainEnd() - Exits[X].T : Exits[X].T;
+                    if (std::fabs(Tc - A.T) > ParameterEpsilon) continue;
+                    const Vec2 Uv = ParameterOnCoedge(B, A.Coedge, Exits[X].T, Exits[X].Point);
+                    if (Uv.Distance(A.P) > 1e-10 * (D.ScaleU + D.ScaleV)) continue;
+                    Nodes.back().Ka = -static_cast<long long>(X) - 1;
+                    Nodes.back().Kb = static_cast<long long>(A.Coedge);
+                    Nodes.back().P = Uv;
+                }
                 std::vector<Knot> Ins;
                 for (size_t X = 0; X < Exits.size(); ++X)
                 {
                     if (Exits[X].Body != Body || Exits[X].Edge != Ce.Edge) continue;
                     double Tc = Ce.Reversed ? Ec.DomainStart() + Ec.DomainEnd() - Exits[X].T : Exits[X].T;
                     double Lo = std::min(A.T, A.TNext), Hi = std::max(A.T, A.TNext);
-                    if (Tc <= Lo || Tc >= Hi) continue;
+                    if (Tc <= Lo + ParameterEpsilon || Tc >= Hi - ParameterEpsilon) continue;
                     Vec2 Uv = ParameterOnCoedge(B, A.Coedge, Exits[X].T, Exits[X].Point);
                     Ins.push_back({ Uv, A.Coedge, Tc, A.TNext, -static_cast<long long>(X) - 1, static_cast<long long>(A.Coedge) });
                 }
@@ -1028,7 +1080,10 @@ namespace
         auto Spans = [&](const Walk& W) -> std::vector<Span>
         {
             std::vector<Span> Out2;
-            auto Same = [&](const Graph::DEdge& A, const Graph::DEdge& Bb) { return A.To == Bb.From && !G.Exit[A.To] && A.Form == Bb.Form && A.Form != SpanForm::None && (A.Form == SpanForm::Loop ? A.Coedge == Bb.Coedge : (A.Piece == Bb.Piece && A.Backward == Bb.Backward)); };
+            auto Same = [&](const Graph::DEdge& A, const Graph::DEdge& Bb) { return A.To == Bb.From && !G.Exit[A.To] && A.Form == Bb.Form && A.Form != SpanForm::None && (A.Form == SpanForm::Loop ? (A.Coedge == Bb.Coedge && std::fabs(A.T1 - Bb.T0) <= 1e-12 * (1.0 + std::fabs(A.T1) + std::fabs(Bb.T0))) : (A.Piece == Bb.Piece && A.Backward == Bb.Backward)); };
+            // A closed coedge's end/start parameter jump is a real seam
+            // vertex. Never merge across it: min/max trimming would otherwise
+            // replace the wrapped arc by its complementary arc.
             // rotate to a provenance change
             size_t N = W.Edges.size(), Start = 0;
             for (size_t I = 0; I < N; ++I) if (!Same(G.E[W.Edges[(I + N - 1) % N]], G.E[W.Edges[I]])) { Start = I; break; }
@@ -1171,7 +1226,7 @@ bool IntersectionSolver::Encloses(const BrepBody& Body, Vec3 P) noexcept
 //                                                  PUBLIC: COMBINE
 //------------------------------------------------------------------------------------------------------------------------
 
-Deliver<BrepBody> IntersectionSolver::Combine(const BrepBody& A, const BrepBody& B, BodyOperation Operation, BooleanReport* Report) noexcept
+static Deliver<BrepBody> CombineInCharts(const BrepBody& A, const BrepBody& B, BodyOperation Operation, BooleanReport* Report) noexcept
 {
     if (A.Classification() != BodyClassification::Solid || B.Classification() != BodyClassification::Solid) return Deliver<BrepBody>::Reject(RefusalReason::OpenWire, "booleans need two closed solids");
     BooleanReport Rep;
@@ -1366,10 +1421,79 @@ Deliver<BrepBody> IntersectionSolver::Combine(const BrepBody& A, const BrepBody&
         }
     }
     if (Out.Faces.empty()) return Deliver<BrepBody>::Reject(RefusalReason::DegenerateInput, "the result is empty");
+    // A transversal intersection belongs to the result boundary for EVERY set
+    // operation. Closed/manifold validation alone cannot detect a whole lost
+    // component (e.g. silently returning only the box of a torus/box union).
+    // Each traced cut must survive once on each of two distinct result faces.
+    for (size_t P = 0; P < Tr.Pieces.size(); ++P)
+    {
+        const auto It = CutEdgeOf.find(static_cast<int>(P));
+        if (It == CutEdgeOf.end()) return Deliver<BrepBody>::Reject(RefusalReason::Unsupported, "face splitting lost an intersection boundary");
+        const BrepEdge& E = Out.Edges[It->second];
+        if (E.Coedges.size() != 2 || Out.Coedges[E.Coedges[0]].Face == Out.Coedges[E.Coedges[1]].Face)
+            return Deliver<BrepBody>::Reject(RefusalReason::Unsupported, "intersection boundary is not shared by two result faces");
+    }
     BodyReport R = Out.Validate();
-    if (R.MisorientedEdges > 0) Out.Orient();
+    if (R.MisorientedEdges > 0) { Out.Orient(); R = Out.Validate(); }
+    if (!R.Solid() || !std::isfinite(R.Volume) || R.Volume <= 0)
+    {
+        if (IntersectionSolver::Verbose)
+        {
+            std::fprintf(stderr, "[bool] invalid assembly: open %d nonmanifold %d misoriented %d volume %.12g\n", R.OpenEdges, R.NonManifoldEdges, R.MisorientedEdges, R.Volume);
+            for (size_t E = 0; E < Out.Edges.size(); ++E) if (Out.Edges[E].Coedges.size() != 2)
+                std::fprintf(stderr, "[bool] edge %zu has %zu coedges\n", E, Out.Edges[E].Coedges.size());
+        }
+        return Deliver<BrepBody>::Reject(RefusalReason::Unsupported, "boolean assembly is not a closed, manifold, oriented positive-volume solid");
+    }
     if (Report) *Report = Rep;
     return Deliver<BrepBody>::Accept(std::move(Out));
+}
+
+// A full sphere's seam and poles are parameterization artefacts, not material
+// boundaries. A transverse world-space cut can nevertheless meet a collapsed
+// chart side and make the local UV Newton/marching Jacobian singular. Retry the
+// SAME SSI/split/classify/sew pipeline in another exact chart, never nudge the
+// operands or approximate the result with a primitive-specific boolean formula.
+static bool CanRechartSphere(const BrepBody& B) noexcept
+{
+    if(B.Faces.size()!=1||!B.Faces.front().Natural||!B.Validate().Solid())return false;
+    const NurbsSurface& S=B.Faces.front().Surface;
+    if(S.Classification!=SurfaceClassification::Sphere||S.RadiusMajor<=0)return false;
+    // Do not trust an analytic hint alone (e.g. stale hint after deformation).
+    const double Tol=1e-8*std::max(1.,S.RadiusMajor);
+    for(int U=0;U<=8;++U)for(int V=0;V<=4;++V){
+        Vec3 P=S.Sample(S.DomainStartU()+(S.DomainEndU()-S.DomainStartU())*U/8.,S.DomainStartV()+(S.DomainEndV()-S.DomainStartV())*V/4.);
+        if(std::fabs(P.Distance(S.Origin)-S.RadiusMajor)>Tol)return false;
+    }
+    return true;
+}
+
+Deliver<BrepBody> IntersectionSolver::Combine(const BrepBody& A,const BrepBody& B,BodyOperation Operation,BooleanReport* Report) noexcept
+{
+    BooleanReport FirstReport;
+    auto First=CombineInCharts(A,B,Operation,&FirstReport);
+    auto Valid=[](const Deliver<BrepBody>& R){if(!R)return false;auto V=R.Payload.Validate();return V.Solid()&&std::isfinite(V.Volume)&&V.Volume>0;};
+    if(Valid(First)||(!First&&First.Denial.Reason==RefusalReason::DegenerateInput)){
+        if(Report)*Report=FirstReport;return First;
+    }
+    const bool RechartA=CanRechartSphere(A),RechartB=CanRechartSphere(B);
+    if(RechartA||RechartB){
+        const Vec3 Angles[]={{23,37,13},{53,19,71},{31,67,43}};
+        for(const Vec3 Angle:Angles){
+            auto Chart=[&](const BrepBody& Body,bool Change,bool Other){
+                if(!Change)return Body;
+                const Vec3 Centre=Body.Faces.front().Surface.Origin;
+                const Vec3 T=Other?Vec3{Angle.Z+7,Angle.X+11,Angle.Y+17}:Angle;
+                Mat4 M=Mat4::Translation(Centre)*Mat4::Rotation(Vec3::UnitZ(),ScalarCriteria::Radians(T.Z))*Mat4::Rotation(Vec3::UnitY(),ScalarCriteria::Radians(T.Y))*Mat4::Rotation(Vec3::UnitX(),ScalarCriteria::Radians(T.X))*Mat4::Translation(-Centre);
+                return Body.Transformed(M);
+            };
+            BrepBody CA=Chart(A,RechartA,false),CB=Chart(B,RechartB,true);
+            BooleanReport RetryReport;auto R=CombineInCharts(CA,CB,Operation,&RetryReport);
+            if(Valid(R)){if(Report)*Report=RetryReport;return R;}
+        }
+    }
+    if(Report)*Report=FirstReport;
+    return First; // preserve an explicit refusal, never enable an invalid result
 }
 
 } // namespace Frontier

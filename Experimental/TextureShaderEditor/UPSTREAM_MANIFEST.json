@@ -1,0 +1,1208 @@
+{
+  "sourceRepository": "https://github.com/streamlinkinbox/Frontier",
+  "sourceBranch": "arena/65748a88-frontier",
+  "sourceCommit": "773b2f5a2672ae530accff000d65d779e9059b66",
+  "commitUrl": "https://github.com/streamlinkinbox/Frontier/commit/773b2f5a2672ae530accff000d65d779e9059b66",
+  "files": {
+    ".gitignore": {
+      "gitBlobSha": "b1eb1bc4ecb68ec7f68f324beb281e241be862ad",
+      "size": 245
+    },
+    "01a069b4-dacc-7386-96cc-8c05c63c3532.patch": {
+      "gitBlobSha": "bfa1bf1e88231a4fccd0879d8096a1b58c957124",
+      "size": 161678
+    },
+    "README.md": {
+      "gitBlobSha": "9c9107a262da47d2ac6c4a602cc98c7120d6fab6",
+      "size": 52494
+    },
+    "deliverables/utah-teapot/README.md": {
+      "gitBlobSha": "4e35256531240a79c53e22d62dc744f7071de2b3",
+      "size": 3215
+    },
+    "deliverables/utah-teapot/index.html": {
+      "gitBlobSha": "50e3462ceaf3e9e8d411d80c0b971315ecf11808",
+      "size": 2488
+    },
+    "deliverables/utah-teapot/sdf-64/README.txt": {
+      "gitBlobSha": "1b97325796b9b6e8ca7b4d7023891c9884666042",
+      "size": 1148
+    },
+    "deliverables/utah-teapot/sdf-64/confidence-x.png": {
+      "gitBlobSha": "28f63f8130583b79cb8dc623abdfbb2e26138a54",
+      "size": 266
+    },
+    "deliverables/utah-teapot/sdf-64/confidence-y.png": {
+      "gitBlobSha": "fcde85aa97f322b7295fb866d712a724a7b248c7",
+      "size": 273
+    },
+    "deliverables/utah-teapot/sdf-64/confidence-z.png": {
+      "gitBlobSha": "5ff360f159ff2e103459fa927d6d9a4b8346a669",
+      "size": 296
+    },
+    "deliverables/utah-teapot/sdf-64/index.html": {
+      "gitBlobSha": "d832f81e2510a6a3294c1b02f3aab328363f0b16",
+      "size": 4646
+    },
+    "deliverables/utah-teapot/sdf-64/manifest.json": {
+      "gitBlobSha": "d24ab875fd1bcc4fc0e939a06f9659339125a40a",
+      "size": 3522
+    },
+    "deliverables/utah-teapot/sdf-64/slice-x.png": {
+      "gitBlobSha": "f99d02b111d296d4c290f1ccc81d2e9a7830e9f1",
+      "size": 3239
+    },
+    "deliverables/utah-teapot/sdf-64/slice-y.png": {
+      "gitBlobSha": "facc9c40a2af289f664b47d51068c4089cf59915",
+      "size": 3148
+    },
+    "deliverables/utah-teapot/sdf-64/slice-z.png": {
+      "gitBlobSha": "6f72f4db2fd35845e44d1c8fd1139d011fe7fa4d",
+      "size": 5166
+    },
+    "deliverables/utah-teapot/sdf-64/utah-teapot-sdf-64.zip": {
+      "gitBlobSha": "ca3fb05a313480ba6d2645b460983e5dbb513ac3",
+      "size": 1328828
+    },
+    "deliverables/utah-teapot/surface-512/alpha.png": {
+      "gitBlobSha": "1a752dc0409a8497eec61fa2d4fe4e4cdc34b6d6",
+      "size": 5688
+    },
+    "deliverables/utah-teapot/surface-512/audit.json": {
+      "gitBlobSha": "21874bb4322696d3620f1a632564d6cec1b556bf",
+      "size": 9753
+    },
+    "deliverables/utah-teapot/surface-512/base-color.png": {
+      "gitBlobSha": "078ba4ca40f7718a66da4fd44e6f08a061aa3cf7",
+      "size": 6302
+    },
+    "deliverables/utah-teapot/surface-512/bent-normal.png": {
+      "gitBlobSha": "63900a725f989460dc4cd03d676a67800bd750ae",
+      "size": 222167
+    },
+    "deliverables/utah-teapot/surface-512/bent-object-normal.png": {
+      "gitBlobSha": "d11e07e30fdbb7d29d6b3dbc3b81be702a9f331d",
+      "size": 570630
+    },
+    "deliverables/utah-teapot/surface-512/bent-world-normal.png": {
+      "gitBlobSha": "d11e07e30fdbb7d29d6b3dbc3b81be702a9f331d",
+      "size": 570630
+    },
+    "deliverables/utah-teapot/surface-512/bevel-mask.png": {
+      "gitBlobSha": "858bc2f19ce83781f8d8fc3f7f788f4487cf1e32",
+      "size": 43470
+    },
+    "deliverables/utah-teapot/surface-512/bevel-normal.png": {
+      "gitBlobSha": "c7cdcd34f9f0edcd1fd7a51b106ad2fe33d832c6",
+      "size": 87683
+    },
+    "deliverables/utah-teapot/surface-512/cavity.png": {
+      "gitBlobSha": "1cf94f188898570629daabe9c22ab8eb41961c97",
+      "size": 25273
+    },
+    "deliverables/utah-teapot/surface-512/convexity.png": {
+      "gitBlobSha": "78891d53fec0574d1f4b44672463688a4cf6fd3f",
+      "size": 87480
+    },
+    "deliverables/utah-teapot/surface-512/coverage.png": {
+      "gitBlobSha": "1a752dc0409a8497eec61fa2d4fe4e4cdc34b6d6",
+      "size": 5688
+    },
+    "deliverables/utah-teapot/surface-512/curvature.png": {
+      "gitBlobSha": "6e02217da4e33d84207b05cc3777daa1dbafbde3",
+      "size": 47542
+    },
+    "deliverables/utah-teapot/surface-512/dirt.png": {
+      "gitBlobSha": "309f79c184d464ecb68e3f4a899fcb34484def72",
+      "size": 51487
+    },
+    "deliverables/utah-teapot/surface-512/dust.png": {
+      "gitBlobSha": "6c36f9cb874bf381e6d283c4625defb2a287c5fe",
+      "size": 64760
+    },
+    "deliverables/utah-teapot/surface-512/edge-wear.png": {
+      "gitBlobSha": "20853442fe5168ec28ad587de18565f8443d70da",
+      "size": 107737
+    },
+    "deliverables/utah-teapot/surface-512/height.png": {
+      "gitBlobSha": "fba49e951a39c89197dc7a86498c7a5e0d7325c2",
+      "size": 23923
+    },
+    "deliverables/utah-teapot/surface-512/id.png": {
+      "gitBlobSha": "26a719119b032d97a30a41aabe364c22f1e16402",
+      "size": 6762
+    },
+    "deliverables/utah-teapot/surface-512/index.html": {
+      "gitBlobSha": "5e8cc8d38a139e2386ee0a9b3310dde1fb52717e",
+      "size": 5626
+    },
+    "deliverables/utah-teapot/surface-512/manifest.json": {
+      "gitBlobSha": "23b158652e1ccf1280d6d3bdfdeff0b08d991149",
+      "size": 15791
+    },
+    "deliverables/utah-teapot/surface-512/normal.png": {
+      "gitBlobSha": "840bc5d0a944f68bd266ad008b780db6e2167e72",
+      "size": 61140
+    },
+    "deliverables/utah-teapot/surface-512/object-normal.png": {
+      "gitBlobSha": "ab34995a7ea5f5f8d2d8de0af554963bc83fd079",
+      "size": 542921
+    },
+    "deliverables/utah-teapot/surface-512/occlusion-secondary.png": {
+      "gitBlobSha": "182a96f5a38ca8aa5fbfa84eba367d9fba8d64b0",
+      "size": 72544
+    },
+    "deliverables/utah-teapot/surface-512/occlusion.png": {
+      "gitBlobSha": "4b2acdebd981c12b8c9aa6789a0d0eec9c6e5388",
+      "size": 58539
+    },
+    "deliverables/utah-teapot/surface-512/position.png": {
+      "gitBlobSha": "c5a76a8fa522ee25d05eef6e2b52d4047d3ae909",
+      "size": 365398
+    },
+    "deliverables/utah-teapot/surface-512/thickness.png": {
+      "gitBlobSha": "c476bc6b2c0e4ec22628a142dc8e93365b6d21b1",
+      "size": 33107
+    },
+    "deliverables/utah-teapot/surface-512/utah-teapot-512.zip": {
+      "gitBlobSha": "9c82cd9146a94ea9bccff643175e8a0ae51efcc0",
+      "size": 3832527
+    },
+    "deliverables/utah-teapot/surface-512/uv-island.png": {
+      "gitBlobSha": "42b7988fd40bf0e6991c8dea5b88056881f4a3c0",
+      "size": 8573
+    },
+    "deliverables/utah-teapot/surface-512/uv.png": {
+      "gitBlobSha": "899339b55c03d6da92576d133c9dd0a0500cb46f",
+      "size": 97995
+    },
+    "deliverables/utah-teapot/surface-512/vector-displacement.png": {
+      "gitBlobSha": "2ebc607038aa7989803898532b8d7c5975ca4574",
+      "size": 63701
+    },
+    "deliverables/utah-teapot/surface-512/wireframe.png": {
+      "gitBlobSha": "21a3e001e8ddf3a4b81dbf4201486c383f2933eb",
+      "size": 24202
+    },
+    "deliverables/utah-teapot/surface-512/world-normal.png": {
+      "gitBlobSha": "ab34995a7ea5f5f8d2d8de0af554963bc83fd079",
+      "size": 542921
+    },
+    "docs/baking-studio.md": {
+      "gitBlobSha": "2935196f26ac649382f64284ca5ae213c066c681",
+      "size": 15352
+    },
+    "docs/corrugated-and-sand.md": {
+      "gitBlobSha": "e1785ff24536e17296e5880225fbd2e6bf527c43",
+      "size": 6950
+    },
+    "docs/digital-painting.md": {
+      "gitBlobSha": "ab8ebd24c991af8bfd1cca31a485d67601d7fb63",
+      "size": 27307
+    },
+    "docs/heritage-patterns.md": {
+      "gitBlobSha": "137c9724aaf4dfc3b15f6df856fc5d39571a7567",
+      "size": 8073
+    },
+    "docs/paint-tools-and-content-browser.md": {
+      "gitBlobSha": "05fed16d437ff5597bbecdcb2519e7dd13eff882",
+      "size": 21888
+    },
+    "docs/pattern-structure-ledger.md": {
+      "gitBlobSha": "1c88ed2aa44b36435ba8b4e1c0a35015632d6bb2",
+      "size": 1446
+    },
+    "docs/pattern-studio.md": {
+      "gitBlobSha": "b04b56b7b04b6f1ff2863b5ddb1b8d5f0e405f7f",
+      "size": 26647
+    },
+    "docs/preview-runtime.md": {
+      "gitBlobSha": "6b8667bd2a7d338ea658b08e12e3395151b17495",
+      "size": 4370
+    },
+    "docs/rug-references.md": {
+      "gitBlobSha": "04b68287e456bf8290ee5661766040fe6d7cf18c",
+      "size": 12139
+    },
+    "docs/shape-editor.md": {
+      "gitBlobSha": "4748e5365206bddf5ce0e7208787651449148ebd",
+      "size": 21194
+    },
+    "docs/stamps-and-decals.md": {
+      "gitBlobSha": "0670fb7869e35f4e473e9ef673c1d49cf2e5e9ec",
+      "size": 15246
+    },
+    "docs/surface-reference-notes.md": {
+      "gitBlobSha": "39d54213b680536769ed0c143e43ce117e917f7e",
+      "size": 5422
+    },
+    "docs/texture-layer-evaluation.md": {
+      "gitBlobSha": "c4e9d044e0fee834d0992f3e6cdb6263ce383734",
+      "size": 15735
+    },
+    "docs/texture-mask-painting.md": {
+      "gitBlobSha": "a306fcb5b4b296a2ef99f20c8fbb93f3dbe5c7b3",
+      "size": 17978
+    },
+    "docs/texture-painting-plan.md": {
+      "gitBlobSha": "e010a690bfd65710349a6cc0b6961a0cf64671c8",
+      "size": 20835
+    },
+    "docs/texture-parts-uv.md": {
+      "gitBlobSha": "1dbbd4f7f5aa470ece1983c2605d6614bb3288ae",
+      "size": 12963
+    },
+    "docs/volume-sdf-and-bake-audit.md": {
+      "gitBlobSha": "980872f92da59d1600d3bd36574e0ab5971b2a2e",
+      "size": 8768
+    },
+    "index.html": {
+      "gitBlobSha": "3e914019f9b23b5a8b087ee34cf0f4d79c3ed38a",
+      "size": 622
+    },
+    "package-lock.json": {
+      "gitBlobSha": "b28b1bb92dccac33f9c320e335b2bcb94480d822",
+      "size": 40106
+    },
+    "package.json": {
+      "gitBlobSha": "04e899f9873b84061cbb3b6bff7963c0d192ba52",
+      "size": 3520
+    },
+    "playwright.config.js": {
+      "gitBlobSha": "9ae197ddce5c1c84daa608eedfff3dac65bd7268",
+      "size": 876
+    },
+    "playwright.standalone.config.js": {
+      "gitBlobSha": "8ff1e60942e37a0e6b884cb348808c68a9e737e3",
+      "size": 500
+    },
+    "scripts/audit-teapot-bakes.mjs": {
+      "gitBlobSha": "506b56924d7fe8b022944b40350d8e0d17e7b0a0",
+      "size": 9803
+    },
+    "scripts/audit-teapot-sdf.mjs": {
+      "gitBlobSha": "f50e70fb4779cbdf7bde966f68b603b6e4b2d311",
+      "size": 3541
+    },
+    "scripts/bake-cloth.mjs": {
+      "gitBlobSha": "1eb923e4815120deab2da50af2960d45319e7041",
+      "size": 4702
+    },
+    "scripts/build-githack.mjs": {
+      "gitBlobSha": "0944e95dde4bb3434c4e2a8b49dd27a6a59f9948",
+      "size": 1991
+    },
+    "scripts/verify-published.mjs": {
+      "gitBlobSha": "f550f55c4ff3a003972593f6ca3489548576d2e2",
+      "size": 2672
+    },
+    "site/index.html": {
+      "gitBlobSha": "fdb5ec12ed161a25d4c91e2fa60988733d8d9293",
+      "size": 4020340
+    },
+    "src/AssetContentBrowser.jsx": {
+      "gitBlobSha": "99ff1655afb5a4cd30e17288b152cb0b48a5b453",
+      "size": 28832
+    },
+    "src/AuthoringNameField.jsx": {
+      "gitBlobSha": "5875aee70022ec73eb411629df51fc0cc8002068",
+      "size": 901
+    },
+    "src/BakePanel.jsx": {
+      "gitBlobSha": "e41d224f56acb98a34afa9cac707299c4452ddca",
+      "size": 7730
+    },
+    "src/BakingStudio.jsx": {
+      "gitBlobSha": "5737a4411bd57532b045b7391d86f25091758d94",
+      "size": 43798
+    },
+    "src/ChannelPropertyPanel.jsx": {
+      "gitBlobSha": "868cc7462a83a6f7253bef5d9c4175b2358401a5",
+      "size": 21243
+    },
+    "src/ColourMaskPreview.jsx": {
+      "gitBlobSha": "b42b899098971184ee57c275d31dde5d9545d588",
+      "size": 3375
+    },
+    "src/ColourPicker.jsx": {
+      "gitBlobSha": "289ee35538db90b3f5f9b8f7b1eb3c8e43bf7736",
+      "size": 6084
+    },
+    "src/DecalComponentsPanel.jsx": {
+      "gitBlobSha": "10d3932d8eb25546e56a61e27451a7d8bc5739d8",
+      "size": 18162
+    },
+    "src/DigitalPaintMenu.jsx": {
+      "gitBlobSha": "b70bc55f201ff3d92e624707d79901f43455302c",
+      "size": 24062
+    },
+    "src/GradientSliceImage.jsx": {
+      "gitBlobSha": "fb652d59e3382ade76850e0caed6efa144c288ba",
+      "size": 690
+    },
+    "src/MaterialControls.jsx": {
+      "gitBlobSha": "1449b082cc5a57942b7f68b02f215dfaf9c62207",
+      "size": 10730
+    },
+    "src/MaterialGeneratorEditor.jsx": {
+      "gitBlobSha": "5a462a00b0546ad036b8b63cc70d75709067da7e",
+      "size": 7225
+    },
+    "src/MaterialInspectorPanel.jsx": {
+      "gitBlobSha": "2c3047c00b5b9f4c30327d1475b7bcc9775c637f",
+      "size": 5668
+    },
+    "src/PaintToolMenu.jsx": {
+      "gitBlobSha": "79a749b4967cd0308c864a2838280709eb1eeda3",
+      "size": 8838
+    },
+    "src/PathEditorControls.jsx": {
+      "gitBlobSha": "02b796dbf47ef72d64708ed983a59c6d55b8e353",
+      "size": 13141
+    },
+    "src/PathEditorOverlay.jsx": {
+      "gitBlobSha": "502dbfcf27314c848b0d518f0622f61dad89bcc7",
+      "size": 5318
+    },
+    "src/PatternEditor.jsx": {
+      "gitBlobSha": "1a8ec66a07f6b4ba0b01995d7d79b8a8b14a8b2b",
+      "size": 96103
+    },
+    "src/PatternMaterialPreview.jsx": {
+      "gitBlobSha": "9b5a72af68dc2230c41f7ac3e6f67c475c5342ed",
+      "size": 3885
+    },
+    "src/PatternTextControls.jsx": {
+      "gitBlobSha": "178b21757afaf733c2d329e1a42f8536076935a7",
+      "size": 3812
+    },
+    "src/PatternTextileTools.jsx": {
+      "gitBlobSha": "bc9d72f597845e57b0eebff18b52b7113df30922",
+      "size": 7636
+    },
+    "src/PointGradientEditor.jsx": {
+      "gitBlobSha": "a3696cf8d857c07578e9aa1f842c523418262124",
+      "size": 6587
+    },
+    "src/RecipeInspector.jsx": {
+      "gitBlobSha": "437c723dbbf517bbf360798a4cc65612c984a12b",
+      "size": 8560
+    },
+    "src/RugCompositionControls.jsx": {
+      "gitBlobSha": "657576c6be58a8b8c5b9ba9a198132dcfe9802cf",
+      "size": 3650
+    },
+    "src/SVGSourceEditor.jsx": {
+      "gitBlobSha": "31db9e0356fd1bc7f85273b9d625cdc1a0d6ff2d",
+      "size": 4952
+    },
+    "src/SandLayersEditor.jsx": {
+      "gitBlobSha": "ee85c2ba41be085d24dce2c4569d07f9e8e48d4e",
+      "size": 5902
+    },
+    "src/ShapeEditorCanvas.jsx": {
+      "gitBlobSha": "c1c549183727eda8c867e194ebfa617a47296d5b",
+      "size": 79123
+    },
+    "src/ShapeEditorToolbar.jsx": {
+      "gitBlobSha": "197aa77bcc85d417c198c1a5126b198421f642da",
+      "size": 8463
+    },
+    "src/StampRichTextEditor.jsx": {
+      "gitBlobSha": "ea5e02fe3956a588d006f3b6d46f2df62270a4a5",
+      "size": 9393
+    },
+    "src/StampStudio.jsx": {
+      "gitBlobSha": "b012c21b4a7dee39481cc0814afedd636990b3ae",
+      "size": 39986
+    },
+    "src/StudioUI.jsx": {
+      "gitBlobSha": "d0aff3ea83d4c7f688cf0958e87f7db09530d1dd",
+      "size": 4214
+    },
+    "src/TextureHistoryPanel.jsx": {
+      "gitBlobSha": "67184a54de9949871bf0f69c29ddac558ee06f22",
+      "size": 8810
+    },
+    "src/TextureLayerInspector.jsx": {
+      "gitBlobSha": "3334fe0fec25e293bd33fe88464c8f9692a84d14",
+      "size": 27721
+    },
+    "src/TextureLayerStack.jsx": {
+      "gitBlobSha": "56f1c32d1e3f66b7e233562f615b29bf835a3394",
+      "size": 33639
+    },
+    "src/TextureMaskToolbar.jsx": {
+      "gitBlobSha": "e2d5fe14b162ad125814774d307e5c8c671eb308",
+      "size": 7181
+    },
+    "src/TexturePaintStudio.jsx": {
+      "gitBlobSha": "c29d62ecf177a6fa0a73c11171a1546924cce380",
+      "size": 61456
+    },
+    "src/TextureSourceCanvas.jsx": {
+      "gitBlobSha": "b6f414807e1e01b442805b13e74c8c69e5394ffe",
+      "size": 8934
+    },
+    "src/TextureUVView.jsx": {
+      "gitBlobSha": "c2104f9811a3bc27baf7450131af66ea14373664",
+      "size": 28545
+    },
+    "src/Viewport.jsx": {
+      "gitBlobSha": "5d3f9f96e83895184aab722c9267f1b5007c6c18",
+      "size": 50391
+    },
+    "src/architecturalKernels.js": {
+      "gitBlobSha": "2119a0244649bc401a1a45b0fd5f372a58da068d",
+      "size": 9202
+    },
+    "src/architectureCatalog.js": {
+      "gitBlobSha": "2db6b56906f1cc329a2a4adf2f726dc75ce458ae",
+      "size": 5022
+    },
+    "src/assetContentBrowser.css": {
+      "gitBlobSha": "ece76caec2c1251179aa691fca013f3433898ae8",
+      "size": 22217
+    },
+    "src/assets/draped-cloth.json": {
+      "gitBlobSha": "57e402c07254cc4ff7c02133dab9186675bcb923",
+      "size": 131352
+    },
+    "src/bakeMaterial.js": {
+      "gitBlobSha": "2caf82918a9550a94c0a8938d87aa06c94a1cc62",
+      "size": 8272
+    },
+    "src/baking/MeshBakeViewport.jsx": {
+      "gitBlobSha": "d56370a2704f83e4c757987df680813b85ecfe9e",
+      "size": 7924
+    },
+    "src/baking/MeshMapGrid.jsx": {
+      "gitBlobSha": "06f1452726077994eaf13590b512d91c9d843979",
+      "size": 5169
+    },
+    "src/baking/VolumeSdfPanel.jsx": {
+      "gitBlobSha": "e92309f0a173047c0e050ba41076f08396f10c79",
+      "size": 7257
+    },
+    "src/baking/bakeGraph.js": {
+      "gitBlobSha": "19f7ea6ae5bbc73493e94523458255903f7bbaad",
+      "size": 10252
+    },
+    "src/baking/bakeGraphEvaluation.js": {
+      "gitBlobSha": "98a4e4756d7a3bdd15335d1c834d2e9875f28f63",
+      "size": 11956
+    },
+    "src/baking/bakeMeshJob.js": {
+      "gitBlobSha": "22d8c5b86447974d6e7b440f413c583cc5c20bb3",
+      "size": 9222
+    },
+    "src/baking/bakeMeshes.js": {
+      "gitBlobSha": "db648c18b5b86a0f341ab0a21bca093c376634bc",
+      "size": 12257
+    },
+    "src/baking/bakeRecipe.js": {
+      "gitBlobSha": "c5ea9fa2a497b0b55b18292ec02a611339917b22",
+      "size": 2299
+    },
+    "src/baking/meshBakeCore.js": {
+      "gitBlobSha": "222408e6c6d1bfb3b4ea0b13778fa1a19b2f45ca",
+      "size": 30378
+    },
+    "src/baking/meshBakeWorker.js": {
+      "gitBlobSha": "3e2d55f94ff3ab73fafd83dfa1aac96c98c90051",
+      "size": 1951
+    },
+    "src/baking/meshMaps.js": {
+      "gitBlobSha": "8407fc3fb767354e69efcec59304c4ae66df4cf2",
+      "size": 8033
+    },
+    "src/baking/volumeSdf.js": {
+      "gitBlobSha": "3ebb10c95d226ffadf2c69d030f862ab50c54fa6",
+      "size": 14369
+    },
+    "src/baking/volumeSdfJob.js": {
+      "gitBlobSha": "ce62c0f791c1293d804b5d079a61d7ec1967196b",
+      "size": 3490
+    },
+    "src/baking/volumeSdfWorker.js": {
+      "gitBlobSha": "dbcc85f93eefbb69be5c0960f34b8c001702982e",
+      "size": 853
+    },
+    "src/botanicalCatalog.js": {
+      "gitBlobSha": "96df8d0ab55c2af32ee2dc3dc75fd87d136a08f6",
+      "size": 4105
+    },
+    "src/botanicalGeometry.js": {
+      "gitBlobSha": "65f7103fafd2e3dd138746670945d81bc851b1d7",
+      "size": 2103
+    },
+    "src/botanicalKernels.js": {
+      "gitBlobSha": "9561f3d1b0f62c8650f61d818ca9b45edf4c9890",
+      "size": 11051
+    },
+    "src/catalogExpansion.js": {
+      "gitBlobSha": "aed0019916d76e300a68e027357042eacd9826b7",
+      "size": 9019
+    },
+    "src/channelPropertyPanel.css": {
+      "gitBlobSha": "bc0ececc766c55aa13e512b41390a5c578408ac9",
+      "size": 16812
+    },
+    "src/clothGeometry.js": {
+      "gitBlobSha": "a0cccfcdbaca8d6950359b4365eb97885101a8f1",
+      "size": 2153
+    },
+    "src/colourPicker.css": {
+      "gitBlobSha": "66e5efcef58420aba47fe86b70c6b53da40fe417",
+      "size": 2346
+    },
+    "src/decalModel.js": {
+      "gitBlobSha": "1f3a3d5ae89380453c335a965935ebfb545e1a63",
+      "size": 4821
+    },
+    "src/decalProjection.js": {
+      "gitBlobSha": "b24c142951c6a6dd6929aa18bfc3fe41df16ce76",
+      "size": 10229
+    },
+    "src/decalStudio.css": {
+      "gitBlobSha": "d90de1d6255ed145af6e1a20a60fa0b5521cc390",
+      "size": 5475
+    },
+    "src/decalSurfaceController.js": {
+      "gitBlobSha": "ec62a9c11eefc14f8e8c493eeadca25333e09ad3",
+      "size": 23979
+    },
+    "src/digitalBrush.js": {
+      "gitBlobSha": "3a41c59225f90e67593ae8b016d9ab11fd982ddb",
+      "size": 11395
+    },
+    "src/digitalBrushCursor.js": {
+      "gitBlobSha": "2efb1366dfdf0e92c73053b16ec521d72089d8e3",
+      "size": 8426
+    },
+    "src/digitalBrushCursorController.js": {
+      "gitBlobSha": "dc473b50101592e42b1cb493bcd53de0422e4993",
+      "size": 8978
+    },
+    "src/digitalPaintRaster.js": {
+      "gitBlobSha": "12c92d58968b42798a7dca45e43ad8dd8fbc0dda",
+      "size": 6354
+    },
+    "src/digitalPaintSurface.js": {
+      "gitBlobSha": "a62b6d4e23ef6486eb05f87baa037425ac820eb8",
+      "size": 18241
+    },
+    "src/digitalPainting.css": {
+      "gitBlobSha": "23dcb67cec717589062c9b9ca40d942a335bd296",
+      "size": 18025
+    },
+    "src/geometricConstructions.js": {
+      "gitBlobSha": "78c29b7f0cb6826e8d814a6efc4f11e84e17b355",
+      "size": 55862
+    },
+    "src/granularCatalog.js": {
+      "gitBlobSha": "fdddf3fd7b3e16a9a276d4e2377e07806e9c43ca",
+      "size": 3974
+    },
+    "src/heritagePatterns.js": {
+      "gitBlobSha": "f5215aa0379c18e47e56fb97ccad706711c4c209",
+      "size": 35991
+    },
+    "src/leatherGeometry.js": {
+      "gitBlobSha": "bf5210e9fd4ad73bd791cef9afab1cb7c1ecff42",
+      "size": 2275
+    },
+    "src/leatherSource.js": {
+      "gitBlobSha": "82b90b71712206952a37298882a23bfcf7b36c02",
+      "size": 5747
+    },
+    "src/main.jsx": {
+      "gitBlobSha": "e85781665843e4f8a1c6bdf46d6e744030549882",
+      "size": 46906
+    },
+    "src/maskPaintRaster.js": {
+      "gitBlobSha": "9e8edb65ab9459c8b33f3b8ff429478117f3cdae",
+      "size": 12556
+    },
+    "src/maskPreviewController.js": {
+      "gitBlobSha": "0c4979e87fe3e559ef6c6e9d5e0027f1adf6fa7d",
+      "size": 11083
+    },
+    "src/materialExport.js": {
+      "gitBlobSha": "c9259d83a25728e2aa57f6fdf4665e5f1ff5b602",
+      "size": 2957
+    },
+    "src/materialGeneratorModel.js": {
+      "gitBlobSha": "9ed452e95a46932a52ce33378d30c88457a132f5",
+      "size": 4464
+    },
+    "src/materialProfiles.js": {
+      "gitBlobSha": "5fc821acccf7a2c3f738e7fe98b7996c66ef26ee",
+      "size": 51243
+    },
+    "src/materialViewportOptions.js": {
+      "gitBlobSha": "24d2a78befaa6a2e64c4281797ca74a427e4272e",
+      "size": 482
+    },
+    "src/materials.js": {
+      "gitBlobSha": "c8b88a6d99ce4a3045f38746328287082ecdf9e7",
+      "size": 49856
+    },
+    "src/ornamentDrawing.js": {
+      "gitBlobSha": "7d3bcd424776d29bd56e318396cab3fa7341b870",
+      "size": 7247
+    },
+    "src/ornamentalConstructions.js": {
+      "gitBlobSha": "63975eb1448ba268c96ac0805a6ca2dc8b2534b1",
+      "size": 32774
+    },
+    "src/paintChannelModel.js": {
+      "gitBlobSha": "15a0adcb8ad361cc038388bd4b04dbcbfee91dfb",
+      "size": 8085
+    },
+    "src/paintToolCatalogue.js": {
+      "gitBlobSha": "ac7df02fd250e586ffed07bdf7b468635b505351",
+      "size": 129183
+    },
+    "src/paintTools.css": {
+      "gitBlobSha": "582e9eb50df562ffdd0211ab28332d35904b438d",
+      "size": 9317
+    },
+    "src/pathEditorGeometry.js": {
+      "gitBlobSha": "47a84341f6adc67166a9dfc2d8fb99af5588b563",
+      "size": 12573
+    },
+    "src/patternCollections.js": {
+      "gitBlobSha": "63f505c44c1f270d498b80f3e9367772455da163",
+      "size": 14378
+    },
+    "src/patternDocument.js": {
+      "gitBlobSha": "383871ba573092f8878574d54f999b3e80b28e74",
+      "size": 29370
+    },
+    "src/patternDraft.js": {
+      "gitBlobSha": "64aab8b3ea81c89089f01b1fa38bcece03c8dc54",
+      "size": 804
+    },
+    "src/patternEditor.css": {
+      "gitBlobSha": "c265e3588c04b5f617e22e1f211ff66eeee0dc7b",
+      "size": 11268
+    },
+    "src/patternGeometry.js": {
+      "gitBlobSha": "1f1bc17a85c8f90e2843eef0c6f14cc2aab2473e",
+      "size": 11287
+    },
+    "src/patternImport.js": {
+      "gitBlobSha": "a2f4091c2189f151c764a8d6f8da7232d1c0fa82",
+      "size": 7360
+    },
+    "src/patternLibrary.js": {
+      "gitBlobSha": "2e300a3ead0968de258ac9a111975523131a060f",
+      "size": 15545
+    },
+    "src/patternRuntime.js": {
+      "gitBlobSha": "67547606161a21e05b22f618a5e0ad899d726715",
+      "size": 9702
+    },
+    "src/patternStitches.js": {
+      "gitBlobSha": "2cdceff81ab545319ebf5a9f452294a88f1dabfe",
+      "size": 11949
+    },
+    "src/patternSurface.js": {
+      "gitBlobSha": "35a4516d1c21154809c56295b3b276c66a137b45",
+      "size": 1208
+    },
+    "src/patternTextFonts.js": {
+      "gitBlobSha": "ab982b9e5c3f76e4fc6e0a2bf009996d7c029c87",
+      "size": 1393
+    },
+    "src/patternTextGeometry.js": {
+      "gitBlobSha": "4d91542d4eff80160900022fb17710b576ebcfca",
+      "size": 3739
+    },
+    "src/patternTransforms.js": {
+      "gitBlobSha": "29d0e78cd5f5fd3c3a374b1b45edb60d2de3402b",
+      "size": 2429
+    },
+    "src/patternWeaves.js": {
+      "gitBlobSha": "cdc7e32c0f801ad0ed2931b6c13e55948c0b521b",
+      "size": 6574
+    },
+    "src/pointGradient.css": {
+      "gitBlobSha": "2d1eee37610413efab3f2a55aa4167ff994ddd32",
+      "size": 3587
+    },
+    "src/pointGradient.js": {
+      "gitBlobSha": "15ed4a28073ab6b80601b80c66aa509c6291c40f",
+      "size": 4683
+    },
+    "src/pointGradientViewport.js": {
+      "gitBlobSha": "2b2e430ed3300abe9fc37c4c88165bd0dbf57392",
+      "size": 7383
+    },
+    "src/referencePatterns.js": {
+      "gitBlobSha": "1b3cd53ce7789460e5f5a54faf106f7a7f0b2a55",
+      "size": 25166
+    },
+    "src/renderMaterialGenerator.js": {
+      "gitBlobSha": "148fba6f4ef065c9d38bedbdeeb1c3eea12fa544",
+      "size": 2238
+    },
+    "src/renderTargetViewport.js": {
+      "gitBlobSha": "b690a1f92dac5752ddd0bed2e267617ca0fdfc96",
+      "size": 478
+    },
+    "src/rugCompositions.js": {
+      "gitBlobSha": "de0a49662380a54aedcab85fdf1d31dfb7916275",
+      "size": 38626
+    },
+    "src/rugDesigns.js": {
+      "gitBlobSha": "f9a4337521eab4be4a70c103ceca8560b20371b8",
+      "size": 11403
+    },
+    "src/sandKernels.js": {
+      "gitBlobSha": "c318c4090f24cdc7c59cbbeb69132cd7de6ee20c",
+      "size": 5633
+    },
+    "src/screenPaintProjection.js": {
+      "gitBlobSha": "ee901d7719555dcd0c8dd7543474d604110c7e27",
+      "size": 16335
+    },
+    "src/shapeEditor.css": {
+      "gitBlobSha": "4eecd20566c5167edcd5fe8a74cc468ea36ad459",
+      "size": 26338
+    },
+    "src/shapeEditorGeometry.js": {
+      "gitBlobSha": "33aacfcc2739683e1231e380ce5f1d801d59c8a2",
+      "size": 20829
+    },
+    "src/stampDocument.js": {
+      "gitBlobSha": "1bc8eb841da8c36a8f2724160f1c8654bcf89394",
+      "size": 11755
+    },
+    "src/stampRaster.js": {
+      "gitBlobSha": "8340d1385bd67433f4afa762fb78c6cb5b8a0cfd",
+      "size": 6765
+    },
+    "src/stampStudio.css": {
+      "gitBlobSha": "bc80f4811efef3cbac6f584de0f1701a45d31062",
+      "size": 14297
+    },
+    "src/stampTransform.js": {
+      "gitBlobSha": "ecaa66d788ff1a59a3e66526232e944837db8e59",
+      "size": 3344
+    },
+    "src/studioTheme.css": {
+      "gitBlobSha": "158023f3150564b736b1302bc724f1dc22601ef5",
+      "size": 51465
+    },
+    "src/styles.css": {
+      "gitBlobSha": "f9832c9c9b57a41e7a2f8b1973d51d5d040ce6fd",
+      "size": 78192
+    },
+    "src/surfaceBakeMaps.js": {
+      "gitBlobSha": "82c1b3d5420b42cd62b8f0af35a457e382a43f61",
+      "size": 1547
+    },
+    "src/surfaceKernels.js": {
+      "gitBlobSha": "c7aa7baa88f26efb92218fdcd4b3a95dc72d39fc",
+      "size": 7468
+    },
+    "src/textureDigitalPaint.js": {
+      "gitBlobSha": "ad1bc6b58cb2e2a2060773a41324c20d67c33ac2",
+      "size": 8392
+    },
+    "src/textureDocument.js": {
+      "gitBlobSha": "e1c87220844454c7881b9267749e2850ad158110",
+      "size": 27851
+    },
+    "src/textureHistory.js": {
+      "gitBlobSha": "c27519304b082cea70fc32debb6801e502e7dee8",
+      "size": 10816
+    },
+    "src/textureMaskPaint.css": {
+      "gitBlobSha": "48eff381ce43b58d8ffb711b145020f073c51bfe",
+      "size": 5528
+    },
+    "src/textureMaskPaint.js": {
+      "gitBlobSha": "c7acb76430138d00af4ece6eb453bc554e2acf3a",
+      "size": 7347
+    },
+    "src/textureMasks.js": {
+      "gitBlobSha": "20b79a873d2f13ceb97c37501a8236b7d619f6d6",
+      "size": 2323
+    },
+    "src/textureMeshMapBridge.js": {
+      "gitBlobSha": "56357d9bb29fd652449a54f2a23abb5d4664b932",
+      "size": 2306
+    },
+    "src/textureMeshMaps.js": {
+      "gitBlobSha": "606488782c636d5144aa5847aa72c740308e3949",
+      "size": 4132
+    },
+    "src/textureMeshSupportController.js": {
+      "gitBlobSha": "b5f25d9d93e864ba6bdb2c9c22b6810951e8659f",
+      "size": 7786
+    },
+    "src/textureOpticalStackController.js": {
+      "gitBlobSha": "a684016763fea939dc413ccbb52e43ee57340b80",
+      "size": 17538
+    },
+    "src/textureSource.js": {
+      "gitBlobSha": "706e7666a575a615cb48afc92e6a75d436dad2b9",
+      "size": 5591
+    },
+    "src/textureStackEvaluation.js": {
+      "gitBlobSha": "1039f77103485a76304d2b81d8f362ff0cf6d3af",
+      "size": 3858
+    },
+    "src/textureStackUVController.js": {
+      "gitBlobSha": "84157083a734c39f0faffec9c872c64d88e5ab4f",
+      "size": 5832
+    },
+    "src/textureStrokes.js": {
+      "gitBlobSha": "d5fc9e9cd83e31c975a145bfc0680ec14085aa9d",
+      "size": 4520
+    },
+    "src/textureStudio.css": {
+      "gitBlobSha": "1a06943cc958da09e0e55e561171a887bed6810f",
+      "size": 53343
+    },
+    "src/textureSurfaceController.js": {
+      "gitBlobSha": "ce6fdbdfe0d5508a7f839bb6b731d6ca2b479f27",
+      "size": 11651
+    },
+    "src/textureSurfaceModel.js": {
+      "gitBlobSha": "985e0d83732de682c871a3f89d801f3d9e48f285",
+      "size": 9509
+    },
+    "src/textureSystemBaseMaterial.js": {
+      "gitBlobSha": "3359e4fdb78cec3ecc121bb5bfba3032e55cd8ea",
+      "size": 915
+    },
+    "src/textureUVGeometry.js": {
+      "gitBlobSha": "9bc1e8cccab3945703afd4f6b64f21d913d6f4c4",
+      "size": 11940
+    },
+    "src/useDecalEditing.js": {
+      "gitBlobSha": "4da41f93ce7eabe88ad0031380ee634df46da380",
+      "size": 14599
+    },
+    "src/useDialogFocus.js": {
+      "gitBlobSha": "cc1d165b0ffa91aa73462b075d50d98e254b00a6",
+      "size": 1434
+    },
+    "src/useDigitalPainting.js": {
+      "gitBlobSha": "c07e906555e0bf3e7f8f686d7806584a79c33b76",
+      "size": 15810
+    },
+    "src/useMaskEditing.js": {
+      "gitBlobSha": "504406b87f632db70879465426b5a14405e3fdb6",
+      "size": 9312
+    },
+    "src/usePathSession.js": {
+      "gitBlobSha": "ce5bff1539fba1bd1461f0765ef104fb4ea04272",
+      "size": 2036
+    },
+    "src/usePatternHistory.js": {
+      "gitBlobSha": "9f5eaf220981f9ab465ab24018a8b2afff46d409",
+      "size": 3870
+    },
+    "src/useStampTransform.js": {
+      "gitBlobSha": "cf03939fa01478ad8d5ce18c5e3408a6bbc1e231",
+      "size": 9491
+    },
+    "src/useTextureDocument.js": {
+      "gitBlobSha": "ba17e26cdda8821b07a58819c5fe36cba0fb6e33",
+      "size": 4562
+    },
+    "src/vectorEditorGeometry.js": {
+      "gitBlobSha": "51c2b39e5eb884afa53f0764c17173d8adde5fb8",
+      "size": 4760
+    },
+    "src/vectorEditorSnapping.js": {
+      "gitBlobSha": "04f0902bfc707021a40c904fbe256828b14da191",
+      "size": 5382
+    },
+    "tests/architecture.spec.js": {
+      "gitBlobSha": "d1d1353061e67b81188cac0bb0c859fc61f0efaf",
+      "size": 6261
+    },
+    "tests/baking-geometry.spec.js": {
+      "gitBlobSha": "5071c46b9e8d36f716bf8a9abb10919577e36278",
+      "size": 16569
+    },
+    "tests/baking-studio.spec.js": {
+      "gitBlobSha": "43eb45ad2f1ee2328dd39f5bb33906f8dc2a7e0b",
+      "size": 12499
+    },
+    "tests/botanical.spec.js": {
+      "gitBlobSha": "eedeec26b04dc41d15d6deb41e37023e4dae59f5",
+      "size": 7058
+    },
+    "tests/digital-brush-cursor-model.spec.js": {
+      "gitBlobSha": "dde4d282b3e331422a845ed6280ac36f65288606",
+      "size": 7233
+    },
+    "tests/digital-brush-cursor-raster.spec.js": {
+      "gitBlobSha": "7b111949ab87a3b9a9dae1ac9491c5b85eb240c0",
+      "size": 9391
+    },
+    "tests/digital-brush-cursor-studio.spec.js": {
+      "gitBlobSha": "68503bd0ee71454d85668cda667b0237332493b5",
+      "size": 25010
+    },
+    "tests/digital-paint-model.spec.js": {
+      "gitBlobSha": "7f875330bb22011bd242aa7103c9f9f3b6dbaad5",
+      "size": 13285
+    },
+    "tests/digital-paint-raster.spec.js": {
+      "gitBlobSha": "c9892096cc05f3f9b16a323e8bf5073c9db4fef9",
+      "size": 14402
+    },
+    "tests/digital-paint-studio.spec.js": {
+      "gitBlobSha": "61b74e9a4d4b31360861ec763e8700bcf1e901b9",
+      "size": 19815
+    },
+    "tests/expansion.spec.js": {
+      "gitBlobSha": "e370d1d5cf66060fbb4f9636a7adcc76f2984098",
+      "size": 7594
+    },
+    "tests/fixtures/runtime-probe.jsx": {
+      "gitBlobSha": "379633e3a8a4b8a5187d99e6de887e15f34b709d",
+      "size": 745
+    },
+    "tests/fixtures/scratch-v6.1.glsl": {
+      "gitBlobSha": "8ebbb10e9eed3fefdafabf6d588c8168f40689f2",
+      "size": 2092
+    },
+    "tests/fixtures/texture-mesh-map-pngs.json": {
+      "gitBlobSha": "553bd777ed404fe9445b2e69c8d61b3992ad4f51",
+      "size": 760
+    },
+    "tests/geometry-set-four.spec.js": {
+      "gitBlobSha": "1a3d0735ba7c94b48949f9701c4f672ee9fadda2",
+      "size": 13160
+    },
+    "tests/geometry-set-three.spec.js": {
+      "gitBlobSha": "27bf423182304702be00a276f0d7d14f1e71b0fa",
+      "size": 14502
+    },
+    "tests/geometry-set-two.spec.js": {
+      "gitBlobSha": "3ec96eebc5e7c539ed35826648706d136104ae05",
+      "size": 11156
+    },
+    "tests/granular-materials.spec.js": {
+      "gitBlobSha": "9800a19f4e6ee2635f9036efddd7538ce8d464f7",
+      "size": 12420
+    },
+    "tests/heritage-patterns-model.spec.js": {
+      "gitBlobSha": "d309521f0905e74a7194e343b5d901e6c1ba4175",
+      "size": 8313
+    },
+    "tests/heritage-patterns-studio.spec.js": {
+      "gitBlobSha": "0093bedffbd735cece9068eed67deedc0cb887ac",
+      "size": 12236
+    },
+    "tests/leather.spec.js": {
+      "gitBlobSha": "33e7e2d688230202d69f69a15a3a944bd5fa5cdf",
+      "size": 6068
+    },
+    "tests/mesh-map-library.spec.js": {
+      "gitBlobSha": "cc77c4e6e07d925779543e9f4783e98ecb2d73bf",
+      "size": 12207
+    },
+    "tests/metal-scratches.spec.js": {
+      "gitBlobSha": "e0045aab01d863620d4c7512ef45e69eb3a5ed0f",
+      "size": 8004
+    },
+    "tests/ornamental-constructions.spec.js": {
+      "gitBlobSha": "084dbd450a2731dc220569461588ede97189374a",
+      "size": 2271
+    },
+    "tests/paint-authoring-model.spec.js": {
+      "gitBlobSha": "82ac306087cc9cb6822baae4fa1468347c17ee18",
+      "size": 7327
+    },
+    "tests/paint-authoring-studio.spec.js": {
+      "gitBlobSha": "d23f0e2a4efa5bc9bb0534d2c6b63960fef4a36f",
+      "size": 18263
+    },
+    "tests/pattern-collections.spec.js": {
+      "gitBlobSha": "2ae1ad4624d8809962dffc4d15490a668e3014f1",
+      "size": 11981
+    },
+    "tests/pattern-editor.spec.js": {
+      "gitBlobSha": "f0185d84d517d6ee1f961203660c2dcf66a87de1",
+      "size": 10562
+    },
+    "tests/pattern-library.spec.js": {
+      "gitBlobSha": "3d3a0239de12a9b20c115b5b0094302f96508411",
+      "size": 11211
+    },
+    "tests/patterns.spec.js": {
+      "gitBlobSha": "cb42323f5a0673546d504fefe41b92012e503295",
+      "size": 12615
+    },
+    "tests/point-gradient-model.spec.js": {
+      "gitBlobSha": "8d863f3777832322a07cb5faf818a0e80d3660c1",
+      "size": 8614
+    },
+    "tests/point-gradient-studio.spec.js": {
+      "gitBlobSha": "3ec94e0c2fd9b1e1643ecb229f512518c8fc4c71",
+      "size": 11920
+    },
+    "tests/reference-patterns.spec.js": {
+      "gitBlobSha": "df59613bf590088c4431563888a36b9596b3895d",
+      "size": 7961
+    },
+    "tests/render-target-dpi.spec.js": {
+      "gitBlobSha": "79de6f70ce5fe06156c7a005758d127bc39299e2",
+      "size": 2660
+    },
+    "tests/rug-compositions.spec.js": {
+      "gitBlobSha": "29480e5d62fdbbca23121e3f95436aeebf7c9dd9",
+      "size": 10586
+    },
+    "tests/screen-paint-depth-mask.spec.js": {
+      "gitBlobSha": "f461a85d0823c39b99b6c4cad86388478b3b01be",
+      "size": 5028
+    },
+    "tests/screen-paint-model.spec.js": {
+      "gitBlobSha": "24bb86ab0aed59e91c1254325504523b9d4a38a6",
+      "size": 4352
+    },
+    "tests/screen-paint-raster.spec.js": {
+      "gitBlobSha": "507de8d2dde3ae2f6142720a1a7f967e466ac60c",
+      "size": 6605
+    },
+    "tests/screen-paint-studio.spec.js": {
+      "gitBlobSha": "f6f068843609f498dbaace78c4ea28f4149d85af",
+      "size": 11731
+    },
+    "tests/shape-editor-geometry.spec.js": {
+      "gitBlobSha": "cfb0a5fab0393ecf05e1f44a79e0a5e22714f80f",
+      "size": 12550
+    },
+    "tests/shape-editor-paths.spec.js": {
+      "gitBlobSha": "1d2e93c1ca169182ccbd1b919a233d30a21d626b",
+      "size": 8171
+    },
+    "tests/shape-editor-pen.spec.js": {
+      "gitBlobSha": "7f51979a01f7e782da247e1bda030128141e1360",
+      "size": 16213
+    },
+    "tests/shape-editor-svg-geometry.spec.js": {
+      "gitBlobSha": "0192584eef838fcf1366907289226c63dc9d08af",
+      "size": 11322
+    },
+    "tests/shape-editor-svg-tools.spec.js": {
+      "gitBlobSha": "2e09fd052b3ce100c98dab47f9e2eda194b56e55",
+      "size": 20445
+    },
+    "tests/shape-editor.spec.js": {
+      "gitBlobSha": "c181592fe262fcdcb77c273e235beade156676be",
+      "size": 24073
+    },
+    "tests/stamp-decal-model.spec.js": {
+      "gitBlobSha": "abd90abf7c91034199642a33ee907a1bce1a31dd",
+      "size": 19963
+    },
+    "tests/stamp-decal-studio.spec.js": {
+      "gitBlobSha": "6d25699d0be7379be96c735a0b400002627d8161",
+      "size": 26289
+    },
+    "tests/stamp-transform-model.spec.js": {
+      "gitBlobSha": "117a9bf62bebf7c61aac8d70cf5b63a60b265b7f",
+      "size": 4427
+    },
+    "tests/stamp-transform-studio.spec.js": {
+      "gitBlobSha": "7111695db651d372a7c4f0a7fd16ee213f6e4dc2",
+      "size": 20420
+    },
+    "tests/standalone.spec.js": {
+      "gitBlobSha": "036c1eae84e07822af806ec010932dc5de5fd43d",
+      "size": 91118
+    },
+    "tests/studio-docks.spec.js": {
+      "gitBlobSha": "98c108df8dc21758091f220817409d5701e913af",
+      "size": 3239
+    },
+    "tests/studio.spec.js": {
+      "gitBlobSha": "8fef7c2e8b942287cc7d91a081f6557e2438ceec",
+      "size": 27111
+    },
+    "tests/surface-bake-tiles.spec.js": {
+      "gitBlobSha": "11fbed76eac4d426be258d6cbd2fbd717ee2d916",
+      "size": 3641
+    },
+    "tests/textile-corrections.spec.js": {
+      "gitBlobSha": "e7132b040d62d94bfdb6a61605b52058806a75b4",
+      "size": 9782
+    },
+    "tests/texture-document.spec.js": {
+      "gitBlobSha": "707f7464c357906c30dd1886cdb0687ede7b0282",
+      "size": 5667
+    },
+    "tests/texture-folders-model.spec.js": {
+      "gitBlobSha": "0b1efd0a6e29eee06d296d8c4995fb7c690a3fa9",
+      "size": 12934
+    },
+    "tests/texture-folders-studio.spec.js": {
+      "gitBlobSha": "a98481b9598af6618727650a6db5e05f2db40375",
+      "size": 20458
+    },
+    "tests/texture-history-model.spec.js": {
+      "gitBlobSha": "59cbcccc2d06080b5a9664e6d619ba2904997d7e",
+      "size": 8218
+    },
+    "tests/texture-history-studio.spec.js": {
+      "gitBlobSha": "28be87cd9cf83462d8eb7d43c333d0715efacbac",
+      "size": 14805
+    },
+    "tests/texture-mask-paint-model.spec.js": {
+      "gitBlobSha": "ca0de7eb51936613c20d1b3a1a3002b6e7383b6f",
+      "size": 10659
+    },
+    "tests/texture-mask-paint-studio.spec.js": {
+      "gitBlobSha": "840aaaa158b88f1d9488c5050a57601184b79e57",
+      "size": 34014
+    },
+    "tests/texture-optical-stack-model.spec.js": {
+      "gitBlobSha": "61e2c5378497b0b576a583595900b2cf2af64e07",
+      "size": 12939
+    },
+    "tests/texture-parts-uv-model.spec.js": {
+      "gitBlobSha": "9f199965dd987bc870fd6f92bfbf2f2928ca46f2",
+      "size": 18648
+    },
+    "tests/texture-parts-uv-studio.spec.js": {
+      "gitBlobSha": "4f7fb2266408986b4771326180207ebf2092817c",
+      "size": 21178
+    },
+    "tests/texture-stack-evaluation-model.spec.js": {
+      "gitBlobSha": "f8570b7040051f655937ee2cf867c31c053908ee",
+      "size": 17137
+    },
+    "tests/texture-stack-evaluation-studio.spec.js": {
+      "gitBlobSha": "2f41265dc87378440e8d363b28122234ed1f45b7",
+      "size": 24888
+    },
+    "tests/texture-studio.spec.js": {
+      "gitBlobSha": "f7259857c308946d8e6e7e9498b48babaab2005e",
+      "size": 14939
+    },
+    "tests/volume-sdf.spec.js": {
+      "gitBlobSha": "d8fa2bf1e3bc91b394ebcdb48903fc7d3b6133b4",
+      "size": 6762
+    },
+    "tests/workspace-runtime.spec.js": {
+      "gitBlobSha": "90574701b15c03ef4793e9ec118032d077575bbb",
+      "size": 10352
+    },
+    "vite.config.js": {
+      "gitBlobSha": "56a328d50fec7daac4a3e9ae4c57e7c63f863ab3",
+      "size": 1862
+    }
+  }
+}

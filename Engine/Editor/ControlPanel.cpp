@@ -535,143 +535,84 @@ bool ControlPanel::SwatchRow(const char* Id, float Tint[3]) noexcept
 //                                                         DROP-DOWN
 //------------------------------------------------------------------------------------------------------------------------
 
-bool ControlPanel::DropDown(const char* Id, uint32_t* Picked,
-                          const char Options[kMaxEditorOptions][kMaxEditorOptionChars],
-                          uint32_t OptionCount) noexcept
+// One visual language for filter, camera, projection and property selectors.
+// The entire control is a pill: no stock ImGui split-arrow rectangle.
+bool ControlPanel::DropdownButton(const char* Id,const char* Label,ImVec2 Size,bool Open,bool Emphasized,float LabelInset,bool BlackGrey) noexcept
 {
-    ImGuiWindow* Window = ImGui::GetCurrentWindow();
-    if (Window->SkipItems)
+    const bool Pressed=ImGui::InvisibleButton(Id,Size);
+    const bool Hot=ImGui::IsItemHovered() || ImGui::IsItemActive() || Open;
+    const auto A=ImGui::GetItemRectMin(), B=ImGui::GetItemRectMax();
+    auto* D=ImGui::GetWindowDrawList();
+    if(BlackGrey)
     {
-        return false;
+        const float Split=B.x-30;
+        D->AddRectFilled(A,B,IM_COL32(0,0,0,255),Size.y*.5f);
+        D->AddRectFilled(ImVec2(Split,A.y),B,Hot?IM_COL32(46,46,46,255):IM_COL32(34,34,34,255),Size.y*.5f,ImDrawFlags_RoundCornersRight);
     }
+    else
+    D->AddRectFilled(A,B,Hot?IM_COL32(255,255,255,20):IM_COL32(255,255,255,11),Size.y*.5f);
+    D->AddRect(A,B,Hot?IM_COL32(255,255,255,33):IM_COL32(255,255,255,18),Size.y*.5f);
+    const ImU32 Ink=Hot || Emphasized?IM_COL32(255,255,255,240):IM_COL32(255,255,255,82);
+    auto* Font=QueryUi(); const float Px=12;
+    const ImVec2 Min(A.x+LabelInset,(A.y+B.y-Px)*.5f);
+    D->PushClipRect(Min,ImVec2(ImMax(Min.x,B.x-28),B.y),true);
+    D->AddText(Font,Px,Min,Ink,Label); D->PopClipRect();
+    const float X=B.x-17,Y=(A.y+B.y)*.5f-2;
+    D->AddTriangleFilled(ImVec2(X-4,Y),ImVec2(X+4,Y),ImVec2(X,Y+(Open?-4:4)),Ink);
+    return Pressed;
+}
 
-    const float RowWidth = ImGui::GetContentRegionAvail().x;
-    if (RowWidth < 1.0f)
+bool ControlPanel::BeginDropdownPopup(const char* Id,ImVec2 Anchor,float Width) noexcept
+{
+    ImGui::SetNextWindowPos(Anchor,ImGuiCond_Appearing);
+    ImGui::SetNextWindowSize(ImVec2(Width,0),ImGuiCond_Appearing);
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding,ImVec2(8,8));
+    ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing,ImVec2(0,5));
+    ImGui::PushStyleVar(ImGuiStyleVar_PopupRounding,16);
+    ImGui::PushStyleColor(ImGuiCol_PopupBg,ImVec4(15.f/255,16.f/255,18.f/255,189.f/255));
+    ImGui::PushStyleColor(ImGuiCol_Border,ImVec4(1,1,1,33.f/255));
+    if(ImGui::BeginPopup(Id,ImGuiWindowFlags_NoScrollbar|ImGuiWindowFlags_NoScrollWithMouse)) return true;
+    ImGui::PopStyleColor(2);ImGui::PopStyleVar(3);return false;
+}
+void ControlPanel::EndDropdownPopup() noexcept
+{
+    ImGui::EndPopup();ImGui::PopStyleColor(2);ImGui::PopStyleVar(3);
+}
+bool ControlPanel::DropdownChoice(const char* Id,const char* Label,bool Selected,ImU32 Dot,ImU32 Check) noexcept
+{
+    const auto A=ImGui::GetCursorScreenPos();const float W=ImGui::GetContentRegionAvail().x;
+    const bool Pressed=ImGui::InvisibleButton(Id,ImVec2(W,28));
+    const bool Hot=ImGui::IsItemHovered();auto* D=ImGui::GetWindowDrawList();
+    if(Hot||Selected)D->AddRectFilled(A,ImVec2(A.x+W,A.y+28),Hot?IM_COL32(255,255,255,20):IM_COL32(255,255,255,11),14);
+    if(Dot)D->AddCircleFilled(ImVec2(A.x+13,A.y+14),3,Dot);
+    const float X=A.x+(Dot?26:14);
+    D->PushClipRect(ImVec2(X,A.y),ImVec2(ImMax(X,A.x+W-26),A.y+28),true);
+    D->AddText(QueryUi(),12,ImVec2(X,A.y+8),Selected||Hot?IM_COL32(255,255,255,240):IM_COL32(255,255,255,143),Label);
+    D->PopClipRect();
+    if(Selected){D->AddLine(ImVec2(A.x+W-20,A.y+14),ImVec2(A.x+W-17,A.y+17),Check,1.5f);D->AddLine(ImVec2(A.x+W-17,A.y+17),ImVec2(A.x+W-11,A.y+10),Check,1.5f);}
+    return Pressed;
+}
+bool ControlPanel::DropDown(const char* Id,uint32_t* Picked,
+                           const char Options[kMaxEditorOptions][kMaxEditorOptionChars],uint32_t OptionCount,float Width,float Height) noexcept
+{
+    if(ImGui::GetCurrentWindow()->SkipItems || !OptionCount) return false;
+    if(Width<=0) Width=ImGui::GetContentRegionAvail().x;
+    if(Width<1) return false;
+    ImGui::PushID(Id);
+    if(DropdownButton("##button",Options[*Picked<OptionCount?*Picked:0],ImVec2(Width,Height),ImGui::IsPopupOpen("##menu"),true,14,true)) ImGui::OpenPopup("##menu");
+    const auto A=ImGui::GetItemRectMin(),B=ImGui::GetItemRectMax();bool Changed=false;
+    const auto Trigger=ImGui::GetCurrentContext()->LastItemData;
+    if(BeginDropdownPopup("##menu",ImVec2(A.x,B.y+6),ImMax(170.f,Width)))
     {
-        return false;
-    }
-
-    // The reference dropdown, dense: a split pill (black current cell, raised caret cell) over a black menu.
-    constexpr float kHeight = 32.0f;
-    constexpr float kCaretW = 36.0f;
-    ImGui::Dummy(ImVec2(RowWidth, kHeight));
-    const ImVec2 Cursor = ImGui::GetItemRectMin();
-    const ImVec2 End(Cursor.x + RowWidth, Cursor.y + kHeight);
-    const float  SplitX = End.x - kCaretW;
-
-    ImGui::SetCursorScreenPos(Cursor);
-    ImGui::InvisibleButton(Id, ImVec2(RowWidth, kHeight));
-    const bool ButtonHot = ImGui::IsItemHovered();
-    if (ButtonHot && ImGui::IsMouseClicked(0))
-    {
-        ImGui::OpenPopup("##ddmenu");
-    }
-
-    ImDrawList* Draw = ImGui::GetWindowDrawList();
-    Draw->AddRectFilled(Cursor, ImVec2(SplitX, End.y), kField, 16.0f, ImDrawFlags_RoundCornersLeft);
-    Draw->AddRectFilled(ImVec2(SplitX, Cursor.y), End, ButtonHot ? kSeated : kCell, 16.0f,
-        ImDrawFlags_RoundCornersRight);
-    Draw->AddRect(Cursor, End, kStroke, 16.0f);
-    Draw->AddLine(ImVec2(SplitX, Cursor.y + 5.0f), ImVec2(SplitX, End.y - 5.0f), kStroke);
-
-    const uint32_t Shown = (*Picked < OptionCount) ? *Picked : 0u;
-    ImFont* Ui = QueryUi();
-    ImGui::PushFont(Ui);
-    const ImVec2 LabelGlyph = Ui->CalcTextSizeA(Ui->LegacySize, FLT_MAX, 0.0f, Options[Shown]);
-    Draw->AddText(ImVec2(Cursor.x + 16.0f, Cursor.y + (kHeight - LabelGlyph.y) * 0.5f), kText, Options[Shown]);
-    ImGui::PopFont();
-
-    // The caret turns 180° over two-tenths of a second while the menu stands open.
-    const float TurnTarget = MenuWasOpen_ ? 1.0f : 0.0f;
-    const float TurnStep   = ImGui::GetIO().DeltaTime / 0.2f;
-    if (ChevronAnim_ < TurnTarget)
-    {
-        ChevronAnim_ += TurnStep;
-        if (ChevronAnim_ > TurnTarget)
+        for(uint32_t I=0;I<OptionCount;++I)
         {
-            ChevronAnim_ = TurnTarget;
+            ImGui::PushID(int(I));
+            if(DropdownChoice("##choice",Options[I],*Picked==I)){*Picked=I;Changed=true;ImGui::CloseCurrentPopup();}
+            ImGui::PopID();
         }
+        EndDropdownPopup();
     }
-    else if (ChevronAnim_ > TurnTarget)
-    {
-        ChevronAnim_ -= TurnStep;
-        if (ChevronAnim_ < TurnTarget)
-        {
-            ChevronAnim_ = TurnTarget;
-        }
-    }
-    const float Turn   = ChevronAnim_ * ChevronAnim_ * (3.0f - 2.0f * ChevronAnim_);
-    const float ChevX  = SplitX + kCaretW * 0.5f;
-    const float ChevY  = Cursor.y + kHeight * 0.5f;
-    const float TipY   = ChevY - 2.0f + Turn * 4.0f;
-    const float ElbowY = ChevY + 3.0f - Turn * 6.0f;
-    Draw->AddLine(ImVec2(ChevX - 5.0f, TipY), ImVec2(ChevX, ElbowY), kDim, 2.0f);
-    Draw->AddLine(ImVec2(ChevX, ElbowY), ImVec2(ChevX + 5.0f, TipY), kDim, 2.0f);
-
-    // The menu fades in over fourteen-hundredths of a second, eased — the reference ctxIn, minus the rise.
-    bool Changed = false;
-    const double Now = ImGui::GetTime();
-    float Fade = 1.0f;
-    if (MenuWasOpen_)
-    {
-        float T = static_cast<float>((Now - MenuOpenedAt_) / 0.14);
-        T    = T < 0.0f ? 0.0f : (T > 1.0f ? 1.0f : T);
-        Fade = T * T * (3.0f - 2.0f * T);
-    }
-    ImGui::SetNextWindowPos(ImVec2(Cursor.x, End.y + 8.0f), ImGuiCond_Appearing);
-    ImGui::SetNextWindowSize(ImVec2(RowWidth, 0.0f), ImGuiCond_Appearing);
-    ImGui::PushStyleColor(ImGuiCol_PopupBg, ImVec4(0.0f, 0.0f, 0.0f, Fade));
-    ImGui::PushStyleColor(ImGuiCol_Border, ImVec4(0.180f, 0.180f, 0.180f, Fade));
-    ImGui::PushStyleVar(ImGuiStyleVar_PopupRounding, 20.0f);
-    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(6.0f, 6.0f));
-    ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(8.0f, 2.0f));
-    const bool Open = ImGui::BeginPopup("##ddmenu");
-    if (Open && !MenuWasOpen_)
-    {
-        MenuOpenedAt_ = Now;
-        Fade          = 0.0f;
-    }
-    MenuWasOpen_ = Open;
-    if (Open)
-    {
-        ImDrawList* MenuDraw = ImGui::GetWindowDrawList();
-        ImGui::PushFont(Ui);
-        for (uint32_t i = 0u; i < OptionCount; ++i)
-        {
-            const float MenuWidth = ImGui::GetContentRegionAvail().x;
-            ImGui::Dummy(ImVec2(MenuWidth, 28.0f));
-            const ImVec2 RowMin = ImGui::GetItemRectMin();
-            const ImVec2 RowMax = ImGui::GetItemRectMax();
-            ImGui::SetCursorScreenPos(RowMin);
-            char RowId[12] = {};
-            std::snprintf(RowId, sizeof(RowId), "##dd%u", i);
-            ImGui::InvisibleButton(RowId, ImVec2(MenuWidth, 28.0f));
-            const bool Hovered = ImGui::IsItemHovered();
-            if (Hovered && ImGui::IsMouseClicked(0))
-            {
-                *Picked = i;
-                Changed = true;
-                ImGui::CloseCurrentPopup();
-            }
-            const bool Sel = (*Picked == i);
-            if (Sel)
-            {
-                MenuDraw->AddRectFilled(RowMin, RowMax, FadeTint(kMenuSel, Fade), 14.0f);
-            }
-            else if (Hovered)
-            {
-                MenuDraw->AddRectFilled(RowMin, RowMax, FadeTint(kMenuHover, Fade), 14.0f);
-            }
-            const ImVec2 OptGlyph = Ui->CalcTextSizeA(Ui->LegacySize, FLT_MAX, 0.0f, Options[i]);
-            MenuDraw->AddText(ImVec2(RowMin.x + 14.0f, RowMin.y + (28.0f - OptGlyph.y) * 0.5f),
-                FadeTint(Sel || Hovered ? kText : kDim, Fade), Options[i]);
-        }
-        ImGui::PopFont();
-        ImGui::EndPopup();
-    }
-    ImGui::PopStyleVar(3);
-    ImGui::PopStyleColor(2);
-    return Changed;
+    ImGui::PopID();ImGui::GetCurrentContext()->LastItemData=Trigger;return Changed;
 }
 
 //------------------------------------------------------------------------------------------------------------------------

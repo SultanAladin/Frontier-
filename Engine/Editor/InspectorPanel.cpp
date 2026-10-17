@@ -106,11 +106,13 @@ void InspectorPanel::AssignReadout(const EditorReadout* Readout) noexcept
 void InspectorPanel::Record(EditorInstance* Picked, uint32_t PickedIndex, EditorSheet* Sheet, bool Embedded) noexcept
 {
     IM_ASSERT(Controls_ != nullptr);
-    if (!Embedded && !ImGui::Begin(WindowTitle_, TabOpen_, ImGuiWindowFlags_NoScrollbar))
+    if (!Embedded && !ImGui::Begin(WindowTitle_, TabOpen_, (CadPresentation_ ? ImGuiWindowFlags_NoCollapse : 0) | (Frameless_ ? ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoDocking | ImGuiWindowFlags_NoSavedSettings : 0) | ImGuiWindowFlags_NoScrollbar))
     {
         if(!Embedded)ImGui::End();
         return;
     }
+
+    if(CadPresentation_) { ImGui::TextUnformatted("Inspector"); ImGui::Separator(); }
 
     if (PickedIndex != SheetFor_)
     {
@@ -200,8 +202,7 @@ void InspectorPanel::Record(EditorInstance* Picked, uint32_t PickedIndex, Editor
     {
         RecordCard(Sheet->Groups[i], i);
     }
-    RecordStanding(Picked, PickedIndex);
-    RecordNotes(Picked);
+    if(!CadPresentation_) { RecordStanding(Picked, PickedIndex); RecordNotes(Picked); }
     ImGui::EndChild();
     ImGui::PopStyleVar();
     RecordFooter(Picked);
@@ -675,6 +676,7 @@ void InspectorPanel::RecordNotes(EditorInstance* Picked) noexcept
 
 void InspectorPanel::RecordFooter(EditorInstance* Picked) noexcept
 {
+    if(CadPresentation_) return;
     const float RowWidth = ImGui::GetContentRegionAvail().x;
     // Pinned to the sill: whatever the content above ends at, the foot opens on the shared top row.
     const float FootTop = Controls_->QueryFootTop();

@@ -6,9 +6,75 @@
 #include <algorithm>
 #include <cctype>
 #include <cmath>
+#include <cstring>
 
 namespace Frontier
 {
+
+
+uint64_t SceneFigure::GeometryFingerprint() const noexcept
+{
+    uint64_t H=1469598103934665603ull;
+    auto Put=[&](uint64_t V){H^=V;H*=1099511628211ull;};
+    auto Number=[&](double D){uint64_t V;std::memcpy(&V,&D,8);Put(V);};
+    auto Point=[&](Vec3 P){Number(P.X);Number(P.Y);Number(P.Z);};
+    auto CurveHash=[&](const NurbsCurve& C){Put(C.Degree);Put(C.Poles.size());for(auto P:C.Poles){Number(P.X);Number(P.Y);Number(P.Z);Number(P.W);}Put(C.Knots.size());for(double K:C.Knots)Number(K);};
+    Put(uint64_t(Classification));
+    if(Classification==FigureClassification::Curve)CurveHash(Curve);
+    else if(Classification==FigureClassification::Surface){
+        Put(Surface.DegreeU);Put(Surface.DegreeV);Put(Surface.CountU);Put(Surface.CountV);
+        for(auto P:Surface.Poles){Number(P.X);Number(P.Y);Number(P.Z);Number(P.W);}for(double K:Surface.KnotsU)Number(K);for(double K:Surface.KnotsV)Number(K);
+    }
+    else if(Classification==FigureClassification::Body){
+        Put(Body.Vertices.size());for(const auto& V:Body.Vertices)Point(V.Point);
+        Put(Body.Edges.size());for(const auto& E:Body.Edges){CurveHash(E.Curve);for(int I:E.Coedges)Put(uint64_t(I+1));}
+        Put(Body.Coedges.size());for(const auto& C:Body.Coedges){Put(uint64_t(C.Edge+1));Put(C.Reversed);}
+        Put(Body.Faces.size());for(const auto& F:Body.Faces){Put(F.Reversed);Put(F.Surface.DegreeU);Put(F.Surface.DegreeV);Put(F.Surface.CountU);Put(F.Surface.CountV);for(auto P:F.Surface.Poles){Number(P.X);Number(P.Y);Number(P.Z);Number(P.W);}for(double K:F.Surface.KnotsU)Number(K);for(double K:F.Surface.KnotsV)Number(K);for(int I:F.Loops)Put(uint64_t(I+1));}
+        Put(Body.Loops.size());for(const auto& L:Body.Loops)for(int I:L.Coedges)Put(uint64_t(I+1));
+    }
+    return H;
+}
+std::string SceneFigure::BevelEditReason(size_t Index) const
+{
+    if(Index>=Bevels.size())return "Feature no longer exists.";
+    if(Hidden||Locked)return "Show and unlock this object to edit its bevel.";
+    if(GeometryFingerprint()!=Bevels.back().AfterFingerprint)return "Geometry changed outside this bevel chain; editing would discard that change.";
+    for(size_t I=Index+1;I<Bevels.size();++I)if(Bevels[I].Boundary)return "A later non-bevel edit starts a new chain; this earlier feature is read-only.";
+    return {};
+}
+void SceneFigure::Transform(const Mat4& M) noexcept
+{
+    const bool Attached=!Bevels.empty()&&GeometryFingerprint()==Bevels.back().AfterFingerprint;
+    if(Classification==FigureClassification::Curve)Curve=Curve.Transformed(M);
+    else if(Classification==FigureClassification::Surface)Surface=Surface.Transformed(M);
+    else Body=Body.Transformed(M);
+    if(!Attached)return;
+    const Vec3 O=M.TransformPoint({0,0,0});
+    const Vec3 X=M.TransformPoint({1,0,0})-O,Y=M.TransformPoint({0,1,0})-O,Z=M.TransformPoint({0,0,1})-O;
+    const double Scale=X.Length(),Tol=1e-8*std::max(1.0,Scale*Scale);
+    if(Scale<=ScalarCriteria::KernelTolerance||std::fabs(Y.Length()-Scale)>Tol||std::fabs(Z.Length()-Scale)>Tol||std::fabs(X.Dot(Y))>Tol||std::fabs(X.Dot(Z))>Tol||std::fabs(Y.Dot(Z))>Tol)return; // nonuniform transforms explicitly detach
+    for(auto& B:Bevels){B.Size*=Scale;B.BeforeCurve=B.BeforeCurve.Transformed(M);B.BeforeBody=B.BeforeBody.Transformed(M);for(auto& Binding:B.Bindings)for(auto& P:Binding.Samples)P=M.TransformPoint(P);}
+    Bevels.back().AfterFingerprint=GeometryFingerprint();
+}
+
+void SceneDocument::TouchSelection(SceneFigure& Figure) noexcept
+{
+    uint64_t Last=0;
+    for(const auto& Item:Entries)Last=std::max(Last,Item.SelectionOrder);
+    Figure.SelectionOrder=Figure.Selected?Last+1:0;
+}
+std::vector<uint32_t> SceneDocument::OrderedSelection() const
+{
+    std::vector<const SceneFigure*> Picked;
+    for(const auto& Figure:Entries)if(Figure.Selected)Picked.push_back(&Figure);
+    std::stable_sort(Picked.begin(),Picked.end(),[](auto* A,auto* B){return A->SelectionOrder<B->SelectionOrder;});
+    std::vector<uint32_t> Ids;for(auto* Figure:Picked)Ids.push_back(Figure->Identity);
+    return Ids;
+}
+uint32_t SceneDocument::ActiveSelection() const
+{
+    const auto Ids=OrderedSelection();return Ids.empty()?0:Ids.back();
+}
 
 SceneFigure& SceneDocument::AddCurve(std::string Name, NurbsCurve Curve) noexcept
 {
@@ -116,7 +182,7 @@ void SceneDocument::RebuildAreas(const Workplane& Plane) noexcept
     Frontier::Plane Sheet = Plane.ToPlane();
     for (const SceneFigure& F : Entries)
     {
-        if (F.Classification != FigureClassification::Curve || F.Hidden || F.Construction) continue;
+        if (F.Classification != FigureClassification::Curve || F.Hidden || F.Construction || F.Feature != FeaturePurpose::None) continue;
         bool InPlane = true;
         for (const Vec4& P : F.Curve.Poles) if (std::fabs(Sheet.SignedDistance(P.Divide())) > ScalarCriteria::MergeTolerance) { InPlane = false; break; }
         if (!InPlane) continue;
@@ -192,6 +258,8 @@ std::vector<const SceneFigure*> SceneDocument::DerivedFrom(uint32_t Identity) co
         bool Uses = false;
         for (const RecipeInput& In : F.Recipe.Sections) for (uint32_t Id : In.Figures) Uses |= Id == Identity;
         for (uint32_t Id : F.Recipe.Path.Figures) Uses |= Id == Identity;
+        for(const auto* Inputs:{&F.Recipe.Guides,&F.Recipe.LoftGuideInputs,&F.Recipe.LoftProfileInputs})for(const auto& In:*Inputs)for(uint32_t Id:In.Figures)Uses|=Id==Identity;
+        Uses |= F.Recipe.Path.Support == Identity;
         if (Uses) Out.push_back(&F);
     }
     return Out;
@@ -212,9 +280,20 @@ std::vector<std::string> SceneDocument::Regenerate(const Workplane& Plane) noexc
             if (Now == F.Recipe.InputFingerprint) continue;
             Deliver<FigureRecipe::Product> P = F.Recipe.Produce(*this, Plane);
             F.Recipe.InputFingerprint = Now;
-            if (!P) { F.Recipe.Complaint = P.Denial.Detail; continue; }
+            if (!P)
+            {
+                F.Recipe.Complaint = P.Denial.Detail;
+                if (F.Recipe.Operation == RecipeOperation::SurfaceOffset)
+                {
+                    F.Recipe.OffsetFailureHidden = F.Recipe.OffsetFailureHidden || !F.Hidden;
+                    F.Hidden = true;
+                }
+                continue;
+            }
+            if (F.Recipe.OffsetFailureHidden) { F.Hidden = false; F.Recipe.OffsetFailureHidden = false; }
             F.Recipe.Complaint.clear();
-            if (P.Payload.IsBody) { F.Classification = FigureClassification::Body; F.Body = std::move(P.Payload.Body); F.Surface = NurbsSurface(); }
+            if (P.Payload.IsCurve) { F.Classification = FigureClassification::Curve; F.Curve = std::move(P.Payload.Curve); }
+            else if (P.Payload.IsBody) { F.Classification = FigureClassification::Body; F.Body = std::move(P.Payload.Body); F.Surface = NurbsSurface(); }
             else { F.Classification = FigureClassification::Surface; F.Surface = std::move(P.Payload.Sheet); F.Body = BrepBody(); }
             F.SelectedFaces.clear(); F.SelectedEdges.clear(); F.SelectedPoles.clear();
             Changed.push_back(F.Name); Any = true;

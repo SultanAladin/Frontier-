@@ -109,10 +109,10 @@ int main()
         Result CornerU = Run(Large, Corner, BodyOperation::Union);
         Result CornerS = Run(Large, Corner, BodyOperation::Subtract);
         Result CornerI = Run(Large, Corner, BodyOperation::Intersect);
-        Panel.Expect("A non-rectangular corner union falls back to a valid SSI result", SolidVolume(CornerU, 15.0));
-        Panel.Expect("A non-rectangular corner subtract falls back to a valid SSI result", SolidVolume(CornerS, 7.0));
+        Panel.Expect("Exact arrangement gives a valid non-rectangular corner union", SolidVolume(CornerU, 15.0));
+        Panel.Expect("Exact arrangement gives a valid non-rectangular corner subtract", SolidVolume(CornerS, 7.0));
         Panel.Expect("The box-shaped corner common stays constructive", SolidVolume(CornerI, 1.0) && CornerI.Report.Curves == 0);
-        Panel.Expect("The non-box-shaped outcomes retain their six SSI sections", CornerU.Report.Curves == 6 && CornerS.Report.Curves == 6);
+        Panel.Expect("Exact non-box-shaped arrangements invent no SSI sections", CornerU.Report.Curves == 0 && CornerS.Report.Curves == 0);
     }
 
     Panel.Section("C++ console proof: four contact outcomes in one contact sheet");

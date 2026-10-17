@@ -27,7 +27,7 @@ struct ScenePresentation
 
     // Phase 19: an Empty is a transform handle with no geometry. We draw a small triad at the Empty's
     //    position (X red, Y green, Z blue) so the user can see and select it.
-    static void DrawEmpty(RasterExchange& Raster, Vec3 Position, double Size = 0.15) noexcept;
+    static void DrawEmpty(RasterExchange& Raster, Vec3 Position, double Size = 0.15, uint32_t PickIdentity = 0) noexcept;
 
     [[nodiscard]] static DrawRecord Tinted(float R, float G, float B, float A = 1.0f) noexcept
     {

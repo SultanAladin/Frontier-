@@ -2,7 +2,8 @@
 // 📦 Editor/EditorTools/ParametricSketcher/Presentation/RasterExchange.h — The device seam: Vulkan-shaped drawing verbs implemented by software and GPU rasters
 //============================================================================================================================================
 // Everything above this line (ScenePresentation, gizmo, overlays, console `render`) speaks only this vocabulary.
-//    SoftwareRaster implements it on the CPU and writes PNG proofs; VulkanRaster implements it with real pipelines.
+//    SoftwareRaster implements it on the CPU for PNG proofs; CommandExchange forwards draws to the browser GPU.
+//    A native Vulkan implementation is still pending; this interface alone is not evidence of a Vulkan renderer.
 //    The verbs are deliberately the ones a Vulkan command buffer records: begin a target, bind a view, issue draws
 //    from typed vertex streams with a per-draw record, switch to the overlay (depth-test-off) segment, end, read back.
 //
@@ -29,7 +30,10 @@ struct ViewRecord
     float ViewWorld[16];                                                                // [-] camera → world, matcap basis
     float EyePosition[4];                                                               // [m] xyz, w = 1 perspective / 0 ortho
     float Viewport[4];                                                                  // [px] xy size, zw reciprocal
-    float LatticeStyle[4];                                                                 // x minor cell [m], y major every N, z fade radius [m], w half-width [px]
+    float LatticeStyle[4];                                                                 // x minor cell [m], y major every N, z pad half-extent [m] (square about the origin), w half-width [px]
+    float LatticeOrigin[4] = {};
+    float LatticeAxisU[4] = {1,0,0,0};
+    float LatticeAxisV[4] = {0,1,0,0};
     float Illumination[4];                                                              // xyz key light dir, w ambient
     float DepthPolicy[4] = {};                                                          // x line depth bias [clip z], yzw reserved
     float PixelAngle = 0.0f;                                                            // [rad] per pixel (perspective)
@@ -112,6 +116,8 @@ class RasterExchange
 public:
     virtual ~RasterExchange() = default;
 
+    virtual void     AssignSamples(uint32_t) noexcept {}
+    virtual uint32_t QuerySamples() const noexcept { return 1u; }
     virtual void     Resize(uint32_t Width, uint32_t Height) noexcept = 0;
     virtual uint32_t Width() const noexcept = 0;
     virtual uint32_t Height() const noexcept = 0;

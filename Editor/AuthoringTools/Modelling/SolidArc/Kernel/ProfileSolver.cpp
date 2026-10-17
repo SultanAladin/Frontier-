@@ -97,6 +97,17 @@ namespace
                    double Tolerance, std::vector<Candidate>& Out) noexcept
     {
         if (!PoleBox(A).Inflated(Tolerance).Overlaps(PoleBox(B).Inflated(Tolerance))) return;
+        // Coincident rational Bézier spans have infinitely many crossings. Their
+        // interval endpoints suffice for the planar arrangement; subdivision is
+        // otherwise exponential (two identical circles stalled area rebuilding).
+        if(Depth==0&&A.Degree==B.Degree&&A.Poles.size()==B.Poles.size()) {
+            for(int Reverse=0;Reverse<2;++Reverse){
+                bool Same=true;const double Ratio=A.Poles.front().W/B.Poles[Reverse?B.Poles.size()-1:0].W;
+                for(size_t I=0;I<A.Poles.size();++I){const auto& P=A.Poles[I];const auto Q=B.Poles[Reverse?B.Poles.size()-1-I:I]*Ratio;
+                    if(std::fabs(P.X-Q.X)>1e-12||std::fabs(P.Y-Q.Y)>1e-12||std::fabs(P.Z-Q.Z)>1e-12||std::fabs(P.W-Q.W)>1e-12){Same=false;break;}}
+                if(Same){Out.push_back({A0,Reverse?B1:B0});Out.push_back({A1,Reverse?B0:B1});return;}
+            }
+        }
         bool FlatA = Flat(A, Tolerance), FlatB = Flat(B, Tolerance);
         if ((FlatA && FlatB) || Depth > 40)
         {
@@ -341,9 +352,23 @@ Profile ProfileSolver::Normalised(Profile P) noexcept
 Deliver<Profile> ProfileSolver::Combine(const Profile& Ain, const Profile& Bin, ProfileOperation Op) noexcept
 {
     if (std::fabs(std::fabs(Ain.Normal.Dot(Bin.Normal)) - 1.0) > 1e-6) return Deliver<Profile>::Reject(RefusalReason::NonPlanar, "profiles are not coplanar");
+    // Parallel normals alone do not imply the same plane (e.g. XY at Z=0 and Z=2).
+    if(!Ain.Loops.empty()&&!Bin.Loops.empty() && std::fabs(Ain.Normal.Dot(Bin.Loops.front().Curve.StartPoint()-Ain.Loops.front().Curve.StartPoint()))>ScalarCriteria::MergeTolerance)
+        return Deliver<Profile>::Reject(RefusalReason::NonPlanar,"profiles lie in different planes");
     Profile A = Normalised(Ain), B = Normalised(Bin);
     if (Bin.Normal.Dot(A.Normal) < 0) B = B.Reversed();
     B.Normal = A.Normal;
+    // Identical NURBS boundaries have infinitely many intersections. Resolve the
+    // exact same/reversed representation without feeding that degeneracy to SSI.
+    auto Same=[](const NurbsCurve& C,const NurbsCurve& D){
+        if(C.Degree!=D.Degree||C.Knots!=D.Knots||C.Poles.size()!=D.Poles.size())return false;
+        for(size_t I=0;I<C.Poles.size();++I){const auto& P=C.Poles[I];const auto& Q=D.Poles[I];if(std::fabs(P.X-Q.X)>1e-12||std::fabs(P.Y-Q.Y)>1e-12||std::fabs(P.Z-Q.Z)>1e-12||std::fabs(P.W-Q.W)>1e-12)return false;}
+        return true;
+    };
+    if(A.Loops.size()==1&&B.Loops.size()==1&&(Same(A.Loops[0].Curve,B.Loops[0].Curve)||Same(A.Loops[0].Curve,B.Loops[0].Curve.Reversed()))) {
+        if(Op==ProfileOperation::Subtract){Profile Empty;Empty.Normal=A.Normal;return Deliver<Profile>::Accept(std::move(Empty));}
+        return Deliver<Profile>::Accept(std::move(A));
+    }
     PlanarAxes Ax = AxesOf(A.Normal);
 
     // 1. split every loop of A against every loop of B (and vice versa) at true crossings
@@ -569,6 +594,9 @@ namespace
         if (Distance <= ScalarCriteria::KernelTolerance) return Deliver<NurbsCurve>::Reject(RefusalReason::DegenerateInput, "zero distance");
         std::vector<Corner> All = CornersOf(C);
         if (All.empty()) return Deliver<NurbsCurve>::Reject(RefusalReason::DegenerateInput, "curve has no corners");
+        Plane Work;
+        if(!C.Planar(Work))return Deliver<NurbsCurve>::Reject(RefusalReason::NonPlanar, "sketch bevel requires a planar curve");
+        if(Corners)for(int I:*Corners)if(I<0||I>=int(All.size()))return Deliver<NurbsCurve>::Reject(RefusalReason::DegenerateInput, "invalid corner index");
         std::vector<bool> Pick(All.size(), Corners == nullptr);
         if (Corners) for (int I : *Corners) if (I >= 0 && I < static_cast<int>(All.size())) Pick[I] = true;
         // cut parameters: setback along each side of the corner, measured by arc length
@@ -579,6 +607,7 @@ namespace
         for (size_t I = 0; I < All.size(); ++I)
         {
             const Corner& K = All[I];
+            if(!Pick[I]){Cut Q;Q.K=K;Q.On=false;Q.Before=Q.After=K.T;Q.P0=Q.P1=K.P;Q.Setback=0;Cuts.push_back(Q);continue;}
             double HalfAngle = 0.5 * std::acos(ScalarCriteria::Clamp(K.In.Dot(K.Out), -1.0, 1.0));
             double Setback = Connect.Setback(Distance, HalfAngle);
             if (!std::isfinite(Setback) || Setback <= 0) return Deliver<NurbsCurve>::Reject(RefusalReason::DegenerateInput, "corner too flat for that distance");
@@ -589,17 +618,23 @@ namespace
             else if (Lb < -ScalarCriteria::KernelTolerance || La > Total + ScalarCriteria::KernelTolerance) return Deliver<NurbsCurve>::Reject(RefusalReason::DegenerateInput, "setback exceeds the neighbouring segment");
             Cut Q; Q.Before = C.ParameterAtLength(std::max(Lb, 0.0)); Q.After = C.ParameterAtLength(std::min(La, Total));
             Q.P0 = C.Sample(Q.Before); Q.P1 = C.Sample(Q.After); Q.K = K; Q.On = Pick[I]; Q.Setback = Setback;
+            if constexpr(Connector::Rounded) {
+                if((Q.P0-(K.P-K.In*Setback)).Length()>ScalarCriteria::MergeTolerance ||
+                   (Q.P1-(K.P+K.Out*Setback)).Length()>ScalarCriteria::MergeTolerance ||
+                   C.Tangent(Q.Before).Dot(K.In)<.999999 || C.Tangent(Q.After).Dot(K.Out)<.999999)
+                    return Deliver<NurbsCurve>::Reject(RefusalReason::DegenerateInput, "rounded sketch corners require straight adjacent supports; curved-support corners are not supported");
+            }
             Cuts.push_back(Q);
         }
-        // adjacent setbacks must not overlap: a corner whose setback collides with a neighbour is left sharp
+        // Transactional corner set: never silently leave requested corners sharp.
         for (size_t I = 0; I < Cuts.size(); ++I)
         {
             size_t J = I + 1; if (J == Cuts.size()) { if (!Closed) break; J = 0; }
-            if (!Cuts[I].On || !Cuts[J].On) continue;
+            if (!Cuts[I].On && !Cuts[J].On) continue;
             double AtI = C.Trimmed(C.DomainStart(), Cuts[I].K.T).Length(), AtJ = C.Trimmed(C.DomainStart(), Cuts[J].K.T).Length();
             double Gap = J == 0 ? (C.Length() - AtI) + AtJ : AtJ - AtI;
-            double Need = Cuts[I].Setback + Cuts[J].Setback;
-            if (Need > Gap + ScalarCriteria::KernelTolerance) { Cuts[I].On = false; Cuts[J].On = false; }
+            double Need = (Cuts[I].On ? Cuts[I].Setback : 0) + (Cuts[J].On ? Cuts[J].Setback : 0);
+            if (Need >= Gap - ScalarCriteria::KernelTolerance) return Deliver<NurbsCurve>::Reject(RefusalReason::DegenerateInput, "requested corner setbacks overlap; reduce the size (no corners changed)");
         }
         if (std::none_of(Cuts.begin(), Cuts.end(), [](const Cut& Q) { return Q.On; })) return Deliver<NurbsCurve>::Reject(RefusalReason::DegenerateInput, "every corner's setback collides with its neighbour — use a smaller distance");
         // rebuild: walk the curve, splicing connectors in
@@ -619,7 +654,10 @@ namespace
             // segment from Cursor to Q.Before (wrap-aware)
             if (Q.Before < Cursor - ScalarCriteria::KernelTolerance) { Parts.push_back(C.Trimmed(Cursor, C.DomainEnd())); Parts.push_back(C.Trimmed(C.DomainStart(), Q.Before)); }
             else if (Q.Before > Cursor + ScalarCriteria::KernelTolerance) Parts.push_back(C.Trimmed(Cursor, Q.Before));
-            Parts.push_back(Connect(Q.P0, Q.K.P, Q.P1, Q.K.In, Q.K.Out, Distance));
+            auto ConnectorCurve=Connect(Q.P0, Q.K.P, Q.P1, Q.K.In, Q.K.Out, Distance);
+            if(ConnectorCurve.Validate() || ConnectorCurve.Length()<=ScalarCriteria::KernelTolerance)
+                return Deliver<NurbsCurve>::Reject(RefusalReason::DegenerateInput, "invalid corner connector; no corners changed");
+            Parts.push_back(std::move(ConnectorCurve));
             Cursor = Q.After;
             (void)Span;
         }
@@ -633,13 +671,17 @@ namespace
         else if (Cursor < C.DomainEnd() - ScalarCriteria::KernelTolerance) Parts.push_back(C.Trimmed(Cursor, C.DomainEnd()));
         // drop empty pieces then chain
         std::vector<NurbsCurve> Live; for (NurbsCurve& P : Parts) if (P.Poles.size() >= 2 && P.Length() > ScalarCriteria::KernelTolerance) Live.push_back(std::move(P));
-        NurbsCurve R = ChainPieces(std::move(Live));
+        if(Live.empty())return Deliver<NurbsCurve>::Reject(RefusalReason::DegenerateInput, "no surviving bevel geometry");
+        NurbsCurve R=std::move(Live.front());
+        for(size_t I=1;I<Live.size();++I){auto Joined=NurbsCurve::Join(R,Live[I]);if(!Joined)return Deliver<NurbsCurve>::Reject(RefusalReason::DegenerateInput, "corner pieces could not join exactly; no corners changed");R=std::move(Joined.Payload);}
+        if(R.Validate() || (Closed&&!R.Closed()))return Deliver<NurbsCurve>::Reject(RefusalReason::DegenerateInput, "bevel would break sketch closure; no corners changed");
         R.Classification = CurveClassification::Freeform;
         return Deliver<NurbsCurve>::Accept(std::move(R));
     }
 
     struct FilletConnector
     {
+        static constexpr bool Rounded=true;
         double Setback(double Radius, double HalfAngle) const noexcept { return Radius * std::tan(HalfAngle); }   // HalfAngle = half the turn's supplement = (pi - interior)/2, so the tangent set-back R/tan(interior/2) == R*tan(HalfAngle)
         NurbsCurve operator()(Vec3 P0, Vec3 Corner, Vec3 P1, Vec3 In, Vec3 Out, double Radius) const noexcept
         {
@@ -663,9 +705,15 @@ namespace
     };
     struct ChamferConnector
     {
+        static constexpr bool Rounded=false;
         double Setback(double Distance, double) const noexcept { return Distance; }
         NurbsCurve operator()(Vec3 P0, Vec3, Vec3 P1, Vec3, Vec3, double) const noexcept { return NurbsCurve::Line(P0, P1).Payload; }
     };
+}
+
+std::vector<double> ProfileSolver::CornerParameters(const NurbsCurve& C) noexcept
+{
+    std::vector<double> Out;for(const auto& K:CornersOf(C))Out.push_back(K.T);return Out;
 }
 
 Deliver<NurbsCurve> ProfileSolver::Filleted(const NurbsCurve& C, double Radius, const std::vector<int>* Corners) noexcept

@@ -69,7 +69,7 @@ int main()
         Panel.Within("union area 42", std::fabs(U.R.Area - 42.0), 1e-9);
         Panel.Expect("subtract is a solid with volume 7", S.Ok && S.R.Solid() && std::fabs(S.R.Volume - 7.0) < 1e-9);
         Panel.Expect("intersect is the unit cube (V8 E12 F6, volume 1)", I.Ok && I.R.Solid() && I.R.Vertices == 8 && I.R.Edges == 12 && I.R.Faces == 6 && std::fabs(I.R.Volume - 1.0) < 1e-9);
-        Panel.Expect("six intersection curves, three pieces of each body inside the other", U.B.Curves == 6 && U.B.InsideA == 3 && U.B.InsideB == 3);
+        Panel.Expect("exact axis-box arrangement needs no marched SSI curves", U.B.Curves == 0);
         BrepBody Through = BrepBody::Box({ 0.5, 0.5, -1 }, { 1.5, 1.5, 3 }).Payload;
         Result T = Run(Box, Through, BodyOperation::Subtract);
         Panel.Expect("box − through-box: genus 1 solid, volume 6", T.Ok && T.R.Solid() && T.R.Genus == 1 && std::fabs(T.R.Volume - 6.0) < 1e-9);

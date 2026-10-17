@@ -79,6 +79,7 @@ public:
     [[nodiscard]] static Profile          Normalised(Profile P) noexcept;              // outer loops CCW, holes CW by depth parity
 
     // ── sketch edits (open or closed curves) ───────────────────────────────────────────────────────────────────────────────
+    [[nodiscard]] static std::vector<double> CornerParameters(const NurbsCurve& C) noexcept;
     [[nodiscard]] static Deliver<NurbsCurve> Filleted(const NurbsCurve& C, double Radius, const std::vector<int>* Corners = nullptr) noexcept;
     [[nodiscard]] static Deliver<NurbsCurve> Chamfered(const NurbsCurve& C, double Setback, const std::vector<int>* Corners = nullptr) noexcept;
     [[nodiscard]] static Deliver<NurbsCurve> Offset(const NurbsCurve& C, double Distance, Vec3 Normal) noexcept;   // + = left of travel

@@ -11,6 +11,7 @@
 #pragma once
 
 #include "EditorInstance.h"
+#include <imgui.h>
 
 #include <cstdint>
 
@@ -30,6 +31,12 @@ struct OutlinerFilterEntry
 class OutlinerPanel final
 {
 public:
+    // Native SolidArc seats these same panels in its browser-approved workspace layout.
+    // CAD presentation uses name-first flat rows, persistent eyes and a genuine empty state;
+    // it deliberately disables tree reparenting (CAD document relationships are not UI-owned).
+    void AssignCadPresentation(bool Enabled) noexcept { SolidArcCensus_ = Enabled; }
+    void AssignSolidArcCensus(bool Enabled) noexcept { AssignCadPresentation(Enabled); }
+    void AssignFrameless(bool Enabled) noexcept { Frameless_ = Enabled; }
     void AssignControls(ControlPanel* Controls) noexcept;
     // The tab's close mark writes through this; null leaves the tab without one.
     void AssignTabOpen(bool* Open) noexcept;
@@ -51,6 +58,9 @@ public:
     [[nodiscard]] uint32_t QueryPicked() const noexcept;                 // the primary pick, or kNoEditorInstance
     [[nodiscard]] uint32_t QueryPickedCount() const noexcept;
     [[nodiscard]] uint32_t QueryPickedAt(uint32_t Slot) const noexcept;
+    uint32_t ConsumeClickedRow() noexcept {auto R=ClickedRow_;ClickedRow_=kNoEditorInstance;return R;}
+    bool QueryRowCentre(uint32_t Index,ImVec2& P) const noexcept {if(Index>=kMaxEditorInstances||!Shown_[Index])return false;P=RowCentres_[Index];return P.y>0;}
+    void AssignPicks(const uint32_t* Indices,uint32_t Count) noexcept {PickedCount_=0;ExplicitPick_=true;for(uint32_t I=0;I<Count;++I)AddPick(Indices[I]);Anchor_=Count?Indices[0]:kNoEditorInstance;}
     void PickInstance(uint32_t Index) noexcept;                            // the test seam; the proof drives the pick
 
     // Selection operations are public because EditorHost and RenderScheduler expose the same editor seams to the
@@ -60,6 +70,7 @@ public:
     void AddPick(uint32_t Index) noexcept;
 
     // The page's Tab: the panel narrows to 236 px and drops its tiles, pills and metas.
+    [[nodiscard]] ImVec2 QueryFilterCentre() const noexcept { return FilterCentre_; }
     [[nodiscard]] bool QueryCompact() const noexcept { return Compact_; }
     void AssignCompact(bool On) noexcept { Compact_ = On; }
 
@@ -91,6 +102,9 @@ private:
     //    Target's last row (Into); Target == kNoEditorInstance seats it at the root's end. Refuses a cycle.
     bool MoveRun(EditorInstance* Instances, uint32_t InstanceCount, uint32_t Lifted, uint32_t Target, bool Before) noexcept;
 
+    ImVec2 FilterCentre_={};
+    bool Frameless_ = false;
+    bool SolidArcCensus_ = false;
     ControlPanel*        Controls_ = nullptr;
     bool*                TabOpen_ = nullptr;
     const EditorReadout* Readout_  = nullptr;
@@ -125,6 +139,8 @@ private:
     bool     NarrowMenuOpen_ = false;
     uint32_t DragLifted_   = kNoEditorInstance;
     uint32_t OrderRevision_ = 0u;
+    uint32_t ClickedRow_=kNoEditorInstance;
+    ImVec2 RowCentres_[kMaxEditorInstances] = {};
     bool     Shown_[kMaxEditorInstances] = {};                                 // this tick's search / narrowing hits
     bool     TreeHovered_  = false;
 };

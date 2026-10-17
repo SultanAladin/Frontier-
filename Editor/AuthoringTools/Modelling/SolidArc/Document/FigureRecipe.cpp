@@ -3,6 +3,7 @@
 //============================================================================================================================================
 #include "FigureRecipe.h"
 #include "SceneDocument.h"
+#include "Kernel/SurfaceOffsetSolver.h"
 #include <cmath>
 #include <cstring>
 
@@ -20,6 +21,7 @@ const char* Describe(RecipeOperation Operation) noexcept
         case RecipeOperation::Pipe:    return "pipe";
         case RecipeOperation::Patch:   return "patch";
         case RecipeOperation::FairPatch: return "fairpatch";
+        case RecipeOperation::SurfaceOffset: return "surface-offset";
         default:                       return "authored";
     }
 }
@@ -168,9 +170,45 @@ uint64_t FigureRecipe::FingerprintInputs(const SceneDocument& Scene, const Workp
     for (const RecipeInput& In : Sections) MixInput(In);
     if (!Path.Figures.empty()) MixInput(Path);
     for (const RecipeInput& In : Guides) MixInput(In);
+    for (const RecipeInput& In : LoftGuideInputs) MixInput(In);
+    for (const RecipeInput& In : LoftProfileInputs) MixInput(In);
+    Mix(H,Bits(LoftGuides.Weight));Mix(H,LoftGuides.Rounds);Mix(H,LoftGuides.SamplesPerGuide);
     Mix(H, Fair.Spans); Mix(H, Fair.Star ? 1 : 0); Mix(H, Bits(Fair.Fairness)); Mix(H, Fair.Rounds);
     Mix(H, Bits(Direction.X)); Mix(H, Bits(Direction.Y)); Mix(H, Bits(Direction.Z)); Mix(H, Bits(Length));
     Mix(H, Bits(AxisOrigin.X)); Mix(H, Bits(AxisOrigin.Y)); Mix(H, Bits(AxisOrigin.Z)); Mix(H, Bits(Axis.X)); Mix(H, Bits(Axis.Y)); Mix(H, Bits(Axis.Z)); Mix(H, Bits(Angle));
+    if (Operation == RecipeOperation::SurfaceOffset)
+    {
+        Mix(H, Path.Support);
+        for (const auto& Figure : Scene.Figures())
+            if (Figure.Identity == Path.Support || (!Path.Figures.empty() && Figure.Identity == Path.Figures.front()))
+                for (unsigned char Letter : Figure.Recipe.Complaint) Mix(H, Letter);
+        for (const auto& Figure : Scene.Figures()) if (Figure.Identity == Path.Support)
+        {
+            auto Surface = [&](const NurbsSurface& S)
+            {
+                Mix(H, S.DegreeU); Mix(H, S.DegreeV); Mix(H, S.CountU); Mix(H, S.CountV);
+                for (const auto& P : S.Poles) { Mix(H, Bits(P.X)); Mix(H, Bits(P.Y)); Mix(H, Bits(P.Z)); Mix(H, Bits(P.W)); }
+                for (double K : S.KnotsU) Mix(H, Bits(K));
+                for (double K : S.KnotsV) Mix(H, Bits(K));
+            };
+            Mix(H, uint64_t(Figure.Classification));
+            if (Figure.Classification == FigureClassification::Surface) Surface(Figure.Surface);
+            if (Figure.Classification == FigureClassification::Body)
+            {
+                for (const auto& Face : Figure.Body.Faces) { Surface(Face.Surface); Mix(H, Face.Reversed); Mix(H, Face.Natural); }
+                for (const auto& Vertex : Figure.Body.Vertices)
+                {
+                    Mix(H, Bits(Vertex.Point.X)); Mix(H, Bits(Vertex.Point.Y)); Mix(H, Bits(Vertex.Point.Z));
+                }
+                for (const auto& Edge : Figure.Body.Edges)
+                {
+                    Mix(H, Edge.VertexStart); Mix(H, Edge.VertexEnd);
+                    Mix(H, Edge.Coedges.size());
+                    for (int Coedge : Edge.Coedges) Mix(H, Figure.Body.Coedges[Coedge].Face);
+                }
+            }
+        }
+    }
     Mix(H, Bits(Radius)); Mix(H, Sheet ? 1 : 0);
     Mix(H, Loft.DegreeV); Mix(H, (Loft.Loop ? 1 : 0) | (Loft.AlignSeams ? 2 : 0) | (Loft.AlignSense ? 4 : 0) | (Loft.Solid ? 8 : 0));
     Mix(H, uint64_t(Sweep.Bases)); Mix(H, Sweep.Stations); Mix(H, Bits(Sweep.ScaleEnd)); Mix(H, Bits(Sweep.TwistAngle)); Mix(H, Sweep.Solid ? 1 : 0);
@@ -180,6 +218,32 @@ uint64_t FigureRecipe::FingerprintInputs(const SceneDocument& Scene, const Workp
 Deliver<FigureRecipe::Product> FigureRecipe::Produce(const SceneDocument& Scene, const Workplane& Work, FairPatchReport* Report) const noexcept
 {
     using Out = Deliver<Product>;
+    if (Operation == RecipeOperation::SurfaceOffset)
+    {
+        for (const auto& Figure : Scene.Figures())
+            if ((Figure.Identity == Path.Support || (!Path.Figures.empty() && Figure.Identity == Path.Figures.front())) && !Figure.Recipe.Complaint.empty())
+                return Out::Reject(RefusalReason::DegenerateInput, "offset dependency has an unresolved regeneration failure");
+        auto Input = ResolveInput(Path, Scene, Work);
+        if (!Input || Input.Payload.size() != 1) return Out::Reject(RefusalReason::DegenerateInput, "offset requires one source curve");
+        const SceneFigure* Support = nullptr;
+        for (const auto& F : Scene.Figures()) if (F.Identity == Path.Support) Support = &F;
+        if (!Support) return Out::Reject(RefusalReason::DegenerateInput, "offset support was deleted");
+        BrepBody Single;
+        const BrepBody* Body = &Support->Body;
+        if (Support->Classification == FigureClassification::Surface)
+        {
+            auto Sewn = BrepBody::Sew({Support->Surface}, ScalarCriteria::MergeTolerance, false);
+            if (!Sewn) return Out::Reject(Sewn.Denial.Reason, Sewn.Denial.Detail);
+            Single = std::move(Sewn.Payload); Body = &Single;
+        }
+        else if (Support->Classification != FigureClassification::Body)
+            return Out::Reject(RefusalReason::DegenerateInput, "offset support is not a surface or body");
+        SurfaceOffsetOptions Options; Options.Distance = Length; Options.Tolerance = Radius;
+        auto Result = SurfaceOffsetSolver::Construct(Input.Payload.front(), *Body, Options);
+        if (!Result) return Out::Reject(Result.Denial.Reason, Result.Denial.Detail);
+        Product P; P.IsCurve = true; P.Curve = std::move(Result.Payload);
+        return Out::Accept(std::move(P));
+    }
     std::vector<std::vector<NurbsCurve>> Stations;
     for (const RecipeInput& In : Sections)
     {
@@ -228,6 +292,15 @@ Deliver<FigureRecipe::Product> FigureRecipe::Produce(const SceneDocument& Scene,
         case RecipeOperation::Loft:
         {
             LoftOptions L = Loft; if (Sheet) L.Solid = false;
+            if(!LoftProfileInputs.empty()){
+                if(Loft.DegreeV!=3||Loft.Loop)return Out::Reject(RefusalReason::DegenerateInput,"rail/profile loft uses cubic open spans: degree 3, without --loop");
+                if(Stations.size()!=2||Stations[0].size()!=1||Stations[1].size()!=1||!LoftGuideInputs.empty())return Out::Reject(RefusalReason::DegenerateInput,"profile loft needs exactly two rails, without simultaneous pull guides");
+                std::vector<NurbsCurve> Profiles;
+                for(const auto& In:LoftProfileInputs){auto C=ResolveInput(In,Scene,Work);if(!C||C.Payload.size()!=1)return Out::Reject(RefusalReason::DegenerateInput,"profile loft station must resolve to one curve");Profiles.push_back(std::move(C.Payload.front()));}
+                auto S=SkinSolver::ProfileLoft(Stations[0][0],Stations[1][0],std::move(Profiles));
+                if(!S)return Out::Reject(S.Denial.Reason,S.Denial.Detail);Product P;P.Sheet=std::move(S.Payload);return Out::Accept(std::move(P));
+            }
+
             // With guides we always take the sheet-only path; re-wrapping a body around a deformed sheet would re-sew
             //    against the original sections, undoing the deformation. We use each station's first loop as the
             //    outer profile (multi-loop loft with guides is rare; the typical case is two to four open sections).
@@ -313,10 +386,12 @@ std::string FigureRecipe::Summary(const SceneDocument& Scene) const noexcept
         case RecipeOperation::Revolve: std::snprintf(Extra, sizeof Extra, "  angle %.4g°  axis (%.2f %.2f %.2f)", ScalarCriteria::Degrees(Angle), Axis.X, Axis.Y, Axis.Z); break;
         case RecipeOperation::Loft:    std::snprintf(Extra, sizeof Extra, "  degree %d%s%s", Loft.DegreeV, Loft.Loop ? "  loop" : "", Loft.Solid ? "" : "  sheet"); break;
         case RecipeOperation::Sweep:   std::snprintf(Extra, sizeof Extra, "  bases %s  scale %.3g  twist %.4g°", Sweep.Bases == SweepBases::Frenet ? "frenet" : Sweep.Bases == SweepBases::Fixed ? "fixed" : "minimal", Sweep.ScaleEnd, ScalarCriteria::Degrees(Sweep.TwistAngle)); break;
+        case RecipeOperation::SurfaceOffset: std::snprintf(Extra, sizeof Extra, "  surface width %.6g m  tolerance %.6g m", Length, Radius); break;
         case RecipeOperation::Pipe:    std::snprintf(Extra, sizeof Extra, "  radius %.4g", Radius); break;
         default: break;
     }
     S += Extra;
+    if(!LoftProfileInputs.empty()){S+="  cross-profiles";for(const auto& In:LoftProfileInputs){S+=' ';S+=In.Label(Scene);}S+="  (C0 stations; fitted rational rails)";}
     if (!Complaint.empty()) { S += "  ⚠ "; S += Complaint; }
     return S;
 }

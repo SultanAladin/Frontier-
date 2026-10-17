@@ -509,7 +509,7 @@ void ViewportPanel::AssignReadout(const EditorReadout* Readout) noexcept
 void ViewportPanel::Record(EditorInstance* Instances, uint32_t InstanceCount) noexcept
 {
     IM_ASSERT(Controls_ != nullptr);
-    if (!ImGui::Begin(WindowTitle_, TabOpen_, ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse))
+    if (!ImGui::Begin(WindowTitle_, TabOpen_, (BrowserCadChrome_ ? ImGuiWindowFlags_NoCollapse : 0) | (Frameless_ ? ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoDocking | ImGuiWindowFlags_NoSavedSettings : 0) | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse))
     {
         ImGui::End();
         return;
@@ -567,8 +567,56 @@ void ViewportPanel::StepOnce() noexcept
 //                                                         HEADER BAR
 //------------------------------------------------------------------------------------------------------------------------
 
+// Native presentation of the approved SolidArc browser viewport bar, not a second geometry engine.
+void ViewportPanel::RecordBrowserCadBar() noexcept
+{
+    const ImVec2 Start = ImGui::GetCursorScreenPos();
+    const float Width = ImGui::GetContentRegionAvail().x;
+    ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(12,8));
+    if (ImGui::Button("+  Construct")) SolidArcConstructRequested_ = true;
+    ConstructCentre_ = ImVec2((ImGui::GetItemRectMin().x+ImGui::GetItemRectMax().x)*0.5f,(ImGui::GetItemRectMin().y+ImGui::GetItemRectMax().y)*0.5f);
+    ImGui::SameLine();
+    ImGui::SetNextItemWidth(100);
+    const char Views[kMaxEditorOptions][kMaxEditorOptionChars] = {"Orbit", "Isometric", "Top", "Front", "Right", "Bottom", "Back", "Left"};
+    uint32_t Current = 0;
+    const float Epsilon=std::abs(Orbit_.Roll)<.002f ? .002f : -1.f;
+    if (std::abs(Orbit_.Pitch+1.570696327f)<Epsilon) Current=2;
+    else if (std::abs(Orbit_.Pitch-1.570696327f)<Epsilon) Current=5;
+    else if (std::abs(Orbit_.Pitch)<Epsilon && std::abs(Orbit_.Yaw)<Epsilon) Current=3;
+    else if (std::abs(Orbit_.Pitch)<Epsilon && std::abs(Orbit_.Yaw-1.570796327f)<Epsilon) Current=4;
+    else if (std::abs(Orbit_.Pitch)<Epsilon && std::abs(std::abs(Orbit_.Yaw)-3.141592654f)<Epsilon) Current=6;
+    else if (std::abs(Orbit_.Pitch)<Epsilon && std::abs(Orbit_.Yaw+1.570796327f)<Epsilon) Current=7;
+    else if (std::abs(Orbit_.Pitch+0.615479709f)<Epsilon && std::abs(Orbit_.Yaw+0.785398163f)<Epsilon) Current=1;
+    if (Controls_->DropDown("##native-camera-view", &Current, Views, 8,110))
+    {
+        if (Current==0) { Orbit_.Yaw=-0.610865238f; Orbit_.Pitch=-0.523598776f; }
+        if (Current==1) { Orbit_.Yaw=-0.785398163f; Orbit_.Pitch=-0.615479709f; }
+        if (Current==2) { Orbit_.Yaw=0; Orbit_.Pitch=-1.570696327f; }
+        if (Current==3) { Orbit_.Yaw=0; Orbit_.Pitch=0; }
+        if (Current==4) { Orbit_.Yaw=1.570796327f; Orbit_.Pitch=0; }
+        if (Current==5) { Orbit_.Yaw=0; Orbit_.Pitch=1.570696327f; }
+        if (Current==6) { Orbit_.Yaw=3.141592654f; Orbit_.Pitch=0; }
+        if (Current==7) { Orbit_.Yaw=-1.570796327f; Orbit_.Pitch=0; }
+        Orbit_.Roll=0;Orbit_.Ortho=Current>=2;CadViewRequest_=int(Current);
+        ++Orbit_.Revision;
+    }
+    CameraMenuCentre_=ImGui::GetItemRectMin();
+    { const auto B=ImGui::GetItemRectMax();CameraMenuCentre_=ImVec2((CameraMenuCentre_.x+B.x)*.5f,(CameraMenuCentre_.y+B.y)*.5f); }
+    ImGui::SameLine(std::max(240.0f,Width-125));
+    ImGui::SetNextItemWidth(130);
+    uint32_t Projection=Orbit_.Ortho?1:0;
+    const char Projections[kMaxEditorOptions][kMaxEditorOptionChars]={"Perspective","Orthographic"};
+    if(Controls_->DropDown("##native-camera-projection",&Projection,Projections,2,130))
+    { Orbit_.Ortho=Projection==1; ++Orbit_.Revision; }
+    {const auto A=ImGui::GetItemRectMin(),B=ImGui::GetItemRectMax();ProjectionMenuCentre_=ImVec2((A.x+B.x)*.5f,(A.y+B.y)*.5f);}
+    ImGui::PopStyleVar();
+    ImGui::SetCursorScreenPos(ImVec2(Start.x,Start.y+42));
+    ImGui::Separator();
+}
+
 void ViewportPanel::RecordSolidArcBar() noexcept
 {
+    if (BrowserCadChrome_) { RecordBrowserCadBar(); return; }
     const float RowWidth = ImGui::GetContentRegionAvail().x;
     ImDrawList* Draw  = ImGui::GetWindowDrawList();
     ImFont*     Small = Controls_->QuerySmall() != nullptr ? Controls_->QuerySmall() : ImGui::GetFont();
@@ -690,7 +738,7 @@ void ViewportPanel::RecordSolidArcBar() noexcept
 
     if (Pill("##solidarc_construct", "Construct", false, ConstructW, IM_COL32(79, 216, 224, 255)))
     {
-        // The catalogue opens in the SolidArc document host; this chip keeps the viewport-side affordance live.
+        SolidArcConstructRequested_ = true; // consumed by the SolidArc document host
     }
 
     const int SelectPick = Segments("##solidarc_sel", SelectLabels, 4u, SolidArcSelectMask_, SelectW);
@@ -1371,6 +1419,7 @@ void ViewportPanel::RecordView() noexcept
     ImGui::Dummy(ImVec2(RowWidth, ViewH));
     const ImVec2 Min = ImGui::GetItemRectMin();
     const ImVec2 Max = ImGui::GetItemRectMax();
+    ViewOrigin_ = Min;
 
     ImDrawList* Draw  = ImGui::GetWindowDrawList();
     ImFont*     Ui    = Controls_->QueryUi();
@@ -1398,26 +1447,25 @@ void ViewportPanel::RecordView() noexcept
         ImGui::PopFont();
     }
 
-    // The orbit gizmo, Blender's compass: the three axes through the orbit's basis, pads on all six
-    //    ends, letters on the positive three. A pad tap snaps its view, a drag orbits, and the wheel
-    //    dollies over the view. Front pads read bright, back pads dim, and the hot pad rings.
+    // A camera-linked 3D cube: project actual cube vertices, cull hidden faces,
+    // emit GPU ImGui triangle meshes; retain the existing snap/orbit interaction.
     float Gf[3], Gr[3], Gu[3];
-    OrbitBasis(Orbit_.Yaw, Orbit_.Pitch, Gf, Gr, Gu);
-    const ImVec2 OrbC(Max.x - 52.0f, Max.y - 52.0f);
-    constexpr float kArm = 20.0f;
+    OrbitBasis(BrowserCadChrome_ ? -Orbit_.Yaw : Orbit_.Yaw, Orbit_.Pitch, Gf, Gr, Gu);
+    if(BrowserCadChrome_) Orbit_.Roll=0; // no independent roll, including restored chrome state
+    const ImVec2 OrbC(Max.x - 65.0f, Max.y - 65.0f);
     struct PadDot { float X; float Y; bool Front; };
     PadDot Pads[6];
-    constexpr float kAxes[6][3] = { { 1.0f, 0.0f, 0.0f }, { -1.0f, 0.0f, 0.0f },
-                                    { 0.0f, 1.0f, 0.0f }, { 0.0f, -1.0f, 0.0f },
-                                    { 0.0f, 0.0f, 1.0f }, { 0.0f, 0.0f, -1.0f } };
-    for (uint32_t i = 0u; i < 6u; ++i)
-    {
-        const float Dx = kAxes[i][0] * Gr[0] + kAxes[i][1] * Gr[1] + kAxes[i][2] * Gr[2];
-        const float Dy = kAxes[i][0] * Gu[0] + kAxes[i][1] * Gu[1] + kAxes[i][2] * Gu[2];
-        const float Toward = -(kAxes[i][0] * Gf[0] + kAxes[i][1] * Gf[1] + kAxes[i][2] * Gf[2]);
-        Pads[i].X     = OrbC.x + Dx * kArm;
-        Pads[i].Y     = OrbC.y - Dy * kArm;
-        Pads[i].Front = Toward > 0.0f;
+    ImVec2 CubeFaces[6][4];
+    constexpr float kAxes[6][3] = { {1,0,0},{-1,0,0},{0,1,0},{0,-1,0},{0,0,1},{0,0,-1} };
+    auto CubeProject = [&](const float* P) { return ImVec2(OrbC.x+22*(P[0]*Gr[0]+P[1]*Gr[1]+P[2]*Gr[2]),
+        OrbC.y-22*(P[0]*Gu[0]+P[1]*Gu[1]+P[2]*Gu[2])); };
+    constexpr float UV[4][2]={{-1,1},{1,1},{1,-1},{-1,-1}};
+    constexpr float FaceU[6][3]={{0,1,0},{0,-1,0},{-1,0,0},{1,0,0},{1,0,0},{1,0,0}};
+    constexpr float FaceV[6][3]={{0,0,1},{0,0,1},{0,0,1},{0,0,1},{0,1,0},{0,-1,0}};
+    for(uint32_t i=0;i<6;++i) {
+        const ImVec2 C=CubeProject(kAxes[i]);
+        Pads[i]={C.x,C.y,-(kAxes[i][0]*Gf[0]+kAxes[i][1]*Gf[1]+kAxes[i][2]*Gf[2])>.02f};
+        for(uint32_t j=0;j<4;++j) {float P[3]={};for(uint32_t K=0;K<3;++K)P[K]=kAxes[i][K]+FaceU[i][K]*UV[j][0]+FaceV[i][K]*UV[j][1];CubeFaces[i][j]=CubeProject(P);}
     }
     ImGui::SetCursorScreenPos(ImVec2(OrbC.x - 48.0f, OrbC.y - 48.0f));
     ImGui::InvisibleButton("##orb", ImVec2(96.0f, 96.0f));
@@ -1426,12 +1474,12 @@ void ViewportPanel::RecordView() noexcept
     if (OrbHover || OrbHeld_)
     {
         const ImVec2 Mouse = ImGui::GetIO().MousePos;
-        float Best = 14.0f * 14.0f;
-        for (uint32_t i = 0u; i < 6u; ++i)
-        {
-            const float Hx = Mouse.x - Pads[i].X, Hy = Mouse.y - Pads[i].Y;
-            const float D2 = Hx * Hx + Hy * Hy;
-            if (D2 < Best) { Best = D2; OrbHot_ = i + 1u; }
+        for(uint32_t i=0;i<6;++i) {
+            if(!Pads[i].Front) continue;
+            bool Pos=false,Neg=false;
+            for(uint32_t j=0;j<4;++j) {const ImVec2 A=CubeFaces[i][j],B=CubeFaces[i][(j+1)%4];
+                const float Cross=(B.x-A.x)*(Mouse.y-A.y)-(B.y-A.y)*(Mouse.x-A.x);Pos|=Cross>0;Neg|=Cross<0;}
+            if(!(Pos&&Neg)) OrbHot_=i+1;
         }
     }
     if (OrbHover && ImGui::IsMouseClicked(0))
@@ -1451,6 +1499,14 @@ void ViewportPanel::RecordView() noexcept
                 Orbit_.Yaw       = kSnaps[V].Yaw;
                 Orbit_.Pitch     = kSnaps[V].Pitch;
                 Orbit_.ViewPoint = V;
+                if(BrowserCadChrome_) {
+                    constexpr int CadFaces[6]={4,7,6,3,2,5};
+                    constexpr float Yaws[6]={kOrbitPi*.5f,-kOrbitPi*.5f,kOrbitPi,0,0,0};
+                    constexpr float Pitches[6]={0,0,0,0,-1.570696327f,1.570696327f};
+                    const uint32_t Face=OrbHot_-1;
+                    Orbit_.Yaw=Yaws[Face];Orbit_.Pitch=Pitches[Face];Orbit_.Roll=0;Orbit_.Ortho=true;
+                    CadViewRequest_=CadFaces[Face];
+                }
                 ++Orbit_.Revision;
             }
             OrbHeld_ = false;
@@ -1477,23 +1533,30 @@ void ViewportPanel::RecordView() noexcept
     constexpr ImU32 kAxisTint[3] = { IM_COL32(239, 83, 80, 255),
                                      IM_COL32(105, 208, 109, 255),
                                      IM_COL32(91, 140, 255, 255) };
-    for (uint32_t a = 0u; a < 3u; ++a)
-        Draw->AddLine(ImVec2(Pads[2u * a].X, Pads[2u * a].Y),
-            ImVec2(Pads[2u * a + 1u].X, Pads[2u * a + 1u].Y),
-            ControlPanel::FadeTint(kAxisTint[a], 0.55f), 2.0f);
-    for (uint32_t i = 0u; i < 6u; ++i)
-    {
-        const ImU32 Tint = ControlPanel::FadeTint(kAxisTint[i / 2u], Pads[i].Front ? 1.0f : 0.35f);
-        Draw->AddCircleFilled(ImVec2(Pads[i].X, Pads[i].Y), 7.0f, Tint);
-        if (OrbHot_ == i + 1u)
-            Draw->AddCircle(ImVec2(Pads[i].X, Pads[i].Y), 10.0f, IM_COL32(255, 255, 255, 200), 0, 1.6f);
-    }
-    const char* kAxisNames[3] = { "X", "Y", "Z" };
+    const char* FaceNames[6]={"Right","Left","Back","Front","Top","Bottom"};
     ImGui::PushFont(Small);
-    for (uint32_t a = 0u; a < 3u; ++a)
-    {
-        const ImU32 Tint = ControlPanel::FadeTint(kAxisTint[a], Pads[2u * a].Front ? 1.0f : 0.4f);
-        Draw->AddText(ImVec2(Pads[2u * a].X + 9.0f, Pads[2u * a].Y - 7.0f), Tint, kAxisNames[a]);
+    for(uint32_t i=0;i<6;++i) {
+        if(!Pads[i].Front) continue;
+        const int Shade=OrbHot_==i+1?150:95+int(40*std::fabs(kAxes[i][0]*Gf[0]+kAxes[i][1]*Gf[1]+kAxes[i][2]*Gf[2]));
+        const auto* Q=CubeFaces[i];
+        Draw->AddQuadFilled(Q[0],Q[1],Q[2],Q[3],IM_COL32(Shade,Shade,Shade,255));
+        Draw->AddQuad(Q[0],Q[1],Q[2],Q[3],IM_COL32(175,175,175,255),1);
+        // Transform real textured UI-font glyph vertices through the face UV basis.
+        const ImVec2 TextSize=Small->CalcTextSizeA(12,FLT_MAX,0,FaceNames[i]);
+        const int FirstVertex=Draw->VtxBuffer.Size;
+        const ImVec2 GlyphOrigin(OrbC.x-22,OrbC.y-22);
+        Draw->AddText(Small,12,ImVec2(GlyphOrigin.x+(44-TextSize.x)*.5f,GlyphOrigin.y+(44-TextSize.y)*.5f),IM_COL32(240,240,240,255),FaceNames[i]);
+        for(int J=FirstVertex;J<Draw->VtxBuffer.Size;++J) {
+            auto& Vertex=Draw->VtxBuffer[J];const float U=(Vertex.pos.x-GlyphOrigin.x)/44,V=(Vertex.pos.y-GlyphOrigin.y)/44;
+            Vertex.pos=ImVec2(Q[0].x+(Q[1].x-Q[0].x)*U+(Q[3].x-Q[0].x)*V,Q[0].y+(Q[1].y-Q[0].y)*U+(Q[3].y-Q[0].y)*V);
+        }
+    }
+    const ImVec2 AxisOrigin(OrbC.x-27,OrbC.y+35);
+    const char* AxisNames[3]={"X","Y","Z"};
+    for(uint32_t a=0;a<3;++a) {
+        const ImVec2 End(AxisOrigin.x+19*Gr[a],AxisOrigin.y-19*Gu[a]);
+        Draw->AddLine(AxisOrigin,End,kAxisTint[a],1.5f);
+        Draw->AddText(ImVec2(End.x+2,End.y-5),kAxisTint[a],AxisNames[a]);
     }
     ImGui::PopFont();
 
@@ -1502,7 +1565,7 @@ void ViewportPanel::RecordView() noexcept
     // CAD canvas interaction (SolidArc): clicking and dragging across the CAD viewport canvas
     //    orbits the camera, middle-drag or Shift+left-drag pans the target, and scroll wheel dollies.
     //    For standard game viewports, RMB look and WASD flight are handled by the FlyThrough camera.
-    if (Chrome_ == ViewportPanelChrome::SolidArcCad)
+    if (Chrome_ == ViewportPanelChrome::SolidArcCad && !ExternalCadInput_)
     {
         const bool CanvasHover = ImGui::IsWindowHovered() && ImGui::IsMouseHoveringRect(Min, Max) && !OrbHover && !OrbHeld_ && !BillboardHover;
         if (CanvasHover && (ImGui::IsMouseClicked(0) || ImGui::IsMouseClicked(1) || ImGui::IsMouseClicked(2)))
@@ -1545,7 +1608,7 @@ void ViewportPanel::RecordView() noexcept
 
     // The wheel dollies over the view in both chromes: crowd the target or back off, the compass snap
     //    staying put. Gate 9 drives this over the game chrome, so it must not hide in the CAD branch.
-    if (ImGui::IsMouseHoveringRect(Min, Max) && ImGui::GetIO().MouseWheel != 0.0f)
+    if (!ExternalCadInput_ && ImGui::IsWindowHovered() && ImGui::IsMouseHoveringRect(Min, Max) && ImGui::GetIO().MouseWheel != 0.0f)
     {
         Orbit_.Distance *= ImGui::GetIO().MouseWheel > 0.0f ? 0.88f : 1.13f;
         if (Orbit_.Distance < 0.2f)   Orbit_.Distance = 0.2f;
@@ -1628,6 +1691,7 @@ void ViewportPanel::RecordCommand(EditorInstance* Instances, uint32_t InstanceCo
     ImGui::Dummy(ImVec2(RowWidth, kConsoleH));
     const ImVec2 Min = ImGui::GetItemRectMin();
     const ImVec2 Max = ImGui::GetItemRectMax();
+    ViewOrigin_ = Min;
 
     ImDrawList* Draw  = ImGui::GetWindowDrawList();
     ImFont*     Ui    = Controls_->QueryUi();
@@ -2143,6 +2207,13 @@ int ViewportPanel::ConsoleCallback(ImGuiInputTextCallbackData* Edit) noexcept
 void ViewportPanel::RecordFooter(EditorInstance* Instances, uint32_t InstanceCount) noexcept
 {
     const float RowWidth = ImGui::GetContentRegionAvail().x;
+    if (BrowserCadChrome_)
+    {
+        const auto O=ImGui::GetWindowPos(); const auto S=ImGui::GetWindowSize();
+        ImGui::SetCursorScreenPos(ImVec2(O.x+16,O.y+S.y-26));
+        ImGui::TextDisabled("Metres · Z-up · %s · %s",Orbit_.Ortho?"Orthographic":"Perspective", "Native geometry");
+        return;
+    }
     // Pinned to the sill: whatever the content above ends at, the foot opens on the shared top row.
     const float FootTop = Controls_->QueryFootTop();
     if (ImGui::GetCursorScreenPos().y < FootTop)

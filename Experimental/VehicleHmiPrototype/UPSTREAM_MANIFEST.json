@@ -1,0 +1,1118 @@
+{
+  "repository": "https://github.com/streamlinkinbox/Frontier",
+  "commit": "8c375ce1a0384ca03971f0316b307089c8f7606d",
+  "originalReSTIRRepository": "https://github.com/SultanAladin/Slate",
+  "originalReSTIRCommit": "e7c4ea47b9a8880f476f31b79863d7b8b2dcaff6",
+  "scope": [
+    "Experimental/VehicleHmiPrototype",
+    "Experimental/interactive-vehicle-hmi-configurator"
+  ],
+  "files": [
+    {
+      "path": "Experimental/VehicleHmiPrototype/Archive/ControlVehicleBody.facet",
+      "mode": "100644",
+      "gitBlob": "b4b3fa4ca19cdb2236d1045ab6f6bf775f43d69e",
+      "bytes": 64736,
+      "sha256": "d8a7516018ba536555bca5933fabfbd1681167ad3908a87be95ad3cfd912134a"
+    },
+    {
+      "path": "Experimental/VehicleHmiPrototype/Archive/ControlVehicleRim.facet",
+      "mode": "100644",
+      "gitBlob": "24a1990766b0a66bfff67167958452d55480e2af",
+      "bytes": 91016,
+      "sha256": "44b50dd7d80c12f68d92b2dbdbd3d911d73334fa1ef10fbc16e07ff1812a8de5"
+    },
+    {
+      "path": "Experimental/VehicleHmiPrototype/Archive/ControlVehicleTyre.facet",
+      "mode": "100644",
+      "gitBlob": "a763a8b8eb5fe0cc7600886d8e5bab0c650ed735",
+      "bytes": 230192,
+      "sha256": "1cf021cd3f7ef4cbc984bf677247e0ac6722e90f542191a4ca13391fb144387d"
+    },
+    {
+      "path": "Experimental/VehicleHmiPrototype/Archive/FacetArchiveCodec.py",
+      "mode": "100644",
+      "gitBlob": "b0891a0986d04bb342ffabb4f8cb75ec39383b7b",
+      "bytes": 7721,
+      "sha256": "2c701b73068ec9c9cdac96fbca0c6333403c4e99c14872b87109875ccada29a5"
+    },
+    {
+      "path": "Experimental/VehicleHmiPrototype/PLAN.md",
+      "mode": "100644",
+      "gitBlob": "c35f6c5d52fe9608f0c77192c97eb1d26a50f4b2",
+      "bytes": 4656,
+      "sha256": "59528e4d8d566604493a4d23eda09c79075267bd8c47ef6a20bd9158c7b97a53"
+    },
+    {
+      "path": "Experimental/VehicleHmiPrototype/README.md",
+      "mode": "100644",
+      "gitBlob": "37193daa6627df43dddbdf841df1458b31f06231",
+      "bytes": 33467,
+      "sha256": "c4af1abd51f5e64aa476cf592c0ab37f9a3040b5cd7cfa594d4888dc32e3e766"
+    },
+    {
+      "path": "Experimental/VehicleHmiPrototype/SLATE_PORT.md",
+      "mode": "100644",
+      "gitBlob": "b895ea0a5fcdfbfbd5ca089d7393201c11c7b065",
+      "bytes": 8577,
+      "sha256": "1bd380d957e5a3561b9536b979f1c3be7000a1f82ab58628f0d9c9a6991beae7"
+    },
+    {
+      "path": "Experimental/VehicleHmiPrototype/Shader/AtmosphereScattering.wgsl",
+      "mode": "100644",
+      "gitBlob": "09adfcdc892b6c44be29d9135fc9bda7cc98a143",
+      "bytes": 5797,
+      "sha256": "4b7e9545eb1047f2d6bd75ad3f5ae37e6621f3553d17a4893f2d41dcc57704df"
+    },
+    {
+      "path": "Experimental/VehicleHmiPrototype/Shader/CabinOverlay.wgsl",
+      "mode": "100644",
+      "gitBlob": "1a2f3639c52789c53049fa52501a420f338dd9ff",
+      "bytes": 9724,
+      "sha256": "fa13ce20e0a5b85396720454a40e4d3269d99634fbb610c170b33b611d4d7188"
+    },
+    {
+      "path": "Experimental/VehicleHmiPrototype/Shader/CabinVolume.wgsl",
+      "mode": "100644",
+      "gitBlob": "97b1a208844d6ef864a42e66af0736c89de4ffbe",
+      "bytes": 1674,
+      "sha256": "802ec2ab3391204793dffa6706878ad2eff583157d5bcb29dbeaa0071c55ae7a"
+    },
+    {
+      "path": "Experimental/VehicleHmiPrototype/Shader/CardCapture.wgsl",
+      "mode": "100644",
+      "gitBlob": "86aef1e3bfafc6f6ec9f1c97fca0e36654e0bc13",
+      "bytes": 2770,
+      "sha256": "e99e33c2bd5761e7376a8e11016d0b5d838162a5e5fc833956240d680940b90e"
+    },
+    {
+      "path": "Experimental/VehicleHmiPrototype/Shader/CardDirect.wgsl",
+      "mode": "100644",
+      "gitBlob": "900a8523d246ac1911a592f9712fd9240f0bda4c",
+      "bytes": 3158,
+      "sha256": "b4815d6c8d09bb26fa80b19c69c1ed56860356e98eb0d10d6ede83c1acd25792"
+    },
+    {
+      "path": "Experimental/VehicleHmiPrototype/Shader/CardFinal.wgsl",
+      "mode": "100644",
+      "gitBlob": "26c57622dbf327c62a812ac12d5b2d57e6023617",
+      "bytes": 3699,
+      "sha256": "bb27ff70c06e18657df0f09cbb9645a2e3cc4f890f1afb4f83cc2a74ff3cdacf"
+    },
+    {
+      "path": "Experimental/VehicleHmiPrototype/Shader/CardIrradiance.wgsl",
+      "mode": "100644",
+      "gitBlob": "1b1d931b4e2bb9b95e88796934a54ae813984875",
+      "bytes": 1554,
+      "sha256": "5b4dd53431bcb83e9b11c502ec03b3d2d9b971f32d4a320307cb0a7205c55585"
+    },
+    {
+      "path": "Experimental/VehicleHmiPrototype/Shader/CardProjection.wgsl",
+      "mode": "100644",
+      "gitBlob": "1dc5b09f4057e5e268f0089b56cf1f00fa108719",
+      "bytes": 2777,
+      "sha256": "c2f1bfd5618931f2e580ecf2ebc9a634c22411dd759c60792e29fd063b977e2b"
+    },
+    {
+      "path": "Experimental/VehicleHmiPrototype/Shader/CardRadiosity.wgsl",
+      "mode": "100644",
+      "gitBlob": "5cbc520bbed271db1186c19fd9b893fe8e3f4ca8",
+      "bytes": 4839,
+      "sha256": "afc0b9c2f1acf747dd919ecba569f7252146d499b7d815275b0bf1b95e1e8a53"
+    },
+    {
+      "path": "Experimental/VehicleHmiPrototype/Shader/CardSampling.wgsl",
+      "mode": "100644",
+      "gitBlob": "234497b5d03ebf0e64863d3bf27194e53050e24a",
+      "bytes": 9258,
+      "sha256": "575a31fa7aa7dbd74801d0341091d139c1444f208f36096b0d0466ff3344fcdb"
+    },
+    {
+      "path": "Experimental/VehicleHmiPrototype/Shader/DirectRadiance.wgsl",
+      "mode": "100644",
+      "gitBlob": "66b11411ac2977c722aae5e3a8f09cb2df4c7a9d",
+      "bytes": 4947,
+      "sha256": "957dfeb4cde512ce69a671e6dbb7c57251d6042d8987f150615e0876d0e70250"
+    },
+    {
+      "path": "Experimental/VehicleHmiPrototype/Shader/DiscrepancySequence.wgsl",
+      "mode": "100644",
+      "gitBlob": "652a058b8f7d39c1850a3ea0a4f4f6cde5e2ea4e",
+      "bytes": 2433,
+      "sha256": "817421fcefedd706fd533bb6e39bd6da79901db27459438cd8ed3a1732eb8ac3"
+    },
+    {
+      "path": "Experimental/VehicleHmiPrototype/Shader/DisplayAntialias.wgsl",
+      "mode": "100644",
+      "gitBlob": "ffac59852001d849f18755387748b208c08b3ec6",
+      "bytes": 3504,
+      "sha256": "3125c127b55479a856bea44d4b3d3175cf2ae70b5a1590aafc89a90784386cd6"
+    },
+    {
+      "path": "Experimental/VehicleHmiPrototype/Shader/DisplayExposure.wgsl",
+      "mode": "100644",
+      "gitBlob": "39d4db51004719de89fd56f92dd71bafa6eb1814",
+      "bytes": 2504,
+      "sha256": "b24ddf1e63b61518f797b2ff3908ca70f1fe1469ae5f138ea5e4e885c03376d3"
+    },
+    {
+      "path": "Experimental/VehicleHmiPrototype/Shader/DisplayPresent.wgsl",
+      "mode": "100644",
+      "gitBlob": "ed8d583f783d4b376a6bbcadce23cff98309e2fc",
+      "bytes": 4936,
+      "sha256": "9fbaede74e0b976c78ff44f4153399ac1ca9f3d9224af3a47d527aa3184eb50c"
+    },
+    {
+      "path": "Experimental/VehicleHmiPrototype/Shader/DisplayRecombination.wgsl",
+      "mode": "100644",
+      "gitBlob": "e37a3da1eb97c268d386a138e6d01461031e5843",
+      "bytes": 7388,
+      "sha256": "d54b58901a469e527740619ebe4ea3a6d658c04b102510223eb0c53bf184d2fc"
+    },
+    {
+      "path": "Experimental/VehicleHmiPrototype/Shader/DistanceRecords.wgsl",
+      "mode": "100644",
+      "gitBlob": "0bee46f9ba11725592d21521533891aa6b8e36fd",
+      "bytes": 3031,
+      "sha256": "c80f2b766174c8ce99f23d884f23d07047f3dfadb47b106cf875007c4c1b7727"
+    },
+    {
+      "path": "Experimental/VehicleHmiPrototype/Shader/DistanceTransfer.wgsl",
+      "mode": "100644",
+      "gitBlob": "a7c3ddb5a8cb3c69ee8545057737121eb4cc55fc",
+      "bytes": 11921,
+      "sha256": "1b0f69132d20047caa2a3581b4dd1de32824613dab40561a5120546341746353"
+    },
+    {
+      "path": "Experimental/VehicleHmiPrototype/Shader/DistanceTraversal.wgsl",
+      "mode": "100644",
+      "gitBlob": "fdda8728de49a2c7ffc445f337f351a2338d18c0",
+      "bytes": 11985,
+      "sha256": "602951da99997ee47b6a5ffd5e43c8d32e6578f7491138e542703e81aaa2a07b"
+    },
+    {
+      "path": "Experimental/VehicleHmiPrototype/Shader/DistanceUnion.wgsl",
+      "mode": "100644",
+      "gitBlob": "3902a2aaa98f0189287c5d873e6608617f86fb31",
+      "bytes": 7716,
+      "sha256": "916c64b80edd3a925b0ba82e2911fd64dccbf20b31fc3cc11d9aac9a74a6b3ea"
+    },
+    {
+      "path": "Experimental/VehicleHmiPrototype/Shader/EffectRaster.wgsl",
+      "mode": "100644",
+      "gitBlob": "b0da481057872aa294c456b8d0615982b8519f80",
+      "bytes": 17375,
+      "sha256": "f455c92275fe15f9c77735e73d2faaf3e14cdb09444553ad44a2fd3d7b746aa0"
+    },
+    {
+      "path": "Experimental/VehicleHmiPrototype/Shader/EffectRecords.wgsl",
+      "mode": "100644",
+      "gitBlob": "87d7ee653f4be6ef7e6f7df69501c1df82103b11",
+      "bytes": 6531,
+      "sha256": "44734a42d7f97d96c62cc0c6f6add259f8ba35fc03b90dc93c2973f93431231a"
+    },
+    {
+      "path": "Experimental/VehicleHmiPrototype/Shader/FireIllumination.wgsl",
+      "mode": "100644",
+      "gitBlob": "75cd9a782ca6f090d1b61bb4ec55774d10861fd0",
+      "bytes": 3494,
+      "sha256": "261ca38c6286cf85843d60ee21796c64e1bb06b7c6a1c049b9c85fcf914ffe82"
+    },
+    {
+      "path": "Experimental/VehicleHmiPrototype/Shader/ForwardRaster.wgsl",
+      "mode": "100644",
+      "gitBlob": "5e15831599611bf40a5336888aa169031c44424e",
+      "bytes": 11142,
+      "sha256": "31e1b4f8fc6382112de83e601fb333794be54baebd2aa3930a2bb4889e41b99b"
+    },
+    {
+      "path": "Experimental/VehicleHmiPrototype/Shader/FragmentDistance.wgsl",
+      "mode": "100644",
+      "gitBlob": "fab28fdbcae027f306b337b0815977da32603c3a",
+      "bytes": 4674,
+      "sha256": "07febe72abfb1ff7560046d6f8fc2b5839da5cffb6fa2fcc3bfffe5c0d13bc43"
+    },
+    {
+      "path": "Experimental/VehicleHmiPrototype/Shader/FrameDescriptor.wgsl",
+      "mode": "100644",
+      "gitBlob": "55433e8b4553b320e6658db8fbdda200b2bad84d",
+      "bytes": 1886,
+      "sha256": "efbf7b8f4ff945c5187ed45b78e8c6a4fd2440d076fe29e59c4a4711c33080f0"
+    },
+    {
+      "path": "Experimental/VehicleHmiPrototype/Shader/InspectionMarch.wgsl",
+      "mode": "100644",
+      "gitBlob": "39e424b8b24a4ddf285600207f0baf24afa891de",
+      "bytes": 3971,
+      "sha256": "ea2462ac85dccba9c65ab8ccdb808572cd099b9572091ddfae3eb76032faca35"
+    },
+    {
+      "path": "Experimental/VehicleHmiPrototype/Shader/PackingCodec.wgsl",
+      "mode": "100644",
+      "gitBlob": "d8f6d426cbaccd94e782f424f89a354266232a04",
+      "bytes": 1664,
+      "sha256": "5c8219d71725ad45bc89fb508264cc4e665942f8f66e383be40bf2400193d544"
+    },
+    {
+      "path": "Experimental/VehicleHmiPrototype/Shader/PlumeAdvection.wgsl",
+      "mode": "100644",
+      "gitBlob": "4c0b128800bf63f3e9c048f48ad089c534316cb5",
+      "bytes": 14621,
+      "sha256": "6422ea68c051b5d0a51eae219bc2cb9a1768f09669d952d24b8f3a36b1dddf40"
+    },
+    {
+      "path": "Experimental/VehicleHmiPrototype/Shader/PlumeMarch.wgsl",
+      "mode": "100644",
+      "gitBlob": "26d673d451760fce7a6bb9a795d756bd0c7aa9cc",
+      "bytes": 14407,
+      "sha256": "2f5c60a96c5b4daa670b300c385d492e0fa993388341d14f5a05a1fff7b210dd"
+    },
+    {
+      "path": "Experimental/VehicleHmiPrototype/Shader/PlumePressure.wgsl",
+      "mode": "100644",
+      "gitBlob": "3ac6350519526ec2584e1f4fceadfafa19eac573",
+      "bytes": 6060,
+      "sha256": "d56f1e63a73cbb0310b268dd14c96042dbf9c1aa370cd3e05dbdac1cd3e0ce8a"
+    },
+    {
+      "path": "Experimental/VehicleHmiPrototype/Shader/PlumeRecords.wgsl",
+      "mode": "100644",
+      "gitBlob": "be2f043db792f5dd45692c65d761b2e58892be4f",
+      "bytes": 9828,
+      "sha256": "778170ebf9a1b277dc99b9481697e6734d6863df6cdfd91677ccf59e9cca5959"
+    },
+    {
+      "path": "Experimental/VehicleHmiPrototype/Shader/PlumeVorticity.wgsl",
+      "mode": "100644",
+      "gitBlob": "3fa7354077e5b8f239099289dd2d4702253cafd7",
+      "bytes": 3755,
+      "sha256": "145fad545c52a4254a5e633866906d9b02e6e84c0ccf753dfdc47b82653dee96"
+    },
+    {
+      "path": "Experimental/VehicleHmiPrototype/Shader/ReflectionTraversal.wgsl",
+      "mode": "100644",
+      "gitBlob": "6d1737a4ac856edf0466a4fd44779f253e743541",
+      "bytes": 4003,
+      "sha256": "0da72b0f4ad48b64f1cbb9d99845d2f5da1187e91e4f121f9b57c326bbb6a207"
+    },
+    {
+      "path": "Experimental/VehicleHmiPrototype/Shader/ReservoirRecords.wgsl",
+      "mode": "100644",
+      "gitBlob": "a999b1cff7a48f6a34594dd611ce501bda424c7a",
+      "bytes": 4133,
+      "sha256": "0bd41e6a6fd3f748d5455de346dbfa915a7b85ba2c7b1ec46fb10816bbe2c231"
+    },
+    {
+      "path": "Experimental/VehicleHmiPrototype/Shader/ReservoirSpatial.wgsl",
+      "mode": "100644",
+      "gitBlob": "b6d6f810266b6882b7aa8c4f58cfea6ece8f79ac",
+      "bytes": 7669,
+      "sha256": "6937d37afe5d3bf0f3be64207520273e37d0023c18d58e854e3c63e2b35a7033"
+    },
+    {
+      "path": "Experimental/VehicleHmiPrototype/Shader/ReservoirTemporal.wgsl",
+      "mode": "100644",
+      "gitBlob": "1ba9f2ee5f25e22365ea8eb9f253509ad7577bf5",
+      "bytes": 8275,
+      "sha256": "b60b815fbc07db6e4aa194a80694829b6b2a406af61ecf48781625e79ecf8626"
+    },
+    {
+      "path": "Experimental/VehicleHmiPrototype/Shader/SceneRecords.wgsl",
+      "mode": "100644",
+      "gitBlob": "916d9144148da801105b5ab0e2b773888527ae0f",
+      "bytes": 8696,
+      "sha256": "b8ea381bcd2774cc09f14adf8542268febe085fa3a4aafd6bcdcf8c693e7a81c"
+    },
+    {
+      "path": "Experimental/VehicleHmiPrototype/Shader/ShadowRaster.wgsl",
+      "mode": "100644",
+      "gitBlob": "529bb98aea85f55aced127ca0f8e51adf9c94f60",
+      "bytes": 3611,
+      "sha256": "bc780a5a4b1fd6989610070a31977fdd6f5aa5b784f6e31d5b7324d9ee1ea101"
+    },
+    {
+      "path": "Experimental/VehicleHmiPrototype/Shader/SkyProjection.wgsl",
+      "mode": "100644",
+      "gitBlob": "6682052f0a095c63cb5d0d11a25403a7d0c02b72",
+      "bytes": 1281,
+      "sha256": "61fc8ea58b1d938c194da49640dcfd51b29148ae6aefa1d37b4fb5a253bf2c0e"
+    },
+    {
+      "path": "Experimental/VehicleHmiPrototype/Shader/SparkRaster.wgsl",
+      "mode": "100644",
+      "gitBlob": "c6e4513f0a18ab510b5b34b0690ed36c9360e2f9",
+      "bytes": 4276,
+      "sha256": "e15655837799c2919c2cb7148fb8f93901bdbb9a930dd9c23403b9580ef7dcd8"
+    },
+    {
+      "path": "Experimental/VehicleHmiPrototype/Shader/SurfaceRaster.wgsl",
+      "mode": "100644",
+      "gitBlob": "1f04607deb738d218a5312efc4a6a861aa6a1214",
+      "bytes": 11537,
+      "sha256": "aa3291a130e22a116b2e3a50dd3111790512111928df3238f0e5d50eabb6b554"
+    },
+    {
+      "path": "Experimental/VehicleHmiPrototype/Shader/SurfaceReflectance.wgsl",
+      "mode": "100644",
+      "gitBlob": "14eeabf6ccda920d7ed02f1c3dda8407db143bbe",
+      "bytes": 4644,
+      "sha256": "da8efc4f6884a5719119b0f255c219c5f43e56c2def65ed602d42247b3d4e8d1"
+    },
+    {
+      "path": "Experimental/VehicleHmiPrototype/Shader/VarianceTemporal.wgsl",
+      "mode": "100644",
+      "gitBlob": "bf423128e70cc2ddedbab6cd55e05a00f7d63fe5",
+      "bytes": 4507,
+      "sha256": "5413ca2b8a38f6b8d5195d7e64a2c3484ccb8e97a10ac5932babc1bc8eb27769"
+    },
+    {
+      "path": "Experimental/VehicleHmiPrototype/Shader/VarianceUpsample.wgsl",
+      "mode": "100644",
+      "gitBlob": "89c3c051cbacee02a3018a7bc8194ab17b5508d4",
+      "bytes": 2881,
+      "sha256": "56d28e699bef814233dc301414f6d270a62e450a06088036533e82e82e07e644"
+    },
+    {
+      "path": "Experimental/VehicleHmiPrototype/Shader/VarianceWavelet.wgsl",
+      "mode": "100644",
+      "gitBlob": "5904fc0c098eab7656e6d4269cd4067cca859ad2",
+      "bytes": 3456,
+      "sha256": "0f616392d7276db475674c19d94bac1afe617a4ac41c1dd6e9ec41742e14094b"
+    },
+    {
+      "path": "Experimental/VehicleHmiPrototype/Shader/VehicleVisual.wgsl",
+      "mode": "100644",
+      "gitBlob": "40aab722c03f52c7f319e06e3ffc6081e4f4d56c",
+      "bytes": 2349,
+      "sha256": "cc923057be88ad578677349749072c5d6d8fa68724e63c9dde92f1484c4b4fa9"
+    },
+    {
+      "path": "Experimental/VehicleHmiPrototype/Source/AtmosphereIntegrator.js",
+      "mode": "100644",
+      "gitBlob": "94e23a8f0774a6f90449d942723e53e8e4e835be",
+      "bytes": 6435,
+      "sha256": "7650e589515f918649f99505b98cd6f1fb3e5d22c70505aa90c81ad7abe36632"
+    },
+    {
+      "path": "Experimental/VehicleHmiPrototype/Source/BoundingStructure.js",
+      "mode": "100644",
+      "gitBlob": "cb5ae11f8ffad201a2a40a13674ef532eaa4e8ee",
+      "bytes": 8513,
+      "sha256": "5f1c8d52da979d4df3da502e2cbf25be03520746d412314687e7ab3c2c80527c"
+    },
+    {
+      "path": "Experimental/VehicleHmiPrototype/Source/Cabin/AppSpecification.js",
+      "mode": "100644",
+      "gitBlob": "4d57d51cd4ed2774ede1bacd65759710ec7da793",
+      "bytes": 4536,
+      "sha256": "76bddd39378a215ffec4b2f7aaad690c2c92862d68a4df815f1db86d8d165e47"
+    },
+    {
+      "path": "Experimental/VehicleHmiPrototype/Source/Cabin/ClusterSequence.js",
+      "mode": "100644",
+      "gitBlob": "dc8e7abd40f63ce83600ff8c67e9e961222270f0",
+      "bytes": 11020,
+      "sha256": "80def41b73ac27821f9703d55a740bbdbb16063ede7e7a6891852a8db1645bdb"
+    },
+    {
+      "path": "Experimental/VehicleHmiPrototype/Source/Cabin/IconDepot.js",
+      "mode": "100644",
+      "gitBlob": "730a92a4dbc710d5b631514ea0d9585cca2a5458",
+      "bytes": 6400,
+      "sha256": "d90dc85b8eae11445be18f92c9bc57a7cd77019f1ea33176b97a67701eb657b9"
+    },
+    {
+      "path": "Experimental/VehicleHmiPrototype/Source/Cabin/ScreenSequence.js",
+      "mode": "100644",
+      "gitBlob": "ab94e5aaef5a309535d9c7f490443c50323e8efe",
+      "bytes": 46616,
+      "sha256": "f843506a61da7989296c9f6076c76399968eae86efafda5f882dee7b705dfde9"
+    },
+    {
+      "path": "Experimental/VehicleHmiPrototype/Source/CabinSequence.js",
+      "mode": "100644",
+      "gitBlob": "4236b62f4333c88ee439dfaa89dcc0b58148c499",
+      "bytes": 32263,
+      "sha256": "5484fa38f8977c79e0621e7221f8976ba2c0278d7caf4bd768786e09486f2a17"
+    },
+    {
+      "path": "Experimental/VehicleHmiPrototype/Source/CabinStructure.js",
+      "mode": "100644",
+      "gitBlob": "4e810edab5a6fec8711fe24c0dcdc53252bb3b6c",
+      "bytes": 13337,
+      "sha256": "3640e912e044d9baa156e8b8df21ba644788761a541dd5dd87c0cf56b9751de9"
+    },
+    {
+      "path": "Experimental/VehicleHmiPrototype/Source/ChaseCameraSolver.js",
+      "mode": "100644",
+      "gitBlob": "2817970b7ffde3a9b69ebb1daac6b4dd2b732075",
+      "bytes": 5033,
+      "sha256": "9e3d1d992ca36a03f9e645848828614e79ad3db4b38cd3f01f0cd2d53a612169"
+    },
+    {
+      "path": "Experimental/VehicleHmiPrototype/Source/ConeSequence.js",
+      "mode": "100644",
+      "gitBlob": "29ce2c37c71af3d382dbc2a97e3b2a27f5260099",
+      "bytes": 9655,
+      "sha256": "7e831854e7f4d3426a8c02e17de7de614aca7451aa944dbcf4cffeb4e0160247"
+    },
+    {
+      "path": "Experimental/VehicleHmiPrototype/Source/CourseStructure.js",
+      "mode": "100644",
+      "gitBlob": "c943f7eca90d643a68f8056dfcd8e1720a6853da",
+      "bytes": 15633,
+      "sha256": "b84793e7d3804fcd94b9f343ab5587644770c412bb23ed843832069de9824dbe"
+    },
+    {
+      "path": "Experimental/VehicleHmiPrototype/Source/DeviceExchange.js",
+      "mode": "100644",
+      "gitBlob": "86ab20634e00feea4072f44f4e28fbf0fbeee566",
+      "bytes": 8755,
+      "sha256": "f0751c605a44591e68f52579a40d83d49be39cb5dd3fbb6fec7ac4371d28a202"
+    },
+    {
+      "path": "Experimental/VehicleHmiPrototype/Source/DisplayProjection.js",
+      "mode": "100644",
+      "gitBlob": "6a0b980f9bfbc1c43962af706365d21415066ee7",
+      "bytes": 11586,
+      "sha256": "a80638f23f1b510d726d11219aff98e3d9a403f8112edc8591703ddd49b36d6b"
+    },
+    {
+      "path": "Experimental/VehicleHmiPrototype/Source/DriverInputIntegrator.js",
+      "mode": "100644",
+      "gitBlob": "4dd7958bcdf21b1bb256ee482b9e13ee20934302",
+      "bytes": 4147,
+      "sha256": "5c49ea98d358aa6bcf4ace08988815f1dd7207a8e50d231195575e77987968f1"
+    },
+    {
+      "path": "Experimental/VehicleHmiPrototype/Source/DrivingCameraMotion.js",
+      "mode": "100644",
+      "gitBlob": "8a30b01794c2b7ac03dce312b9375263c5b91a6d",
+      "bytes": 1871,
+      "sha256": "310c8ec8b206f135fb80e61d1a9056fd563a3734e71caf55118b0b4a90d1a7fe"
+    },
+    {
+      "path": "Experimental/VehicleHmiPrototype/Source/EditorControls.js",
+      "mode": "100644",
+      "gitBlob": "48f279d59051fdb59f7924bf3dac37317d50cc89",
+      "bytes": 18272,
+      "sha256": "d7f8750f251abea72bac1c94c64984afb361d73cfbcf01fe24ed40e5f6e0933b"
+    },
+    {
+      "path": "Experimental/VehicleHmiPrototype/Source/EditorIcons.js",
+      "mode": "100644",
+      "gitBlob": "53430b2a9933e5320ebcce04bfbee9beb536bf8f",
+      "bytes": 11951,
+      "sha256": "16c53598fd7b894013a5661f12b4c93eafbce2810249ed197563aa3b22e43036"
+    },
+    {
+      "path": "Experimental/VehicleHmiPrototype/Source/EditorShell.js",
+      "mode": "100644",
+      "gitBlob": "189691f516cba9e4673eaaf8a0173bbd3219c0a2",
+      "bytes": 18594,
+      "sha256": "01cb9ef583edacecc0b19f56599b855aecf75370a52f7d7d99c2f37e0382352a"
+    },
+    {
+      "path": "Experimental/VehicleHmiPrototype/Source/EffectSequence.js",
+      "mode": "100644",
+      "gitBlob": "6b396b5cb3240a812f25d23e7faf369d2a961e2d",
+      "bytes": 25302,
+      "sha256": "cd85f9a60a5a88cda62fd45c0dbdcc4d64053e3c38c5ae34231c61ab6095e30a"
+    },
+    {
+      "path": "Experimental/VehicleHmiPrototype/Source/FacetCodec.js",
+      "mode": "100644",
+      "gitBlob": "7833ca9a7b93c94b5a71cd41435bc0876aa0449f",
+      "bytes": 2501,
+      "sha256": "885806552de6fd48d1efebaf69113c202d42dc4a8f86ebd1a02232aebe26871b"
+    },
+    {
+      "path": "Experimental/VehicleHmiPrototype/Source/FacetStructure.js",
+      "mode": "100644",
+      "gitBlob": "81c85c891154c27bc52c4b5d847ffdeb4d7c9ea2",
+      "bytes": 32964,
+      "sha256": "df4146bba556d7e478c286917447ec09b4f0a177aabf3ed16db68e98fd1aa81f"
+    },
+    {
+      "path": "Experimental/VehicleHmiPrototype/Source/FractureSequence.js",
+      "mode": "100644",
+      "gitBlob": "22e987ab06cdf43e92a78f296047821f48616eb9",
+      "bytes": 31176,
+      "sha256": "9d7cdf89e20b14c3ec46a2fe2d10381eb04115ba992dce60a5552e55e2eb0930"
+    },
+    {
+      "path": "Experimental/VehicleHmiPrototype/Source/FractureStructure.js",
+      "mode": "100644",
+      "gitBlob": "f188e05660792362d9a47c41a4d5182c5a02349f",
+      "bytes": 31625,
+      "sha256": "1f75f0c70b77d5bf58faecec62faf307d0bc971571b900ea4a0728200d0b6619"
+    },
+    {
+      "path": "Experimental/VehicleHmiPrototype/Source/HardwareMetrics.js",
+      "mode": "100644",
+      "gitBlob": "ff03c7d5753dd1e6816c774aabad9afd8b317667",
+      "bytes": 2999,
+      "sha256": "a212f87fe2e41b901ce590c148ca016ec312f83b49a556f7f9141c6bf82afe4e"
+    },
+    {
+      "path": "Experimental/VehicleHmiPrototype/Source/HudLayout.js",
+      "mode": "100644",
+      "gitBlob": "91d55e3f8d11cb3165a05f3cbf911c3ec609ad7f",
+      "bytes": 599,
+      "sha256": "82dfedac1923e5df1972905fc3eb2b2dc421e8d27e08dfd67c12c7615064d95b"
+    },
+    {
+      "path": "Experimental/VehicleHmiPrototype/Source/HullStructure.js",
+      "mode": "100644",
+      "gitBlob": "611ef975f0fd084d7efaf6c7b070bae37b5e760b",
+      "bytes": 6278,
+      "sha256": "2f3778825ae46757034ae5581a9cbc668de1b1f17041da0188eb74855f9fc6ce"
+    },
+    {
+      "path": "Experimental/VehicleHmiPrototype/Source/IlluminationHost.js",
+      "mode": "100644",
+      "gitBlob": "2d816c2a793696d961370ba84a29833a99993604",
+      "bytes": 73620,
+      "sha256": "6457c741db760465ec4e01b6f88a2efbdc205f59c259732b46b00d91f4dceb14"
+    },
+    {
+      "path": "Experimental/VehicleHmiPrototype/Source/InspectorPages.js",
+      "mode": "100644",
+      "gitBlob": "15b4541e5ef702895b0200724c4823c7f10b5aa1",
+      "bytes": 65573,
+      "sha256": "542a74bfd252011676f39a7236ba149cf51fc083d5d5d34e7c84c5b92138067f"
+    },
+    {
+      "path": "Experimental/VehicleHmiPrototype/Source/JoltWorld.js",
+      "mode": "100644",
+      "gitBlob": "c133e2be47243ed80cdcf9bbb102e504da853ade",
+      "bytes": 11258,
+      "sha256": "a2702672e7dec5cf604dbfb0baeb5387f27ccc66ccc4a9721aec45d29b89b404"
+    },
+    {
+      "path": "Experimental/VehicleHmiPrototype/Source/LevelStructure.js",
+      "mode": "100644",
+      "gitBlob": "98954203a1ec1f5bc5bbfee79281e8cb6ae58e5e",
+      "bytes": 45314,
+      "sha256": "6a0bd3c710a6b785453706ad363827daa7e9681acdcc09982dc24971ef326785"
+    },
+    {
+      "path": "Experimental/VehicleHmiPrototype/Source/MaterialSpecification.js",
+      "mode": "100644",
+      "gitBlob": "617d9a966742611ecf6a922304684ec472326ea6",
+      "bytes": 16064,
+      "sha256": "2844492252f91a4f06f33a1e723ff34f02e22dc1697d9a8a2e317b5a33431045"
+    },
+    {
+      "path": "Experimental/VehicleHmiPrototype/Source/OccupantDistanceSpace.js",
+      "mode": "100644",
+      "gitBlob": "b76d6e0a856cbdb45bcafd92f06f26088185ded0",
+      "bytes": 14374,
+      "sha256": "f0424224aba7e91ee6b74e3e61a92608445170275a49747b984e0c23f48491bd"
+    },
+    {
+      "path": "Experimental/VehicleHmiPrototype/Source/OverlayDock.js",
+      "mode": "100644",
+      "gitBlob": "d9213f5a04091dc82ad63dcc936c8e62eb7512a5",
+      "bytes": 7611,
+      "sha256": "fc6521e2082d0f9620fb302842654e14c3d206a63c772153dba42354c0419fd9"
+    },
+    {
+      "path": "Experimental/VehicleHmiPrototype/Source/PlumeSourceProjection.js",
+      "mode": "100644",
+      "gitBlob": "f16facc11ebaa199439a055cb789aef5c8a7bd79",
+      "bytes": 15898,
+      "sha256": "5bdd12563b82ab8754863648e0284ad50afcf0aa99ec262a6fe670baa2b76ba1"
+    },
+    {
+      "path": "Experimental/VehicleHmiPrototype/Source/PlumeSpace.js",
+      "mode": "100644",
+      "gitBlob": "8ca5474e19c2453aa048f51d325bf8bd2c536585",
+      "bytes": 29158,
+      "sha256": "0f629f91d7a13528d6e6cc9897681f417cd30c70fd0b45a7b8dfb785ad597849"
+    },
+    {
+      "path": "Experimental/VehicleHmiPrototype/Source/RecoveryDirector.js",
+      "mode": "100644",
+      "gitBlob": "bf555f5a86ad4d17b078a96da49381e2a44b1208",
+      "bytes": 8146,
+      "sha256": "8e087094947baf9409267b3137507b5abc1db3d92d24f4b5cae65f6d2b685daa"
+    },
+    {
+      "path": "Experimental/VehicleHmiPrototype/Source/ResamplingSequence.js",
+      "mode": "100644",
+      "gitBlob": "be6f6f177b5c84d7126bf4144112550d9cc6075c",
+      "bytes": 6007,
+      "sha256": "1ea3a1772ff8de46fa2cd6f2206bd5a62cbf020c75d6de893fbbc1cf033e9ec3"
+    },
+    {
+      "path": "Experimental/VehicleHmiPrototype/Source/RigidBodyWorld.js",
+      "mode": "100644",
+      "gitBlob": "9e2d9f4f7c7bedcf3cae545800bb5b1da572097e",
+      "bytes": 48237,
+      "sha256": "54fc6ebb82f2aec6d2e470feab5f71211798c16b01827f4483d6b56b99831e0c"
+    },
+    {
+      "path": "Experimental/VehicleHmiPrototype/Source/SceneDistanceSpace.js",
+      "mode": "100644",
+      "gitBlob": "b8196ddac172caf2ea1b817b6b3541b453f1ae37",
+      "bytes": 14533,
+      "sha256": "b5083c48fccbd906e846ffd8d158bcb9900438fb53538548cd68d23beb9e9a20"
+    },
+    {
+      "path": "Experimental/VehicleHmiPrototype/Source/ShaderInterchange.js",
+      "mode": "100644",
+      "gitBlob": "a554672dedff6e5b4dda72b639a4fd69f14a2a31",
+      "bytes": 7072,
+      "sha256": "24341c54dfb63e949bceb2d199dd716b6d14434d73e2d82f7ff3df4eae44267f"
+    },
+    {
+      "path": "Experimental/VehicleHmiPrototype/Source/ShadowProjection.js",
+      "mode": "100644",
+      "gitBlob": "8f2cabd579ef74b08521fc9e57866335ace613c3",
+      "bytes": 10506,
+      "sha256": "62887cdf2ea889f5a54d7e7bbdf9a32a14fefeb2a193f4fc844b3149e8cb71fa"
+    },
+    {
+      "path": "Experimental/VehicleHmiPrototype/Source/SlateCabinFittings.js",
+      "mode": "100644",
+      "gitBlob": "75c5ded92a0ddea7f51347ff05de1a9c40646db4",
+      "bytes": 2330,
+      "sha256": "0cd8c124bb8f5ca3deaf955305591ac1d5b3267e7a811549b80dac202065bbbb"
+    },
+    {
+      "path": "Experimental/VehicleHmiPrototype/Source/SlateCabinLayout.js",
+      "mode": "100644",
+      "gitBlob": "cb0919c397f6c2879d449bdf919f82eee3bf443e",
+      "bytes": 2160,
+      "sha256": "8020c3f28cfa9421a66e5af22ed41857023b8f7edf5272693c4159cf7f71fa68"
+    },
+    {
+      "path": "Experimental/VehicleHmiPrototype/Source/SmokeSequence.js",
+      "mode": "100644",
+      "gitBlob": "89fa45b85b86bfb9c090ccb88c4051dabdf728d2",
+      "bytes": 9830,
+      "sha256": "78a6c525f9a67fb6671b2cee63c5a320f14d40625bd83eba6a66de9427c00dec"
+    },
+    {
+      "path": "Experimental/VehicleHmiPrototype/Source/SparkCollision.js",
+      "mode": "100644",
+      "gitBlob": "9ddcd78d5014d29e9487bfc6613f30fd572cc33b",
+      "bytes": 3425,
+      "sha256": "8cfe5e24d92497b9042b9ff40c75a91f44cecbe2bb793ff7f17d3d9a0e0538e3"
+    },
+    {
+      "path": "Experimental/VehicleHmiPrototype/Source/SparkSequence.js",
+      "mode": "100644",
+      "gitBlob": "8cad3394f032757dfe7eeb51917b418e34c61323",
+      "bytes": 14550,
+      "sha256": "be6663673c4062404009deaf9f022666cfedc32ada50af4bfceee5611fdb901f"
+    },
+    {
+      "path": "Experimental/VehicleHmiPrototype/Source/StressLayout.js",
+      "mode": "100644",
+      "gitBlob": "f7f2957e97a038c7369b232ccdfcea74c649b301",
+      "bytes": 9673,
+      "sha256": "7f3a3fa62d471460e64aaea398555878b0ab428b52de294286781dfc53589631"
+    },
+    {
+      "path": "Experimental/VehicleHmiPrototype/Source/StressSequence.js",
+      "mode": "100644",
+      "gitBlob": "2917c4d317fec5902db425164e6fe11cd3f1bb55",
+      "bytes": 7733,
+      "sha256": "185a775861f215f31bae1eada21e05ab388e5fa1f4a71f766d1060d89c353fff"
+    },
+    {
+      "path": "Experimental/VehicleHmiPrototype/Source/SurfaceCardDepot.js",
+      "mode": "100644",
+      "gitBlob": "8cbbf4dbc3da03419d1fa49ddce4a73cba58102a",
+      "bytes": 21076,
+      "sha256": "89cfbe3e48e23d723a306217448fdb43adbed65590357569f5cbbac85f28477b"
+    },
+    {
+      "path": "Experimental/VehicleHmiPrototype/Source/SurfaceProjection.js",
+      "mode": "100644",
+      "gitBlob": "6dd0ffcbba12382bce9b795ba0d8ae34999a957d",
+      "bytes": 6582,
+      "sha256": "e1ff13e70e795f292273ad11516d9e75980f3de3161ddf5fd8bc90169adb307a"
+    },
+    {
+      "path": "Experimental/VehicleHmiPrototype/Source/TrainingSequence.js",
+      "mode": "100644",
+      "gitBlob": "fb9d115f10325d6be6cdd18149e3ae91148add2d",
+      "bytes": 21321,
+      "sha256": "9868f703be8cd9e0ba0b8dd34c8dfda18cb3ce30f0a4a0fecf7bf5b3d110f2bf"
+    },
+    {
+      "path": "Experimental/VehicleHmiPrototype/Source/TransformProjection.js",
+      "mode": "100644",
+      "gitBlob": "7d669de08c6dd7019ccd9d075f9bdc22bd92b6b3",
+      "bytes": 14507,
+      "sha256": "b032bfa6eff2252e8356476c7578fd7fb42a87436698fd8bd1f05383c6d90cbd"
+    },
+    {
+      "path": "Experimental/VehicleHmiPrototype/Source/TransientLights.js",
+      "mode": "100644",
+      "gitBlob": "dafb476382fb9de3a9f30f3d1560305fcb103d69",
+      "bytes": 3673,
+      "sha256": "66e15d99133c1914545251758e2d6f39f15da8b63d4f411c395c4c9254919951"
+    },
+    {
+      "path": "Experimental/VehicleHmiPrototype/Source/TyreMarkDepot.js",
+      "mode": "100644",
+      "gitBlob": "ec165fdd38e690b6321f660719f895aaa47508bf",
+      "bytes": 13223,
+      "sha256": "0d4b501115dbef91d50c4337251f0465d7d4d2a9eee4c6e0f489153a5ede9bc1"
+    },
+    {
+      "path": "Experimental/VehicleHmiPrototype/Source/TyreSlipSolver.js",
+      "mode": "100644",
+      "gitBlob": "be41b73a4c6c40fe5320217bd5915687c29672ef",
+      "bytes": 6913,
+      "sha256": "edeecb4ffcaa52e169b4610fcccd13bce47bc5be48b08aeb54da9bf243116454"
+    },
+    {
+      "path": "Experimental/VehicleHmiPrototype/Source/TyreThermalSolver.js",
+      "mode": "100644",
+      "gitBlob": "c76e7f4cc53dbf31c7bf16fdc7e399b9893f8846",
+      "bytes": 21864,
+      "sha256": "e68616622ac700de1b92a2453e7c2af90e04d42b1003ae7dabb990bee880d5bf"
+    },
+    {
+      "path": "Experimental/VehicleHmiPrototype/Source/VarianceIntegrator.js",
+      "mode": "100644",
+      "gitBlob": "4bcb9d0fbf2518b919f937624b223364ddfb75a5",
+      "bytes": 7616,
+      "sha256": "e9dd94b12fa354261276ad1c59e030bee683c13cf6d2518f43520d2518036540"
+    },
+    {
+      "path": "Experimental/VehicleHmiPrototype/Source/VehicleAppearance.js",
+      "mode": "100644",
+      "gitBlob": "3ef4e79641be09bab0bfbac9f57485450ecd9e26",
+      "bytes": 1912,
+      "sha256": "0bcd851815df177defc1e99503c3b4f2ccf6d44916a69baa814e85a15be8d608"
+    },
+    {
+      "path": "Experimental/VehicleHmiPrototype/Source/VehiclePicking.js",
+      "mode": "100644",
+      "gitBlob": "54c6b9a290577f10ae945636e51d3f3966c1f102",
+      "bytes": 1715,
+      "sha256": "7e3c1d85a6e36ac12f655fcb8b49dc7fc631dcd60023843321cd0309dbbb6679"
+    },
+    {
+      "path": "Experimental/VehicleHmiPrototype/Source/VehicleSolver.js",
+      "mode": "100644",
+      "gitBlob": "a0cc30564a1760932ada019d2db470589b0cbf1c",
+      "bytes": 63704,
+      "sha256": "3dd6a3b0938a7387032bc7bb84d5ddfb201498e4f5cfbb6d2093d0a2e6ec50ea"
+    },
+    {
+      "path": "Experimental/VehicleHmiPrototype/Source/VehicleSpecification.js",
+      "mode": "100644",
+      "gitBlob": "e76779117b3eaeed9eea59daf6ad1d04b7cfc03c",
+      "bytes": 13283,
+      "sha256": "5dc6c29af0abef5377964f7b34cab2e1454c71e76affbea4df7e83fe9dea12b3"
+    },
+    {
+      "path": "Experimental/VehicleHmiPrototype/Source/VehicleVisualState.js",
+      "mode": "100644",
+      "gitBlob": "a334f9488bf85e9b97bdf41c4aeb1998af72f704",
+      "bytes": 855,
+      "sha256": "e827685780695fd6c92b345b1743acd014f28c976d286a11a6c1bf4704b1f856"
+    },
+    {
+      "path": "Experimental/VehicleHmiPrototype/Style/Fonts/OFL.txt",
+      "mode": "100644",
+      "gitBlob": "a0eedfbf0df0e9ef2cc76bb0943bcde49c3b3a25",
+      "bytes": 4388,
+      "sha256": "7ec15e79c59bc14b86436a17e5eb7926b46cbcaeb08e1a7e6c110b415e6eb2a2"
+    },
+    {
+      "path": "Experimental/VehicleHmiPrototype/Style/Fonts/dm-sans-latin-300-normal.woff2",
+      "mode": "100644",
+      "gitBlob": "f555ab546ce725ad300dc52249005b7164099078",
+      "bytes": 13708,
+      "sha256": "80f13c410ec41f210a5553e7f420f8a51f459180019274df0b3faea314916f90"
+    },
+    {
+      "path": "Experimental/VehicleHmiPrototype/Style/Fonts/dm-sans-latin-400-normal.woff2",
+      "mode": "100644",
+      "gitBlob": "0b8bc556cf4b4cbd5c82418947a159f9aaa3c6cc",
+      "bytes": 14200,
+      "sha256": "4ab51eb2cd7305d177187908d6397474d4520663f6c6e572feb0a64f4fa80006"
+    },
+    {
+      "path": "Experimental/VehicleHmiPrototype/Style/Fonts/dm-sans-latin-500-normal.woff2",
+      "mode": "100644",
+      "gitBlob": "48e161289603aa2d4c9b83f294dc73af969b339a",
+      "bytes": 14304,
+      "sha256": "19bf1984956517c35c2bd35b6cdedac12a21d6fcd3596c614ecdfb88b648909d"
+    },
+    {
+      "path": "Experimental/VehicleHmiPrototype/Style/FrontierEditor.css",
+      "mode": "100644",
+      "gitBlob": "7463374b2d4bb19cbb635f19da7e255cb8a2a9ae",
+      "bytes": 32681,
+      "sha256": "e873c58c729dacad85e182876666942c5917cbd74b0edb9fa1a7fd9d9bd6adcb"
+    },
+    {
+      "path": "Experimental/VehicleHmiPrototype/Tools/DrivingCamera.test.mjs",
+      "mode": "100644",
+      "gitBlob": "40799f694855298e3eac91a1a417e8606f9f540f",
+      "bytes": 2135,
+      "sha256": "beb8fdd1caa5aa5ecbbe591092f72de2e42c076895c20e7a1141f560488a9869"
+    },
+    {
+      "path": "Experimental/VehicleHmiPrototype/Tools/HeadlessHarness.mjs",
+      "mode": "100644",
+      "gitBlob": "bf1d636d2f821d8d95383a65d031c71c1dec6641",
+      "bytes": 11156,
+      "sha256": "d9dce48febe384f4a38d0109b2ae17f382d0c9feb34ee62531f0f82bf1af119d"
+    },
+    {
+      "path": "Experimental/VehicleHmiPrototype/Tools/JoltWorld.test.mjs",
+      "mode": "100644",
+      "gitBlob": "30f2a071579882be4c773c59d5ba35e3f7a3a07b",
+      "bytes": 4057,
+      "sha256": "6357d64d5ca116695e9db53f2987153cb4d8e2ed65e66b597281b8dc8ee043cd"
+    },
+    {
+      "path": "Experimental/VehicleHmiPrototype/Tools/ScreenColour.test.mjs",
+      "mode": "100644",
+      "gitBlob": "114eec615bb91bd5822a4d8b1ce643f3dadfedc7",
+      "bytes": 1366,
+      "sha256": "0c7b4efd675f78cb42a0df4555abfbd6030b4282391b889127edebefc13c351b"
+    },
+    {
+      "path": "Experimental/VehicleHmiPrototype/Tools/Serve.py",
+      "mode": "100644",
+      "gitBlob": "4a4a4d8457a2c54e0b2e2dacde0436b3b0f63dd9",
+      "bytes": 389,
+      "sha256": "d311841e476e0de6bb5e6be6bedbdf1839c02d4dd9dfcad8ece928ee9d1d8be9"
+    },
+    {
+      "path": "Experimental/VehicleHmiPrototype/Tools/SlateIntegrationHooks.mjs",
+      "mode": "100644",
+      "gitBlob": "2a1207545507236f02a16d5608a0441213d03ff3",
+      "bytes": 1186,
+      "sha256": "faaae0233a8cce52cdf63405c6448431eef73c52bb36f1c56ee7a604ebc6b9b5"
+    },
+    {
+      "path": "Experimental/VehicleHmiPrototype/Tools/SlatePort.test.mjs",
+      "mode": "100644",
+      "gitBlob": "8563b4b3f0ab5abc7a83ecbf3fec51e2077996d3",
+      "bytes": 5997,
+      "sha256": "7570b465e1a84826416ffeaa2796a95fd19b5773cea6ab86362f8e56dc633dc8"
+    },
+    {
+      "path": "Experimental/VehicleHmiPrototype/Tools/VehicleAppearance.test.mjs",
+      "mode": "100644",
+      "gitBlob": "5c5cdd87d63718c296082c08ef3f896c1904b66e",
+      "bytes": 5530,
+      "sha256": "959cd79e402cd81805a7206cef4d19525278d6dce5758b5c6e3a5e161f5b78f8"
+    },
+    {
+      "path": "Experimental/VehicleHmiPrototype/Tools/VehicleEffects.test.mjs",
+      "mode": "100644",
+      "gitBlob": "f4bcbc08e2b0685690de5e565aa39e811f9980ac",
+      "bytes": 8644,
+      "sha256": "803e8d089cf7f5a1ef9bcb3df7c8ee95f7347f31f954019298857ecee801dfdd"
+    },
+    {
+      "path": "Experimental/VehicleHmiPrototype/Tools/VehicleEffectsHooks.mjs",
+      "mode": "100644",
+      "gitBlob": "2df22be7426ca0e60ed0c15dd7123d788d21af10",
+      "bytes": 2009,
+      "sha256": "14dc7c550cef2f5b1e889065cf2ed93a7503905f8c31d7980029b63be4e92e05"
+    },
+    {
+      "path": "Experimental/VehicleHmiPrototype/Tools/VehicleStability.mjs",
+      "mode": "100644",
+      "gitBlob": "d6a61bd88f23ced80f5ac6bd3231ee4e7694c6f1",
+      "bytes": 9923,
+      "sha256": "780a1e4896912683c25d836c50a56c26c2e72fdf93693d9e3eef537d64963a13"
+    },
+    {
+      "path": "Experimental/VehicleHmiPrototype/Tools/WheelHmiRegression.test.mjs",
+      "mode": "100644",
+      "gitBlob": "e619660a47053d44a85a76da9d46441186ded166",
+      "bytes": 4110,
+      "sha256": "aa68f855e004338838436226e54edd0d9d4b5b9d31de48d7df5dba91c1cf6731"
+    },
+    {
+      "path": "Experimental/VehicleHmiPrototype/Tools/package-lock.json",
+      "mode": "100644",
+      "gitBlob": "691dffb2830426b95022c0f5c216c7431816671e",
+      "bytes": 1757,
+      "sha256": "df48bc68576db1e39fbbbcb0012c99f39181445c6eaa2edd480603877f26d950"
+    },
+    {
+      "path": "Experimental/VehicleHmiPrototype/Tools/package.json",
+      "mode": "100644",
+      "gitBlob": "662f7fb9de5fd12ba8b16cdcd0d6847734a4c637",
+      "bytes": 629,
+      "sha256": "84c765472d6a510b649df1280acb9a8185bc8fb6f333992fc5dfaefd813e355a"
+    },
+    {
+      "path": "Experimental/VehicleHmiPrototype/index.html",
+      "mode": "100644",
+      "gitBlob": "c1d6ac3db60f4fd0f7ccfd42644478d79a782785",
+      "bytes": 3350,
+      "sha256": "ac879f6d1c813693998de3d313c11c2ee56e902ec0bbdfd5dbca02d55d3321f6"
+    },
+    {
+      "path": "Experimental/VehicleHmiPrototype/package-lock.json",
+      "mode": "100644",
+      "gitBlob": "8b833357fad7f299754049db4c94a9dc2e258428",
+      "bytes": 583,
+      "sha256": "c51d54505eac282025a9dd20859121de6ea910eeb74129c585a189df43994f8c"
+    },
+    {
+      "path": "Experimental/VehicleHmiPrototype/package.json",
+      "mode": "100644",
+      "gitBlob": "f828291827977c66d41dc71e65e5a3ee2272209c",
+      "bytes": 263,
+      "sha256": "f5b46731ff4f4c446092bb7f7dbcd5e44719cb7297ab7c90a3f49b91fcffa588"
+    },
+    {
+      "path": "Experimental/interactive-vehicle-hmi-configurator/index.html",
+      "mode": "100644",
+      "gitBlob": "e4640de7170ff70b6774d3398f56623996041c7c",
+      "bytes": 324,
+      "sha256": "6f505368e7333510591337377c0321f4420293107936717155ebe6f1cce19eb0"
+    },
+    {
+      "path": "Experimental/interactive-vehicle-hmi-configurator/package-lock.json",
+      "mode": "100644",
+      "gitBlob": "cbc092e5996064e0a65f0b7b9bc3ca25167e1c20",
+      "bytes": 115045,
+      "sha256": "ffca3c9beecfbd7e186d45394fa0ff79fd2fa057a9e24cf0a91967c4fb3403e0"
+    },
+    {
+      "path": "Experimental/interactive-vehicle-hmi-configurator/package.json",
+      "mode": "100644",
+      "gitBlob": "f153ca497c4bc64cc5dffebc12e14d0351c0789b",
+      "bytes": 829,
+      "sha256": "ce91ba65ec927ac7a8c6d82e9191cdf7e45fc154a981bfef86573d5057c3b50c"
+    },
+    {
+      "path": "Experimental/interactive-vehicle-hmi-configurator/src/App.tsx",
+      "mode": "100644",
+      "gitBlob": "9c44f7637e461b90de470f1268d204cf4a9f2762",
+      "bytes": 4802,
+      "sha256": "6df12c7228c39b884d6a348bf804b3e93d9ef5d73e483262b9f11b0f72559216"
+    },
+    {
+      "path": "Experimental/interactive-vehicle-hmi-configurator/src/components/Scene.tsx",
+      "mode": "100644",
+      "gitBlob": "5b75c1b41ae4f1762ffa2d12706a713721255240",
+      "bytes": 2690,
+      "sha256": "771c38d49720f25c802d8bcbf462f37814f8ad75c335367818300f261928ae11"
+    },
+    {
+      "path": "Experimental/interactive-vehicle-hmi-configurator/src/components/Truck.tsx",
+      "mode": "100644",
+      "gitBlob": "bda5754e6058a3c3cb1f1ec7838b81f7553ecf70",
+      "bytes": 28536,
+      "sha256": "c9b1296004b5144b5a1e1980cc41a24311471180c012d12856ebf32361488eba"
+    },
+    {
+      "path": "Experimental/interactive-vehicle-hmi-configurator/src/components/hmi/ClimateBar.tsx",
+      "mode": "100644",
+      "gitBlob": "ca998e845c71ae6070e460ab41d815dc2dbf82ac",
+      "bytes": 4117,
+      "sha256": "1f108596d152ca5c0011fa213cc0bf46b7b7d66c6deb6c8c3e357ae54598cead"
+    },
+    {
+      "path": "Experimental/interactive-vehicle-hmi-configurator/src/components/hmi/ConfigPanel.tsx",
+      "mode": "100644",
+      "gitBlob": "ccba44ee70b3f43b9133c5cd3e1840d64234df34",
+      "bytes": 14137,
+      "sha256": "4dd2d13dbe4a95311a872b9b765322ee7f0b4cf3585bba9c65b8c9d41ad52c0b"
+    },
+    {
+      "path": "Experimental/interactive-vehicle-hmi-configurator/src/components/hmi/DragGhost.tsx",
+      "mode": "100644",
+      "gitBlob": "3202d592c0ee1589c8516b195bc1420cc7059371",
+      "bytes": 3038,
+      "sha256": "2e86c4de436c27bc1d333f11ef534318e0480616834c507c91667499d554e7a3"
+    },
+    {
+      "path": "Experimental/interactive-vehicle-hmi-configurator/src/components/hmi/LeftRail.tsx",
+      "mode": "100644",
+      "gitBlob": "ae56c56b5dc26013aeb6347cb5f8db2001e3fdd6",
+      "bytes": 2994,
+      "sha256": "f122791c2fd97d0db49bfb82f8c8132b012de6c0d6e9ce3eb8460c7dd3d17d5e"
+    },
+    {
+      "path": "Experimental/interactive-vehicle-hmi-configurator/src/components/hmi/SpecCard.tsx",
+      "mode": "100644",
+      "gitBlob": "cb55fa4a89a7634d702ecc7e7fbd839238a3ae77",
+      "bytes": 3162,
+      "sha256": "9626553442ace70490120c6bfe5e97792bccc23ae0b30d3f131a8790f928d540"
+    },
+    {
+      "path": "Experimental/interactive-vehicle-hmi-configurator/src/components/hmi/TopBar.tsx",
+      "mode": "100644",
+      "gitBlob": "68f874a84882649b4328dcbae8b461f9565ac950",
+      "bytes": 3662,
+      "sha256": "f58eb4a27ba70e88e06a03992f6d66f014921f979d7612011df13d3c605c492a"
+    },
+    {
+      "path": "Experimental/interactive-vehicle-hmi-configurator/src/data/config.ts",
+      "mode": "100644",
+      "gitBlob": "20e1df5c65c1834c602041c31f30ee02ed36bf7d",
+      "bytes": 2516,
+      "sha256": "fe5c26414a165c89f24546b2ebcf5eb34221f56ee726bffe198ade248cda0f27"
+    },
+    {
+      "path": "Experimental/interactive-vehicle-hmi-configurator/src/hooks/useMaterialDrag.ts",
+      "mode": "100644",
+      "gitBlob": "cde98327c09de68916d50cda17b7b9ec15c1a051",
+      "bytes": 2350,
+      "sha256": "1fe2eafea84279323251632874d1874acca4e81ad5e3d10d53765781479676f0"
+    },
+    {
+      "path": "Experimental/interactive-vehicle-hmi-configurator/src/index.css",
+      "mode": "100644",
+      "gitBlob": "f1d8c73cdcf9eaacb01fec99963ad78d591305ae",
+      "bytes": 23,
+      "sha256": "42070e0b45bb201b2b838a52aaaa6e965f964e0b542d97f1fe517fe59c4b75a8"
+    },
+    {
+      "path": "Experimental/interactive-vehicle-hmi-configurator/src/main.tsx",
+      "mode": "100644",
+      "gitBlob": "12fa35b9813dddf7047f8fb1059b9cac5f601bd2",
+      "bytes": 230,
+      "sha256": "f268dc44f71240012de0cfb1569d8ac906265cccd45eb3a99059c1a663d2f830"
+    },
+    {
+      "path": "Experimental/interactive-vehicle-hmi-configurator/src/store.ts",
+      "mode": "100644",
+      "gitBlob": "bc4262e235695aeb654fab632c41a5fe64000f3f",
+      "bytes": 1870,
+      "sha256": "00fe5a6a59acf41f90c6eb5f0a5ae474a615f25d74976b6b61a2b6572c832000"
+    },
+    {
+      "path": "Experimental/interactive-vehicle-hmi-configurator/src/utils/cn.ts",
+      "mode": "100644",
+      "gitBlob": "a5ef193506d07d0459fec4f187af08283094d7c8",
+      "bytes": 169,
+      "sha256": "d1f1e0d62cb8d8d1e04c26e14de842d8a151f75812d81b046c65b5d1fe8e4b27"
+    },
+    {
+      "path": "Experimental/interactive-vehicle-hmi-configurator/tsconfig.json",
+      "mode": "100644",
+      "gitBlob": "d06d38f6f7df2f4bc4a1a3343376f8d01f25707f",
+      "bytes": 681,
+      "sha256": "2a760f56fa49b96935783a2c3b4ce63d67e4547fdace88c4f4361a0c4fc10848"
+    },
+    {
+      "path": "Experimental/interactive-vehicle-hmi-configurator/vite.config.ts",
+      "mode": "100644",
+      "gitBlob": "1f06afd4b79b46f28b416d4e339b51ef76d68bb3",
+      "bytes": 538,
+      "sha256": "18dd184b9091357fe23797ee047138e6af7663b59697ac45d6c3c219522db9fa"
+    }
+  ]
+}

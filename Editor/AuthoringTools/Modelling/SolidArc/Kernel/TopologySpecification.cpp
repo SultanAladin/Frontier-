@@ -394,7 +394,7 @@ int BrepBody::AddLoop(int Face, bool Outer) noexcept
     return static_cast<int>(Loops.size() - 1);
 }
 
-void BrepBody::AddNaturalBoundary(int Face, double Tolerance) noexcept
+void BrepBody::AddNaturalBoundary(int Face, double Tolerance, bool KnotEdges) noexcept
 {
     const NurbsSurface& S = Faces[Face].Surface;
     const double U0 = S.DomainStartU(), U1 = S.DomainEndU(), V0 = S.DomainStartV(), V1 = S.DomainEndV();
@@ -405,10 +405,32 @@ void BrepBody::AddNaturalBoundary(int Face, double Tolerance) noexcept
     for (Side& Sd : Sides)
     {
         if (Sd.Curve.Length() <= Tolerance * 4.0) continue;                             // degenerate side (pole / apex)
-        bool Rev = false;
-        int E = FindCoincidentEdge(Sd.Curve, Tolerance, Rev);
-        if (E < 0) { E = AddEdge(Sd.Curve, Tolerance); Rev = false; }
-        AddCoedge(E, Sd.Reversed != Rev, Face, Loop);
+        std::vector<double> Cuts{ Sd.Curve.DomainStart() };
+        // 📝 Concatenated patches retain degree-multiplicity knots at their original chart boundaries.
+        // Splitting only these knots preserves short-to-long edge incidence without changing the surface.
+        if (KnotEdges)
+        {
+            const auto& Knots = Sd.Curve.Knots;
+            for (size_t I = 0; I < Knots.size();)
+            {
+                size_t J = I + 1;
+                while (J < Knots.size() && Knots[J] == Knots[I]) ++J;
+                if (J - I >= static_cast<size_t>(Sd.Curve.Degree) &&
+                    Knots[I] > Sd.Curve.DomainStart() && Knots[I] < Sd.Curve.DomainEnd()) Cuts.push_back(Knots[I]);
+                I = J;
+            }
+        }
+        Cuts.push_back(Sd.Curve.DomainEnd());
+        const size_t Segments = Cuts.size() - 1;
+        for (size_t I = 0; I < Segments; ++I)
+        {
+            const size_t K = Sd.Reversed ? Segments - 1 - I : I;
+            NurbsCurve Curve = Segments == 1 ? Sd.Curve : Sd.Curve.Trimmed(Cuts[K], Cuts[K + 1]);
+            bool Rev = false;
+            int E = FindCoincidentEdge(Curve, Tolerance, Rev);
+            if (E < 0) { E = AddEdge(Curve, Tolerance); Rev = false; }
+            AddCoedge(E, Sd.Reversed != Rev, Face, Loop);
+        }
     }
 }
 
@@ -615,6 +637,43 @@ std::vector<Vec3> BrepBody::EdgePolyline(int Edge, double ChordTolerance) const 
     return Out;
 }
 
+int BrepBody::SplitEdge(int Edge, double T) noexcept
+{
+    if (Edge < 0 || Edge >= static_cast<int>(Edges.size())) return -1;
+    const double T0 = Edges[Edge].Curve.DomainStart(), T1 = Edges[Edge].Curve.DomainEnd();
+    const double Margin = ScalarCriteria::ParametricEpsilon * std::max(1.0, T1 - T0);
+    if (T <= T0 + Margin || T >= T1 - Margin) return -1;
+
+    auto [Head, Tail] = Edges[Edge].Curve.Split(T);
+    ClassifyEdgeCurve(Head); ClassifyEdgeCurve(Tail);
+    const int Vertex = static_cast<int>(Vertices.size());                              // interior to the edge: never merged
+    Vertices.push_back(BrepVertex{ Head.EndPoint() });
+
+    const int OldEnd = Edges[Edge].VertexEnd;
+    const std::vector<int> Users = Edges[Edge].Coedges;
+    Edges[Edge].Curve = std::move(Head); Edges[Edge].VertexEnd = Vertex;
+    BrepEdge Second; Second.Curve = std::move(Tail); Second.VertexStart = Vertex; Second.VertexEnd = OldEnd;
+    const int NewEdge = static_cast<int>(Edges.size());
+    Edges.push_back(std::move(Second));
+
+    for (int Ce : Users)
+    {
+        BrepCoedge Copy = Coedges[Ce];                                                  // walks the second piece
+        Copy.Edge = NewEdge; Copy.Trace.clear();
+        Coedges[Ce].Trace.clear();
+        const int NewCe = static_cast<int>(Coedges.size());
+        Coedges.push_back(Copy);
+        Edges[NewEdge].Coedges.push_back(NewCe);
+        if (Copy.Loop < 0 || Copy.Loop >= static_cast<int>(Loops.size())) continue;
+        std::vector<int>& Walk = Loops[Copy.Loop].Coedges;
+        auto At = std::find(Walk.begin(), Walk.end(), Ce);
+        if (At == Walk.end()) continue;
+        // Forward the loop meets the first piece then the second; reversed it meets the second piece first.
+        if (Copy.Reversed) Walk.insert(At, NewCe); else Walk.insert(At + 1, NewCe);
+    }
+    return Vertex;
+}
+
 std::vector<Vec2> BrepBody::CoedgeTrace(int Coedge, std::vector<double>* Parameters, int Samples) const noexcept
 {
     const BrepCoedge& Ce = Coedges[Coedge];
@@ -684,6 +743,41 @@ BrepBody::FaceTriangles BrepBody::TessellateFace(int Face, double ChordTolerance
         //    the rings, ring edges at the lattice lines, the planar arrangement is walked into cells, and each small cell is
         //    ear clipped. Every triangle therefore spans at most one lattice cell, as on a natural face.
         const NurbsSurface& S = F.Surface;
+        // A trimmed planar face has no surface lattice to clip. Tessellate its boundary directly so
+        // reversing a cap cannot make the planar-cell walker discard the entire (valid) polygon.
+        // This is especially important for radial sector caps, whose two meridian ends have opposite
+        // topological orientations after Orient().
+        if (S.Classification == SurfaceClassification::Plane)
+        {
+            std::vector<Vec2> P;
+            std::vector<std::vector<uint32_t>> Rings;
+            for (int L : F.Loops)
+            {
+                std::vector<uint32_t> Ring;
+                for (int C : Loops[L].Coedges)
+                {
+                    const std::vector<Vec2> Trace = CoedgeTrace(C);
+                    for (size_t I = 0; I + 1 < Trace.size(); ++I)
+                    {
+                        if (!Ring.empty() && P[Ring.back()].Distance(Trace[I]) <= 1e-9) continue;
+                        Ring.push_back(static_cast<uint32_t>(P.size()));
+                        P.push_back(Trace[I]);
+                    }
+                }
+                if (Ring.size() > 1 && P[Ring.front()].Distance(P[Ring.back()]) <= 1e-9) Ring.pop_back();
+                if (Ring.size() >= 3) Rings.push_back(std::move(Ring));
+            }
+            Out.Parameters = P;
+            Out.Positions.reserve(P.size()); Out.Normals.reserve(P.size());
+            for (const Vec2& Q : P) { Out.Positions.push_back(S.Sample(Q.X, Q.Y)); Out.Normals.push_back(S.Normal(Q.X, Q.Y)); }
+            Out.Triangles = TriangulatePolygon(P, Rings);
+            if (F.Reversed)
+            {
+                for (Vec3& N : Out.Normals) N = N * -1.0;
+                for (size_t T = 0; T + 2 < Out.Triangles.size(); T += 3) std::swap(Out.Triangles[T + 1], Out.Triangles[T + 2]);
+            }
+            return Out;
+        }
         const double U0 = S.DomainStartU(), U1 = S.DomainEndU(), V0 = S.DomainStartV(), V1 = S.DomainEndV();
         const double Eps = 1e-9 * (U1 - U0 + V1 - V0);
         std::vector<double> SamplesU{ U0, U1 }, SamplesV{ V0, V1 };
@@ -695,7 +789,7 @@ BrepBody::FaceTriangles BrepBody::TessellateFace(int Face, double ChordTolerance
             for (int J = 0; J < T.RowCount; ++J) SamplesV.push_back(T.Parameters[static_cast<size_t>(J) * T.ColumnCount].Y);
         }
         std::vector<Vec2> P;
-        std::vector<PlanarEdge> Edges;
+        std::vector<PlanarEdge> PlanarSegments;
         // ring points
         std::vector<std::vector<int>> Rings;
         for (int L : F.Loops)
@@ -774,9 +868,9 @@ BrepBody::FaceTriangles BrepBody::TessellateFace(int Face, double ChordTolerance
                 std::vector<Cut>& Cs = RingCuts[RingEdgeFirst[R][0] + static_cast<int>(I)];
                 std::sort(Cs.begin(), Cs.end(), [](const Cut& X, const Cut& Y) { return X.Along < Y.Along; });
                 int Prev = Rings[R][I];
-                for (const Cut& C : Cs) { if (C.Point != Prev) Edges.push_back({ Prev, C.Point }); Prev = C.Point; }
+                for (const Cut& C : Cs) { if (C.Point != Prev) PlanarSegments.push_back({ Prev, C.Point }); Prev = C.Point; }
                 int Last = Rings[R][(I + 1) % Rings[R].size()];
-                if (Last != Prev) Edges.push_back({ Prev, Last });
+                if (Last != Prev) PlanarSegments.push_back({ Prev, Last });
             }
         // lattice segments: sub-segments whose midpoint lies inside the domain, both directions
         for (Segment& Sg : Segments)
@@ -798,17 +892,17 @@ BrepBody::FaceTriangles BrepBody::TessellateFace(int Face, double ChordTolerance
                 if (Na < 0) { Na = Sg.AlongU ? LatticeAt(Sg.K + (Ta > 0.5 ? 1 : 0), Sg.Line) : LatticeAt(Sg.Line, Sg.K + (Ta > 0.5 ? 1 : 0)); Chain[K].second = Na; }
                 if (Nb < 0) { Nb = Sg.AlongU ? LatticeAt(Sg.K + (Tb > 0.5 ? 1 : 0), Sg.Line) : LatticeAt(Sg.Line, Sg.K + (Tb > 0.5 ? 1 : 0)); Chain[K + 1].second = Nb; }
                 if (Na == Nb) continue;
-                Edges.push_back({ Na, Nb }); Edges.push_back({ Nb, Na });
+                PlanarSegments.push_back({ Na, Nb }); PlanarSegments.push_back({ Nb, Na });
             }
         }
         // cells → triangles
-        std::vector<std::vector<std::vector<int>>> Cells = PlanarCells(P, Edges);
+        std::vector<std::vector<std::vector<int>>> Cells = PlanarCells(P, PlanarSegments);
         for (const std::vector<std::vector<int>>& Cell : Cells)
         {
             std::vector<std::vector<uint32_t>> CellRings;
             for (const std::vector<int>& Ring : Cell)
             {
-                std::vector<uint32_t> Rg; for (int Ed : Ring) Rg.push_back(static_cast<uint32_t>(Edges[Ed].From));
+                std::vector<uint32_t> Rg; for (int Ed : Ring) Rg.push_back(static_cast<uint32_t>(PlanarSegments[Ed].From));
                 CellRings.push_back(std::move(Rg));
             }
             std::vector<uint32_t> Tri = TriangulatePolygon(P, CellRings);
@@ -855,11 +949,13 @@ double BrepBody::Area() const noexcept
 
 Box3 BrepBody::Bounds() const noexcept
 {
-    // Natural faces are bounded by their pole hull; trimmed caps sit on padded planes, so use their edges instead.
+    // A curved trimmed face can bulge beyond every boundary edge (e.g. the
+    // remaining 7/8 of a sphere). Its positive-weight NURBS pole hull is a safe
+    // conservative bound. Only planar trimmed caps can use boundary-only bounds.
     Box3 B;
     for (const BrepFace& F : Faces)
     {
-        if (F.Natural) { B.Include(F.Surface.Bounds()); continue; }
+        if (F.Natural || F.Surface.Classification != SurfaceClassification::Plane) { B.Include(F.Surface.Bounds()); continue; }
         for (int L : F.Loops) for (int C : Loops[L].Coedges) B.Include(Edges[Coedges[C].Edge].Curve.Bounds());
     }
     return B;
@@ -925,11 +1021,89 @@ BrepBody BrepBody::Transformed(const Mat4& M) const noexcept
 //                                                  GENERIC BUILDERS
 //------------------------------------------------------------------------------------------------------------------------
 
-Deliver<BrepBody> BrepBody::Sew(const std::vector<NurbsSurface>& Surfaces, double Tolerance, bool Cap) noexcept
+// Reconcile unequal boundary segmentation without inserting knots into neighbouring surfaces.
+// Only open-edge endpoints are candidates; a crossing in the interior of two edges is not a join.
+BrepBody BrepBody::ReconcileBoundarySplits(double Tolerance) const noexcept
+{
+    const BrepBody& Source = *this;
+    std::vector<int> Endpoints;
+    for (const BrepEdge& Edge : Source.Edges)
+        if (Edge.Coedges.size() == 1)
+        {
+            Endpoints.push_back(Edge.VertexStart);
+            Endpoints.push_back(Edge.VertexEnd);
+        }
+    std::sort(Endpoints.begin(), Endpoints.end());
+    Endpoints.erase(std::unique(Endpoints.begin(), Endpoints.end()), Endpoints.end());
+    std::vector<std::vector<NurbsCurve>> Pieces(Source.Edges.size());
+    for (size_t Index = 0; Index < Source.Edges.size(); ++Index)
+    {
+        const BrepEdge& Edge = Source.Edges[Index];
+        const NurbsCurve& Curve = Edge.Curve;
+        std::vector<double> Cuts{ Curve.DomainStart(), Curve.DomainEnd() };
+        if (Edge.Coedges.size() == 1)
+        {
+            Vec3 Low = Curve.StartPoint(), High = Low;
+            bool PositiveWeights = true;
+            for (const Vec4& Pole : Curve.Poles)
+            {
+                PositiveWeights = PositiveWeights && Pole.W > 0;
+                const Vec3 Point = Pole.Divide();
+                Low = Vec3(std::min(Low.X, Point.X), std::min(Low.Y, Point.Y), std::min(Low.Z, Point.Z));
+                High = Vec3(std::max(High.X, Point.X), std::max(High.Y, Point.Y), std::max(High.Z, Point.Z));
+            }
+            for (int Vertex : Endpoints)
+            {
+                const Vec3 Point = Source.Vertices[Vertex].Point;
+                if (Point.Distance(Curve.StartPoint()) <= Tolerance * 4 || Point.Distance(Curve.EndPoint()) <= Tolerance * 4) continue;
+                if (PositiveWeights && (Point.X < Low.X - Tolerance || Point.X > High.X + Tolerance ||
+                    Point.Y < Low.Y - Tolerance || Point.Y > High.Y + Tolerance ||
+                    Point.Z < Low.Z - Tolerance || Point.Z > High.Z + Tolerance)) continue;
+                double Distance = 0;
+                const double Parameter = Curve.ClosestParameter(Point, &Distance);
+                const double Margin = ScalarCriteria::ParametricEpsilon * std::max(1.0, Curve.DomainEnd() - Curve.DomainStart());
+                if (Distance <= Tolerance && Parameter > Curve.DomainStart() + Margin && Parameter < Curve.DomainEnd() - Margin)
+                    Cuts.push_back(Parameter);
+            }
+        }
+        std::sort(Cuts.begin(), Cuts.end());
+        Cuts.erase(std::unique(Cuts.begin(), Cuts.end(), [&](double First, double Second)
+            { return std::fabs(First - Second) <= ScalarCriteria::ParametricEpsilon * std::max(1.0, Curve.DomainEnd() - Curve.DomainStart()); }), Cuts.end());
+        if (Cuts.size() == 2) Pieces[Index].push_back(Curve);
+        else for (size_t Slot = 1; Slot < Cuts.size(); ++Slot) Pieces[Index].push_back(Curve.Trimmed(Cuts[Slot - 1], Cuts[Slot]));
+    }
+    BrepBody Result;
+    for (const BrepFace& Face : Source.Faces)
+    {
+        const int FaceIndex = Result.AddFace(Face.Surface);
+        for (int LoopIndex : Face.Loops)
+        {
+            const BrepLoop& Loop = Source.Loops[LoopIndex];
+            const int NewLoop = Result.AddLoop(FaceIndex, Loop.Outer);
+            for (int CoedgeIndex : Loop.Coedges)
+            {
+                const BrepCoedge& Coedge = Source.Coedges[CoedgeIndex];
+                const auto& Segments = Pieces[Coedge.Edge];
+                for (size_t Slot = 0; Slot < Segments.size(); ++Slot)
+                {
+                    const NurbsCurve& Curve = Segments[Coedge.Reversed ? Segments.size() - 1 - Slot : Slot];
+                    bool Reversed = false;
+                    int EdgeIndex = Result.FindCoincidentEdge(Curve, Tolerance, Reversed);
+                    if (EdgeIndex < 0) EdgeIndex = Result.AddEdge(Curve, Tolerance);
+                    Result.AddCoedge(EdgeIndex, Coedge.Reversed != Reversed, FaceIndex, NewLoop);
+                }
+            }
+        }
+    }
+    return Result;
+}
+
+Deliver<BrepBody> BrepBody::Sew(const std::vector<NurbsSurface>& Surfaces, double Tolerance, bool Cap, bool KnotEdges, bool SplitJunctions) noexcept
 {
     if (Surfaces.empty()) return Deliver<BrepBody>::Reject(RefusalReason::DegenerateInput, "no faces to sew");
     BrepBody B;
-    for (const NurbsSurface& S : Surfaces) { int F = B.AddFace(S); B.AddNaturalBoundary(F, Tolerance); }
+    for (const NurbsSurface& S : Surfaces) { int F = B.AddFace(S); B.AddNaturalBoundary(F, Tolerance, KnotEdges); }
+    if (SplitJunctions) B = B.ReconcileBoundarySplits(Tolerance);
     B.Orient();                                                                         // neighbours agree before caps are derived from them
     if (Cap) B.Capped(Tolerance);
     B.Orient();
@@ -938,76 +1112,34 @@ Deliver<BrepBody> BrepBody::Sew(const std::vector<NurbsSurface>& Surfaces, doubl
 
 Deliver<BrepBody> BrepBody::Solidify(const BrepBody& Shell, double HalfThickness) noexcept
 {
-    // Solidify turns a NURBS surface into a slab of total thickness 2·HalfThickness. The two layers are the original
-    //    surface translated ± HalfThickness along its centre normal. The side wall is the ruled surface between each
-    //    natural-boundary loop and its translated copy, which is meaningful only when the boundary is non-degenerate
-    //    under the translation (a flat sheet's boundary, when translated along the surface normal, is parallel to itself
-    //    and yields a zero-area side wall — that case is refused, with a hint to use `extrude` on a planar curve).
-    //
-    // Full-surface-offset (a different operation) is a later phase.
-    if (HalfThickness <= ScalarCriteria::KernelTolerance) return Deliver<BrepBody>::Reject(RefusalReason::DegenerateInput, "thickness must be positive");
-    if (Shell.Faces.size() != 1) return Deliver<BrepBody>::Reject(RefusalReason::Unsupported, "solidify currently operates on a single surface; pass a sheet body with one face");
-
-    const BrepFace& F = Shell.Faces[0];
-    if (F.Loops.empty()) return Deliver<BrepBody>::Reject(RefusalReason::DegenerateInput, "surface has no boundary to thicken");
-
-    auto StitchLoop = [&](int L) -> std::optional<NurbsCurve>
-    {
-        const BrepLoop& Lp = Shell.Loops[L];
-        if (Lp.Coedges.empty()) return std::nullopt;
-        std::vector<Vec3> Pts;
-        for (int Ce : Lp.Coedges)
-        {
-            const BrepCoedge& C = Shell.Coedges[Ce];
-            const BrepEdge& E = Shell.Edges[C.Edge];
-            std::vector<Vec3> P; E.Curve.Tessellate(P, nullptr, 2e-3);
-            if (C.Reversed) std::reverse(P.begin(), P.end());
-            if (!Pts.empty()) P.erase(P.begin());
-            Pts.insert(Pts.end(), P.begin(), P.end());
-        }
-        if (Pts.size() < 4) return std::nullopt;
-        Deliver<NurbsCurve> Loop = NurbsCurve::Polyline(Pts, true);
-        if (!Loop) return std::nullopt;
-        return Loop.Payload;
-    };
-    std::vector<NurbsCurve> Loops; Loops.reserve(F.Loops.size());
-    for (int L : F.Loops) { auto Lc = StitchLoop(L); if (Lc) Loops.push_back(*Lc); }
-    if (Loops.empty()) return Deliver<BrepBody>::Reject(RefusalReason::DegenerateInput, "no usable boundary loop");
-
-    Vec3 Normal = F.Surface.Normal(0.5 * (F.Surface.DomainStartU() + F.Surface.DomainEndU()),
-                                   0.5 * (F.Surface.DomainStartV() + F.Surface.DomainEndV()));
-    if (F.Reversed) Normal = -Normal;
-    Mat4 Out = Mat4::Translation(Normal *  HalfThickness);
-    Mat4 In  = Mat4::Translation(Normal * -HalfThickness);
-
-    // The side wall between C and C.Transformed(Out) has non-zero area only when C is not parallel to the translation
-    //    direction (i.e. C has some component orthogonal to Normal). For a planar surface whose boundary lies in the
-    //    surface's own plane, every point of C is orthogonal to Normal, so the ruled surface collapses. Refuse early.
-    if (F.Surface.ClosedU() || F.Surface.ClosedV()) return Deliver<BrepBody>::Reject(RefusalReason::Unsupported, "surface is closed in at least one direction (cylinder, sphere, torus, closed patch) — Solidify only works on open sheets; use a regular closed body instead");
-    bool AnyWall = false;
-    for (const NurbsCurve& C : Loops)
-    {
-        if (C.Length() <= ScalarCriteria::KernelTolerance) continue;
-        // Sample the curve's midpoint and check the tangent has any component orthogonal to the translation
-        Vec3 Mid = C.Sample(0.5 * (C.DomainStart() + C.DomainEnd()));
-        Vec3 Translated = Mat4::Translation(Normal * HalfThickness).TransformPoint(Mid);
-        if ((Translated - Mid).Length() > 1e-9) { AnyWall = true; break; }
+    // Single open sheet, translated by +/- half thickness along its centre normal.
+    // This is directional thickening, NOT a general curved-surface normal offset.
+    // Keep each exact boundary edge separate: one joined perimeter wall cannot
+    // sew against the caps' four natural edges and previously left an open shell.
+    using Out=Deliver<BrepBody>;
+    if(!std::isfinite(HalfThickness)||HalfThickness<=ScalarCriteria::KernelTolerance)
+        return Out::Reject(RefusalReason::DegenerateInput,"thickness must be finite and positive");
+    if(Shell.Faces.size()!=1)return Out::Reject(RefusalReason::Unsupported,"solidify requires one open surface");
+    const auto& F=Shell.Faces.front();
+    if(F.Loops.empty()||F.Surface.ClosedU()||F.Surface.ClosedV())
+        return Out::Reject(RefusalReason::Unsupported,"solidify requires an open sheet with a non-degenerate boundary");
+    Vec3 N=F.Surface.Normal((F.Surface.DomainStartU()+F.Surface.DomainEndU())*.5,
+                           (F.Surface.DomainStartV()+F.Surface.DomainEndV())*.5);
+    if(N.LengthSquared()<1e-20)return Out::Reject(RefusalReason::DegenerateInput,"sheet has no usable centre normal");
+    if(F.Reversed)N=-N;
+    const auto Low=Mat4::Translation(N*-HalfThickness),High=Mat4::Translation(N*HalfThickness);
+    std::vector<NurbsSurface> Faces={F.Surface.Transformed(Low),F.Surface.Transformed(High)};
+    for(int Loop:F.Loops)for(int Ce:Shell.Loops[Loop].Coedges){
+        auto C=Shell.Edges[Shell.Coedges[Ce].Edge].Curve;
+        if(Shell.Coedges[Ce].Reversed)C=C.Reversed();
+        auto Wall=NurbsSurface::Ruled(C.Transformed(Low),C.Transformed(High));
+        if(!Wall)return Out::Reject(Wall.Denial.Reason,Wall.Denial.Detail);
+        Faces.push_back(std::move(Wall.Payload));
     }
-    if (!AnyWall) return Deliver<BrepBody>::Reject(RefusalReason::DegenerateInput, "surface boundary is parallel to its own normal — the side wall would be zero area; use `extrude <curve> t` on a planar curve instead");
-
-    BrepBody B;
-    int Top = B.AddFace(F.Surface.Transformed(Out));   B.AddNaturalBoundary(Top, ScalarCriteria::MergeTolerance);
-    int Bottom = B.AddFace(F.Surface.Transformed(In)); B.AddNaturalBoundary(Bottom, ScalarCriteria::MergeTolerance);
-    for (const NurbsCurve& C : Loops)
-    {
-        if (C.Length() <= ScalarCriteria::KernelTolerance) continue;
-        NurbsCurve T = C.Transformed(Out);
-        Deliver<NurbsSurface> Wall = NurbsSurface::Ruled(C, T);
-        if (!Wall) continue;
-        int Side = B.AddFace(Wall.Payload); B.AddNaturalBoundary(Side, ScalarCriteria::MergeTolerance);
-    }
-    B.Orient();
-    return Deliver<BrepBody>::Accept(std::move(B));
+    auto Body=Sew(Faces,ScalarCriteria::MergeTolerance,false);
+    if(!Body)return Body;
+    if(!Body.Payload.Validate().Solid())return Out::Reject(RefusalReason::Unsupported,"thickened sheet did not sew into a closed oriented manifold solid");
+    return Body;
 }
 
 Deliver<BrepBody> BrepBody::ChamferEdge(int EdgeIndex, double SetBack, double Tolerance) const noexcept

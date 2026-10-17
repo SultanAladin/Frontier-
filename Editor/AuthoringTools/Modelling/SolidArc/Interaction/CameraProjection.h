@@ -20,6 +20,7 @@ public:
     Vec3   Pivot     = {};                                                              // [m]
     double Yaw       = ScalarCriteria::Radians(-35.0);                                  // [rad] around +Z, 0 = looking along +Y
     double Pitch     = ScalarCriteria::Radians(30.0);                                   // [rad] above the ground plane
+    double Roll      = 0.0; // legacy compatibility field; upright CAD navigation keeps zero
     double Distance  = 12.0;                                                            // [m]
     double FovY      = ScalarCriteria::Radians(42.0);                                   // [rad]
     bool   Orthographic = false;                                                        // [-]
@@ -43,6 +44,7 @@ public:
     [[nodiscard]] double OrthographicHalfHeight() const noexcept { return Distance * std::tan(FovY * 0.5); }
 
     void Orbit(double DeltaYaw, double DeltaPitch) noexcept;                            // [rad]
+    void OrbitScreen(double Horizontal, double Vertical) noexcept; // compatibility alias for upright fixed-pivot orbit
     void Pan(double DeltaRightPixels, double DeltaUpPixels, double ViewportHeight) noexcept;
     void Dolly(double Steps) noexcept;                                                  // wheel notches, ±
     void Look(CanonicalView View) noexcept;

@@ -1,0 +1,2375 @@
+{
+  "description": "Observed constructed-solid coverage baseline, not the desired acceptance target. No solver fixes claimed.",
+  "summary": {
+    "scope": "Isolated native C++ constructed-source Boolean coverage; no solver repair; not mouse-input or universal-geometry proof.",
+    "fixtureCount": 24,
+    "plannedFinalBooleans": 144,
+    "attemptedFinalBooleans": 78,
+    "completedFinalBooleans": 78,
+    "engineAccepted": 27,
+    "constructionCommands": 196,
+    "constructionBodies": 127,
+    "constructionBlocked": 11,
+    "timeouts": 0,
+    "testFailures": 0,
+    "manifestSha256": "ec16d192437a2d122e6410c5a130a5f29f0bbaaafc20766e1834ee4d854ad3b0",
+    "nativeBinarySha256": "aae793c535ae4d024fbff7f8a097ab40598e6cce926ac17d75397cce3f827eca"
+  },
+  "auditCounts": {
+    "stages": {
+      "total": 127,
+      "passed": 127,
+      "flagged": 0,
+      "inconclusive": 0
+    },
+    "sources": {
+      "total": 26,
+      "passed": 26,
+      "flagged": 0,
+      "inconclusive": 0
+    },
+    "finals": {
+      "total": 27,
+      "passed": 27,
+      "flagged": 0,
+      "inconclusive": 0
+    }
+  },
+  "commutativity": [
+    {
+      "fixture": "concave-l-notched",
+      "operation": "union",
+      "acceptanceSymmetric": true,
+      "accepted": true,
+      "volumeError": 0
+    },
+    {
+      "fixture": "concave-l-notched",
+      "operation": "intersect",
+      "acceptanceSymmetric": true,
+      "accepted": true,
+      "volumeError": 0
+    },
+    {
+      "fixture": "concave-l-ruled",
+      "operation": "union",
+      "acceptanceSymmetric": true,
+      "accepted": false,
+      "volumeError": null
+    },
+    {
+      "fixture": "concave-l-ruled",
+      "operation": "intersect",
+      "acceptanceSymmetric": true,
+      "accepted": false,
+      "volumeError": null
+    },
+    {
+      "fixture": "coplanar-t-c",
+      "operation": "union",
+      "acceptanceSymmetric": true,
+      "accepted": false,
+      "volumeError": null
+    },
+    {
+      "fixture": "coplanar-t-c",
+      "operation": "intersect",
+      "acceptanceSymmetric": true,
+      "accepted": false,
+      "volumeError": null
+    },
+    {
+      "fixture": "disconnected-l-parts",
+      "operation": "union",
+      "acceptanceSymmetric": true,
+      "accepted": false,
+      "volumeError": null
+    },
+    {
+      "fixture": "disconnected-l-parts",
+      "operation": "intersect",
+      "acceptanceSymmetric": true,
+      "accepted": false,
+      "volumeError": null
+    },
+    {
+      "fixture": "four-hole-z",
+      "operation": "union",
+      "acceptanceSymmetric": true,
+      "accepted": false,
+      "volumeError": null
+    },
+    {
+      "fixture": "four-hole-z",
+      "operation": "intersect",
+      "acceptanceSymmetric": true,
+      "accepted": false,
+      "volumeError": null
+    },
+    {
+      "fixture": "near-coincident-u",
+      "operation": "union",
+      "acceptanceSymmetric": true,
+      "accepted": true,
+      "volumeError": 0
+    },
+    {
+      "fixture": "near-coincident-u",
+      "operation": "intersect",
+      "acceptanceSymmetric": true,
+      "accepted": true,
+      "volumeError": 0
+    },
+    {
+      "fixture": "pocket-island-comb",
+      "operation": "union",
+      "acceptanceSymmetric": true,
+      "accepted": false,
+      "volumeError": null
+    },
+    {
+      "fixture": "pocket-island-comb",
+      "operation": "intersect",
+      "acceptanceSymmetric": true,
+      "accepted": false,
+      "volumeError": null
+    },
+    {
+      "fixture": "scaled-l-notch",
+      "operation": "union",
+      "acceptanceSymmetric": false,
+      "accepted": false,
+      "volumeError": null
+    },
+    {
+      "fixture": "scaled-l-notch",
+      "operation": "intersect",
+      "acceptanceSymmetric": false,
+      "accepted": false,
+      "volumeError": null
+    },
+    {
+      "fixture": "split-intersection",
+      "operation": "union",
+      "acceptanceSymmetric": true,
+      "accepted": false,
+      "volumeError": null
+    },
+    {
+      "fixture": "split-intersection",
+      "operation": "intersect",
+      "acceptanceSymmetric": true,
+      "accepted": false,
+      "volumeError": null
+    },
+    {
+      "fixture": "star-hex-ring",
+      "operation": "union",
+      "acceptanceSymmetric": true,
+      "accepted": false,
+      "volumeError": null
+    },
+    {
+      "fixture": "star-hex-ring",
+      "operation": "intersect",
+      "acceptanceSymmetric": true,
+      "accepted": false,
+      "volumeError": null
+    },
+    {
+      "fixture": "thin-u-comb",
+      "operation": "union",
+      "acceptanceSymmetric": true,
+      "accepted": true,
+      "volumeError": 0
+    },
+    {
+      "fixture": "thin-u-comb",
+      "operation": "intersect",
+      "acceptanceSymmetric": true,
+      "accepted": true,
+      "volumeError": 0
+    },
+    {
+      "fixture": "twin-bore-fork",
+      "operation": "union",
+      "acceptanceSymmetric": true,
+      "accepted": false,
+      "volumeError": null
+    },
+    {
+      "fixture": "twin-bore-fork",
+      "operation": "intersect",
+      "acceptanceSymmetric": true,
+      "accepted": false,
+      "volumeError": null
+    },
+    {
+      "fixture": "u-channel-l",
+      "operation": "union",
+      "acceptanceSymmetric": true,
+      "accepted": true,
+      "volumeError": 0
+    },
+    {
+      "fixture": "u-channel-l",
+      "operation": "intersect",
+      "acceptanceSymmetric": true,
+      "accepted": true,
+      "volumeError": 0
+    }
+  ],
+  "fixtures": [
+    {
+      "id": "blind-pocket-dogbone",
+      "status": "construction-refused",
+      "tags": [
+        "blind-pocket",
+        "curved-planar"
+      ],
+      "saveReopen": null,
+      "constructionBlocker": {
+        "index": 5,
+        "command": "boolean union N5 -- N6 --name=N3",
+        "reason": [
+          "\u2717 boolean union: Unsupported \u2014 tangent or coincident faces (not transversal)"
+        ],
+        "preserved": true
+      },
+      "cases": []
+    },
+    {
+      "id": "c-frame-staircase",
+      "status": "construction-refused",
+      "tags": [
+        "concave",
+        "multi-stage-union",
+        "coplanar"
+      ],
+      "saveReopen": null,
+      "constructionBlocker": {
+        "index": 7,
+        "command": "boolean union N6 -- N7 --name=N4",
+        "reason": [
+          "\u2717 boolean union: Unsupported \u2014 intersection passes exactly through a vertex (non-generic: nudge one body)"
+        ],
+        "preserved": true
+      },
+      "cases": []
+    },
+    {
+      "id": "comb-staircase",
+      "status": "construction-refused",
+      "tags": [
+        "many-reentrant-corners",
+        "multi-stage-union"
+      ],
+      "saveReopen": null,
+      "constructionBlocker": {
+        "index": 7,
+        "command": "boolean union N6 -- N7 --name=N4",
+        "reason": [
+          "\u2717 boolean union: Unsupported \u2014 intersection passes exactly through a vertex (non-generic: nudge one body)"
+        ],
+        "preserved": true
+      },
+      "cases": []
+    },
+    {
+      "id": "concave-l-notched",
+      "status": "completed",
+      "tags": [
+        "concave",
+        "reentrant",
+        "both-constructed"
+      ],
+      "saveReopen": true,
+      "constructionBlocker": null,
+      "cases": [
+        {
+          "id": "concave-l-notched-union",
+          "operation": "union",
+          "accepted": true,
+          "topology": {
+            "solid": true,
+            "volume": 27.673696,
+            "summary": "\u00b7 Result solid  V40 E60 F20 L20  hulls 1  \u03c7=0 genus 1  closed yes manifold yes oriented yes  volume 27.673696  area 77.524885",
+            "hulls": 1,
+            "genus": 1,
+            "faces": 20,
+            "edges": 60
+          },
+          "refusalPreserved": null,
+          "undoRedo": true,
+          "reason": [],
+          "audit": {
+            "id": "concave-l-notched-union",
+            "kind": "final-boolean",
+            "owner": 5,
+            "status": "sampled-check-passed",
+            "curved": false,
+            "uniformSamples": 4096,
+            "totalProbes": 4244,
+            "featureProbes": 74,
+            "orthogonalCellProbes": 0,
+            "boundaryProbes": 74,
+            "checked": 4217,
+            "ambiguous": 0,
+            "nearBoundary": 27,
+            "mismatches": 0,
+            "mismatchLimit": 0,
+            "referenceVolume": null,
+            "nativeVolume": 27.673696,
+            "volumeTolerance": null,
+            "volumePassed": null,
+            "absoluteVolumeError": null,
+            "referenceMethod": "signed-field sampling only",
+            "estimatedVolume": 27.561752929687497,
+            "occupancySha256": "1030dcf6eebff028e2888a56324216a4f0bab54afe84554c8aedec6e2fd48afd",
+            "sourceAuditPassed": true
+          }
+        },
+        {
+          "id": "concave-l-notched-union-ba",
+          "operation": "union-ba",
+          "accepted": true,
+          "topology": {
+            "solid": true,
+            "volume": 27.673696,
+            "summary": "\u00b7 Result solid  V40 E60 F20 L20  hulls 1  \u03c7=0 genus 1  closed yes manifold yes oriented yes  volume 27.673696  area 77.524885",
+            "hulls": 1,
+            "genus": 1,
+            "faces": 20,
+            "edges": 60
+          },
+          "refusalPreserved": null,
+          "undoRedo": true,
+          "reason": [],
+          "audit": {
+            "id": "concave-l-notched-union-ba",
+            "kind": "final-boolean",
+            "owner": 5,
+            "status": "sampled-check-passed",
+            "curved": false,
+            "uniformSamples": 4096,
+            "totalProbes": 4244,
+            "featureProbes": 74,
+            "orthogonalCellProbes": 0,
+            "boundaryProbes": 74,
+            "checked": 4217,
+            "ambiguous": 0,
+            "nearBoundary": 27,
+            "mismatches": 0,
+            "mismatchLimit": 0,
+            "referenceVolume": null,
+            "nativeVolume": 27.673696,
+            "volumeTolerance": null,
+            "volumePassed": null,
+            "absoluteVolumeError": null,
+            "referenceMethod": "signed-field sampling only",
+            "estimatedVolume": 27.854761962890624,
+            "occupancySha256": "00e28a8dd4b86396dd2575cce3a2fc5c20a6889d42efa4cc1b0173bcb155eeba",
+            "sourceAuditPassed": true
+          }
+        },
+        {
+          "id": "concave-l-notched-intersect",
+          "operation": "intersect",
+          "accepted": true,
+          "topology": {
+            "solid": true,
+            "volume": 5.810304,
+            "summary": "\u00b7 Result solid  V20 E30 F14 L14  hulls 2  \u03c7=4 genus 0  closed yes manifold yes oriented yes  volume 5.810304  area 27.052841",
+            "hulls": 2,
+            "genus": 0,
+            "faces": 14,
+            "edges": 30
+          },
+          "refusalPreserved": null,
+          "undoRedo": true,
+          "reason": [],
+          "audit": {
+            "id": "concave-l-notched-intersect",
+            "kind": "final-boolean",
+            "owner": 5,
+            "status": "sampled-check-passed",
+            "curved": false,
+            "uniformSamples": 4096,
+            "totalProbes": 4224,
+            "featureProbes": 74,
+            "orthogonalCellProbes": 0,
+            "boundaryProbes": 54,
+            "checked": 4203,
+            "ambiguous": 0,
+            "nearBoundary": 21,
+            "mismatches": 0,
+            "mismatchLimit": 0,
+            "referenceVolume": null,
+            "nativeVolume": 5.810304,
+            "volumeTolerance": null,
+            "volumePassed": null,
+            "absoluteVolumeError": null,
+            "referenceMethod": "signed-field sampling only",
+            "estimatedVolume": 6.096478271484375,
+            "occupancySha256": "0b0b0cfa32b256fa60627d0ba21fdab66fc0b05a1267b491eff9d10d73fa7971",
+            "sourceAuditPassed": true
+          }
+        },
+        {
+          "id": "concave-l-notched-intersect-ba",
+          "operation": "intersect-ba",
+          "accepted": true,
+          "topology": {
+            "solid": true,
+            "volume": 5.810304,
+            "summary": "\u00b7 Result solid  V20 E30 F14 L14  hulls 2  \u03c7=4 genus 0  closed yes manifold yes oriented yes  volume 5.810304  area 27.052841",
+            "hulls": 2,
+            "genus": 0,
+            "faces": 14,
+            "edges": 30
+          },
+          "refusalPreserved": null,
+          "undoRedo": true,
+          "reason": [],
+          "audit": {
+            "id": "concave-l-notched-intersect-ba",
+            "kind": "final-boolean",
+            "owner": 5,
+            "status": "sampled-check-passed",
+            "curved": false,
+            "uniformSamples": 4096,
+            "totalProbes": 4222,
+            "featureProbes": 74,
+            "orthogonalCellProbes": 0,
+            "boundaryProbes": 52,
+            "checked": 4201,
+            "ambiguous": 0,
+            "nearBoundary": 21,
+            "mismatches": 0,
+            "mismatchLimit": 0,
+            "referenceVolume": null,
+            "nativeVolume": 5.810304,
+            "volumeTolerance": null,
+            "volumePassed": null,
+            "absoluteVolumeError": null,
+            "referenceMethod": "signed-field sampling only",
+            "estimatedVolume": 6.058670654296875,
+            "occupancySha256": "d0eaf55f11c3a121929053e512a3ce3ae6408dd2b91f5f4c05524e644d2d3a98",
+            "sourceAuditPassed": true
+          }
+        },
+        {
+          "id": "concave-l-notched-subtract-ab",
+          "operation": "subtract-ab",
+          "accepted": true,
+          "topology": {
+            "solid": true,
+            "volume": 11.069696,
+            "summary": "\u00b7 Result solid  V32 E48 F18 L18  hulls 1  \u03c7=2 genus 0  closed yes manifold yes oriented yes  volume 11.069696  area 58.950232",
+            "hulls": 1,
+            "genus": 0,
+            "faces": 18,
+            "edges": 48
+          },
+          "refusalPreserved": null,
+          "undoRedo": true,
+          "reason": [],
+          "audit": {
+            "id": "concave-l-notched-subtract-ab",
+            "kind": "final-boolean",
+            "owner": 5,
+            "status": "sampled-check-passed",
+            "curved": false,
+            "uniformSamples": 4096,
+            "totalProbes": 4234,
+            "featureProbes": 74,
+            "orthogonalCellProbes": 0,
+            "boundaryProbes": 64,
+            "checked": 4219,
+            "ambiguous": 0,
+            "nearBoundary": 15,
+            "mismatches": 0,
+            "mismatchLimit": 0,
+            "referenceVolume": null,
+            "nativeVolume": 11.069696,
+            "volumeTolerance": null,
+            "volumePassed": null,
+            "absoluteVolumeError": null,
+            "referenceMethod": "signed-field sampling only",
+            "estimatedVolume": 11.28557373046875,
+            "occupancySha256": "51edc251a73e77d7a67bd67a02e7b6ae226c44718721e66d409a7e82a6276559",
+            "sourceAuditPassed": true
+          }
+        },
+        {
+          "id": "concave-l-notched-subtract-ba",
+          "operation": "subtract-ba",
+          "accepted": true,
+          "topology": {
+            "solid": true,
+            "volume": 10.793696,
+            "summary": "\u00b7 Result solid  V28 E42 F16 L16  hulls 1  \u03c7=2 genus 0  closed yes manifold yes oriented yes  volume 10.793696  area 45.627494",
+            "hulls": 1,
+            "genus": 0,
+            "faces": 16,
+            "edges": 42
+          },
+          "refusalPreserved": null,
+          "undoRedo": true,
+          "reason": [],
+          "audit": {
+            "id": "concave-l-notched-subtract-ba",
+            "kind": "final-boolean",
+            "owner": 5,
+            "status": "sampled-check-passed",
+            "curved": false,
+            "uniformSamples": 4096,
+            "totalProbes": 4238,
+            "featureProbes": 74,
+            "orthogonalCellProbes": 0,
+            "boundaryProbes": 68,
+            "checked": 4205,
+            "ambiguous": 0,
+            "nearBoundary": 33,
+            "mismatches": 0,
+            "mismatchLimit": 0,
+            "referenceVolume": null,
+            "nativeVolume": 10.793696,
+            "volumeTolerance": null,
+            "volumePassed": null,
+            "absoluteVolumeError": null,
+            "referenceMethod": "signed-field sampling only",
+            "estimatedVolume": 10.879141845703124,
+            "occupancySha256": "9229fa380336581bed6012b2c622c526ee66e17431ed943bf8960a00e5b0e121",
+            "sourceAuditPassed": true
+          }
+        }
+      ]
+    },
+    {
+      "id": "concave-l-ruled",
+      "status": "completed",
+      "tags": [
+        "concave-loft",
+        "non-axis-side-faces",
+        "both-constructed"
+      ],
+      "saveReopen": true,
+      "constructionBlocker": null,
+      "cases": [
+        {
+          "id": "concave-l-ruled-union",
+          "operation": "union",
+          "accepted": false,
+          "topology": null,
+          "refusalPreserved": true,
+          "undoRedo": null,
+          "reason": [
+            "\u2717 boolean union: Unsupported \u2014 marching lost the intersection curve"
+          ],
+          "audit": {}
+        },
+        {
+          "id": "concave-l-ruled-union-ba",
+          "operation": "union-ba",
+          "accepted": false,
+          "topology": null,
+          "refusalPreserved": true,
+          "undoRedo": null,
+          "reason": [
+            "\u2717 boolean union: Unsupported \u2014 marching lost the intersection curve"
+          ],
+          "audit": {}
+        },
+        {
+          "id": "concave-l-ruled-intersect",
+          "operation": "intersect",
+          "accepted": false,
+          "topology": null,
+          "refusalPreserved": true,
+          "undoRedo": null,
+          "reason": [
+            "\u2717 boolean intersect: Unsupported \u2014 marching lost the intersection curve"
+          ],
+          "audit": {}
+        },
+        {
+          "id": "concave-l-ruled-intersect-ba",
+          "operation": "intersect-ba",
+          "accepted": false,
+          "topology": null,
+          "refusalPreserved": true,
+          "undoRedo": null,
+          "reason": [
+            "\u2717 boolean intersect: Unsupported \u2014 marching lost the intersection curve"
+          ],
+          "audit": {}
+        },
+        {
+          "id": "concave-l-ruled-subtract-ab",
+          "operation": "subtract-ab",
+          "accepted": false,
+          "topology": null,
+          "refusalPreserved": true,
+          "undoRedo": null,
+          "reason": [
+            "\u2717 boolean subtract: Unsupported \u2014 marching lost the intersection curve"
+          ],
+          "audit": {}
+        },
+        {
+          "id": "concave-l-ruled-subtract-ba",
+          "operation": "subtract-ba",
+          "accepted": false,
+          "topology": null,
+          "refusalPreserved": true,
+          "undoRedo": null,
+          "reason": [
+            "\u2717 boolean subtract: Unsupported \u2014 marching lost the intersection curve"
+          ],
+          "audit": {}
+        }
+      ]
+    },
+    {
+      "id": "concave-u-ruled",
+      "status": "construction-refused",
+      "tags": [
+        "concave-loft",
+        "multi-stage",
+        "non-planar-sides"
+      ],
+      "saveReopen": null,
+      "constructionBlocker": {
+        "index": 8,
+        "command": "boolean union N7 -- N8 --name=N5",
+        "reason": [
+          "\u2717 boolean union: Unsupported \u2014 intersection passes exactly through a vertex (non-generic: nudge one body)"
+        ],
+        "preserved": true
+      },
+      "cases": []
+    },
+    {
+      "id": "coplanar-t-c",
+      "status": "completed",
+      "tags": [
+        "coplanar",
+        "reentrant",
+        "both-constructed"
+      ],
+      "saveReopen": true,
+      "constructionBlocker": null,
+      "cases": [
+        {
+          "id": "coplanar-t-c-union",
+          "operation": "union",
+          "accepted": false,
+          "topology": null,
+          "refusalPreserved": true,
+          "undoRedo": null,
+          "reason": [
+            "\u2717 boolean union: Unsupported \u2014 tangent or coincident faces (not transversal)"
+          ],
+          "audit": {}
+        },
+        {
+          "id": "coplanar-t-c-union-ba",
+          "operation": "union-ba",
+          "accepted": false,
+          "topology": null,
+          "refusalPreserved": true,
+          "undoRedo": null,
+          "reason": [
+            "\u2717 boolean union: Unsupported \u2014 tangent or coincident faces (not transversal)"
+          ],
+          "audit": {}
+        },
+        {
+          "id": "coplanar-t-c-intersect",
+          "operation": "intersect",
+          "accepted": false,
+          "topology": null,
+          "refusalPreserved": true,
+          "undoRedo": null,
+          "reason": [
+            "\u2717 boolean intersect: Unsupported \u2014 tangent or coincident faces (not transversal)"
+          ],
+          "audit": {}
+        },
+        {
+          "id": "coplanar-t-c-intersect-ba",
+          "operation": "intersect-ba",
+          "accepted": false,
+          "topology": null,
+          "refusalPreserved": true,
+          "undoRedo": null,
+          "reason": [
+            "\u2717 boolean intersect: Unsupported \u2014 tangent or coincident faces (not transversal)"
+          ],
+          "audit": {}
+        },
+        {
+          "id": "coplanar-t-c-subtract-ab",
+          "operation": "subtract-ab",
+          "accepted": false,
+          "topology": null,
+          "refusalPreserved": true,
+          "undoRedo": null,
+          "reason": [
+            "\u2717 boolean subtract: Unsupported \u2014 tangent or coincident faces (not transversal)"
+          ],
+          "audit": {}
+        },
+        {
+          "id": "coplanar-t-c-subtract-ba",
+          "operation": "subtract-ba",
+          "accepted": false,
+          "topology": null,
+          "refusalPreserved": true,
+          "undoRedo": null,
+          "reason": [
+            "\u2717 boolean subtract: Unsupported \u2014 tangent or coincident faces (not transversal)"
+          ],
+          "audit": {}
+        }
+      ]
+    },
+    {
+      "id": "cross-drilled-t",
+      "status": "construction-refused",
+      "tags": [
+        "cross-bore",
+        "concave",
+        "internal-intersections"
+      ],
+      "saveReopen": null,
+      "constructionBlocker": {
+        "index": 4,
+        "command": "boolean subtract N1 -- N2 --name=A",
+        "reason": [
+          "\u2717 boolean subtract: Unsupported \u2014 coincident faces along the intersection (not transversal)"
+        ],
+        "preserved": true
+      },
+      "cases": []
+    },
+    {
+      "id": "disconnected-l-parts",
+      "status": "completed",
+      "tags": [
+        "disconnected-source",
+        "multiple-hulls",
+        "concave"
+      ],
+      "saveReopen": true,
+      "constructionBlocker": null,
+      "cases": [
+        {
+          "id": "disconnected-l-parts-union",
+          "operation": "union",
+          "accepted": false,
+          "topology": null,
+          "refusalPreserved": true,
+          "undoRedo": null,
+          "reason": [
+            "\u2717 boolean union: Unsupported \u2014 intersection passes exactly through a vertex (non-generic: nudge one body)"
+          ],
+          "audit": {}
+        },
+        {
+          "id": "disconnected-l-parts-union-ba",
+          "operation": "union-ba",
+          "accepted": false,
+          "topology": null,
+          "refusalPreserved": true,
+          "undoRedo": null,
+          "reason": [
+            "\u2717 boolean union: Unsupported \u2014 intersection passes exactly through a vertex (non-generic: nudge one body)"
+          ],
+          "audit": {}
+        },
+        {
+          "id": "disconnected-l-parts-intersect",
+          "operation": "intersect",
+          "accepted": false,
+          "topology": null,
+          "refusalPreserved": true,
+          "undoRedo": null,
+          "reason": [
+            "\u2717 boolean intersect: Unsupported \u2014 intersection passes exactly through a vertex (non-generic: nudge one body)"
+          ],
+          "audit": {}
+        },
+        {
+          "id": "disconnected-l-parts-intersect-ba",
+          "operation": "intersect-ba",
+          "accepted": false,
+          "topology": null,
+          "refusalPreserved": true,
+          "undoRedo": null,
+          "reason": [
+            "\u2717 boolean intersect: Unsupported \u2014 intersection passes exactly through a vertex (non-generic: nudge one body)"
+          ],
+          "audit": {}
+        },
+        {
+          "id": "disconnected-l-parts-subtract-ab",
+          "operation": "subtract-ab",
+          "accepted": false,
+          "topology": null,
+          "refusalPreserved": true,
+          "undoRedo": null,
+          "reason": [
+            "\u2717 boolean subtract: Unsupported \u2014 intersection passes exactly through a vertex (non-generic: nudge one body)"
+          ],
+          "audit": {}
+        },
+        {
+          "id": "disconnected-l-parts-subtract-ba",
+          "operation": "subtract-ba",
+          "accepted": false,
+          "topology": null,
+          "refusalPreserved": true,
+          "undoRedo": null,
+          "reason": [
+            "\u2717 boolean subtract: Unsupported \u2014 intersection passes exactly through a vertex (non-generic: nudge one body)"
+          ],
+          "audit": {}
+        }
+      ]
+    },
+    {
+      "id": "four-hole-z",
+      "status": "completed",
+      "tags": [
+        "four-through-holes",
+        "concave",
+        "many-loops"
+      ],
+      "saveReopen": true,
+      "constructionBlocker": null,
+      "cases": [
+        {
+          "id": "four-hole-z-union",
+          "operation": "union",
+          "accepted": false,
+          "topology": null,
+          "refusalPreserved": true,
+          "undoRedo": null,
+          "reason": [
+            "\u2717 boolean union: Unsupported \u2014 edge\u2013surface refinement did not converge at a face boundary"
+          ],
+          "audit": {}
+        },
+        {
+          "id": "four-hole-z-union-ba",
+          "operation": "union-ba",
+          "accepted": false,
+          "topology": null,
+          "refusalPreserved": true,
+          "undoRedo": null,
+          "reason": [
+            "\u2717 boolean union: Unsupported \u2014 edge\u2013surface refinement did not converge at a face boundary"
+          ],
+          "audit": {}
+        },
+        {
+          "id": "four-hole-z-intersect",
+          "operation": "intersect",
+          "accepted": false,
+          "topology": null,
+          "refusalPreserved": true,
+          "undoRedo": null,
+          "reason": [
+            "\u2717 boolean intersect: Unsupported \u2014 edge\u2013surface refinement did not converge at a face boundary"
+          ],
+          "audit": {}
+        },
+        {
+          "id": "four-hole-z-intersect-ba",
+          "operation": "intersect-ba",
+          "accepted": false,
+          "topology": null,
+          "refusalPreserved": true,
+          "undoRedo": null,
+          "reason": [
+            "\u2717 boolean intersect: Unsupported \u2014 edge\u2013surface refinement did not converge at a face boundary"
+          ],
+          "audit": {}
+        },
+        {
+          "id": "four-hole-z-subtract-ab",
+          "operation": "subtract-ab",
+          "accepted": false,
+          "topology": null,
+          "refusalPreserved": true,
+          "undoRedo": null,
+          "reason": [
+            "\u2717 boolean subtract: Unsupported \u2014 edge\u2013surface refinement did not converge at a face boundary"
+          ],
+          "audit": {}
+        },
+        {
+          "id": "four-hole-z-subtract-ba",
+          "operation": "subtract-ba",
+          "accepted": false,
+          "topology": null,
+          "refusalPreserved": true,
+          "undoRedo": null,
+          "reason": [
+            "\u2717 boolean subtract: Unsupported \u2014 edge\u2013surface refinement did not converge at a face boundary"
+          ],
+          "audit": {}
+        }
+      ]
+    },
+    {
+      "id": "hollow-cross-elbow",
+      "status": "construction-refused",
+      "tags": [
+        "hollow",
+        "crossing-tunnels",
+        "multi-stage"
+      ],
+      "saveReopen": null,
+      "constructionBlocker": {
+        "index": 6,
+        "command": "boolean union N1 -- N2 --name=A",
+        "reason": [
+          "\u2717 boolean union: Unsupported \u2014 tangent or coincident faces (not transversal)"
+        ],
+        "preserved": true
+      },
+      "cases": []
+    },
+    {
+      "id": "hollow-cup-star",
+      "status": "construction-refused",
+      "tags": [
+        "hollow",
+        "curved-concave",
+        "multi-stage"
+      ],
+      "saveReopen": null,
+      "constructionBlocker": {
+        "index": 4,
+        "command": "boolean intersect N1 -- N2 --name=A",
+        "reason": [
+          "\u2717 boolean intersect: Unsupported \u2014 edge\u2013surface refinement did not converge at a face boundary"
+        ],
+        "preserved": true
+      },
+      "cases": []
+    },
+    {
+      "id": "near-coincident-u",
+      "status": "completed",
+      "tags": [
+        "near-coincident",
+        "thin-sliver",
+        "concave"
+      ],
+      "saveReopen": true,
+      "constructionBlocker": null,
+      "cases": [
+        {
+          "id": "near-coincident-u-union",
+          "operation": "union",
+          "accepted": true,
+          "topology": {
+            "solid": true,
+            "volume": 17.620523,
+            "summary": "\u00b7 Result solid  V40 E60 F22 L22  hulls 1  \u03c7=2 genus 0  closed yes manifold yes oriented yes  volume 17.620523  area 56.623924",
+            "hulls": 1,
+            "genus": 0,
+            "faces": 22,
+            "edges": 60
+          },
+          "refusalPreserved": null,
+          "undoRedo": true,
+          "reason": [],
+          "audit": {
+            "id": "near-coincident-u-union",
+            "kind": "final-boolean",
+            "owner": 5,
+            "status": "sampled-check-passed",
+            "curved": false,
+            "uniformSamples": 4096,
+            "totalProbes": 4381,
+            "featureProbes": 74,
+            "orthogonalCellProbes": 105,
+            "boundaryProbes": 106,
+            "checked": 4357,
+            "ambiguous": 0,
+            "nearBoundary": 24,
+            "mismatches": 0,
+            "mismatchLimit": 0,
+            "referenceVolume": 17.620523248,
+            "nativeVolume": 17.620523,
+            "volumeTolerance": 0.00017620523248000004,
+            "volumePassed": true,
+            "absoluteVolumeError": 2.480000027560436e-07,
+            "referenceMethod": "exact orthogonal CSG cell decomposition",
+            "estimatedVolume": 18.003902744953127,
+            "occupancySha256": "6611300d5aa710222d024246b898e9466c5278b7074e253ecaf4651c84822c0c",
+            "sourceAuditPassed": true
+          }
+        },
+        {
+          "id": "near-coincident-u-union-ba",
+          "operation": "union-ba",
+          "accepted": true,
+          "topology": {
+            "solid": true,
+            "volume": 17.620523,
+            "summary": "\u00b7 Result solid  V40 E60 F22 L22  hulls 1  \u03c7=2 genus 0  closed yes manifold yes oriented yes  volume 17.620523  area 56.623924",
+            "hulls": 1,
+            "genus": 0,
+            "faces": 22,
+            "edges": 60
+          },
+          "refusalPreserved": null,
+          "undoRedo": true,
+          "reason": [],
+          "audit": {
+            "id": "near-coincident-u-union-ba",
+            "kind": "final-boolean",
+            "owner": 5,
+            "status": "sampled-check-passed",
+            "curved": false,
+            "uniformSamples": 4096,
+            "totalProbes": 4377,
+            "featureProbes": 74,
+            "orthogonalCellProbes": 105,
+            "boundaryProbes": 102,
+            "checked": 4353,
+            "ambiguous": 0,
+            "nearBoundary": 24,
+            "mismatches": 0,
+            "mismatchLimit": 0,
+            "referenceVolume": 17.620523248,
+            "nativeVolume": 17.620523,
+            "volumeTolerance": 0.00017620523248000004,
+            "volumePassed": true,
+            "absoluteVolumeError": 2.480000027560436e-07,
+            "referenceMethod": "exact orthogonal CSG cell decomposition",
+            "estimatedVolume": 17.960021366396486,
+            "occupancySha256": "e2ea95d59e94a6edfafab306538fcf688826b446f56a3f2d1cc9ed6ea8dd19e3",
+            "sourceAuditPassed": true
+          }
+        },
+        {
+          "id": "near-coincident-u-intersect",
+          "operation": "intersect",
+          "accepted": true,
+          "topology": {
+            "solid": true,
+            "volume": 17.451477,
+            "summary": "\u00b7 Result solid  V20 E30 F12 L12  hulls 1  \u03c7=2 genus 0  closed yes manifold yes oriented yes  volume 17.451477  area 56.336076",
+            "hulls": 1,
+            "genus": 0,
+            "faces": 12,
+            "edges": 30
+          },
+          "refusalPreserved": null,
+          "undoRedo": true,
+          "reason": [],
+          "audit": {
+            "id": "near-coincident-u-intersect",
+            "kind": "final-boolean",
+            "owner": 5,
+            "status": "sampled-check-passed",
+            "curved": false,
+            "uniformSamples": 4096,
+            "totalProbes": 4341,
+            "featureProbes": 74,
+            "orthogonalCellProbes": 105,
+            "boundaryProbes": 66,
+            "checked": 4317,
+            "ambiguous": 0,
+            "nearBoundary": 24,
+            "mismatches": 0,
+            "mismatchLimit": 0,
+            "referenceVolume": 17.451476752000005,
+            "nativeVolume": 17.451477,
+            "volumeTolerance": 0.00017451476752000007,
+            "volumePassed": true,
+            "absoluteVolumeError": 2.4799999565061626e-07,
+            "referenceMethod": "exact orthogonal CSG cell decomposition",
+            "estimatedVolume": 17.257919309490237,
+            "occupancySha256": "b8aede24ee83c0601d6baef9bd9c3d2402375b8b6eea08c17cca16df85455b56",
+            "sourceAuditPassed": true
+          }
+        },
+        {
+          "id": "near-coincident-u-intersect-ba",
+          "operation": "intersect-ba",
+          "accepted": true,
+          "topology": {
+            "solid": true,
+            "volume": 17.451477,
+            "summary": "\u00b7 Result solid  V20 E30 F12 L12  hulls 1  \u03c7=2 genus 0  closed yes manifold yes oriented yes  volume 17.451477  area 56.336076",
+            "hulls": 1,
+            "genus": 0,
+            "faces": 12,
+            "edges": 30
+          },
+          "refusalPreserved": null,
+          "undoRedo": true,
+          "reason": [],
+          "audit": {
+            "id": "near-coincident-u-intersect-ba",
+            "kind": "final-boolean",
+            "owner": 5,
+            "status": "sampled-check-passed",
+            "curved": false,
+            "uniformSamples": 4096,
+            "totalProbes": 4347,
+            "featureProbes": 74,
+            "orthogonalCellProbes": 105,
+            "boundaryProbes": 72,
+            "checked": 4323,
+            "ambiguous": 0,
+            "nearBoundary": 24,
+            "mismatches": 0,
+            "mismatchLimit": 0,
+            "referenceVolume": 17.451476752000005,
+            "nativeVolume": 17.451477,
+            "volumeTolerance": 0.00017451476752000007,
+            "volumePassed": true,
+            "absoluteVolumeError": 2.4799999565061626e-07,
+            "referenceMethod": "exact orthogonal CSG cell decomposition",
+            "estimatedVolume": 17.13254394218555,
+            "occupancySha256": "5d2ff264670e08844641e0b70c9214347093c9ea4a56ab2270d688b848aac1ea",
+            "sourceAuditPassed": true
+          }
+        },
+        {
+          "id": "near-coincident-u-subtract-ab",
+          "operation": "subtract-ab",
+          "accepted": true,
+          "topology": {
+            "solid": true,
+            "volume": 0.084523,
+            "summary": "\u00b7 Result solid  V28 E42 F16 L16  hulls 1  \u03c7=2 genus 0  closed yes manifold yes oriented yes  volume 0.084523  area 56.483196",
+            "hulls": 1,
+            "genus": 0,
+            "faces": 16,
+            "edges": 42
+          },
+          "refusalPreserved": null,
+          "undoRedo": true,
+          "reason": [],
+          "audit": {
+            "id": "near-coincident-u-subtract-ab",
+            "kind": "final-boolean",
+            "owner": 5,
+            "status": "sampled-check-passed",
+            "curved": false,
+            "uniformSamples": 4096,
+            "totalProbes": 4367,
+            "featureProbes": 74,
+            "orthogonalCellProbes": 105,
+            "boundaryProbes": 92,
+            "checked": 4349,
+            "ambiguous": 0,
+            "nearBoundary": 18,
+            "mismatches": 0,
+            "mismatchLimit": 0,
+            "referenceVolume": 0.08452324799999934,
+            "nativeVolume": 0.084523,
+            "volumeTolerance": 8.452324799999935e-07,
+            "volumePassed": true,
+            "absoluteVolumeError": 2.479999993421078e-07,
+            "referenceMethod": "exact orthogonal CSG cell decomposition",
+            "estimatedVolume": 0.11283783057421877,
+            "occupancySha256": "b15b7fad864adf989ad3e604b9ff3d02306f6b7e4beb7596f1e71010cc7e4a8c",
+            "sourceAuditPassed": true
+          }
+        },
+        {
+          "id": "near-coincident-u-subtract-ba",
+          "operation": "subtract-ba",
+          "accepted": true,
+          "topology": {
+            "solid": true,
+            "volume": 0.084523,
+            "summary": "\u00b7 Result solid  V32 E48 F18 L18  hulls 1  \u03c7=2 genus 0  closed yes manifold yes oriented yes  volume 0.084523  area 56.476804",
+            "hulls": 1,
+            "genus": 0,
+            "faces": 18,
+            "edges": 48
+          },
+          "refusalPreserved": null,
+          "undoRedo": true,
+          "reason": [],
+          "audit": {
+            "id": "near-coincident-u-subtract-ba",
+            "kind": "final-boolean",
+            "owner": 5,
+            "status": "sampled-check-passed",
+            "curved": false,
+            "uniformSamples": 4096,
+            "totalProbes": 4355,
+            "featureProbes": 74,
+            "orthogonalCellProbes": 105,
+            "boundaryProbes": 80,
+            "checked": 4325,
+            "ambiguous": 0,
+            "nearBoundary": 30,
+            "mismatches": 0,
+            "mismatchLimit": 0,
+            "referenceVolume": 0.08452324800000047,
+            "nativeVolume": 0.084523,
+            "volumeTolerance": 8.452324800000047e-07,
+            "volumePassed": true,
+            "absoluteVolumeError": 2.480000004662086e-07,
+            "referenceMethod": "exact orthogonal CSG cell decomposition",
+            "estimatedVolume": 0.08149398874804689,
+            "occupancySha256": "a7f19a67a926d566891dbb11bd2af6b463d0dfd98c54fd7955a1abe28d4da193",
+            "sourceAuditPassed": true
+          }
+        }
+      ]
+    },
+    {
+      "id": "pocket-island-comb",
+      "status": "completed",
+      "tags": [
+        "blind-pocket",
+        "island",
+        "connected-floor",
+        "multi-stage"
+      ],
+      "saveReopen": true,
+      "constructionBlocker": null,
+      "cases": [
+        {
+          "id": "pocket-island-comb-union",
+          "operation": "union",
+          "accepted": false,
+          "topology": null,
+          "refusalPreserved": true,
+          "undoRedo": null,
+          "reason": [
+            "\u2717 boolean: result is not a closed, manifold, oriented positive-volume solid"
+          ],
+          "audit": {}
+        },
+        {
+          "id": "pocket-island-comb-union-ba",
+          "operation": "union-ba",
+          "accepted": false,
+          "topology": null,
+          "refusalPreserved": true,
+          "undoRedo": null,
+          "reason": [
+            "\u2717 boolean: result is not a closed, manifold, oriented positive-volume solid"
+          ],
+          "audit": {}
+        },
+        {
+          "id": "pocket-island-comb-intersect",
+          "operation": "intersect",
+          "accepted": false,
+          "topology": null,
+          "refusalPreserved": true,
+          "undoRedo": null,
+          "reason": [
+            "\u2717 boolean: result is not a closed, manifold, oriented positive-volume solid"
+          ],
+          "audit": {}
+        },
+        {
+          "id": "pocket-island-comb-intersect-ba",
+          "operation": "intersect-ba",
+          "accepted": false,
+          "topology": null,
+          "refusalPreserved": true,
+          "undoRedo": null,
+          "reason": [
+            "\u2717 boolean: result is not a closed, manifold, oriented positive-volume solid"
+          ],
+          "audit": {}
+        },
+        {
+          "id": "pocket-island-comb-subtract-ab",
+          "operation": "subtract-ab",
+          "accepted": false,
+          "topology": null,
+          "refusalPreserved": true,
+          "undoRedo": null,
+          "reason": [
+            "\u2717 boolean: result is not a closed, manifold, oriented positive-volume solid"
+          ],
+          "audit": {}
+        },
+        {
+          "id": "pocket-island-comb-subtract-ba",
+          "operation": "subtract-ba",
+          "accepted": false,
+          "topology": null,
+          "refusalPreserved": true,
+          "undoRedo": null,
+          "reason": [
+            "\u2717 boolean: result is not a closed, manifold, oriented positive-volume solid"
+          ],
+          "audit": {}
+        }
+      ]
+    },
+    {
+      "id": "ribbed-annular",
+      "status": "construction-refused",
+      "tags": [
+        "ribs",
+        "through-hole",
+        "thin-walls"
+      ],
+      "saveReopen": null,
+      "constructionBlocker": {
+        "index": 4,
+        "command": "boolean union N5 -- N6 --name=N3",
+        "reason": [
+          "\u2717 boolean union: Unsupported \u2014 intersection runs into a surface singularity or seam corner (non-generic: nudge or rotate one body)"
+        ],
+        "preserved": true
+      },
+      "cases": []
+    },
+    {
+      "id": "scaled-l-notch",
+      "status": "completed",
+      "tags": [
+        "metamorphic",
+        "small-scale",
+        "translated",
+        "concave"
+      ],
+      "saveReopen": true,
+      "constructionBlocker": null,
+      "cases": [
+        {
+          "id": "scaled-l-notch-union",
+          "operation": "union",
+          "accepted": true,
+          "topology": {
+            "solid": true,
+            "volume": 0.027674,
+            "summary": "\u00b7 Result solid  V40 E60 F20 L20  hulls 1  \u03c7=0 genus 1  closed yes manifold yes oriented yes  volume 0.027674  area 0.775249",
+            "hulls": 1,
+            "genus": 1,
+            "faces": 20,
+            "edges": 60
+          },
+          "refusalPreserved": null,
+          "undoRedo": true,
+          "reason": [],
+          "audit": {
+            "id": "scaled-l-notch-union",
+            "kind": "final-boolean",
+            "owner": 5,
+            "status": "sampled-check-passed",
+            "curved": false,
+            "uniformSamples": 4096,
+            "totalProbes": 4240,
+            "featureProbes": 74,
+            "orthogonalCellProbes": 0,
+            "boundaryProbes": 70,
+            "checked": 4213,
+            "ambiguous": 0,
+            "nearBoundary": 27,
+            "mismatches": 0,
+            "mismatchLimit": 0,
+            "referenceVolume": null,
+            "nativeVolume": 0.027674,
+            "volumeTolerance": null,
+            "volumePassed": null,
+            "absoluteVolumeError": null,
+            "referenceMethod": "signed-field sampling only",
+            "estimatedVolume": 0.0282083253793765,
+            "occupancySha256": "e6f2fdb5a13721dcab90e52c534fd5e9a28de2eb554ada5bdd6baaeb297769d7",
+            "sourceAuditPassed": true
+          }
+        },
+        {
+          "id": "scaled-l-notch-union-ba",
+          "operation": "union-ba",
+          "accepted": false,
+          "topology": null,
+          "refusalPreserved": true,
+          "undoRedo": null,
+          "reason": [
+            "\u2717 boolean union: Unsupported \u2014 marching did not close"
+          ],
+          "audit": {}
+        },
+        {
+          "id": "scaled-l-notch-intersect",
+          "operation": "intersect",
+          "accepted": true,
+          "topology": {
+            "solid": true,
+            "volume": 0.00581,
+            "summary": "\u00b7 Result solid  V20 E30 F14 L14  hulls 2  \u03c7=4 genus 0  closed yes manifold yes oriented yes  volume 0.005810  area 0.270528",
+            "hulls": 2,
+            "genus": 0,
+            "faces": 14,
+            "edges": 30
+          },
+          "refusalPreserved": null,
+          "undoRedo": true,
+          "reason": [],
+          "audit": {
+            "id": "scaled-l-notch-intersect",
+            "kind": "final-boolean",
+            "owner": 5,
+            "status": "sampled-check-passed",
+            "curved": false,
+            "uniformSamples": 4096,
+            "totalProbes": 4218,
+            "featureProbes": 74,
+            "orthogonalCellProbes": 0,
+            "boundaryProbes": 48,
+            "checked": 4197,
+            "ambiguous": 0,
+            "nearBoundary": 21,
+            "mismatches": 0,
+            "mismatchLimit": 0,
+            "referenceVolume": null,
+            "nativeVolume": 0.00581,
+            "volumeTolerance": null,
+            "volumePassed": null,
+            "absoluteVolumeError": null,
+            "referenceMethod": "signed-field sampling only",
+            "estimatedVolume": 0.005612357724831792,
+            "occupancySha256": "1050371cd93fbefc1b931873691512353336080b75ccc281e993cedd34adcfbd",
+            "sourceAuditPassed": true
+          }
+        },
+        {
+          "id": "scaled-l-notch-intersect-ba",
+          "operation": "intersect-ba",
+          "accepted": false,
+          "topology": null,
+          "refusalPreserved": true,
+          "undoRedo": null,
+          "reason": [
+            "\u2717 boolean intersect: Unsupported \u2014 marching did not close"
+          ],
+          "audit": {}
+        },
+        {
+          "id": "scaled-l-notch-subtract-ab",
+          "operation": "subtract-ab",
+          "accepted": true,
+          "topology": {
+            "solid": true,
+            "volume": 0.01107,
+            "summary": "\u00b7 Result solid  V32 E48 F18 L18  hulls 1  \u03c7=2 genus 0  closed yes manifold yes oriented yes  volume 0.011070  area 0.589502",
+            "hulls": 1,
+            "genus": 0,
+            "faces": 18,
+            "edges": 48
+          },
+          "refusalPreserved": null,
+          "undoRedo": true,
+          "reason": [],
+          "audit": {
+            "id": "scaled-l-notch-subtract-ab",
+            "kind": "final-boolean",
+            "owner": 5,
+            "status": "sampled-check-passed",
+            "curved": false,
+            "uniformSamples": 4096,
+            "totalProbes": 4222,
+            "featureProbes": 74,
+            "orthogonalCellProbes": 0,
+            "boundaryProbes": 52,
+            "checked": 4207,
+            "ambiguous": 0,
+            "nearBoundary": 15,
+            "mismatches": 0,
+            "mismatchLimit": 0,
+            "referenceVolume": null,
+            "nativeVolume": 0.01107,
+            "volumeTolerance": null,
+            "volumePassed": null,
+            "absoluteVolumeError": null,
+            "referenceMethod": "signed-field sampling only",
+            "estimatedVolume": 0.011107486045489551,
+            "occupancySha256": "969c3b5fe0066d30adff482b8b841edc9d55e70ad62de7ecb56f70c9b20ed465",
+            "sourceAuditPassed": true
+          }
+        },
+        {
+          "id": "scaled-l-notch-subtract-ba",
+          "operation": "subtract-ba",
+          "accepted": false,
+          "topology": null,
+          "refusalPreserved": true,
+          "undoRedo": null,
+          "reason": [
+            "\u2717 boolean subtract: Unsupported \u2014 marching did not close"
+          ],
+          "audit": {}
+        }
+      ]
+    },
+    {
+      "id": "slotted-flange-cone",
+      "status": "construction-refused",
+      "tags": [
+        "slots",
+        "annular",
+        "conical",
+        "multi-stage"
+      ],
+      "saveReopen": null,
+      "constructionBlocker": {
+        "index": 8,
+        "command": "boolean union N1 -- N2 --name=A",
+        "reason": [
+          "\u2717 boolean union: Unsupported \u2014 edge\u2013surface refinement did not converge at a face boundary"
+        ],
+        "preserved": true
+      },
+      "cases": []
+    },
+    {
+      "id": "split-intersection",
+      "status": "completed",
+      "tags": [
+        "disconnected-result",
+        "concave",
+        "multiple-hulls"
+      ],
+      "saveReopen": true,
+      "constructionBlocker": null,
+      "cases": [
+        {
+          "id": "split-intersection-union",
+          "operation": "union",
+          "accepted": false,
+          "topology": null,
+          "refusalPreserved": true,
+          "undoRedo": null,
+          "reason": [
+            "\u2717 boolean union: Unsupported \u2014 tangent or coincident faces (not transversal)"
+          ],
+          "audit": {}
+        },
+        {
+          "id": "split-intersection-union-ba",
+          "operation": "union-ba",
+          "accepted": false,
+          "topology": null,
+          "refusalPreserved": true,
+          "undoRedo": null,
+          "reason": [
+            "\u2717 boolean union: Unsupported \u2014 tangent or coincident faces (not transversal)"
+          ],
+          "audit": {}
+        },
+        {
+          "id": "split-intersection-intersect",
+          "operation": "intersect",
+          "accepted": false,
+          "topology": null,
+          "refusalPreserved": true,
+          "undoRedo": null,
+          "reason": [
+            "\u2717 boolean intersect: Unsupported \u2014 tangent or coincident faces (not transversal)"
+          ],
+          "audit": {}
+        },
+        {
+          "id": "split-intersection-intersect-ba",
+          "operation": "intersect-ba",
+          "accepted": false,
+          "topology": null,
+          "refusalPreserved": true,
+          "undoRedo": null,
+          "reason": [
+            "\u2717 boolean intersect: Unsupported \u2014 tangent or coincident faces (not transversal)"
+          ],
+          "audit": {}
+        },
+        {
+          "id": "split-intersection-subtract-ab",
+          "operation": "subtract-ab",
+          "accepted": false,
+          "topology": null,
+          "refusalPreserved": true,
+          "undoRedo": null,
+          "reason": [
+            "\u2717 boolean subtract: Unsupported \u2014 tangent or coincident faces (not transversal)"
+          ],
+          "audit": {}
+        },
+        {
+          "id": "split-intersection-subtract-ba",
+          "operation": "subtract-ba",
+          "accepted": false,
+          "topology": null,
+          "refusalPreserved": true,
+          "undoRedo": null,
+          "reason": [
+            "\u2717 boolean subtract: Unsupported \u2014 tangent or coincident faces (not transversal)"
+          ],
+          "audit": {}
+        }
+      ]
+    },
+    {
+      "id": "star-hex-ring",
+      "status": "completed",
+      "tags": [
+        "concave",
+        "through-hole",
+        "many-faces"
+      ],
+      "saveReopen": true,
+      "constructionBlocker": null,
+      "cases": [
+        {
+          "id": "star-hex-ring-union",
+          "operation": "union",
+          "accepted": false,
+          "topology": null,
+          "refusalPreserved": true,
+          "undoRedo": null,
+          "reason": [
+            "\u2717 boolean: result is not a closed, manifold, oriented positive-volume solid"
+          ],
+          "audit": {}
+        },
+        {
+          "id": "star-hex-ring-union-ba",
+          "operation": "union-ba",
+          "accepted": false,
+          "topology": null,
+          "refusalPreserved": true,
+          "undoRedo": null,
+          "reason": [
+            "\u2717 boolean: result is not a closed, manifold, oriented positive-volume solid"
+          ],
+          "audit": {}
+        },
+        {
+          "id": "star-hex-ring-intersect",
+          "operation": "intersect",
+          "accepted": false,
+          "topology": null,
+          "refusalPreserved": true,
+          "undoRedo": null,
+          "reason": [
+            "\u2717 boolean: result is not a closed, manifold, oriented positive-volume solid"
+          ],
+          "audit": {}
+        },
+        {
+          "id": "star-hex-ring-intersect-ba",
+          "operation": "intersect-ba",
+          "accepted": false,
+          "topology": null,
+          "refusalPreserved": true,
+          "undoRedo": null,
+          "reason": [
+            "\u2717 boolean: result is not a closed, manifold, oriented positive-volume solid"
+          ],
+          "audit": {}
+        },
+        {
+          "id": "star-hex-ring-subtract-ab",
+          "operation": "subtract-ab",
+          "accepted": false,
+          "topology": null,
+          "refusalPreserved": true,
+          "undoRedo": null,
+          "reason": [
+            "\u2717 boolean: result is not a closed, manifold, oriented positive-volume solid"
+          ],
+          "audit": {}
+        },
+        {
+          "id": "star-hex-ring-subtract-ba",
+          "operation": "subtract-ba",
+          "accepted": false,
+          "topology": null,
+          "refusalPreserved": true,
+          "undoRedo": null,
+          "reason": [
+            "\u2717 boolean: result is not a closed, manifold, oriented positive-volume solid"
+          ],
+          "audit": {}
+        }
+      ]
+    },
+    {
+      "id": "terrace-double-window",
+      "status": "construction-refused",
+      "tags": [
+        "multi-level",
+        "two-through-windows",
+        "both-constructed"
+      ],
+      "saveReopen": null,
+      "constructionBlocker": {
+        "index": 11,
+        "command": "boolean subtract N7 -- N8 --name=B",
+        "reason": [
+          "\u2717 boolean subtract: Unsupported \u2014 intersection runs into a surface singularity or seam corner (non-generic: nudge or rotate one body)"
+        ],
+        "preserved": true
+      },
+      "cases": []
+    },
+    {
+      "id": "thin-u-comb",
+      "status": "completed",
+      "tags": [
+        "thin-wall",
+        "reentrant",
+        "small-features"
+      ],
+      "saveReopen": true,
+      "constructionBlocker": null,
+      "cases": [
+        {
+          "id": "thin-u-comb-union",
+          "operation": "union",
+          "accepted": true,
+          "topology": {
+            "solid": true,
+            "volume": 9.5272,
+            "summary": "\u00b7 Result solid  V84 E126 F45 L48  hulls 1  \u03c7=0 genus 1  closed yes manifold yes oriented yes  volume 9.527200  area 94.695600",
+            "hulls": 1,
+            "genus": 1,
+            "faces": 45,
+            "edges": 126
+          },
+          "refusalPreserved": null,
+          "undoRedo": true,
+          "reason": [],
+          "audit": {
+            "id": "thin-u-comb-union",
+            "kind": "final-boolean",
+            "owner": 5,
+            "status": "sampled-check-passed",
+            "curved": false,
+            "uniformSamples": 4096,
+            "totalProbes": 4656,
+            "featureProbes": 140,
+            "orthogonalCellProbes": 270,
+            "boundaryProbes": 150,
+            "checked": 4541,
+            "ambiguous": 0,
+            "nearBoundary": 115,
+            "mismatches": 0,
+            "mismatchLimit": 0,
+            "referenceVolume": 9.5272,
+            "nativeVolume": 9.5272,
+            "volumeTolerance": 9.527200000000002e-05,
+            "volumePassed": true,
+            "absoluteVolumeError": 0,
+            "referenceMethod": "exact orthogonal CSG cell decomposition",
+            "estimatedVolume": 9.193437499999998,
+            "occupancySha256": "6368626845c1779e49d98ea1a3b86279293e1a4f611116e8472f24043afd5ab2",
+            "sourceAuditPassed": true
+          }
+        },
+        {
+          "id": "thin-u-comb-union-ba",
+          "operation": "union-ba",
+          "accepted": true,
+          "topology": {
+            "solid": true,
+            "volume": 9.5272,
+            "summary": "\u00b7 Result solid  V84 E126 F45 L48  hulls 1  \u03c7=0 genus 1  closed yes manifold yes oriented yes  volume 9.527200  area 94.695600",
+            "hulls": 1,
+            "genus": 1,
+            "faces": 45,
+            "edges": 126
+          },
+          "refusalPreserved": null,
+          "undoRedo": true,
+          "reason": [],
+          "audit": {
+            "id": "thin-u-comb-union-ba",
+            "kind": "final-boolean",
+            "owner": 5,
+            "status": "sampled-check-passed",
+            "curved": false,
+            "uniformSamples": 4096,
+            "totalProbes": 4662,
+            "featureProbes": 140,
+            "orthogonalCellProbes": 270,
+            "boundaryProbes": 156,
+            "checked": 4547,
+            "ambiguous": 0,
+            "nearBoundary": 115,
+            "mismatches": 0,
+            "mismatchLimit": 0,
+            "referenceVolume": 9.5272,
+            "nativeVolume": 9.5272,
+            "volumeTolerance": 9.527200000000002e-05,
+            "volumePassed": true,
+            "absoluteVolumeError": 0,
+            "referenceMethod": "exact orthogonal CSG cell decomposition",
+            "estimatedVolume": 9.500410156249998,
+            "occupancySha256": "bd73e28d9ca3f70c309daf9534d9454fb569ef99e927b95ff62bfde7ac576b0b",
+            "sourceAuditPassed": true
+          }
+        },
+        {
+          "id": "thin-u-comb-intersect",
+          "operation": "intersect",
+          "accepted": true,
+          "topology": {
+            "solid": true,
+            "volume": 0.2184,
+            "summary": "\u00b7 Result solid  V16 E24 F12 L12  hulls 2  \u03c7=4 genus 0  closed yes manifold yes oriented yes  volume 0.218400  area 8.890000",
+            "hulls": 2,
+            "genus": 0,
+            "faces": 12,
+            "edges": 24
+          },
+          "refusalPreserved": null,
+          "undoRedo": true,
+          "reason": [],
+          "audit": {
+            "id": "thin-u-comb-intersect",
+            "kind": "final-boolean",
+            "owner": 5,
+            "status": "sampled-check-passed",
+            "curved": false,
+            "uniformSamples": 4096,
+            "totalProbes": 4566,
+            "featureProbes": 140,
+            "orthogonalCellProbes": 270,
+            "boundaryProbes": 60,
+            "checked": 4559,
+            "ambiguous": 0,
+            "nearBoundary": 7,
+            "mismatches": 0,
+            "mismatchLimit": 0,
+            "referenceVolume": 0.21840000000000018,
+            "nativeVolume": 0.2184,
+            "volumeTolerance": 2.184000000000002e-06,
+            "volumePassed": true,
+            "absoluteVolumeError": 1.6653345369377348e-16,
+            "referenceMethod": "exact orthogonal CSG cell decomposition",
+            "estimatedVolume": 0.24400390624999996,
+            "occupancySha256": "d9a909d20777abba9da13def8a6a2d614392db1591a8115ebb28ce82ad4ddd11",
+            "sourceAuditPassed": true
+          }
+        },
+        {
+          "id": "thin-u-comb-intersect-ba",
+          "operation": "intersect-ba",
+          "accepted": true,
+          "topology": {
+            "solid": true,
+            "volume": 0.2184,
+            "summary": "\u00b7 Result solid  V16 E24 F12 L12  hulls 2  \u03c7=4 genus 0  closed yes manifold yes oriented yes  volume 0.218400  area 8.890000",
+            "hulls": 2,
+            "genus": 0,
+            "faces": 12,
+            "edges": 24
+          },
+          "refusalPreserved": null,
+          "undoRedo": true,
+          "reason": [],
+          "audit": {
+            "id": "thin-u-comb-intersect-ba",
+            "kind": "final-boolean",
+            "owner": 5,
+            "status": "sampled-check-passed",
+            "curved": false,
+            "uniformSamples": 4096,
+            "totalProbes": 4568,
+            "featureProbes": 140,
+            "orthogonalCellProbes": 270,
+            "boundaryProbes": 62,
+            "checked": 4561,
+            "ambiguous": 0,
+            "nearBoundary": 7,
+            "mismatches": 0,
+            "mismatchLimit": 0,
+            "referenceVolume": 0.21840000000000018,
+            "nativeVolume": 0.2184,
+            "volumeTolerance": 2.184000000000002e-06,
+            "volumePassed": true,
+            "absoluteVolumeError": 1.6653345369377348e-16,
+            "referenceMethod": "exact orthogonal CSG cell decomposition",
+            "estimatedVolume": 0.20464843749999997,
+            "occupancySha256": "4bfa591766c5862194c3d15c8bd37a89c447e96df08b7efedd016719b89048d3",
+            "sourceAuditPassed": true
+          }
+        },
+        {
+          "id": "thin-u-comb-subtract-ab",
+          "operation": "subtract-ab",
+          "accepted": true,
+          "topology": {
+            "solid": true,
+            "volume": 1.2072,
+            "summary": "\u00b7 Result solid  V32 E48 F19 L22  hulls 1  \u03c7=0 genus 1  closed yes manifold yes oriented yes  volume 1.207200  area 43.515600",
+            "hulls": 1,
+            "genus": 1,
+            "faces": 19,
+            "edges": 48
+          },
+          "refusalPreserved": null,
+          "undoRedo": true,
+          "reason": [],
+          "audit": {
+            "id": "thin-u-comb-subtract-ab",
+            "kind": "final-boolean",
+            "owner": 5,
+            "status": "sampled-check-passed",
+            "curved": false,
+            "uniformSamples": 4096,
+            "totalProbes": 4586,
+            "featureProbes": 140,
+            "orthogonalCellProbes": 270,
+            "boundaryProbes": 80,
+            "checked": 4563,
+            "ambiguous": 0,
+            "nearBoundary": 23,
+            "mismatches": 0,
+            "mismatchLimit": 0,
+            "referenceVolume": 1.2072000000000012,
+            "nativeVolume": 1.2072,
+            "volumeTolerance": 1.2072000000000012e-05,
+            "volumePassed": true,
+            "absoluteVolumeError": 1.1102230246251565e-15,
+            "referenceMethod": "exact orthogonal CSG cell decomposition",
+            "estimatedVolume": 1.1491796874999998,
+            "occupancySha256": "6af748d1436b2f5f21ed38a9a6fcb03858c9659e328e2aaec4a9d0c8ff9fa40c",
+            "sourceAuditPassed": true
+          }
+        },
+        {
+          "id": "thin-u-comb-subtract-ba",
+          "operation": "subtract-ba",
+          "accepted": true,
+          "topology": {
+            "solid": true,
+            "volume": 8.1016,
+            "summary": "\u00b7 Result solid  V68 E102 F38 L38  hulls 2  \u03c7=4 genus 0  closed yes manifold yes oriented yes  volume 8.101600  area 60.070000",
+            "hulls": 2,
+            "genus": 0,
+            "faces": 38,
+            "edges": 102
+          },
+          "refusalPreserved": null,
+          "undoRedo": true,
+          "reason": [],
+          "audit": {
+            "id": "thin-u-comb-subtract-ba",
+            "kind": "final-boolean",
+            "owner": 5,
+            "status": "sampled-check-passed",
+            "curved": false,
+            "uniformSamples": 4096,
+            "totalProbes": 4642,
+            "featureProbes": 140,
+            "orthogonalCellProbes": 270,
+            "boundaryProbes": 136,
+            "checked": 4543,
+            "ambiguous": 0,
+            "nearBoundary": 99,
+            "mismatches": 0,
+            "mismatchLimit": 0,
+            "referenceVolume": 8.1016,
+            "nativeVolume": 8.1016,
+            "volumeTolerance": 8.1016e-05,
+            "volumePassed": true,
+            "absoluteVolumeError": 0,
+            "referenceMethod": "exact orthogonal CSG cell decomposition",
+            "estimatedVolume": 7.957675781249999,
+            "occupancySha256": "6d5952b36cf4309ce02930c92e9e326665d7bed66def9828caf4e520c4801e00",
+            "sourceAuditPassed": true
+          }
+        }
+      ]
+    },
+    {
+      "id": "twin-bore-fork",
+      "status": "completed",
+      "tags": [
+        "two-through-holes",
+        "concave"
+      ],
+      "saveReopen": true,
+      "constructionBlocker": null,
+      "cases": [
+        {
+          "id": "twin-bore-fork-union",
+          "operation": "union",
+          "accepted": false,
+          "topology": null,
+          "refusalPreserved": true,
+          "undoRedo": null,
+          "reason": [
+            "\u2717 boolean union: Unsupported \u2014 edge\u2013surface refinement did not converge at a face boundary"
+          ],
+          "audit": {}
+        },
+        {
+          "id": "twin-bore-fork-union-ba",
+          "operation": "union-ba",
+          "accepted": false,
+          "topology": null,
+          "refusalPreserved": true,
+          "undoRedo": null,
+          "reason": [
+            "\u2717 boolean union: Unsupported \u2014 edge\u2013surface refinement did not converge at a face boundary"
+          ],
+          "audit": {}
+        },
+        {
+          "id": "twin-bore-fork-intersect",
+          "operation": "intersect",
+          "accepted": false,
+          "topology": null,
+          "refusalPreserved": true,
+          "undoRedo": null,
+          "reason": [
+            "\u2717 boolean intersect: Unsupported \u2014 edge\u2013surface refinement did not converge at a face boundary"
+          ],
+          "audit": {}
+        },
+        {
+          "id": "twin-bore-fork-intersect-ba",
+          "operation": "intersect-ba",
+          "accepted": false,
+          "topology": null,
+          "refusalPreserved": true,
+          "undoRedo": null,
+          "reason": [
+            "\u2717 boolean intersect: Unsupported \u2014 edge\u2013surface refinement did not converge at a face boundary"
+          ],
+          "audit": {}
+        },
+        {
+          "id": "twin-bore-fork-subtract-ab",
+          "operation": "subtract-ab",
+          "accepted": false,
+          "topology": null,
+          "refusalPreserved": true,
+          "undoRedo": null,
+          "reason": [
+            "\u2717 boolean subtract: Unsupported \u2014 edge\u2013surface refinement did not converge at a face boundary"
+          ],
+          "audit": {}
+        },
+        {
+          "id": "twin-bore-fork-subtract-ba",
+          "operation": "subtract-ba",
+          "accepted": false,
+          "topology": null,
+          "refusalPreserved": true,
+          "undoRedo": null,
+          "reason": [
+            "\u2717 boolean subtract: Unsupported \u2014 edge\u2013surface refinement did not converge at a face boundary"
+          ],
+          "audit": {}
+        }
+      ]
+    },
+    {
+      "id": "u-channel-l",
+      "status": "completed",
+      "tags": [
+        "concave",
+        "rotation",
+        "both-constructed"
+      ],
+      "saveReopen": true,
+      "constructionBlocker": null,
+      "cases": [
+        {
+          "id": "u-channel-l-union",
+          "operation": "union",
+          "accepted": true,
+          "topology": {
+            "solid": true,
+            "volume": 25.325672,
+            "summary": "\u00b7 Result solid  V48 E72 F29 L32  hulls 1  \u03c7=2 genus 0  closed yes manifold yes oriented yes  volume 25.325672  area 71.808701",
+            "hulls": 1,
+            "genus": 0,
+            "faces": 29,
+            "edges": 72
+          },
+          "refusalPreserved": null,
+          "undoRedo": true,
+          "reason": [],
+          "audit": {
+            "id": "u-channel-l-union",
+            "kind": "final-boolean",
+            "owner": 5,
+            "status": "sampled-check-passed",
+            "curved": false,
+            "uniformSamples": 4096,
+            "totalProbes": 4252,
+            "featureProbes": 68,
+            "orthogonalCellProbes": 0,
+            "boundaryProbes": 88,
+            "checked": 4231,
+            "ambiguous": 0,
+            "nearBoundary": 21,
+            "mismatches": 0,
+            "mismatchLimit": 0,
+            "referenceVolume": null,
+            "nativeVolume": 25.325672,
+            "volumeTolerance": null,
+            "volumePassed": null,
+            "absoluteVolumeError": null,
+            "referenceMethod": "signed-field sampling only",
+            "estimatedVolume": 23.997741066005155,
+            "occupancySha256": "8532a9c04d3054165f94e05a4f94e7c8e1a303992bab54e3b6e71b03b23b2da7",
+            "sourceAuditPassed": true
+          }
+        },
+        {
+          "id": "u-channel-l-union-ba",
+          "operation": "union-ba",
+          "accepted": true,
+          "topology": {
+            "solid": true,
+            "volume": 25.325672,
+            "summary": "\u00b7 Result solid  V48 E72 F29 L32  hulls 1  \u03c7=2 genus 0  closed yes manifold yes oriented yes  volume 25.325672  area 71.808701",
+            "hulls": 1,
+            "genus": 0,
+            "faces": 29,
+            "edges": 72
+          },
+          "refusalPreserved": null,
+          "undoRedo": true,
+          "reason": [],
+          "audit": {
+            "id": "u-channel-l-union-ba",
+            "kind": "final-boolean",
+            "owner": 5,
+            "status": "sampled-check-passed",
+            "curved": false,
+            "uniformSamples": 4096,
+            "totalProbes": 4260,
+            "featureProbes": 68,
+            "orthogonalCellProbes": 0,
+            "boundaryProbes": 96,
+            "checked": 4239,
+            "ambiguous": 0,
+            "nearBoundary": 21,
+            "mismatches": 0,
+            "mismatchLimit": 0,
+            "referenceVolume": null,
+            "nativeVolume": 25.325672,
+            "volumeTolerance": null,
+            "volumePassed": null,
+            "absoluteVolumeError": null,
+            "referenceMethod": "signed-field sampling only",
+            "estimatedVolume": 25.566497990814682,
+            "occupancySha256": "73bd6f9939967961b2e75aa52999714f4958bf84120e8eeb1498677c80c6428e",
+            "sourceAuditPassed": true
+          }
+        },
+        {
+          "id": "u-channel-l-intersect",
+          "operation": "intersect",
+          "accepted": true,
+          "topology": {
+            "solid": true,
+            "volume": 8.410328,
+            "summary": "\u00b7 Result solid  V28 E42 F16 L16  hulls 1  \u03c7=2 genus 0  closed yes manifold yes oriented yes  volume 8.410328  area 32.591299",
+            "hulls": 1,
+            "genus": 0,
+            "faces": 16,
+            "edges": 42
+          },
+          "refusalPreserved": null,
+          "undoRedo": true,
+          "reason": [],
+          "audit": {
+            "id": "u-channel-l-intersect",
+            "kind": "final-boolean",
+            "owner": 5,
+            "status": "sampled-check-passed",
+            "curved": false,
+            "uniformSamples": 4096,
+            "totalProbes": 4250,
+            "featureProbes": 68,
+            "orthogonalCellProbes": 0,
+            "boundaryProbes": 86,
+            "checked": 4229,
+            "ambiguous": 0,
+            "nearBoundary": 21,
+            "mismatches": 0,
+            "mismatchLimit": 0,
+            "referenceVolume": null,
+            "nativeVolume": 8.410328,
+            "volumeTolerance": null,
+            "volumePassed": null,
+            "absoluteVolumeError": null,
+            "referenceMethod": "signed-field sampling only",
+            "estimatedVolume": 8.4373683253269,
+            "occupancySha256": "7c6dafe9d017b0e760d7b7f4503d0f112de196969b001b7e7d2744f8bbed1dc9",
+            "sourceAuditPassed": true
+          }
+        },
+        {
+          "id": "u-channel-l-intersect-ba",
+          "operation": "intersect-ba",
+          "accepted": true,
+          "topology": {
+            "solid": true,
+            "volume": 8.410328,
+            "summary": "\u00b7 Result solid  V28 E42 F16 L16  hulls 1  \u03c7=2 genus 0  closed yes manifold yes oriented yes  volume 8.410328  area 32.591299",
+            "hulls": 1,
+            "genus": 0,
+            "faces": 16,
+            "edges": 42
+          },
+          "refusalPreserved": null,
+          "undoRedo": true,
+          "reason": [],
+          "audit": {
+            "id": "u-channel-l-intersect-ba",
+            "kind": "final-boolean",
+            "owner": 5,
+            "status": "sampled-check-passed",
+            "curved": false,
+            "uniformSamples": 4096,
+            "totalProbes": 4250,
+            "featureProbes": 68,
+            "orthogonalCellProbes": 0,
+            "boundaryProbes": 86,
+            "checked": 4229,
+            "ambiguous": 0,
+            "nearBoundary": 21,
+            "mismatches": 0,
+            "mismatchLimit": 0,
+            "referenceVolume": null,
+            "nativeVolume": 8.410328,
+            "volumeTolerance": null,
+            "volumePassed": null,
+            "absoluteVolumeError": null,
+            "referenceMethod": "signed-field sampling only",
+            "estimatedVolume": 8.06991174834449,
+            "occupancySha256": "5b85c570eb560f44b26a1955170aeff31e66a4531954b9ee4c317e8e45404651",
+            "sourceAuditPassed": true
+          }
+        },
+        {
+          "id": "u-channel-l-subtract-ab",
+          "operation": "subtract-ab",
+          "accepted": true,
+          "topology": {
+            "solid": true,
+            "volume": 13.509672,
+            "summary": "\u00b7 Result solid  V44 E66 F19 L22  hulls 1  \u03c7=-6 genus 4  closed yes manifold yes oriented yes  volume 13.509672  area 77.081732",
+            "hulls": 1,
+            "genus": 4,
+            "faces": 19,
+            "edges": 66
+          },
+          "refusalPreserved": null,
+          "undoRedo": true,
+          "reason": [],
+          "audit": {
+            "id": "u-channel-l-subtract-ab",
+            "kind": "final-boolean",
+            "owner": 5,
+            "status": "sampled-check-passed",
+            "curved": false,
+            "uniformSamples": 4096,
+            "totalProbes": 4260,
+            "featureProbes": 68,
+            "orthogonalCellProbes": 0,
+            "boundaryProbes": 96,
+            "checked": 4233,
+            "ambiguous": 0,
+            "nearBoundary": 27,
+            "mismatches": 0,
+            "mismatchLimit": 0,
+            "referenceVolume": null,
+            "nativeVolume": 13.509672,
+            "volumeTolerance": null,
+            "volumePassed": null,
+            "absoluteVolumeError": null,
+            "referenceMethod": "signed-field sampling only",
+            "estimatedVolume": 13.32736738824668,
+            "occupancySha256": "7730a6df9ef13d4bc49636eb833ba21f4210420f3392fe0667e27b1042b06a96",
+            "sourceAuditPassed": true
+          }
+        },
+        {
+          "id": "u-channel-l-subtract-ba",
+          "operation": "subtract-ba",
+          "accepted": true,
+          "topology": {
+            "solid": true,
+            "volume": 3.405672,
+            "summary": "\u00b7 Result solid  V32 E48 F26 L26  hulls 5  \u03c7=10 genus 0  closed yes manifold yes oriented yes  volume 3.405672  area 27.318268",
+            "hulls": 5,
+            "genus": 0,
+            "faces": 26,
+            "edges": 48
+          },
+          "refusalPreserved": null,
+          "undoRedo": true,
+          "reason": [],
+          "audit": {
+            "id": "u-channel-l-subtract-ba",
+            "kind": "final-boolean",
+            "owner": 5,
+            "status": "sampled-check-passed",
+            "curved": false,
+            "uniformSamples": 4096,
+            "totalProbes": 4238,
+            "featureProbes": 68,
+            "orthogonalCellProbes": 0,
+            "boundaryProbes": 74,
+            "checked": 4223,
+            "ambiguous": 0,
+            "nearBoundary": 15,
+            "mismatches": 0,
+            "mismatchLimit": 0,
+            "referenceVolume": null,
+            "nativeVolume": 3.405672,
+            "volumeTolerance": null,
+            "volumePassed": null,
+            "absoluteVolumeError": null,
+            "referenceMethod": "signed-field sampling only",
+            "estimatedVolume": 3.3353750833788087,
+            "occupancySha256": "61c3ccffbd6f5ad172049b3e789feb2b32656042a93b4d9a4efd0063229c1fea",
+            "sourceAuditPassed": true
+          }
+        }
+      ]
+    },
+    {
+      "id": "window-dogbone",
+      "status": "construction-refused",
+      "tags": [
+        "through-hole",
+        "multi-stage-union",
+        "curved-planar"
+      ],
+      "saveReopen": null,
+      "constructionBlocker": {
+        "index": 5,
+        "command": "boolean union N5 -- N6 --name=N3",
+        "reason": [
+          "\u2717 boolean union: Unsupported \u2014 tangent or coincident faces (not transversal)"
+        ],
+        "preserved": true
+      },
+      "cases": []
+    }
+  ]
+}

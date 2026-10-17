@@ -44,7 +44,7 @@ int main()
     VerificationPanel Panel("SolidArc · Phase 11a · BodyOps Verification — Solidify (single-surface shell) · Loft with guides");
     const double Tol = ScalarCriteria::KernelTolerance;
 
-    Panel.Section("Solidify: refuses a closed body, a planar sheet, and a non-orientable surface");
+    Panel.Section("Solidify: refuses a closed body and a closed surface");
     {
         // Box → 6-face body. Solidify must refuse, not silently produce a multi-shell artifact.
         Deliver<BrepBody> Box = BrepBody::Box(Vec3(0, 0, 0), Vec3(1, 1, 1));
@@ -53,7 +53,16 @@ int main()
         // Sphere → surface with the equator parallel to its own normal. Solidify must refuse.
         Deliver<BrepBody> Sphere = BrepBody::Sphere(Vec3(0, 0, 0), 1.0);
         Panel.Expect("Sphere builds", bool(Sphere));
-        if (Sphere) { BrepBody Shell = BrepBody::FromSurface(Sphere.Payload.Faces.front().Surface); Deliver<BrepBody> S = BrepBody::Solidify(Shell, 0.1); Panel.Expect("Solidify on sphere is refused (AnyWall)", !S); }
+        if (Sphere) { BrepBody Shell = BrepBody::FromSurface(Sphere.Payload.Faces.front().Surface); Deliver<BrepBody> S = BrepBody::Solidify(Shell, 0.1); Panel.Expect("Solidify on sphere is refused (closed surface)", !S); }
+    }
+
+    Panel.Section("Solidify: planar sheet becomes one closed slab");
+    {
+        auto Plane=NurbsSurface::Plane(Vec3(0,0,0),Vec3::UnitX(),Vec3::UnitY(),4,3);
+        if(Plane){auto Slab=BrepBody::Solidify(BrepBody::FromSurface(Plane.Payload),.2);
+            Panel.Expect("planar solidify succeeds",bool(Slab));
+            if(Slab){Panel.Expect("slab is a closed oriented manifold",Slab.Payload.Validate().Solid());Panel.Expect("slab has six sewn faces",Slab.Payload.Faces.size()==6);}
+        }
     }
 
     Panel.Section("Solidify: succeeds on a saddle surface (perimeter has non-zero component orthogonal to the normal)");
@@ -71,7 +80,7 @@ int main()
             Panel.Note("  signed volume %.6f (≈ surface area × 2t)", V);
             Panel.Expect("Solidified body has positive volume", V > 0.0);
             // The two cap faces are translated copies of the original; the side walls form ruled quads. Our saddle's
-            //    bilinear plane has one stitched perimeter loop with 4 line segments, so 2 caps + 1 side wall face.
+            //    boundary has four exact edges, so both caps sew to four separate side walls.
             int F = int(Th.Payload.Faces.size());
             int E = int(Th.Payload.Edges.size());
             int Vtx = int(Th.Payload.Vertices.size());

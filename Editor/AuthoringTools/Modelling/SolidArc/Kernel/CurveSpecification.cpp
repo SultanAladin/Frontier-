@@ -284,6 +284,68 @@ Deliver<NurbsCurve> NurbsCurve::Slot(const Workplane& Plane, Vec2 CentreA, Vec2 
     return Deliver<NurbsCurve>::Accept(std::move(Result));
 }
 
+// Analytic counterpart of the published slotOutline: straight flanks, mitered inner
+// joints, tangent circular outer joints and semicircular caps. No polygonal arc approximation.
+Deliver<NurbsCurve> NurbsCurve::PolylineSlot(const Workplane& W, const std::vector<Vec2>& P, double R) noexcept
+{
+    auto Reject=[](const char* Why){return Deliver<NurbsCurve>::Reject(RefusalReason::DegenerateInput,Why);};
+    if (P.size()<2 || !std::isfinite(R) || R<=ScalarCriteria::KernelTolerance) return Reject("slot needs a spine and positive radius");
+    std::vector<Vec2> Dir;
+    for(size_t I=1;I<P.size();++I) {
+        const auto V=P[I]-P[I-1];
+        if(V.Length()<ScalarCriteria::MergeTolerance) return Reject("duplicate slot spine centre");
+        Dir.push_back(V.Normalised());
+    }
+    auto Cross=[](Vec2 A,Vec2 B){return A.X*B.Y-A.Y*B.X;};
+    for(size_t I=1;I<Dir.size();++I)
+        if(Dir[I-1].Dot(Dir[I])<-.999999) return Reject("slot spine reverses at a centre");
+    struct Vertex { Vec2 P; double Bulge=0; };
+    auto Side=[&](double Sign) {
+        std::vector<Vertex> Out;
+        for(size_t I=0;I<Dir.size();++I) {
+            const Vec2 N=Dir[I].Perpendicular()*(Sign*R);
+            const Vec2 A=P[I]+N, B=P[I+1]+N;
+            if(!I) Out.push_back({A});
+            if(I+1==Dir.size()) {Out.push_back({B});break;}
+            const Vec2 N2=Dir[I+1].Perpendicular()*(Sign*R), A2=P[I+1]+N2;
+            const double Turn=Cross(Dir[I],Dir[I+1]);
+            if(Turn*Sign<0) {
+                const double Angle=std::atan2(Cross(N,N2),N.Dot(N2));
+                Out.push_back({B,-std::abs(std::tan(Angle*.25))}); Out.push_back({A2});
+            } else {
+                const double T=std::abs(Turn)<1e-12?0:Cross(A2-A,Dir[I+1])/Turn;
+                Out.push_back({std::abs(Turn)<1e-12?B:A+Dir[I]*T});
+            }
+        }
+        return Out;
+    };
+    auto V=Side(1); const auto Right=Side(-1); V.back().Bulge=-1;
+    for(size_t I=Right.size();I-->0;) V.push_back({Right[I].P,I?Right[I-1].Bulge:-1});
+    std::vector<NurbsCurve> Pieces;
+    for(size_t I=0;I<V.size();++I) {
+        const auto A=V[I].P, B=V[(I+1)%V.size()].P; const double Bulge=V[I].Bulge;
+        const auto Chord=B-A; if(Chord.Length()<ScalarCriteria::MergeTolerance) continue;
+        Deliver<NurbsCurve> Piece;
+        if(std::abs(Bulge)<1e-12) Piece=Line(W.ToWorld(A),W.ToWorld(B));
+        else {
+            const Vec2 C=(A+B)*.5+Chord.Perpendicular()*((1-Bulge*Bulge)/(4*Bulge));
+            const auto Centre=W.ToWorld(C);
+            const auto Axes=Workplane::FromNormal(Centre,W.Normal());
+            Piece=Arc(Centre,W.Normal(),C.Distance(A),Axes.ToLocal(W.ToWorld(A)).Angle(),4*std::atan(Bulge));
+        }
+        if(!Piece) return Piece;
+        Pieces.push_back(std::move(Piece.Payload));
+    }
+    if(Pieces.empty()) return Reject("empty slot outline");
+    NurbsCurve Out=std::move(Pieces.front());
+    for(size_t I=1;I<Pieces.size();++I) {
+        auto Joined=Join(Out,Pieces[I]); if(!Joined) return Joined;
+        Out=std::move(Joined.Payload);
+    }
+    if(!Out.Closed()) return Reject("slot outline failed to close");
+    return Deliver<NurbsCurve>::Accept(std::move(Out));
+}
+
 Deliver<NurbsCurve> NurbsCurve::Bezier(const std::vector<Vec3>& ControlPoints) noexcept
 {
     int N = static_cast<int>(ControlPoints.size());

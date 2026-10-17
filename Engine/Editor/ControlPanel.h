@@ -50,10 +50,17 @@ public:
     // The eight tint dots; a click seats the tint.
     bool SwatchRow(const char* Id, float Tint[3]) noexcept;
 
-    // The split pill with its fading menu; the caret turns while the menu stands open. One dropdown
-    //    animates at a time — the Quality row is the only caller, and the outliner carries its own fade.
+    // Single-selection Filter-style pill and rounded menu, shared across editor panels.
     bool DropDown(const char* Id, uint32_t* Picked,
-                  const char Options[kMaxEditorOptions][kMaxEditorOptionChars], uint32_t OptionCount) noexcept;
+                  const char Options[kMaxEditorOptions][kMaxEditorOptionChars], uint32_t OptionCount, float Width = 0.0f, float Height = 32.0f) noexcept;
+
+    // Shared Filter-style dropdown shell/menu. Also used by the outliner multi-filter.
+    bool DropdownButton(const char* Id, const char* Label, ImVec2 Size, bool Open,
+                        bool Emphasized = false, float LabelInset = 14.0f, bool BlackGrey = false) noexcept;
+    bool BeginDropdownPopup(const char* Id, ImVec2 Anchor, float Width) noexcept;
+    void EndDropdownPopup() noexcept;
+    bool DropdownChoice(const char* Id, const char* Label, bool Selected,
+                        ImU32 Dot = 0, ImU32 Check = IM_COL32(240,240,240,255)) noexcept;
 
     // The standing pill. Draws at the cursor, sized to its label; the caller places it.
     bool PillToggle(const char* Label, bool* On) noexcept;
@@ -80,9 +87,7 @@ private:
     ImGuiID  TypeInId_     = 0u;
     bool     TypeInFocus_  = false;
 
-    bool     MenuWasOpen_  = false;   // the fade's rising-edge latch
-    double   MenuOpenedAt_ = 0.0;     // the tick-clock instant the menu appeared
-    float    ChevronAnim_  = 0.0f;    // the caret turn, 0 = down, 1 = up
+
 };
 
 } // namespace Frontier
